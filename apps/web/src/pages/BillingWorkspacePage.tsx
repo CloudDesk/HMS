@@ -154,7 +154,15 @@ export function BillingWorkspacePage() {
   const selectedService = servicesQuery.data?.data.find((service) => service.id === selectedServiceId);
   if (createMode) {
     return <div className="billing-page">
-      <div className="billing-page-head"><div><h2>Create Invoice</h2><p>Create an encounter-linked invoice using Service Catalogue pricing</p></div><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-x" /> Cancel</button></div>
+      <section className="appointment-page-header">
+        <div className="appointment-page-title">
+          <h2>Create Invoice</h2>
+          <p>Generate encounter-linked invoice using Service Catalogue pricing</p>
+        </div>
+        <div className="appointment-page-actions billing-head-actions">
+          <button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-x" /> Cancel</button>
+        </div>
+      </section>
       <div className="billing-workspace-grid">
         <main>
           <section className="billing-card">
@@ -200,7 +208,20 @@ export function BillingWorkspacePage() {
   const cancellable = editable;
   const payable = (invoice.status === 'PENDING' || invoice.status === 'PARTIALLY_PAID') && invoice.balance_amount > 0;
   return <div className="billing-page">
-    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button> : null}</div></div>
+    <section className="appointment-page-header">
+      <div className="appointment-page-title">
+        <div className="billing-title-line">
+          <h2>{invoice.invoice_number}</h2>
+          <span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span>
+        </div>
+        <p>{invoice.patient_name ?? 'Patient'} · {invoice.patient_number ?? invoice.patient_id} · {billingSourceLabel[invoice.source_type]} · {invoice.visit_number ?? invoice.visit_id}</p>
+      </div>
+      <div className="appointment-page-actions billing-head-actions">
+        <button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button>
+        {cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}
+        {payable && canCollectPayment ? <button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button> : null}
+      </div>
+    </section>
     <section className="billing-detail-strip"><div><span>Patient</span><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></div><div><span>{billingSourceLabel[invoice.source_type]}</span><strong>{invoice.visit_number ?? invoice.encounter_id}</strong><small>{invoice.appointment_number ?? 'No linked appointment'}</small></div><div><span>Branch</span><strong>{invoice.branch_name ?? invoice.branch_id}</strong><small>{formatBillingDate(invoice.invoice_date)}</small></div><div><span>Balance</span><strong className={invoice.balance_amount ? 'billing-balance-due' : 'billing-balance-clear'}>{formatBillingMoney(invoice.balance_amount)}</strong><small>{formatBillingMoney(invoice.paid_amount)} collected</small></div></section>
     <div className="billing-workspace-grid">
       <main>

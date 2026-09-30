@@ -130,10 +130,10 @@ export function AppointmentDashboardPage() {
       <section className="appointment-page-header">
         <div className="appointment-page-title">
           <h2>Appointment Dashboard</h2>
-          <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
+          <p>Daily consultation schedule, token status, and booking overview.</p>
           <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
-        <div className="doctor-page-actions">
+        <div className="appointment-page-actions">
           {canCreateBooking ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
             <i className="ph ph-calendar-plus" aria-hidden="true" />
             Book Appointment
@@ -420,7 +420,7 @@ export function AppointmentDashboardPage() {
             }}
             value={statusFilter}
           >
-            <option value="">All statuses</option>
+            <option value="">All Statuses</option>
             {Object.entries(appointmentStatusLabels).map(([status, label]) => (
               <option key={status} value={status}>
                 {label}

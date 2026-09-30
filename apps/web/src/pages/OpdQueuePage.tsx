@@ -110,7 +110,7 @@ export function OpdQueuePage() {
   return (
     <div className="opd-page">
       <section className="opd-page-header">
-        <div className="opd-page-title"><h2>Patients Queue</h2><p>Review consultation-ready patients in persisted token order</p></div>
+        <div className="opd-page-title"><h2>Patients Queue</h2><p>Review consultation-ready patients in token order</p></div>
         <button className="doc-btn" onClick={() => window.location.reload()} type="button"><i className="ph ph-arrow-clockwise" aria-hidden="true" /> Refresh Queue</button>
       </section>
 
@@ -176,9 +176,9 @@ export function OpdQueuePage() {
                       <div className="opd-empty-state-icon">
                         <i className="ph ph-users-three" aria-hidden="true" />
                       </div>
-                      <strong className="opd-empty-state-title">No patients ready for consultation</strong>
+                      <strong className="opd-empty-state-title">No Patients Ready for Consultation</strong>
                       <p className="opd-empty-state-text">
-                        There are currently no patients waiting in the consultation queue for the selected filters.
+                        No patients waiting in consultation queue.
                       </p>
                     </div>
                   </td>

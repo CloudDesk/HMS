@@ -225,17 +225,13 @@ export function DoctorSchedulePage() {
         <section className="doctor-page-header">
           <div className="doctor-page-title">
             <h2>Doctor Schedule</h2>
-            <p>Manage appointments, procedures and blocked time</p>
+            <p>Review and manage daily and weekly clinician appointments.</p>
           </div>
           <div className="doctor-page-actions">
-            <button className="doc-btn" onClick={() => window.print()} type="button">
-              <i className="ph ph-printer" aria-hidden="true" />
-              Print Schedule
-            </button>
             {schedule.canBookAppointments ? (
               <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
                 <i className="ph ph-plus" aria-hidden="true" />
-                Add Schedule
+                Book Appointment
               </button>
             ) : null}
           </div>
@@ -287,7 +283,7 @@ export function DoctorSchedulePage() {
               onChange={(event) => setVisitTypeFilter(parseVisitType(event.target.value))}
               value={visitTypeFilter}
             >
-              <option value="">All</option>
+              <option value="">All Types</option>
               {Object.entries(appointmentVisitTypeLabels).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -302,7 +298,7 @@ export function DoctorSchedulePage() {
               onChange={(event) => setStatusFilter(parseAppointmentStatus(event.target.value))}
               value={statusFilter}
             >
-              <option value="">All</option>
+              <option value="">All Statuses</option>
               {Object.entries(appointmentStatusLabels).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -322,7 +318,7 @@ export function DoctorSchedulePage() {
               <h3>
                 {selectedDoctor?.display_name ?? 'Doctor'} - {toDisplayDate(scheduleDate)}
               </h3>
-              <p>Click an appointment to open the patient record or manage it from the appointment dashboard.</p>
+              <p>Select an appointment slot to view patient consultation details.</p>
             </div>
             <div className="doc-inline-actions">
               <button className="doc-btn icon-only" onClick={() => moveDate(-1)} type="button">
@@ -346,7 +342,7 @@ export function DoctorSchedulePage() {
           ) : viewMode === 'day' ? (
             <div className="doctor-schedule-grid">
               <div className="doctor-schedule-head">Time</div>
-              <div className="doctor-schedule-head">Appointments and time slots</div>
+              <div className="doctor-schedule-head">Appointments & Time Slots</div>
               {scheduleTimes.map((time) => {
                 const appointment = appointmentByStart[time];
                 return (

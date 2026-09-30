@@ -55,6 +55,12 @@ export function DiagnosticQueue({
   const entryPath = module === 'laboratory' ? 'results' : 'reports';
   const columnCount = 8;
   return <div className={`diagnostic-page ${module}`}>
+    <section className="appointment-page-header">
+      <div className="appointment-page-title">
+        <h2>{moduleName} Queue</h2>
+        <p>{module === 'laboratory' ? 'Manage laboratory test orders, sample tracking, and analytical workflows' : 'Manage diagnostic imaging orders, scheduling, and radiologist reports'}</p>
+      </div>
+    </section>
     <div className="diagnostic-kpis">
       <div className="kpi-card">
         <div className="kpi-info">
@@ -129,11 +135,19 @@ export function DiagnosticQueue({
         </table>
       </div>
       <div className="um-pagination">
-        <span>{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1} - ${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No orders'}</span>
+        <div className="um-showing">{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No orders'}</div>
+        <div className="um-page-size">
+          <span>Rows:</span>
+          <select onChange={(event) => updateFilters({ limit: Number(event.target.value), page: 1 })} value={filters.limit}>
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+          </select>
+        </div>
         <div className="um-page-controls">
-          <button className="pg-btn" disabled={filters.page <= 1} onClick={() => updateFilters({ page: filters.page - 1 })}><i className="ph ph-caret-left" /></button>
+          <button className="pg-btn" disabled={filters.page <= 1} onClick={() => updateFilters({ page: filters.page - 1 })} type="button"><i className="ph ph-caret-left" /></button>
           <span className="pg-btn active">{filters.page}</span>
-          <button className="pg-btn" disabled={filters.page >= meta.totalPages} onClick={() => updateFilters({ page: filters.page + 1 })}><i className="ph ph-caret-right" /></button>
+          <button className="pg-btn" disabled={filters.page >= meta.totalPages} onClick={() => updateFilters({ page: filters.page + 1 })} type="button"><i className="ph ph-caret-right" /></button>
         </div>
       </div>
     </section>

@@ -34,7 +34,7 @@ export function DoctorProfilePage() {
       <section className="doctor-page-header">
         <div className="doctor-page-title">
           <h2>Doctor Profile</h2>
-          <p>Practitioner identity, assignment, contact, and recurring working schedule.</p>
+          <p>Clinician credentials, department assignment, and working hours.</p>
         </div>
         <div className="doctor-page-actions">
           {profile.canViewSchedule ? (
@@ -67,47 +67,131 @@ export function DoctorProfilePage() {
         </div>
       </section>
 
-      <div className="doc-grid two doctor-profile-grid">
-        <section className="doc-card">
-          <div className="doc-card-header"><div><h3>Professional Details</h3><p>Registration and operational assignment</p></div></div>
-          <div className="doc-metric-list">
-            <div className="doc-metric"><span>Registration number</span><strong>{doctor.registration_number || 'Not recorded'}</strong></div>
-            <div className="doc-metric"><span>Consultation room</span><strong>{doctor.consultation_room || 'Not assigned'}</strong></div>
-            <div className="doc-metric"><span>Branch assignment</span><strong>{doctor.branch_id}</strong></div>
-            <div className="doc-metric"><span>Department assignment</span><strong>{doctor.department_id}</strong></div>
-            <div className="doc-metric"><span>User mapping</span><strong>{doctor.user_id ? profile.userId === doctor.user_id ? 'Current user account' : 'Linked account' : 'Not mapped'}</strong></div>
+      {/* Section Card 1: Clinician & Contact Information */}
+      <section className="doc-card doctor-profile-section-card">
+        <div className="doc-card-header">
+          <div>
+            <h3>Clinician & Contact Details</h3>
+            <p>Registration credentials, organizational assignment, and contact information</p>
           </div>
-        </section>
-        <section className="doc-card">
-          <div className="doc-card-header"><div><h3>Contact & Audit</h3><p>Operational contact and record timestamps</p></div></div>
-          <div className="doc-metric-list">
-            <div className="doc-metric"><span>Phone</span><strong>{doctor.phone || 'Not recorded'}</strong></div>
-            <div className="doc-metric"><span>Email</span><strong>{doctor.email || 'Not recorded'}</strong></div>
-            <div className="doc-metric"><span>Created</span><strong>{formatDate(doctor.created_at)}</strong></div>
-            <div className="doc-metric"><span>Last updated</span><strong>{formatDate(doctor.updated_at)}</strong></div>
-            <div className="doc-metric"><span>Notes</span><strong>{doctor.notes || 'No notes recorded'}</strong></div>
+        </div>
+        <div className="doctor-profile-columns">
+          <div className="doctor-profile-column">
+            <div className="doctor-profile-subhead">
+              <h4>
+                <i className="ph ph-identification-badge" aria-hidden="true" style={{ color: '#2563eb' }} />
+                Professional Details
+              </h4>
+              <p>Clinical registration and department assignment</p>
+            </div>
+            <div className="doctor-profile-list">
+              <div className="doctor-profile-item">
+                <span>Registration Number</span>
+                <strong>{doctor.registration_number || 'Not recorded'}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Branch Assignment</span>
+                <strong>{profile.branchName}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Department Assignment</span>
+                <strong>{profile.departmentName}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>User Account Mapping</span>
+                <strong>
+                  {doctor.user_id
+                    ? profile.userId === doctor.user_id
+                      ? 'Current user account'
+                      : 'Linked account'
+                    : 'Not mapped'}
+                </strong>
+              </div>
+            </div>
           </div>
-        </section>
-      </div>
 
-      <DoctorSignatureCard
-        doctorId={doctor.id}
-        signatureData={doctor.signature_data}
-        canEdit={profile.canEdit}
-      />
+          <div className="doctor-profile-column">
+            <div className="doctor-profile-subhead">
+              <h4>
+                <i className="ph ph-address-book" aria-hidden="true" style={{ color: '#2563eb' }} />
+                Contact & Audit
+              </h4>
+              <p>Operational contact and record timestamps</p>
+            </div>
+            <div className="doctor-profile-list">
+              <div className="doctor-profile-item">
+                <span>Phone Number</span>
+                <strong>{doctor.phone || 'Not recorded'}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Clinical Email</span>
+                <strong>{doctor.email || 'Not recorded'}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Record Created</span>
+                <strong>{formatDate(doctor.created_at)}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Last Updated</span>
+                <strong>{formatDate(doctor.updated_at)}</strong>
+              </div>
+              <div className="doctor-profile-item">
+                <span>Clinical Notes</span>
+                <strong>{doctor.notes || 'No notes recorded'}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-      <section className="doc-card">
-        <div className="doc-card-header"><div><h3>Weekly Availability</h3><p>Recurring working slots used by the appointment slot engine</p></div></div>
+      {/* Section Card 2: Clinical Signature & Working Availability */}
+      <section className="doc-card doctor-profile-section-card">
+        <DoctorSignatureCard
+          doctorId={doctor.id}
+          signatureData={doctor.signature_data}
+          canEdit={profile.canEdit}
+          embedded={true}
+        />
+
+        <hr className="doctor-profile-divider" />
+
+        <div className="doctor-profile-subhead" style={{ marginBottom: '1rem', borderBottom: 'none' }}>
+          <h4>
+            <i className="ph ph-calendar-blank" aria-hidden="true" style={{ color: '#2563eb' }} />
+            Weekly Availability
+          </h4>
+          <p>Recurring working slots used by the appointment engine</p>
+        </div>
+
         <div className="doc-table-wrap">
           <table className="doc-table">
-            <thead><tr><th>Day</th><th>Status</th><th>Working slots</th><th>Slot duration</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Status</th>
+                <th>Working Slots</th>
+                <th>Slot Duration</th>
+              </tr>
+            </thead>
             <tbody>
               {doctor.availability.map((day) => (
                 <tr key={day.day_of_week}>
                   <td><strong>{day.day_of_week}</strong></td>
-                  <td><span className={`status-badge ${day.is_available ? 'status-active' : 'status-inactive'}`}>{day.is_available ? 'Available' : 'Off duty'}</span></td>
-                  <td>{day.working_blocks.length ? day.working_blocks.map((block) => `${block.start_time}-${block.end_time}`).join(', ') : '-'}</td>
-                  <td>{day.working_blocks.length ? Array.from(new Set(day.working_blocks.map(b => b.slot_duration_minutes))).join(', ') + ' minutes' : '-'}</td>
+                  <td>
+                    <span className={`status-badge ${day.is_available ? 'status-active' : 'status-inactive'}`}>
+                      {day.is_available ? 'Available' : 'Off Duty'}
+                    </span>
+                  </td>
+                  <td>
+                    {day.working_blocks.length
+                      ? day.working_blocks.map((block) => `${block.start_time}-${block.end_time}`).join(', ')
+                      : '—'}
+                  </td>
+                  <td>
+                    {day.working_blocks.length
+                      ? Array.from(new Set(day.working_blocks.map((b) => b.slot_duration_minutes))).join(', ') + ' minutes'
+                      : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>

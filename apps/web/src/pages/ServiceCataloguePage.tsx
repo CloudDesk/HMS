@@ -418,6 +418,20 @@ export function ServiceCataloguePage() {
   return (
     <>
       <div className="um-grid">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Service Catalogue</h2>
+            <p className="um-page-subtitle">Manage clinical services, pricing, department mappings, and billing codes.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate && !forbidden ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Service
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         {/* ── KPI Cards ──────────────────────────────────────────────────── */}
         <div className="um-kpi-row" aria-label="Service KPIs">
           <div className="kpi-card">

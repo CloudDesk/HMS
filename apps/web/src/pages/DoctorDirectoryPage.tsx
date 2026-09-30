@@ -435,7 +435,7 @@ export function DoctorDirectoryPage() {
         <section className="doctor-page-header">
           <div className="doctor-page-title">
             <h2>Doctor Directory</h2>
-            <p>Maintain practitioner profiles, branch context, departments, and OPD setup.</p>
+            <p>Manage clinician profiles, branches, departments, and clinical credentials.</p>
           </div>
           <div className="doctor-page-actions">
             {directory.canExport ? (
@@ -461,19 +461,17 @@ export function DoctorDirectoryPage() {
         <section className="doc-toolbar">
           <div className="doc-field grow doc-search">
             <label htmlFor="doctor-search">Search Doctor</label>
-            <div className="doc-search-input-wrap">
-              <i className="ph ph-magnifying-glass" aria-hidden="true" />
-              <input
-                id="doctor-search"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Search name, number, specialization, phone, or email"
-                type="search"
-                value={search}
-              />
-            </div>
+            <i className="ph ph-magnifying-glass" aria-hidden="true" />
+            <input
+              id="doctor-search"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search by name, ID, specialization, or phone..."
+              type="search"
+              value={search}
+            />
           </div>
           <div className="doc-field">
             <label htmlFor="doctor-branch-filter">Branch</label>
@@ -487,7 +485,7 @@ export function DoctorDirectoryPage() {
               }}
               value={branchFilter}
             >
-              <option value="">All branches</option>
+              <option value="">All Branches</option>
               {directory.branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
@@ -504,7 +502,7 @@ export function DoctorDirectoryPage() {
               }}
               value={departmentFilter}
             >
-              <option value="">All departments</option>
+              <option value="">All Departments</option>
               {departmentsForFilter.map((department) => (
                 <option key={department.id} value={department.id}>{department.name}</option>
               ))}
@@ -520,9 +518,9 @@ export function DoctorDirectoryPage() {
               }}
               value={statusFilter}
             >
-              <option value="">All statuses</option>
+              <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
-              <option value="ON_LEAVE">On leave</option>
+              <option value="ON_LEAVE">On Leave</option>
               <option value="INACTIVE">Inactive</option>
             </select>
           </div>
@@ -661,12 +659,12 @@ export function DoctorDirectoryPage() {
               <section className="doctor-onboarding-section">
                 <header>
                   <span><i className="ph ph-stethoscope" aria-hidden="true" /></span>
-                  <div><h3>Doctor Information</h3><p>Clinical identity, assignment, contact details, and operational status.</p></div>
+                  <div><h3>Doctor Information</h3><p>Clinician identity, department assignment, and operational status.</p></div>
                 </header>
                 <div className="form-grid">
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-first-name">
-                      First name <span className="required-asterisk">*</span>
+                      First Name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('firstName')} type="hidden" /> : null}
@@ -679,7 +677,7 @@ export function DoctorDirectoryPage() {
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-last-name">
-                      Last name <span className="required-asterisk">*</span>
+                      Last Name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('lastName')} type="hidden" /> : null}
@@ -692,7 +690,7 @@ export function DoctorDirectoryPage() {
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-registration-number">
-                      Registration number
+                      Registration Number
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('registrationNumber')} type="hidden" /> : null}
@@ -708,7 +706,7 @@ export function DoctorDirectoryPage() {
                     <input {...register('qualification')} disabled={submitting} id="doctor-qualification" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-experience">Experience years</label>
+                    <label htmlFor="doctor-experience">Experience (Years)</label>
                     <input {...register('experienceYears')} disabled={submitting} id="doctor-experience" max="80" min="0" type="number" />
                   </div>
                   <div className="form-group">
@@ -724,19 +722,19 @@ export function DoctorDirectoryPage() {
                       disabled={submitting}
                       id="doctor-branch"
                     >
-                      <option value="">Select branch</option>
+                      <option value="">Select Branch</option>
                       {directory.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-department">Department <span className="required-asterisk">*</span></label>
                     <select {...register('departmentId')} disabled={submitting || !form.branchId} id="doctor-department">
-                      <option value="">Select department</option>
+                      <option value="">Select Department</option>
                       {departmentsForForm.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-room">Consultation room</label>
+                    <label htmlFor="doctor-room">Consultation Room</label>
                     <input {...register('consultationRoom')} disabled={submitting} id="doctor-room" />
                   </div>
                   <div className="form-group">
@@ -744,20 +742,20 @@ export function DoctorDirectoryPage() {
                     <input {...register('phone')} disabled={submitting} id="doctor-phone" type="tel" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-email">Clinical email</label>
+                    <label htmlFor="doctor-email">Clinical Email</label>
                     <input {...register('email')} disabled={submitting} id="doctor-email" type="email" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-status">Status</label>
                     <select {...register('status')} disabled={submitting} id="doctor-status">
                       <option value="ACTIVE">Active</option>
-                      <option value="ON_LEAVE">On leave</option>
+                      <option value="ON_LEAVE">On Leave</option>
                       <option value="INACTIVE">Inactive</option>
                     </select>
                   </div>
                   {editingDoctor && form.status !== editingDoctor.status ? (
                     <div className="form-group full-width">
-                      <label htmlFor="doctor-status-reason">Status change reason <span className="required-asterisk">*</span></label>
+                      <label htmlFor="doctor-status-reason">Status Change Reason <span className="required-asterisk">*</span></label>
                       <input {...register('statusReason')} disabled={submitting} id="doctor-status-reason" />
                     </div>
                   ) : null}
@@ -791,7 +789,7 @@ export function DoctorDirectoryPage() {
                   <div className="doctor-account-toggle">
                     <div>
                       <strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong>
-                      <p>{directory.canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p>
+                      <p>{directory.canProvisionLogin ? 'Creates and links the user account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p>
                     </div>
                     <Controller
                       control={control}
@@ -816,25 +814,25 @@ export function DoctorDirectoryPage() {
                   </div>
                   {form.createLoginAccount ? (
                     <div className="form-grid doctor-account-fields">
-                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee Code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
                       <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" {...register('username')} required /></div>
-                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login Email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
 
                       <div className="form-group">
-                        <label htmlFor="doctor-temporary-password">password <span className="required-asterisk">*</span></label>
+                        <label htmlFor="doctor-temporary-password">Temporary Password <span className="required-asterisk">*</span></label>
                         <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" {...register('temporaryPassword')} required type="password" style={{ width: '100%' }} />
                         {errors.temporaryPassword ? <small className="field-error">{errors.temporaryPassword.message}</small> : null}
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="doctor-confirm-password">Confirm password <span className="required-asterisk">*</span></label>
+                        <label htmlFor="doctor-confirm-password">Confirm Password <span className="required-asterisk">*</span></label>
                         <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" {...register('confirmTemporaryPassword')} required type="password" style={{ width: '100%' }} />
                         {errors.confirmTemporaryPassword ? <small className="field-error">{errors.confirmTemporaryPassword.message}</small> : null}
                       </div>
-                      <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
+                      <div className="doctor-account-role"><span>Assigned Role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
                     </div>
                   ) : (
-                    <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>
+                    <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The doctor will be created without direct login access. An administrator can link an account later.</span></div>
                   )}
                 </section>
               ) : directory.canProvisionLogin ? (

@@ -1,6 +1,8 @@
 import { ApiError } from '../../api/api-error';
 import { hasPermission } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
+import { useBranchesList, useBranchDetails } from '../branches/useBranches';
+import { useDepartmentsList, useDepartmentDetails } from '../departments/useDepartments';
 import { useCurrentDoctor, useDoctorDetails } from './useDoctors';
 
 const getProfileErrorMessage = (error: unknown): string => {
@@ -48,12 +50,42 @@ export function useDoctorProfile(requestedDoctorId: string | null) {
     can('Doctors', 'Doctor Directory', 'Edit') ||
     Boolean(user?.id && activeQuery.data?.user_id === user.id);
 
+  const branchesQuery = useBranchesList({ limit: 100 }, canViewProfile);
+  const departmentsQuery = useDepartmentsList({ limit: 100 }, canViewProfile);
+
+  const doctorBranchId = activeQuery.data?.branch_id;
+  const doctorDeptId = activeQuery.data?.department_id;
+
+  const branchFromList = branchesQuery.data?.data.find((b) => b.id === doctorBranchId);
+  const deptFromList = departmentsQuery.data?.data.find((d) => d.id === doctorDeptId);
+
+  const singleBranchQuery = useBranchDetails(
+    doctorBranchId ?? null,
+    Boolean(doctorBranchId && !branchFromList && !branchesQuery.isLoading),
+  );
+  const singleDeptQuery = useDepartmentDetails(
+    doctorDeptId ?? null,
+    Boolean(doctorDeptId && !deptFromList && !departmentsQuery.isLoading),
+  );
+
+  const branchName =
+    branchFromList?.name ??
+    singleBranchQuery.data?.name ??
+    (branchesQuery.isLoading ? 'Loading...' : doctorBranchId || 'Not assigned');
+
+  const departmentName =
+    deptFromList?.name ??
+    singleDeptQuery.data?.name ??
+    (departmentsQuery.isLoading ? 'Loading...' : doctorDeptId || 'Not assigned');
+
   return {
     canViewAvailability,
     canViewSchedule,
     canEdit,
     canRetry: canViewProfile,
     doctor: activeQuery.data ?? null,
+    branchName,
+    departmentName,
     error: !canViewProfile
       ? 'Doctor Directory View permission is required to view doctor profiles.'
       : activeQuery.error

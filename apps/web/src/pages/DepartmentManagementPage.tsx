@@ -335,6 +335,20 @@ export function DepartmentManagementPage() {
   return (
     <>
       <div className="um-grid">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Department Management</h2>
+            <p className="um-page-subtitle">Configure clinical and non-clinical departments, module access, and branch linkages.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Department
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
         <div className="um-kpi-row" aria-label="Department KPIs">
           <div className="kpi-card">

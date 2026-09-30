@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type {
   HistoricalToothFinding,
+  SoftTissueExamination,
   ToothFinding,
   ToothMobility,
   ToothStatus,
@@ -13,6 +14,7 @@ import {
 } from '../../../pages/dental-utils';
 import { ToothSurfaceSelector } from './ToothSurfaceSelector';
 import { DentalDiagnosisModal, type Icd10Diagnosis } from './DentalDiagnosisModal';
+import { DentalSoftTissueSection } from './DentalSoftTissueSection';
 import styles from './DentalExamination.module.css';
 
 interface ToothExaminationPanelProps {
@@ -47,6 +49,8 @@ interface ToothExaminationPanelProps {
   assessment?: string;
   onAssessmentChange?: (val: string) => void;
   showToast?: (message: string, tone?: 'success' | 'error') => void;
+  softTissue?: SoftTissueExamination | null;
+  onSoftTissueChange?: (softTissue: SoftTissueExamination) => void;
 }
 
 const CONDITION_ICONS: Record<string, string> = {
@@ -125,8 +129,10 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   assessment,
   onAssessmentChange,
   showToast,
+  softTissue,
+  onSoftTissueChange,
 }) => {
-  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'periodontal'>('surfaces');
+  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'periodontal' | 'diagnosis'>('surfaces');
   const [isDiagnosisExpanded, setIsDiagnosisExpanded] = useState(false);
 
   useEffect(() => {
@@ -136,13 +142,23 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   if (!selectedToothNumber) {
     return (
       <div className={styles.panelContainer}>
-        <div style={{ textAlign: 'center', padding: '30px 10px', color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: '24px 10px', color: '#64748b' }}>
           <i className="ph ph-hand-pointing" style={{ fontSize: '2rem', display: 'block', marginBottom: '8px', color: '#94a3b8' }} />
           <strong>Select a Tooth</strong>
           <p style={{ fontSize: '0.8rem', margin: '4px 0 0', color: '#94a3b8' }}>
-            Click any tooth on the odontogram to record clinical findings, surfaces, and periodontal status.
+            Click any tooth on the odontogram to examine.
           </p>
         </div>
+        {onSoftTissueChange && (
+          <div style={{ marginTop: '8px' }}>
+            <DentalSoftTissueSection
+              softTissue={softTissue}
+              onChange={onSoftTissueChange}
+              disabled={disabled}
+              embedded={true}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -371,6 +387,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         {([
           ['surfaces', 'Surfaces', 'ph-grid-four'],
           ['periodontal', 'Periodontal', 'ph-chart-line-up'],
+          ['diagnosis', 'Add Diagnosis', 'ph-plus-circle'],
         ] as const).map(([value, label, icon]) => (
           <button
             key={value}
@@ -378,7 +395,15 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
             role="tab"
             aria-selected={activeDetailTab === value}
             className={`${styles.toothDetailTab} ${activeDetailTab === value ? styles.toothDetailTabActive : ''}`}
-            onClick={() => setActiveDetailTab(value)}
+            onClick={() => {
+              setActiveDetailTab(value);
+              if (value === 'diagnosis') {
+                setIsDiagnosisExpanded(true);
+                onOpenDiagnosis?.(selectedToothNumber);
+              } else {
+                setIsDiagnosisExpanded(false);
+              }
+            }}
             disabled={value === 'periodontal' && (finding.status === 'MISSING' || finding.status === 'EXTRACTED')}
           >
             <i className={`ph ${icon}`} aria-hidden="true" />
@@ -451,7 +476,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
               <i className="ph ph-x-circle" aria-hidden="true" />
               Missing
             </button>
-            {!disabled && (onOpenDiagnosis || onAddDiagnosis) ? (
+            {/* {!disabled && (onOpenDiagnosis || onAddDiagnosis) ? (
               toothDiagnoses.length > 0 ? (
                 <button
                   type="button"
@@ -472,6 +497,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                   }}
                   onClick={() => {
                     setIsDiagnosisExpanded((prev) => !prev);
+                    setActiveDetailTab('diagnosis');
                     onOpenDiagnosis?.(selectedToothNumber);
                   }}
                   title="Add or edit diagnosis for this tooth"
@@ -505,6 +531,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                   }}
                   onClick={() => {
                     setIsDiagnosisExpanded((prev) => !prev);
+                    setActiveDetailTab('diagnosis');
                     onOpenDiagnosis?.(selectedToothNumber);
                   }}
                   title="Add ICD-10 clinical diagnosis linked to this tooth"
@@ -513,7 +540,7 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                   <span>{isDiagnosisExpanded ? 'Done' : 'Add Diagnosis'}</span>
                 </button>
               )
-            ) : null}
+            ) : null} */}
           </div>
         </div>
       </div>
@@ -537,7 +564,41 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
         </div>
       )}
 
+      {/* Oral Examination (Soft Tissues & Function/Bite) behind Status & Condition */}
+      {onSoftTissueChange && (
+        <div style={{ marginTop: '14px' }}>
+          <DentalSoftTissueSection
+            softTissue={softTissue}
+            onChange={onSoftTissueChange}
+            disabled={disabled}
+            embedded={true}
+          />
+        </div>
+      )}
+
       </>}
+
+      {/* Sub Tab: DIAGNOSIS & ICD-10 */}
+      {activeDetailTab === 'diagnosis' && (
+        <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+          <DentalDiagnosisModal
+            inline={true}
+            open={true}
+            onClose={() => {
+              setIsDiagnosisExpanded(false);
+              setActiveDetailTab('surfaces');
+            }}
+            selectedToothNumber={selectedToothNumber}
+            diagnoses={allDiagnoses ?? (toothDiagnoses as Icd10Diagnosis[])}
+            onAddDiagnosis={onAddDiagnosis}
+            onRemoveDiagnosis={onRemoveDiagnosis}
+            canEdit={Boolean(canEdit && !disabled)}
+            assessment={assessment}
+            onAssessmentChange={onAssessmentChange}
+            showToast={showToast}
+          />
+        </div>
+      )}
 
       {/* Subsection: PERIODONTAL & CLINICAL FINDINGS */}
       {activeDetailTab === 'periodontal' && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (

@@ -2,13 +2,13 @@ import { ApiError } from '../api/api-error';
 import type { ApiOpdVisitPriority, ApiOpdVisitStatus, ApiOpdVisitType, OpdVisitResponse } from '../api/opd';
 
 export const opdVisitStatusLabels: Record<ApiOpdVisitStatus, string> = {
-  CHECKED_IN: 'Checked in',
-  WAITING_FOR_VITALS: 'Waiting for vitals',
-  READY_FOR_CONSULTATION: 'Ready for consultation',
-  IN_CONSULTATION: 'In consultation',
+  CHECKED_IN: 'Checked In',
+  WAITING_FOR_VITALS: 'Waiting for Vitals',
+  READY_FOR_CONSULTATION: 'Ready for Consultation',
+  IN_CONSULTATION: 'In Consultation',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
-  NO_SHOW: 'No show',
+  NO_SHOW: 'No Show',
   SKIPPED: 'Skipped',
 };
 

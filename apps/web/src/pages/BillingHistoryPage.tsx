@@ -17,10 +17,16 @@ export function BillingHistoryPage() {
   } = useBillingHistoryFeature();
 
   return <div className="billing-page">
-    <div className="billing-page-head">
-      <div><h2>Billing History</h2><p>Search invoices and review payment status</p></div>
-      <div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing')} type="button"><i className="ph ph-gauge" /> Dashboard</button>{canCreate ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}</div>
-    </div>
+    <section className="appointment-page-header">
+      <div className="appointment-page-title">
+        <h2>Billing History</h2>
+        <p>Search invoices, track settlement, and review patient billing accounts</p>
+      </div>
+      <div className="appointment-page-actions billing-head-actions">
+        <button className="btn-secondary" onClick={() => navigate('/billing')} type="button"><i className="ph ph-gauge" /> Dashboard</button>
+        {canCreate ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}
+      </div>
+    </section>
 
     <section className="billing-card billing-filter-card">
       <form onSubmit={(event) => { event.preventDefault(); update({ invoice_number: invoiceInput.trim(), page: 1 }); }}>
@@ -51,7 +57,22 @@ export function BillingHistoryPage() {
           <td><button aria-label={`View ${invoice.invoice_number}`} className="icon-btn" onClick={() => navigate(`/billing/workspace?id=${invoice.id}`)} type="button"><i className="ph ph-eye" /></button></td>
         </tr>)}
       </tbody></table></div>
-      <div className="um-pagination"><span>{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No invoices'}</span><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => update({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => update({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
+      <div className="um-pagination">
+        <div className="um-showing">{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No invoices'}</div>
+        <div className="um-page-size">
+          <span>Rows:</span>
+          <select onChange={(event) => update({ limit: Number(event.target.value), page: 1 })} value={meta.limit}>
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+          </select>
+        </div>
+        <div className="um-page-controls">
+          <button className="pg-btn" disabled={page <= 1} onClick={() => update({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button>
+          <span className="pg-btn active">{page}</span>
+          <button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => update({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button>
+        </div>
+      </div>
     </section>
   </div>;
 }

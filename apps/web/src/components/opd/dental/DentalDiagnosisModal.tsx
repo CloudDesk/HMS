@@ -310,8 +310,8 @@ export const DentalDiagnosisModal: React.FC<DentalDiagnosisModalProps> = ({
                 </span>
               )}
             </div>
-            <p style={{ margin: '0 0 12px', fontSize: '0.74rem', color: '#64748b' }}>
-              Standard clinical classification of carious lesions based on tooth anatomical surface involvement.
+            <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: '#64748b' }}>
+              Classify the carious lesion by tooth surface.
             </p>
             <div
               style={{

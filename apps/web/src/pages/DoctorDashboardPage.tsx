@@ -130,12 +130,12 @@ export function DoctorDashboardPage() {
         <section className="doctor-page-header">
           <div className="doctor-page-title">
             <h2>Doctor Dashboard</h2>
-            <p>Your clinical workspace for today</p>
+            <p>Clinical schedule and patient consultations for today.</p>
           </div>
           <div className="doctor-page-actions">
             <button className="doc-btn" style={{ cursor: 'default' }} type="button">
               <i className="ph ph-calendar-check" aria-hidden="true" />
-              Today's Appointments
+              Today's Schedule
             </button>
             {dashboard.canViewOpdQueue ? <button
               className="doc-btn primary"
@@ -176,7 +176,7 @@ export function DoctorDashboardPage() {
                 <div className="doc-card-header">
                   <div>
                     <h3>Weekly Consultation Trend</h3>
-                    <p>Appointment volume over the last seven days</p>
+                    <p>Consultation volume over the last seven days</p>
                   </div>
                 </div>
                 {dashboard.hasCompleteAppointmentDataset && !dashboard.errorMessage ? <LineChart points={trend} /> : <div className="um-state-cell">Complete trend data is unavailable for this dashboard scope.</div>}
@@ -185,7 +185,7 @@ export function DoctorDashboardPage() {
                 <div className="doc-card-header">
                   <div>
                     <h3>Appointment Status</h3>
-                    <p>Today's active appointment mix</p>
+                    <p>Today's appointment distribution by status</p>
                   </div>
                 </div>
                 {dashboard.appointmentSummary ? <DonutChart summary={dashboard.appointmentSummary} /> : <div className="um-state-cell">Complete status totals are unavailable for this dashboard scope.</div>}
@@ -197,7 +197,7 @@ export function DoctorDashboardPage() {
                 <div className="doc-card-header">
                   <div>
                     <h3>Upcoming Appointments</h3>
-                    <p>Next patients in your clinical queue</p>
+                    <p>Next scheduled consultations in clinical queue</p>
                   </div>
                   <button className="doc-btn" onClick={() => navigate('/doctors/schedule')} type="button">
                     View Schedule
@@ -231,7 +231,7 @@ export function DoctorDashboardPage() {
                 <div className="doc-card-header">
                   <div>
                     <h3>Quick Actions</h3>
-                    <p>Frequent clinical workflows</p>
+                    <p>Common clinician workflows and navigation</p>
                   </div>
                 </div>
                 <div className="doc-quick-actions">
@@ -243,21 +243,21 @@ export function DoctorDashboardPage() {
                     <i className="ph ph-stethoscope" aria-hidden="true" />
                     <span>
                       <strong>Open Clinical Queue</strong>
-                      <span>Start the correct persisted OPD encounter</span>
+                      <span>Open active queue and start consultations</span>
                     </span>
                   </button> : null}
                   <button className="doc-quick-action" onClick={() => navigate('/doctors/schedule')} type="button">
                     <i className="ph ph-calendar-check" aria-hidden="true" />
                     <span>
                       <strong>View Today's Schedule</strong>
-                      <span>Review appointments and time slots</span>
+                      <span>Review booked time slots and day view</span>
                     </span>
                   </button>
                   {dashboard.canSearchPatients ? <button className="doc-quick-action" onClick={() => navigate('/patients/search')} type="button">
                     <i className="ph ph-magnifying-glass" aria-hidden="true" />
                     <span>
                       <strong>Patient Search</strong>
-                      <span>Find and open a patient record</span>
+                      <span>Search master patient index and history</span>
                     </span>
                   </button> : null}
                 </div>

@@ -170,6 +170,20 @@ export function MedicineMasterPage() {
   return (
     <>
       <div className="um-grid">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Medicine Master</h2>
+            <p className="um-page-subtitle">Manage pharmaceutical catalog, generic formulations, strengths, and dosage forms.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate && !forbidden ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Medicine
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="um-kpi-row" aria-label="Medicine KPIs">
           {[
             ['ph-pill', 'blue', 'Total Medicines', summary.total],

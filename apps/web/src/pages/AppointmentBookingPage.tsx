@@ -255,7 +255,7 @@ clearErrors('start_time');
         <section className="appointment-page-header">
           <div className="appointment-page-title">
             <h2>Book Appointment</h2>
-            <p>Find a patient, choose an available clinician slot, and confirm the booking.</p>
+            <p>Search patient, select clinician time slot, and confirm booking.</p>
           </div>
         </section>
 
@@ -277,7 +277,7 @@ clearErrors('start_time');
           <div className="doc-card-header">
             <div>
               <h3>Search Patient</h3>
-              <p>Use MRN, phone, email, or patient name to locate an active patient record.</p>
+              <p>Locate active patient by MRN, name, phone, or email.</p>
             </div>
           </div>
           <form className="appointment-patient-search" onSubmit={searchPatients}>
@@ -371,8 +371,8 @@ clearErrors('start_time');
           <form className="doc-card appointment-booking-card" onSubmit={(e) => { e.preventDefault(); void continueToConfirmation(); }}>
             <div className="doc-card-header">
               <div>
-                <h3>Appointment Information</h3>
-                <p>Choose the clinician, date, and available appointment slot.</p>
+                <h3>Appointment Details</h3>
+                <p>Select clinician, date, and available consultation slot.</p>
               </div>
             </div>
 
@@ -559,8 +559,8 @@ clearErrors('start_time');
           <div className="appointment-confirmation-icon">
             <i className="ph ph-calendar-check" aria-hidden="true" />
           </div>
-          <h3>Confirm Appointment</h3>
-          <p>Review the booking details before saving the appointment record.</p>
+          <h3>Booking Confirmation</h3>
+          <p>Review appointment details before confirming.</p>
           <div className="appointment-summary-grid">
             <div>
               <span>Patient</span>

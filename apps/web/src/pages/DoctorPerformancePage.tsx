@@ -88,7 +88,7 @@ export function DoctorPerformancePage() {
       <section className="doctor-page-header">
         <div className="doctor-page-title">
           <h2>Doctor Performance</h2>
-          <p>Review clinical productivity and patient outcomes</p>
+          <p>Clinical volume, consultation metrics, and appointment outcomes.</p>
         </div>
         <div className="doctor-page-actions">
           <div className="doc-field compact">
@@ -140,7 +140,7 @@ export function DoctorPerformancePage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Consultation Trend</h3>
-                  <p>Appointment volume{performance.selectedDoctor ? ` for ${performance.selectedDoctor.display_name}` : ''}</p>
+                  <p>Consultation trend{performance.selectedDoctor ? ` for ${performance.selectedDoctor.display_name}` : ''}</p>
                 </div>
               </div>
               <PerformanceLine points={performance.trend} />
@@ -149,7 +149,7 @@ export function DoctorPerformancePage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Patient Satisfaction</h3>
-                  <p>Six-month satisfaction trend</p>
+                  <p>Patient experience and rating metrics</p>
                 </div>
               </div>
               <PerformanceLine points={performance.zeroTrend} tone="green" />
@@ -161,7 +161,7 @@ export function DoctorPerformancePage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Consultation Distribution</h3>
-                  <p>Encounters by visit type</p>
+                  <p>Clinical appointments by visit category</p>
                 </div>
               </div>
               <DistributionDonut entries={performance.distribution} />
@@ -170,7 +170,7 @@ export function DoctorPerformancePage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Performance Metrics</h3>
-                  <p>Clinical activity indicators</p>
+                  <p>Detailed clinical workload summary</p>
                 </div>
               </div>
               <div className="doc-metric-list">

@@ -43,7 +43,7 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
     isQueueStatus(initialStatus) ? initialStatus : 'PENDING',
   );
   const [page, setPage] = useState(positiveInteger(initialParams.get('page'), 1));
-  const [limit, setLimit] = useState(positiveInteger(initialParams.get('limit'), 20));
+  const [limit, setLimit] = useState(positiveInteger(initialParams.get('limit'), 10));
   const [actionReason, setActionReason] = useState('');
   const queue = usePharmacyDispensingFeature({
     requestedBranch: branchId,
@@ -67,7 +67,7 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
     if (searchTerm.trim()) params.set('search', searchTerm.trim());
     params.set('status', statusFilter);
     if (page > 1) params.set('page', String(page));
-    if (limit !== 20) params.set('limit', String(limit));
+    if (limit !== 10) params.set('limit', String(limit));
     if (queue.selectedPrescriptionId) params.set('prescription', queue.selectedPrescriptionId);
     const query = params.toString();
     const nextUrl = `/pharmacy/queue${query ? `?${query}` : ''}`;
@@ -82,13 +82,34 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
   const hasLineError = queue.lines.some((line) => line.insufficientStock || line.invalidQuantity);
 
   return (
-    <>
+    <div className="pharmacy-queue-page">
+      {!embedded ? (
+        <header className="appointment-page-header">
+          <div className="appointment-page-title">
+            <h2>Prescription Queue</h2>
+            <p>Review outpatient and inpatient prescriptions, allocate batches, and dispense medicines</p>
+          </div>
+        </header>
+      ) : null}
       <div className="um-grid">
         <div className="um-kpi-row dispensing-kpi-row">
           <div className="kpi-card">
-            <div className="kpi-icon blue"><i className="ph ph-pill" aria-hidden="true" /></div>
-            <div className="kpi-info"><span className="kpi-label">Pending prescriptions</span><span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : queue.pendingCount}</span></div>
-            <div className="kpi-info"><span className="kpi-label">Dispensed prescriptions</span><span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : queue.confirmedCount}</span></div>
+            <div className="kpi-info">
+              <span className="kpi-label">Total Prescriptions</span>
+              <span className="kpi-value">{queue.summaryLoading || queue.summaryError || queue.pendingCount == null || queue.confirmedCount == null ? '—' : ((queue.pendingCount ?? 0) + (queue.confirmedCount ?? 0))}</span>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-info">
+              <span className="kpi-label">Pending</span>
+              <span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : (queue.pendingCount ?? '—')}</span>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-info">
+              <span className="kpi-label">Dispensed</span>
+              <span className="kpi-value">{queue.summaryLoading || queue.summaryError ? '—' : (queue.confirmedCount ?? '—')}</span>
+            </div>
           </div>
         </div>
 
@@ -148,7 +169,7 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
 
           <div className="um-pagination">
             <div className="um-showing">{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No dispensings'}</div>
-            <div className="um-page-size"><span>Rows:</span><select onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }} value={limit}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></div>
+            <div className="um-page-size"><span>Rows:</span><select onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }} value={limit}><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></div>
             <div className="um-page-controls"><button className="pg-btn" disabled={meta.page <= 1 || queue.listLoading} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button"><i className="ph ph-caret-left" aria-hidden="true" /></button><span className="pg-btn active">{meta.page}</span><button className="pg-btn" disabled={meta.page >= meta.totalPages || queue.listLoading} onClick={() => setPage((current) => current + 1)} type="button"><i className="ph ph-caret-right" aria-hidden="true" /></button></div>
           </div>
         </section>
@@ -246,6 +267,6 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
 }
