@@ -12,7 +12,8 @@ export class NotificationsApi {
   async listNotifications(
     isRead?: boolean,
     page = 1,
-    limit = 50
+    limit = 50,
+    patientId?: string | null
   ): Promise<PortalNotificationsListResponse> {
     const query: Record<string, string> = {
       page: String(page),
@@ -20,6 +21,9 @@ export class NotificationsApi {
     };
     if (isRead !== undefined) {
       query.is_read = String(isRead);
+    }
+    if (patientId) {
+      query.patient_id = patientId;
     }
 
     const response = await this.sessionManager.authenticatedRequest(
@@ -31,16 +35,19 @@ export class NotificationsApi {
     return portalNotificationsListResponseSchema.parse(response);
   }
 
-  async getUnreadCount(): Promise<number> {
+  async getUnreadCount(patientId?: string | null): Promise<number> {
+    const query: Record<string, string> = {
+      is_read: 'false',
+      limit: '1',
+    };
+    if (patientId) {
+      query.patient_id = patientId;
+    }
+
     const response = await this.sessionManager.authenticatedRequest(
       '/notifications/me',
       portalNotificationsListResponseSchema,
-      {
-        query: {
-          is_read: 'false',
-          limit: '1',
-        },
-      }
+      { query }
     );
 
     const parsed = portalNotificationsListResponseSchema.parse(response);

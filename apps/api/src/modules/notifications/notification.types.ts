@@ -1,10 +1,19 @@
-export type NotificationType = 'REFERRAL' | 'CALL_NEXT_PATIENT' | 'GENERAL' | 'DENTAL_LAB_READY';
+export type NotificationType =
+  | 'REFERRAL'
+  | 'CALL_NEXT_PATIENT'
+  | 'GENERAL'
+  | 'DENTAL_LAB_READY'
+  | 'LAB_RESULT'
+  | 'IMAGING_REPORT'
+  | 'CONSENT_REQUIRED'
+  | 'INVOICE_PENDING';
 
 export type Notification = {
   id: string;
   recipient_role: string | null;
   recipient_user_id: string | null;
   recipient_branch_id: string | null;
+  patient_id?: string | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -18,6 +27,7 @@ export type CreateNotificationDTO = {
   recipient_role?: string | null;
   recipient_user_id?: string | null;
   recipient_branch_id?: string | null;
+  patient_id?: string | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -28,6 +38,7 @@ export type NotificationListQuery = {
   recipient_role?: string;
   recipient_user_id?: string;
   recipient_branch_id?: string;
+  patient_id?: string;
   is_read?: boolean;
   page?: number;
   limit?: number;

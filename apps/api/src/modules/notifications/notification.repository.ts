@@ -5,6 +5,11 @@ import { UserModel } from '../users/user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CreateNotificationDTO, Notification, NotificationListQuery } from './notification.types.js';
+import { PatientAccessGrantModel } from '../patient-portal/patient-access-grant.model.js';
+import { LaboratoryResultModel } from '../laboratory/laboratory-result.model.js';
+import { ImagingReportModel } from '../imaging/imaging-report.model.js';
+import { BillingInvoiceModel } from '../billing/billing.model.js';
+import { PatientDocumentModel } from '../patients/patient.model.js';
 
 type NotificationLean = NotificationDocumentFields & { _id: Types.ObjectId };
 
@@ -13,6 +18,7 @@ const toNotification = (doc: NotificationLean): Notification => ({
   recipient_role: doc.recipientRole ?? null,
   recipient_user_id: doc.recipientUserId?.toString() ?? null,
   recipient_branch_id: doc.recipientBranchId?.toString() ?? null,
+  patient_id: doc.patientId?.toString() ?? null,
   title: doc.title,
   message: doc.message,
   type: doc.type,
@@ -23,26 +29,37 @@ const toNotification = (doc: NotificationLean): Notification => ({
 });
 
 export class NotificationRepository {
-  private async recipientFilter(userId: string): Promise<Record<string, unknown>> {
+  private async recipientFilter(userId: string, patientId?: string): Promise<Record<string, unknown>> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('roleIds branchIds')
       .lean<{ roleIds: Types.ObjectId[]; branchIds: Types.ObjectId[] }>();
-    if (!user) return { recipientUserId: new Types.ObjectId(userId) };
+
+    const userCond: Record<string, unknown> = { recipientUserId: new Types.ObjectId(userId) };
+    if (patientId && Types.ObjectId.isValid(patientId)) {
+      userCond.patientId = new Types.ObjectId(patientId);
+    }
+    if (!user) return userCond;
 
     const roles = await RoleModel.find({ _id: { $in: user.roleIds }, status: 'active', deletedAt: null })
       .select('code')
       .lean<Array<{ code: string }>>();
-    return {
+
+    const roleCodes = roles.map((role) => role.code);
+    if (!roleCodes.length) return userCond;
+
+    const roleBranchCond: Record<string, unknown> = {
+      recipientRole: { $in: roleCodes },
       $or: [
-        { recipientUserId: new Types.ObjectId(userId) },
-        {
-          recipientRole: { $in: roles.map((role) => role.code) },
-          $or: [
-            { recipientBranchId: null },
-            { recipientBranchId: { $in: user.branchIds } },
-          ],
-        },
+        { recipientBranchId: null },
+        { recipientBranchId: { $in: user.branchIds } },
       ],
+    };
+    if (patientId && Types.ObjectId.isValid(patientId)) {
+      roleBranchCond.patientId = new Types.ObjectId(patientId);
+    }
+
+    return {
+      $or: [userCond, roleBranchCond],
     };
   }
 
@@ -100,6 +117,7 @@ export class NotificationRepository {
       recipientRole: data.recipient_role ?? null,
       recipientUserId: data.recipient_user_id ? new Types.ObjectId(data.recipient_user_id) : null,
       recipientBranchId: data.recipient_branch_id ? new Types.ObjectId(data.recipient_branch_id) : null,
+      patientId: data.patient_id ? new Types.ObjectId(data.patient_id) : null,
       title: data.title,
       message: data.message,
       type: data.type,
@@ -111,12 +129,139 @@ export class NotificationRepository {
     return toNotification(created.toObject<NotificationLean>());
   }
 
-  async listForUser(userId: string, query: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'>) {
+  async syncPatientNotifications(userId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(userId)) return;
+    const grants = await PatientAccessGrantModel.find({
+      userId: new Types.ObjectId(userId),
+      status: 'VERIFIED',
+    }).select('patientId').lean();
+
+    if (!grants.length) return;
+    const patientIds = grants.map((g) => g.patientId);
+
+    // 1. Check verified lab results
+    const labResults = await LaboratoryResultModel.find({
+      patientId: { $in: patientIds },
+      deletedAt: null,
+      verifiedAt: { $ne: null },
+    }).select('_id patientId verifiedAt createdAt').limit(20).lean();
+
+    for (const lab of labResults) {
+      const exists = await NotificationModel.exists({
+        recipientUserId: new Types.ObjectId(userId),
+        relatedEntityId: lab._id,
+        type: 'LAB_RESULT',
+      });
+      if (!exists) {
+        await NotificationModel.create([{
+          recipientRole: 'PATIENT',
+          recipientUserId: new Types.ObjectId(userId),
+          patientId: lab.patientId,
+          type: 'LAB_RESULT',
+          title: 'Laboratory Result Available',
+          message: 'Your laboratory report has been verified and is ready for your review.',
+          relatedEntityId: lab._id,
+          createdAt: lab.verifiedAt ?? lab.createdAt ?? new Date(),
+          isRead: false,
+        }]);
+      }
+    }
+
+    // 2. Check verified imaging reports
+    const imagingReports = await ImagingReportModel.find({
+      patientId: { $in: patientIds },
+      deletedAt: null,
+      verifiedAt: { $ne: null },
+    }).select('_id patientId verifiedAt createdAt').limit(20).lean();
+
+    for (const img of imagingReports) {
+      const exists = await NotificationModel.exists({
+        recipientUserId: new Types.ObjectId(userId),
+        relatedEntityId: img._id,
+        type: 'IMAGING_REPORT',
+      });
+      if (!exists) {
+        await NotificationModel.create([{
+          recipientRole: 'PATIENT',
+          recipientUserId: new Types.ObjectId(userId),
+          patientId: img.patientId,
+          type: 'IMAGING_REPORT',
+          title: 'Imaging Scan Available',
+          message: 'Your imaging scan report has been verified and is ready for viewing.',
+          relatedEntityId: img._id,
+          createdAt: img.verifiedAt ?? img.createdAt ?? new Date(),
+          isRead: false,
+        }]);
+      }
+    }
+
+    // 3. Check pending invoices
+    const invoices = await BillingInvoiceModel.find({
+      patientId: { $in: patientIds },
+      deletedAt: null,
+      balanceAmount: { $gt: 0 },
+      status: { $in: ['PENDING', 'PARTIALLY_PAID'] },
+    }).select('_id patientId invoiceNumber balanceAmount createdAt').limit(20).lean();
+
+    for (const inv of invoices) {
+      const exists = await NotificationModel.exists({
+        recipientUserId: new Types.ObjectId(userId),
+        relatedEntityId: inv._id,
+        type: 'INVOICE_PENDING',
+      });
+      if (!exists) {
+        await NotificationModel.create([{
+          recipientRole: 'PATIENT',
+          recipientUserId: new Types.ObjectId(userId),
+          patientId: inv.patientId,
+          type: 'INVOICE_PENDING',
+          title: 'Pending Invoice',
+          message: `Invoice ${inv.invoiceNumber} has an outstanding balance of ${inv.balanceAmount}.`,
+          relatedEntityId: inv._id,
+          createdAt: inv.createdAt ?? new Date(),
+          isRead: false,
+        }]);
+      }
+    }
+
+    // 4. Check consents requiring signature
+    const pendingConsents = await PatientDocumentModel.find({
+      patientId: { $in: patientIds },
+      deletedAt: null,
+      documentType: 'CONSENT',
+      consentKind: { $ne: 'PATIENT_SIGNATURE' },
+      consentStatus: { $ne: 'SIGNED' },
+      status: 'ACTIVE',
+    }).select('_id patientId title createdAt').limit(20).lean();
+
+    for (const doc of pendingConsents) {
+      const exists = await NotificationModel.exists({
+        recipientUserId: new Types.ObjectId(userId),
+        relatedEntityId: doc._id,
+        type: 'CONSENT_REQUIRED',
+      });
+      if (!exists) {
+        await NotificationModel.create([{
+          recipientRole: 'PATIENT',
+          recipientUserId: new Types.ObjectId(userId),
+          patientId: doc.patientId,
+          type: 'CONSENT_REQUIRED',
+          title: 'Consent Signature Required',
+          message: `${doc.title} requires your review and signature.`,
+          relatedEntityId: doc._id,
+          createdAt: doc.createdAt ?? new Date(),
+          isRead: false,
+        }]);
+      }
+    }
+  }
+
+  async listForUser(userId: string, query: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit' | 'patient_id'>) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const filter: Record<string, unknown> = {
       ...(query.is_read !== undefined ? { isRead: query.is_read } : {}),
-      ...await this.recipientFilter(userId),
+      ...await this.recipientFilter(userId, query.patient_id),
     };
     const [data, count] = await Promise.all([
       NotificationModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean<NotificationLean[]>(),
@@ -147,6 +292,9 @@ export class NotificationRepository {
     }
     if (query.recipient_branch_id) {
       filter.recipientBranchId = new Types.ObjectId(query.recipient_branch_id);
+    }
+    if (query.patient_id) {
+      filter.patientId = new Types.ObjectId(query.patient_id);
     }
     if (query.is_read !== undefined) {
       filter.isRead = query.is_read;

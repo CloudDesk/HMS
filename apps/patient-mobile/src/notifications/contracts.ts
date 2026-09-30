@@ -6,6 +6,10 @@ export const notificationTypeSchema = z.enum([
   'CALL_NEXT_PATIENT',
   'GENERAL',
   'DENTAL_LAB_READY',
+  'LAB_RESULT',
+  'IMAGING_REPORT',
+  'CONSENT_REQUIRED',
+  'INVOICE_PENDING',
 ]).or(z.string());
 
 export const portalNotificationSchema = z.object({
@@ -16,6 +20,7 @@ export const portalNotificationSchema = z.object({
   recipient_role: z.string().nullable().optional().transform((v) => v ?? null),
   recipient_user_id: z.string().nullable().optional().transform((v) => v ?? null),
   recipient_branch_id: z.string().nullable().optional().transform((v) => v ?? null),
+  patient_id: z.string().nullable().optional().transform((v) => v ?? null),
   related_entity_id: z.string().nullable().optional().transform((v) => v ?? null),
   is_read: z.boolean().default(false),
   created_at: z.string(),
@@ -72,6 +77,14 @@ export function getNotificationTypeLabel(type: string): string {
       return 'Dental Lab';
     case 'REFERRAL':
       return 'Referral Notice';
+    case 'LAB_RESULT':
+      return 'Lab Result';
+    case 'IMAGING_REPORT':
+      return 'Imaging Report';
+    case 'CONSENT_REQUIRED':
+      return 'Consent Required';
+    case 'INVOICE_PENDING':
+      return 'Pending Invoice';
     case 'GENERAL':
     default:
       return 'Hospital Notice';
@@ -86,6 +99,14 @@ export function getNotificationTypeIcon(type: string): string {
       return '🦷';
     case 'REFERRAL':
       return '📋';
+    case 'LAB_RESULT':
+      return '🧪';
+    case 'IMAGING_REPORT':
+      return '🩻';
+    case 'CONSENT_REQUIRED':
+      return '✍️';
+    case 'INVOICE_PENDING':
+      return '💳';
     case 'GENERAL':
     default:
       return '💬';
@@ -103,6 +124,14 @@ export function getNotificationDestination(type: string): {
       return { tab: 'dental', label: 'View Dental Plans' };
     case 'REFERRAL':
       return { tab: 'appointments', label: 'View Visits' };
+    case 'LAB_RESULT':
+      return { tab: 'records', label: 'View Lab Reports' };
+    case 'IMAGING_REPORT':
+      return { tab: 'records', label: 'View Imaging Scans' };
+    case 'INVOICE_PENDING':
+      return { tab: 'billing', label: 'View Invoices' };
+    case 'CONSENT_REQUIRED':
+      return { tab: 'records', label: 'View Records' };
     default:
       return null;
   }

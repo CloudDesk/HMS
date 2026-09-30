@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -144,29 +143,38 @@ export function ConsentSignatureModal({
       visible={visible}
       onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
-              {/* Modal Header */}
-              <View style={styles.headerRow}>
-                <View style={styles.headerLeft}>
-                  <Text style={styles.modalTitle}>Medical Consent</Text>
-                  <Text style={styles.modalSubtitle}>Review & Sign Form</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={handleClose}
-                  style={styles.closeBtn}
-                  disabled={isSubmitting}
-                >
-                  <Text style={styles.closeBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+      <View style={styles.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={handleClose}
+          accessibilityLabel="Close consent modal backdrop"
+        />
+        <View style={styles.modalContent}>
+          {/* Modal Header */}
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.modalTitle}>Medical Consent</Text>
+              <Text style={styles.modalSubtitle}>Review & Sign Form</Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeBtn}
+              disabled={isSubmitting}
+              accessibilityLabel="Close modal"
+            >
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
+          <ScrollView
+            style={styles.scrollArea}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            contentContainerStyle={styles.scrollContent}
+          >
                 {/* Status & Title Card */}
                 <View style={styles.consentCard}>
                   <View style={styles.cardTopRow}>
@@ -341,10 +349,8 @@ export function ConsentSignatureModal({
                   </TouchableOpacity>
                 )}
               </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
@@ -355,15 +361,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: spacing.md,
   },
   modalContent: {
     width: '100%',
-    maxHeight: '90%',
+    maxHeight: '92%',
     backgroundColor: colors.neutral.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
+    paddingBottom: spacing.xs,
+    flexShrink: 1,
+    overflow: 'hidden',
     ...shadows.card,
+  },
+  scrollArea: {
+    flexShrink: 1,
   },
   headerRow: {
     flexDirection: 'row',
@@ -397,7 +409,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
   },
   scrollContent: {
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xxl + 32,
   },
   consentCard: {
     backgroundColor: colors.neutral.surfaceSubtle,

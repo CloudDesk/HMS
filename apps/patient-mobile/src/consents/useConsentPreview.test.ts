@@ -10,6 +10,7 @@ vi.mock('../ui/AuthContext', () => ({ useAuth: () => ({ manager: mocks.manager }
 vi.mock('./consents-api', () => ({ ConsentsApi: class {
   getFormHtml = mocks.html;
   getDocumentSource = mocks.source;
+  getSignatureDataUri = mocks.source;
 } }));
 
 const consent = consentItemSchema.parse({ id: 'form-1', patient_id: 'patient-1', title: 'Dental Consent',
@@ -27,7 +28,7 @@ async function render(item = consent, visible = true) {
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   mocks.html.mockReset().mockResolvedValue('<html><body>Dental terms</body></html>');
-  mocks.source.mockReset().mockResolvedValue({ uri: 'https://api.example/signature', headers: { Authorization: 'Bearer test' } });
+  mocks.source.mockReset().mockResolvedValue({ uri: 'data:image/jpeg;base64,test' });
   root = createRoot(document.createElement('div'));
   current = undefined;
 });
@@ -43,9 +44,9 @@ describe('Consent modal preview lifecycle', () => {
     expect(mocks.source).not.toHaveBeenCalled();
     await render();
     expect(mocks.html).toHaveBeenCalledWith('patient-1', 'form-1', expect.any(AbortSignal));
-    expect(mocks.source).toHaveBeenCalledWith('patient-1', 'signature-1');
+    expect(mocks.source).toHaveBeenCalledWith('patient-1', 'signature-1', expect.any(AbortSignal));
     expect(current?.preview?.html).toContain('Dental terms');
-    expect(current?.preview?.signature?.headers.Authorization).toBe('Bearer test');
+    expect(current?.preview?.signature?.uri).toContain('data:image/jpeg;base64,test');
     expect(current?.preview?.signatureLoading).toBe(true);
     await act(async () => current?.signatureLoaded());
     expect(current?.preview?.signatureLoading).toBe(false);

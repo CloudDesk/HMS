@@ -63,7 +63,12 @@ export function NotificationsScreen({
       setError(null);
 
       try {
-        const response = await api.listNotifications(undefined, 1, 50);
+        const response = await api.listNotifications(
+          undefined,
+          1,
+          50,
+          selectedPatientId
+        );
         setNotifications(response.data);
       } catch (err: unknown) {
         const msg =

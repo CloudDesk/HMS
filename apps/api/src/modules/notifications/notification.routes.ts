@@ -39,7 +39,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
     )),
   );
 
-  app.get<{ Querystring: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'> }>(
+  app.get<{ Querystring: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit' | 'patient_id'> }>(
     '/api/notifications/me',
     {
       preHandler: authenticate(services),
@@ -51,6 +51,7 @@ export const registerNotificationRoutes = async (app: FastifyInstance, services:
             is_read: { type: 'boolean' },
             page: { type: 'integer', minimum: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100 },
+            patient_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
           },
         },
       },

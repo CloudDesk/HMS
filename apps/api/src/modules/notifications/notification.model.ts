@@ -5,6 +5,7 @@ export type NotificationDocumentFields = {
   recipientRole?: string | null;
   recipientUserId?: Types.ObjectId | null;
   recipientBranchId?: Types.ObjectId | null;
+  patientId?: Types.ObjectId | null;
   title: string;
   message: string;
   type: NotificationType;
@@ -20,9 +21,23 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
     recipientRole: { type: String, default: null },
     recipientUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     recipientBranchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
+    patientId: { type: Schema.Types.ObjectId, ref: 'Patient', default: null },
     title: { type: String, required: true },
     message: { type: String, required: true },
-    type: { type: String, enum: ['REFERRAL', 'CALL_NEXT_PATIENT', 'GENERAL', 'DENTAL_LAB_READY'], required: true },
+    type: {
+      type: String,
+      enum: [
+        'REFERRAL',
+        'CALL_NEXT_PATIENT',
+        'GENERAL',
+        'DENTAL_LAB_READY',
+        'LAB_RESULT',
+        'IMAGING_REPORT',
+        'CONSENT_REQUIRED',
+        'INVOICE_PENDING',
+      ],
+      required: true,
+    },
     relatedEntityId: { type: Schema.Types.ObjectId, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     isRead: { type: Boolean, default: false },
@@ -35,6 +50,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
 notificationSchema.index({ recipientRole: 1, isRead: 1 });
 notificationSchema.index({ recipientRole: 1, recipientBranchId: 1, isRead: 1 });
 notificationSchema.index({ recipientUserId: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ recipientUserId: 1, patientId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
 
 export const NotificationModel = mongoose.model<NotificationDocumentFields>('Notification', notificationSchema);

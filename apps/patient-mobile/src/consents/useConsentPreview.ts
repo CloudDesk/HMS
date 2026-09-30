@@ -4,7 +4,7 @@ import { useAuth } from '../ui/AuthContext';
 import { ConsentsApi } from './consents-api';
 import type { ConsentItem } from './contracts';
 
-type ImageSource = Awaited<ReturnType<ConsentsApi['getDocumentSource']>>;
+type ImageSource = { uri: string; headers?: Record<string, string> };
 type Preview = {
   key: string;
   html: string | null;
@@ -46,7 +46,7 @@ export function useConsentPreview(consent: ConsentItem | null, visible: boolean)
       update({ formError: 'Please review this document format in Patient Portal.' });
     }
     if (signatureId) {
-      void api.getDocumentSource(patientId, signatureId)
+      void api.getSignatureDataUri(patientId, signatureId, controller.signal)
         .then((signature) => update({ signature }))
         .catch((err: unknown) => update({ signatureError: friendlyError(err), signatureLoading: false }));
     }

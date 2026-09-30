@@ -45,13 +45,35 @@ describe('NotificationsApi', () => {
     );
   });
 
-  it('getUnreadCount retrieves unread total', async () => {
+  it('listNotifications includes patient_id query param when provided', async () => {
     const mockSessionManager = {
       authenticatedRequest: vi.fn().mockResolvedValue(sampleNotificationsResponse),
     } as unknown as SessionManager;
 
     const api = new NotificationsApi(mockSessionManager);
-    const count = await api.getUnreadCount();
+    await api.listNotifications(false, 1, 50, 'pat-123');
+
+    expect(mockSessionManager.authenticatedRequest).toHaveBeenCalledWith(
+      '/notifications/me',
+      expect.anything(),
+      {
+        query: {
+          is_read: 'false',
+          page: '1',
+          limit: '50',
+          patient_id: 'pat-123',
+        },
+      }
+    );
+  });
+
+  it('getUnreadCount retrieves unread total with patient_id when provided', async () => {
+    const mockSessionManager = {
+      authenticatedRequest: vi.fn().mockResolvedValue(sampleNotificationsResponse),
+    } as unknown as SessionManager;
+
+    const api = new NotificationsApi(mockSessionManager);
+    const count = await api.getUnreadCount('pat-456');
 
     expect(count).toBe(1);
     expect(mockSessionManager.authenticatedRequest).toHaveBeenCalledWith(
@@ -61,6 +83,7 @@ describe('NotificationsApi', () => {
         query: {
           is_read: 'false',
           limit: '1',
+          patient_id: 'pat-456',
         },
       }
     );

@@ -11,6 +11,7 @@ import {
 import { readPublicConfig } from '../../config/config';
 import { getInitials } from '../../portal/formatters';
 import { useAuth } from '../AuthContext';
+import { useAuthenticatedImage } from '../hooks/useAuthenticatedImage';
 import { colors, typography } from '../theme';
 
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
@@ -45,7 +46,6 @@ export function Avatar({
   testID,
 }: AvatarProps) {
   const { manager } = useAuth();
-  const [hasError, setHasError] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
   const config = useMemo(() => {
@@ -57,10 +57,6 @@ export function Avatar({
   }, []);
 
   useEffect(() => {
-    setHasError(false);
-  }, [photoUrl, token]);
-
-  useEffect(() => {
     let isMounted = true;
     if (photoUrl && manager) {
       manager.accessToken().then((tok) => {
@@ -68,6 +64,8 @@ export function Avatar({
       }).catch(() => {
         if (isMounted) setToken(null);
       });
+    } else {
+      setToken(null);
     }
     return () => {
       isMounted = false;
@@ -106,8 +104,13 @@ export function Avatar({
     return !resolvedUrl.startsWith('data:') && !resolvedUrl.startsWith('file://');
   }, [resolvedUrl]);
 
+  const { uri: imageUri, isError: hasError } = useAuthenticatedImage(
+    resolvedUrl,
+    isRemoteApiUrl && manager ? token : undefined
+  );
+
   const initials = getInitials(name);
-  const showImage = Boolean(resolvedUrl && !hasError && (!isRemoteApiUrl || !manager || token));
+  const showImage = Boolean(imageUri && !hasError);
 
   const content = (
     <View
@@ -122,11 +125,10 @@ export function Avatar({
       ]}
       testID={testID}
     >
-      {showImage && resolvedUrl ? (
+      {showImage && imageUri ? (
         <Image
           source={{
-            uri: resolvedUrl,
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            uri: imageUri,
           }}
           style={[
             styles.image,
@@ -137,7 +139,6 @@ export function Avatar({
             },
           ]}
           resizeMode="cover"
-          onError={() => setHasError(true)}
         />
       ) : (
         <View

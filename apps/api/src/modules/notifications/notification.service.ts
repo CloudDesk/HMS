@@ -69,7 +69,11 @@ export class NotificationService {
     return this.repository.list(query, branchScope);
   }
 
-  async listForUser(userId: string, query: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit'>) {
+  async listForUser(userId: string, query: Pick<NotificationListQuery, 'is_read' | 'page' | 'limit' | 'patient_id'>) {
+    if (query.patient_id && !Types.ObjectId.isValid(query.patient_id)) {
+      throw new AppError('Patient id is invalid', 400, 'VALIDATION_ERROR');
+    }
+    await this.repository.syncPatientNotifications(userId);
     return this.repository.listForUser(userId, query);
   }
 
@@ -81,6 +85,7 @@ export class NotificationService {
     for (const [value, message] of [
       [data.recipient_user_id, 'Recipient user id is invalid'],
       [data.recipient_branch_id, 'Recipient branch id is invalid'],
+      [data.patient_id, 'Patient id is invalid'],
       [data.related_entity_id, 'Related entity id is invalid'],
     ] as const) {
       if (value && !Types.ObjectId.isValid(value)) {
@@ -93,6 +98,7 @@ export class NotificationService {
     for (const [value, message] of [
       [query.recipient_user_id, 'Recipient user id is invalid'],
       [query.recipient_branch_id, 'Recipient branch id is invalid'],
+      [query.patient_id, 'Patient id is invalid'],
     ] as const) {
       if (value && !Types.ObjectId.isValid(value)) {
         throw new AppError(message, 400, 'VALIDATION_ERROR');

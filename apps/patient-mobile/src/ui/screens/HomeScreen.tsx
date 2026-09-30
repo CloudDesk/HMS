@@ -46,7 +46,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
     }
 
     notificationsApi
-      .getUnreadCount()
+      .getUnreadCount(selectedPatientId)
       .then((count) => {
         if (isMounted) setUnreadNotifsCount(count);
       })

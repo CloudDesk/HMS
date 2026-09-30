@@ -24,6 +24,33 @@ export class ConsentsApi {
     };
   }
 
+  async getSignatureDataUri(patientId: string, documentId: string, signal?: AbortSignal): Promise<{ uri: string }> {
+    const source = await this.getDocumentSource(patientId, documentId);
+    const response = await this.fetcher(source.uri, {
+      headers: source.headers,
+      credentials: 'omit',
+      signal,
+    });
+    if (!response.ok) {
+      throw new ApiFailure(response.status === 401 || response.status === 403 ? 'auth' : 'server', response.status);
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i] ?? 0);
+    }
+    const base64 =
+      typeof btoa === 'function'
+        ? btoa(binary)
+        : typeof Buffer !== 'undefined'
+        ? Buffer.from(binary, 'binary').toString('base64')
+        : '';
+    return { uri: `data:${contentType};base64,${base64}` };
+  }
+
   async getFormHtml(patientId: string, documentId: string, signal: AbortSignal): Promise<string> {
     const source = await this.getDocumentSource(patientId, documentId);
     const response = await this.fetcher(source.uri, {
