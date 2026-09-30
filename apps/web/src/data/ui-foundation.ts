@@ -58,6 +58,9 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/opd/queue', label: 'OPD Queue' },
       { href: '/opd/prescription', label: 'Prescription' },
       { href: '/opd/referral', label: 'Referral' },
+      { href: '/opd/imaging', label: 'Imaging' },
+      { href: '/opd/laboratory', label: 'Laboratory' },
+      { href: '/opd/treatment-plan', label: 'Diagnosis & Treatment plan' },
     ],
   },
   // {

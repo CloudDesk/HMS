@@ -25,5 +25,6 @@ export { DentalSoftTissueSection } from './dental/DentalSoftTissueSection';
 export { DentalTreatmentPlanSection } from './dental/DentalTreatmentPlanSection';
 export { DentalProstheticLabModal } from './dental/DentalProstheticLabModal';
 export { DentalProstheticLabSection } from './dental/DentalProstheticLabSection';
+export { DentalDiagnosisTreatmentPlanSection } from './dental/DentalDiagnosisTreatmentPlanSection';
 export { OpdPatientTimelineModal } from './OpdPatientTimelineModal';
 

@@ -1325,6 +1325,11 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
   it('Quick Suggestions: displays suggestions dynamically based on Procedure Name, handles case-insensitivity, limits to 8, and populates form on click', async () => {
     const onChange = vi.fn();
     mockApi.listDentalStages.mockResolvedValue([]);
+    const testServices: any[] = [
+      { id: 's1', code: 'CROWN', name: 'Crown', service_type: 'PROCEDURE', standard_price: 18000, status: 'ACTIVE' },
+      { id: 's2', code: 'RCT', name: 'Root Canal Treatment', service_type: 'PROCEDURE', standard_price: 12000, status: 'ACTIVE' },
+      { id: 's3', code: 'EXT', name: 'Wisdom Tooth Extraction', service_type: 'PROCEDURE', standard_price: 8000, status: 'ACTIVE' },
+    ];
 
     await act(async () => {
       root.render(
@@ -1336,6 +1341,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
             patientId="patient-1"
             episodeId="episode-1"
             departmentId="dept-1"
+            departmentServices={testServices}
           />
         </QueryClientProvider>,
       );

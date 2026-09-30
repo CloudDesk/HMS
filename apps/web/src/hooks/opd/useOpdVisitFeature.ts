@@ -52,7 +52,19 @@ export function useOpdVisitFeature() {
   const { pathname, search } = useAppLocation();
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const visitIdParam = searchParams.get('id') ?? '';
-  const routeTab = pathname === '/opd/prescription' ? 'Prescription' : pathname === '/opd/referral' ? 'Referral' : null;
+  const routeTab = pathname === '/opd/prescription'
+    ? 'Prescription'
+    : pathname === '/opd/referral'
+      ? 'Referral'
+      : pathname === '/opd/examination'
+        ? 'Dental Examination'
+        : pathname === '/opd/imaging'
+          ? 'Imaging Orders'
+          : pathname === '/opd/laboratory'
+            ? 'Lab Orders'
+            : pathname === '/opd/treatment-plan'
+              ? 'Diagnosis'
+              : null;
   const initialTabParam = routeTab ?? searchParams.get('tab') ?? 'Consultation';
   const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -73,7 +85,7 @@ export function useOpdVisitFeature() {
   const billingCapabilities = useBillingCapabilities();
   const dentalBillingQuery = useDentalTreatmentBillingStates(
     activeVisitId || null,
-    activeTab === 'Dental Examination' &&
+    (activeTab === 'Dental Examination' || activeTab === 'Diagnosis') &&
       dentalVisit &&
       workspace.canViewConsultation &&
       billingCapabilities.canView,
@@ -91,9 +103,23 @@ export function useOpdVisitFeature() {
     if (visitIdParam && visitIdParam !== activeVisitId) setActiveVisitId(visitIdParam);
   }, [activeVisitId, visitIdParam]);
 
+  const resolvedRouteTab = pathname === '/opd/prescription'
+    ? 'Prescription'
+    : pathname === '/opd/referral'
+      ? 'Referral'
+      : pathname === '/opd/examination'
+        ? (dentalVisit ? 'Dental Examination' : 'Consultation')
+        : pathname === '/opd/imaging'
+          ? 'Imaging Orders'
+          : pathname === '/opd/laboratory'
+            ? 'Lab Orders'
+            : pathname === '/opd/treatment-plan'
+              ? 'Diagnosis'
+              : null;
+
   useEffect(() => {
-    if (routeTab) setActiveTab(routeTab);
-  }, [routeTab]);
+    if (resolvedRouteTab) setActiveTab(resolvedRouteTab);
+  }, [resolvedRouteTab]);
 
   useEffect(() => {
     const firstVisit = recentVisits[0];
@@ -181,7 +207,15 @@ export function useOpdVisitFeature() {
       ? '/opd/prescription'
       : routeTab === 'Referral'
         ? '/opd/referral'
-        : '/opd/consultation';
+        : routeTab === 'Dental Examination'
+          ? '/opd/examination'
+          : routeTab === 'Imaging Orders'
+            ? '/opd/imaging'
+            : routeTab === 'Lab Orders'
+              ? '/opd/laboratory'
+              : routeTab === 'Diagnosis'
+                ? '/opd/treatment-plan'
+                : '/opd/consultation';
     if (!navigate(`${destination}?id=${encodeURIComponent(visitId)}`)) return;
     setActiveVisitId(visitId);
   };

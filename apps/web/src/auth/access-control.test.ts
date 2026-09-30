@@ -193,4 +193,31 @@ describe('staff route access control', () => {
     const appointmentModule = modules.find((m) => m.key === 'appointments');
     expect(appointmentModule?.links.some((l) => l.href === '/appointments/queue')).toBe(false);
   });
+
+  it('allows doctor to see all OPD sidebar links including Examination, Imaging, Laboratory, Diagnosis & Plan', () => {
+    const opdPermissions = [
+      permission('OPD', 'OPD Visits'),
+      permission('OPD', 'OPD Consultation'),
+      permission('OPD', 'OPD Prescription'),
+      permission('OPD', 'OPD Referral'),
+    ];
+
+    expect(canAccessRoute('/opd/examination', opdPermissions, doctorRole)).toBe(true);
+    expect(canAccessRoute('/opd/imaging', opdPermissions, doctorRole)).toBe(true);
+    expect(canAccessRoute('/opd/laboratory', opdPermissions, doctorRole)).toBe(true);
+    expect(canAccessRoute('/opd/treatment-plan', opdPermissions, doctorRole)).toBe(true);
+
+    const modules = getAccessibleSidebarModules(opdPermissions, doctorRole);
+    const opdModule = modules.find((m) => m.key === 'opd');
+    expect(opdModule).toBeDefined();
+    expect(opdModule?.links.map((l) => l.href)).toEqual([
+      '/opd/queue',
+      '/opd/prescription',
+      '/opd/referral',
+      '/opd/imaging',
+      '/opd/laboratory',
+      '/opd/treatment-plan',
+    ]);
+  });
 });
+

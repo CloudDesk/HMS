@@ -234,7 +234,7 @@ function GumArtwork({ arch }: { arch: Arch }) {
 
       {/* ── Realistic 3D Tongue in Lower Dental Arch ── */}
       {arch === 'lower' && (
-        <g aria-hidden="true">
+        <g aria-hidden="true" transform="translate(300, 150) scale(0.88, 0.72) translate(-300, -150)">
           {/* Sublingual floor depth */}
           <path
             d="M 188 72 Q 300 120 412 72 C 416 168 385 272 300 286 C 215 272 184 168 188 72 Z"
@@ -350,11 +350,12 @@ function GumArtwork({ arch }: { arch: Arch }) {
       {/* ── Arch Centered Anatomical Label ── */}
       <text
         x="300"
-        y={arch === 'upper' ? 231 : 147}
+        y={arch === 'upper' ? 231 : 172}
         textAnchor="middle"
         fill={arch === 'upper' ? '#8b4544' : '#ffffff'}
-        fontSize="12.5"
+        fontSize={arch === 'upper' ? '12.5' : '10.5'}
         fontWeight="700"
+        letterSpacing="0.04em"
         style={arch === 'lower' ? { textShadow: '0 1px 3px rgba(0,0,0,0.6)' } : undefined}
       >
         {arch === 'upper' ? 'UPPER' : 'TONGUE'}
@@ -492,19 +493,6 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
     [historicalTeeth],
   );
 
-  const sideIssues = useMemo(() => {
-    let rightCount = 0;
-    let leftCount = 0;
-    for (const item of teeth) {
-      const c = conditionFor(item);
-      if (c !== 'unrecorded' && c !== 'healthy') {
-        const q = Math.floor(item.tooth_number / 10);
-        if ([1, 4, 5, 8].includes(q)) rightCount++;
-        else leftCount++;
-      }
-    }
-    return { rightCount, leftCount };
-  }, [teeth]);
 
   // Mount / unmount 3D scene when switching viewMode
   useEffect(() => {
@@ -578,17 +566,77 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
 
   const renderArch = (arch: Arch) => {
     const numbers = archTeeth(dentitionView, arch);
+    const rightQuad = arch === 'upper' ? (primary ? 5 : 1) : (primary ? 8 : 4);
+    const leftQuad = arch === 'upper' ? (primary ? 6 : 2) : (primary ? 7 : 3);
+
+    const rightIssues = teeth.filter((t) => {
+      const q = Math.floor(t.tooth_number / 10);
+      if (q !== rightQuad) return false;
+      const c = conditionFor(t);
+      return c !== 'unrecorded' && c !== 'healthy';
+    }).length;
+
+    const leftIssues = teeth.filter((t) => {
+      const q = Math.floor(t.tooth_number / 10);
+      if (q !== leftQuad) return false;
+      const c = conditionFor(t);
+      return c !== 'unrecorded' && c !== 'healthy';
+    }).length;
+
     return (
       <section
         className={styles.jawSection}
         aria-label={`${arch === 'upper' ? 'Maxillary upper' : 'Mandibular lower'} arch`}
       >
-        <header className={styles.jawHeader}>
-          <strong>
-            {arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}
-            <span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span>
-          </strong>
-        </header>
+        <div className={styles.archHeaderBar}>
+          <div
+            className={`${styles.archPatientSideBadge} ${styles.patientSideRight}`}
+            title={`Patient's Right Side (${arch === 'upper' ? (primary ? 'Q5 Upper' : 'Q1 Upper') : (primary ? 'Q8 Lower' : 'Q4 Lower')})`}
+          >
+            <span className={styles.sideArrow}>◀</span>
+            <div className={styles.sideLabelText}>
+              <strong>PATIENT RIGHT</strong>
+              <span className={styles.sideSubtext}>
+                Your Left · {arch === 'upper' ? (primary ? 'Q5 (Upper)' : 'Q1 (Upper)') : (primary ? 'Q8 (Lower)' : 'Q4 (Lower)')}
+              </span>
+            </div>
+            {rightIssues > 0 ? (
+              <span className={styles.sideIssuePill}>
+                {rightIssues} issue{rightIssues > 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className={styles.sideHealthyPill}>✓ Normal</span>
+            )}
+          </div>
+
+          <header className={styles.jawHeader}>
+            <strong>
+              {arch === 'upper' ? 'Maxillary Arch' : 'Mandibular Arch'}
+              <span>{arch === 'upper' ? '(Upper)' : '(Lower)'}</span>
+            </strong>
+          </header>
+
+          <div
+            className={`${styles.archPatientSideBadgeRight} ${styles.patientSideLeft}`}
+            title={`Patient's Left Side (${arch === 'upper' ? (primary ? 'Q6 Upper' : 'Q2 Upper') : (primary ? 'Q7 Lower' : 'Q3 Lower')})`}
+          >
+            {leftIssues > 0 ? (
+              <span className={styles.sideIssuePill}>
+                {leftIssues} issue{leftIssues > 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className={styles.sideHealthyPill}>✓ Normal</span>
+            )}
+            <div className={styles.sideLabelText}>
+              <strong>PATIENT LEFT</strong>
+              <span className={styles.sideSubtext}>
+                Your Right · {arch === 'upper' ? (primary ? 'Q6 (Upper)' : 'Q2 (Upper)') : (primary ? 'Q7 (Lower)' : 'Q3 (Lower)')}
+              </span>
+            </div>
+            <span className={styles.sideArrow}>▶</span>
+          </div>
+        </div>
+
         <div className={styles.jawOrientation}>
           <span>Patient right</span>
           <span>Patient left</span>
@@ -658,7 +706,7 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '4px 8px 8px' }}>
         {renderDentitionControl()}
         {/* View-mode toggle */}
-        <div className={styles.viewToggleBar} role="group" aria-label="Chart view mode">
+        {/* <div className={styles.viewToggleBar} role="group" aria-label="Chart view mode">
           <button
             type="button"
             className={`${styles.viewToggleBtn} ${viewMode === '2d' ? styles.viewToggleBtnActive : ''}`}
@@ -677,52 +725,7 @@ export const OdontogramChart: React.FC<OdontogramChartProps> = ({
             <i className="ph ph-cube" aria-hidden="true" />
             <span>3D View</span>
           </button>
-        </div>
-      </div>
-
-      {/* ── Orientation Banners (Patient Right & Patient Left Differentiation) ── */}
-      <div className={styles.patientSideOrientationHeader} aria-label="Dental chart side orientation">
-        <div
-          className={`${styles.patientSideBadge} ${styles.patientSideRight}`}
-          title="Patient's Right Side (Quadrants 1 & 4)"
-        >
-          <span className={styles.sideArrow}>◀</span>
-          <div className={styles.sideLabelText}>
-            <strong>PATIENT RIGHT</strong>
-            <span className={styles.sideSubtext}>Your Left · Q1 (Upper) &amp; Q4 (Lower)</span>
-          </div>
-          {sideIssues.rightCount > 0 ? (
-            <span className={styles.sideIssuePill}>
-              {sideIssues.rightCount} issue{sideIssues.rightCount > 1 ? 's' : ''}
-            </span>
-          ) : (
-            <span className={styles.sideHealthyPill}>✓ Normal</span>
-          )}
-        </div>
-
-        <div className={styles.midlineIndicatorTag} title="Anatomical Midline">
-          <span className={styles.midlineDot} />
-          <span>MIDLINE</span>
-          <span className={styles.midlineDot} />
-        </div>
-
-        <div
-          className={`${styles.patientSideBadge} ${styles.patientSideLeft}`}
-          title="Patient's Left Side (Quadrants 2 & 3)"
-        >
-          {sideIssues.leftCount > 0 ? (
-            <span className={styles.sideIssuePill}>
-              {sideIssues.leftCount} issue{sideIssues.leftCount > 1 ? 's' : ''}
-            </span>
-          ) : (
-            <span className={styles.sideHealthyPill}>✓ Normal</span>
-          )}
-          <div className={styles.sideLabelText}>
-            <strong>PATIENT LEFT</strong>
-            <span className={styles.sideSubtext}>Your Right · Q2 (Upper) &amp; Q3 (Lower)</span>
-          </div>
-          <span className={styles.sideArrow}>▶</span>
-        </div>
+        </div> */}
       </div>
 
       {/* ── 2D Anatomical Dental Chart ── */}

@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useDentalImagingFeature, type DentalImagingFeatureInput } from '../../../hooks/opd/useDentalImagingFeature';
 import { useDentalChairsideImaging } from '../../../hooks/opd/useDentalChairsideImaging';
+import { useCurrencyFormatter } from '../../../api/useSettings';
 import { getOpdErrorMessage } from '../../../pages/opd-utils';
 import { imagingApi, type ImagingAttachment } from '../../../api/imaging';
 import { getAuthenticatedMediaUrl } from '../../../api/client';
 import { opdApi, type DentalChairsideImage } from '../../../api/opd';
 import type { PatientDocumentResponse } from '../../../api/patients';
+import { getToothName, isDentalImagingService, PERMANENT_QUADRANTS, PRIMARY_QUADRANTS } from '../../../pages/dental-utils';
 import styles from './DentalClinicalOrders.module.css';
 import { Modal } from '../../ui/Modal';
 import { DentalImageViewerModal, type ViewerAttachmentItem } from './DentalImageViewerModal';
@@ -30,8 +32,9 @@ const getResultAvailability = (status?: string | null) => {
   return { label: 'Draft', available: false };
 };
 
-export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }: Props) {
-  void _selectedTooth;
+export function DentalImagingSection({ selectedTooth, ...input }: Props) {
+  const [selectedToothNumber, setSelectedToothNumber] = useState<number | null>(selectedTooth ?? null);
+  const [chairsideToothFilter, setChairsideToothFilter] = useState<'ALL' | 'GENERAL' | number>('ALL');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'PENDING' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [orderSearch, setOrderSearch] = useState('');
   const [activeViewerItem, setActiveViewerItem] = useState<{
@@ -43,6 +46,13 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
     toothNumber?: number | null;
   } | null>(null);
 
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const formatCurrency = useCurrencyFormatter();
   const feature = useDentalImagingFeature(input);
   const chairside = useDentalChairsideImaging({
     visitId: input.visitId,
@@ -51,13 +61,97 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
     enabled: feature.canView,
   });
 
-  const { order, report } = feature;
+  const { order, report, form, catalogue } = feature;
 
   if (!feature.canView) {
     return <section className={styles.imagingPanel}>You do not have permission to view imaging requests.</section>;
   }
 
   const allVisitChairsideImages = chairside.allVisitImages;
+  const selectedServiceId = form.watch('serviceId');
+  const rawServices = catalogue.data?.data ?? [];
+  const dentalImagingServices = rawServices.filter(isDentalImagingService);
+
+  const allTeeth = [
+    ...Object.values(PERMANENT_QUADRANTS).flat(),
+    ...Object.values(PRIMARY_QUADRANTS).flat(),
+  ];
+
+  const filteredChairsideImages = allVisitChairsideImages.filter((img) => {
+    if (chairsideToothFilter === 'ALL') return true;
+    if (chairsideToothFilter === 'GENERAL') return !img.tooth_number;
+    return img.tooth_number === chairsideToothFilter;
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await chairside.uploadImage({
+        file,
+        toothNumber: selectedToothNumber,
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch {
+      // toast is displayed by hook
+    }
+  };
+
+  const openCamera = async () => {
+    setCameraError(null);
+    setCameraModalOpen(true);
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        setCameraStream(stream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } else {
+        setCameraError('Camera access is not supported by your browser. Please use Upload.');
+      }
+    } catch {
+      setCameraError('Unable to access device camera. Please check camera permissions or use Upload.');
+    }
+  };
+
+  const closeCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setCameraModalOpen(false);
+  };
+
+  const captureSnapshot = async () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      closeCamera();
+      try {
+        await chairside.uploadImage({
+          file: blob,
+          fileName: selectedToothNumber ? `Tooth_${selectedToothNumber}_${Date.now()}.png` : `Scan_${Date.now()}.png`,
+          toothNumber: selectedToothNumber,
+        });
+      } catch {
+        // toast handled in hook
+      }
+    }, 'image/png');
+  };
   const otherEpisodeOrders = feature.episodeOrders.filter((epOrder) => epOrder.id !== order.data?.id);
   const formalOrderRows = [
     ...(order.data?.items ?? []).map((item, index) => ({ order: order.data!, item, index })),
@@ -248,8 +342,100 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
             </h3>
             <p>Images captured by the dental team during this consultation.</p>
           </div>
-          <span className={styles.imageCountBadge}>{allVisitChairsideImages.length} {allVisitChairsideImages.length === 1 ? 'Image' : 'Images'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span className={styles.imageCountBadge}>{allVisitChairsideImages.length} {allVisitChairsideImages.length === 1 ? 'Image' : 'Images'}</span>
+            {input.canEdit && !input.consultationCompleted && (
+              <>
+                <select
+                  value={selectedToothNumber ?? ''}
+                  onChange={(e) => setSelectedToothNumber(e.target.value ? Number(e.target.value) : null)}
+                  className={styles.toothSelect}
+                  title="Target tooth for image capture, upload, or radiology order"
+                  aria-label="Target Tooth"
+                >
+                  <option value="">General / Full Mouth</option>
+                  {allTeeth.map((tooth) => (
+                    <option key={tooth} value={tooth}>
+                      Tooth #{tooth} - {getToothName(tooth)}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  className={styles.btnCaptureAction}
+                  onClick={openCamera}
+                  disabled={chairside.isUploading}
+                  title="Capture image from device camera"
+                >
+                  <i className="ph ph-camera" /> Capture Image
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.btnUploadAction}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={chairside.isUploading}
+                  title="Upload scan/photo from file"
+                >
+                  <i className="ph ph-upload-simple" /> {chairside.isUploading ? 'Uploading...' : 'Upload Image'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => void handleFileUpload(e)}
+                />
+              </>
+            )}
+
+            {feature.canAdd && (
+              <button
+                type="button"
+                className={styles.btnAddAction}
+                onClick={() => feature.openRequest(selectedToothNumber)}
+                disabled={chairside.isUploading}
+                title="Order formal radiology X-Ray or Scan"
+              >
+                + Order X-Ray / Scan
+              </button>
+            )}
+          </div>
         </div>
+
+        {allVisitChairsideImages.length > 0 && (
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', margin: '8px 0 12px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Filter:</span>
+            <button
+              type="button"
+              className={chairsideToothFilter === 'ALL' ? styles.orderFilterActive : ''}
+              style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+              onClick={() => setChairsideToothFilter('ALL')}
+            >
+              All ({allVisitChairsideImages.length})
+            </button>
+            <button
+              type="button"
+              className={chairsideToothFilter === 'GENERAL' ? styles.orderFilterActive : ''}
+              style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+              onClick={() => setChairsideToothFilter('GENERAL')}
+            >
+              General / Full Mouth
+            </button>
+            {Array.from(new Set(allVisitChairsideImages.map((img) => img.tooth_number).filter(Boolean))).map((t) => (
+              <button
+                key={t!}
+                type="button"
+                className={chairsideToothFilter === t ? styles.orderFilterActive : ''}
+                style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+                onClick={() => setChairsideToothFilter(t!)}
+              >
+                Tooth #{t}
+              </button>
+            ))}
+          </div>
+        )}
 
         {chairside.isLoading && <p role="status">Loading chairside images...</p>}
 
@@ -261,9 +447,15 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
         )}
 
         {/* All Consultation Chairside Images */}
-        {allVisitChairsideImages.length > 0 && (
+        {filteredChairsideImages.length > 0 && (
           <div className={styles.chairsideGrid}>
-            {allVisitChairsideImages.map(renderChairsideCard)}
+            {filteredChairsideImages.map(renderChairsideCard)}
+          </div>
+        )}
+
+        {filteredChairsideImages.length === 0 && allVisitChairsideImages.length > 0 && (
+          <div className={styles.chairsideEmpty}>
+            No chairside images match this tooth filter.
           </div>
         )}
 
@@ -416,6 +608,166 @@ export function DentalImagingSection({ selectedTooth: _selectedTooth, ...input }
         </button>
       )}
       {feature.saveError && !feature.open && <p role="alert">{feature.saveError}</p>}
+
+      {/* Formal Order Radiology Modal */}
+      {feature.open && (
+        <Modal
+          open
+          title="Order Dental Imaging / Scan"
+          className={styles.imagingDialog}
+          onClose={() => feature.setOpen(false)}
+          footer={
+            <div className={styles.dialogFooterActions}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => feature.setOpen(false)}
+                disabled={feature.saving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.btnAddAction}
+                onClick={() => void feature.saveRequest()}
+                disabled={feature.saving || catalogue.isLoading}
+              >
+                {feature.saving ? 'Saving...' : 'Save & Add to Order'}
+              </button>
+            </div>
+          }
+        >
+          <form className={styles.dialogForm} onSubmit={feature.saveRequest}>
+            {catalogue.isLoading && <p role="status">Loading available imaging procedures…</p>}
+            {catalogue.isError && (
+              <p role="alert">
+                {getOpdErrorMessage(catalogue.error)}{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void catalogue.refetch();
+                  }}
+                >
+                  Retry catalogue
+                </button>
+              </p>
+            )}
+
+            <label>
+              Select Dental Imaging Service <span className={styles.required}>*</span>
+            </label>
+            {catalogue.isSuccess && dentalImagingServices.length === 0 && (
+              <div className={styles.emptyServiceState}>
+                <p>No active dental imaging services match this search.</p>
+              </div>
+            )}
+
+            {dentalImagingServices.length > 0 && (
+              <div className={styles.serviceCardList} role="radiogroup" aria-label="Dental imaging services">
+                {dentalImagingServices.map((service) => (
+                  <label
+                    key={service.id}
+                    className={`${styles.serviceCard} ${selectedServiceId === service.id ? styles.serviceCardSelected : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      value={service.id}
+                      {...form.register('serviceId')}
+                      disabled={feature.saving || catalogue.isFetching}
+                    />
+                    <div className={styles.serviceCardInfo}>
+                      <strong>{service.name}</strong>
+                      <span className={styles.serviceCardCategory}>{service.category || 'Dental Imaging'}</span>
+                    </div>
+                    <span className={styles.serviceCardPrice}>{formatCurrency(service.standard_price)}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {form.formState.errors.serviceId && <p role="alert">{form.formState.errors.serviceId.message}</p>}
+
+            <label>
+              Tooth / Region
+              <select {...form.register('tooth')} disabled={feature.saving}>
+                <option value="">General / Full Mouth</option>
+                {allTeeth.map((tooth) => (
+                  <option key={tooth} value={tooth}>
+                    Tooth #{tooth} - {getToothName(tooth)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {form.formState.errors.tooth && <p role="alert">{form.formState.errors.tooth.message}</p>}
+
+            <label>
+              Clinical Indication / Reason (optional)
+              <input
+                type="text"
+                placeholder="e.g. Suspected apical periodontitis / caries evaluation"
+                {...form.register('clinicalNotes')}
+                disabled={feature.saving}
+              />
+            </label>
+
+            {feature.saveError && (
+              <p role="alert">
+                {feature.saveError}{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void order.refetch();
+                  }}
+                >
+                  Refresh order
+                </button>
+              </p>
+            )}
+          </form>
+        </Modal>
+      )}
+
+      {/* Camera Capture Modal */}
+      {cameraModalOpen && (
+        <Modal
+          open
+          title={`Capture Chairside Image ${selectedToothNumber ? `· Tooth #${selectedToothNumber}` : '· General / Full Mouth'}`}
+          className={styles.cameraModal}
+          onClose={closeCamera}
+          footer={
+            <div className={styles.dialogFooterActions}>
+              <button type="button" onClick={closeCamera}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.btnCaptureAction}
+                onClick={() => void captureSnapshot()}
+                disabled={Boolean(cameraError)}
+              >
+                <i className="ph ph-camera" /> Capture &amp; Save
+              </button>
+            </div>
+          }
+        >
+          <div className={styles.cameraViewport}>
+            {cameraError ? (
+              <p style={{ color: '#f87171', padding: '1rem', textAlign: 'center' }}>{cameraError}</p>
+            ) : (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={styles.cameraVideo}
+                onLoadedMetadata={() => {
+                  void videoRef.current?.play();
+                }}
+              />
+            )}
+          </div>
+        </Modal>
+      )}
+
       <Modal
         open={feature.reportOpen}
         title="Imaging Report"

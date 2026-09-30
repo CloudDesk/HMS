@@ -416,10 +416,10 @@ describe('ToothExaminationPanel refactored component', () => {
     });
 
     const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Imaging', 'Periodontal']);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Surfaces', 'Periodontal']);
     expect(container.textContent).not.toContain('Probing Depth (mm)');
 
-    await act(async () => tabs[2]?.click());
+    await act(async () => tabs[1]?.click());
     expect(container.textContent).toContain('Probing Depth (mm)');
     expect(container.textContent).toContain('Furcation Involvement');
 
@@ -630,7 +630,7 @@ describe('ToothExaminationPanel refactored component', () => {
     expect(container.textContent).toContain('K04.0 — Pulpitis');
   });
 
-  it('renders Tooth-Centered Imaging section with Capture, Upload, and Order actions for selected tooth', async () => {
+  it('renders Surfaces and Periodontal tabs and omits duplicate Imaging tab', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -650,29 +650,60 @@ describe('ToothExaminationPanel refactored component', () => {
       );
     });
 
-    const imagingTab = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent === 'Imaging',
+    const detailTabs = Array.from(container.querySelectorAll('div[class*="toothDetailTabs"] button')).map((b) =>
+      b.textContent?.trim(),
     );
-    if (imagingTab) {
-      await act(async () => {
-        imagingTab.click();
-      });
-    }
+    expect(detailTabs).toContain('Surfaces');
+    expect(detailTabs).toContain('Periodontal');
+    expect(detailTabs).not.toContain('Imaging');
+  });
 
-    expect(container.textContent).toContain('Imaging · Tooth #22');
+  it('expands and collapses inline Dental Diagnosis section under Status & Condition when Add Diagnosis is clicked', async () => {
+    const onAddDiagnosis = vi.fn();
+    const onRemoveDiagnosis = vi.fn();
 
-    const captureBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Capture Image'),
-    );
-    const uploadBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Upload Image'),
-    );
-    const orderBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Order X-Ray / Scan'),
-    );
+    await act(async () => {
+      root.render(
+        <ToothExaminationPanel
+          selectedToothNumber={16}
+          currentFinding={undefined}
+          onUpdateFinding={vi.fn()}
+          onRemoveFinding={vi.fn()}
+          allDiagnoses={[]}
+          onAddDiagnosis={onAddDiagnosis}
+          onRemoveDiagnosis={onRemoveDiagnosis}
+          canEdit={true}
+        />,
+      );
+    });
 
-    expect(captureBtn).toBeDefined();
-    expect(uploadBtn).toBeDefined();
-    expect(orderBtn).toBeDefined();
+    // Initially inline diagnosis is not visible
+    expect(container.textContent).not.toContain('Dental Diagnosis & ICD-10 Coding');
+
+    const addDxBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Add Diagnosis'),
+    );
+    expect(addDxBtn).toBeDefined();
+
+    // Click Add Diagnosis
+    await act(async () => {
+      addDxBtn?.click();
+    });
+
+    // Should now display the inline diagnosis section
+    expect(container.textContent).toContain('Dental Diagnosis & ICD-10 Coding');
+    expect(container.querySelector('[aria-label="Collapse diagnosis section"]')).toBeDefined();
+
+    // Click Done or collapse button
+    const doneBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Done' && b.getAttribute('aria-label') !== 'Close diagnosis dialog',
+    );
+    await act(async () => {
+      doneBtn?.click();
+    });
+
+    // Inline diagnosis is collapsed
+    expect(container.textContent).not.toContain('Dental Diagnosis & ICD-10 Coding');
   });
 });
+

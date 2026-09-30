@@ -12,7 +12,7 @@ import {
   STANDARD_CONDITIONS,
 } from '../../../pages/dental-utils';
 import { ToothSurfaceSelector } from './ToothSurfaceSelector';
-import { ToothImagingPanelSection } from './ToothImagingPanelSection';
+import { DentalDiagnosisModal, type Icd10Diagnosis } from './DentalDiagnosisModal';
 import styles from './DentalExamination.module.css';
 
 interface ToothExaminationPanelProps {
@@ -41,6 +41,12 @@ interface ToothExaminationPanelProps {
   canEdit?: boolean;
   consultationCompleted?: boolean;
   imagingContent?: React.ReactNode;
+  allDiagnoses?: Icd10Diagnosis[];
+  onAddDiagnosis?: (dx: Icd10Diagnosis) => void;
+  onRemoveDiagnosis?: (code: string, toothNumber?: number | null) => void;
+  assessment?: string;
+  onAssessmentChange?: (val: string) => void;
+  showToast?: (message: string, tone?: 'success' | 'error') => void;
 }
 
 const CONDITION_ICONS: Record<string, string> = {
@@ -113,8 +119,15 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
   canEdit = true,
   consultationCompleted = false,
   imagingContent,
+  allDiagnoses,
+  onAddDiagnosis,
+  onRemoveDiagnosis,
+  assessment,
+  onAssessmentChange,
+  showToast,
 }) => {
-  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'imaging' | 'periodontal'>('surfaces');
+  const [activeDetailTab, setActiveDetailTab] = useState<'surfaces' | 'periodontal'>('surfaces');
+  const [isDiagnosisExpanded, setIsDiagnosisExpanded] = useState(false);
 
   useEffect(() => {
     setActiveDetailTab('surfaces');
@@ -280,29 +293,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
                   <i className="ph ph-stethoscope" /> {dx.code} — {dx.name}
                 </span>
               ))}
-              {!disabled && onOpenDiagnosis && (
-                <button
-                  type="button"
-                  className={styles.btnSecondary}
-                  style={{ padding: '2px 6px', fontSize: '0.7rem', height: 'auto' }}
-                  onClick={() => onOpenDiagnosis(selectedToothNumber)}
-                  title="Add or edit diagnosis for this tooth"
-                >
-                  <i className="ph ph-plus" /> Diagnosis
-                </button>
-              )}
-            </div>
-          ) : !disabled && onOpenDiagnosis ? (
-            <div style={{ marginTop: '4px' }}>
-              <button
-                type="button"
-                className={styles.btnSecondary}
-                style={{ padding: '2px 8px', fontSize: '0.72rem', height: 'auto' }}
-                onClick={() => onOpenDiagnosis(selectedToothNumber)}
-                title="Add diagnosis for this tooth"
-              >
-                <i className="ph ph-plus" /> Add Diagnosis
-              </button>
             </div>
           ) : null}
           {finding.notes ? <div className={styles.panelToothNotePreview}>{finding.notes}</div> : null}
@@ -380,7 +370,6 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
       <div className={styles.toothDetailTabs} role="tablist" aria-label="Selected tooth details">
         {([
           ['surfaces', 'Surfaces', 'ph-grid-four'],
-          ['imaging', 'Imaging', 'ph-image-square'],
           ['periodontal', 'Periodontal', 'ph-chart-line-up'],
         ] as const).map(([value, label, icon]) => (
           <button
@@ -462,34 +451,93 @@ export const ToothExaminationPanel: React.FC<ToothExaminationPanelProps> = ({
               <i className="ph ph-x-circle" aria-hidden="true" />
               Missing
             </button>
+            {!disabled && (onOpenDiagnosis || onAddDiagnosis) ? (
+              toothDiagnoses.length > 0 ? (
+                <button
+                  type="button"
+                  className={styles.toothDiagnosisChip}
+                  style={{
+                    gridColumn: 'span 2',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1d4ed8',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setIsDiagnosisExpanded((prev) => !prev);
+                    onOpenDiagnosis?.(selectedToothNumber);
+                  }}
+                  title="Add or edit diagnosis for this tooth"
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <i className="ph ph-stethoscope" aria-hidden="true" />
+                    <strong>Dx:</strong> {toothDiagnoses.map((d) => d.code).join(', ')}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', textDecoration: 'underline', opacity: 0.85, marginLeft: '6px', flexShrink: 0 }}>
+                    {isDiagnosisExpanded ? 'Done' : 'Edit Dx'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.toothDiagnosisChip}
+                  style={{
+                    gridColumn: 'span 2',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    background: '#f0fdf4',
+                    border: '1px dashed #86efac',
+                    color: '#15803d',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setIsDiagnosisExpanded((prev) => !prev);
+                    onOpenDiagnosis?.(selectedToothNumber);
+                  }}
+                  title="Add ICD-10 clinical diagnosis linked to this tooth"
+                >
+                  <i className="ph ph-plus-circle" style={{ fontSize: '0.9rem' }} aria-hidden="true" />
+                  <span>{isDiagnosisExpanded ? 'Done' : 'Add Diagnosis'}</span>
+                </button>
+              )
+            ) : null}
           </div>
         </div>
       </div>
 
-      </>}
-
-      {/* Subsection: TOOTH-CENTERED IMAGING TAB */}
-      {activeDetailTab === 'imaging' && (
-        <div style={{ marginTop: '8px' }}>
-          {imagingContent ? (
-            imagingContent
-          ) : visitId ? (
-            <ToothImagingPanelSection
-              selectedToothNumber={selectedToothNumber}
-              visitId={visitId}
-              episodeId={episodeId}
-              canEdit={canEdit && !disabled}
-              consultationCompleted={consultationCompleted}
-              disabled={disabled}
-            />
-          ) : (
-            <div style={{ textAlign: 'center', padding: '24px 10px', color: '#94a3b8', fontSize: '0.82rem' }}>
-              <i className="ph ph-camera" style={{ fontSize: '1.8rem', display: 'block', marginBottom: '6px', color: '#cbd5e1' }} />
-              Tooth imaging is available when consultation is active.
-            </div>
-          )}
+      {/* Inline Dental Diagnosis Section under Status & Condition */}
+      {isDiagnosisExpanded && (
+        <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+          <DentalDiagnosisModal
+            inline={true}
+            open={true}
+            onClose={() => setIsDiagnosisExpanded(false)}
+            selectedToothNumber={selectedToothNumber}
+            diagnoses={allDiagnoses ?? (toothDiagnoses as Icd10Diagnosis[])}
+            onAddDiagnosis={onAddDiagnosis}
+            onRemoveDiagnosis={onRemoveDiagnosis}
+            canEdit={Boolean(canEdit && !disabled)}
+            assessment={assessment}
+            onAssessmentChange={onAssessmentChange}
+            showToast={showToast}
+          />
         </div>
       )}
+
+      </>}
 
       {/* Subsection: PERIODONTAL & CLINICAL FINDINGS */}
       {activeDetailTab === 'periodontal' && finding.status !== 'MISSING' && finding.status !== 'EXTRACTED' && (
