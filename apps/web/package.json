@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json && npm run typecheck:tests",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "npm --prefix ../.. run test -- --project=web"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

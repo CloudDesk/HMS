@@ -22,6 +22,20 @@
         "EXPO_PUBLIC_HMS_ENV": "production",
         "EXPO_PUBLIC_HMS_API_URL": "https://hms-api-atok.onrender.com/api"
       }
+    },
+    "kenya-preview": {
+      "extends": "preview",
+      "env": {
+        "EXPO_PUBLIC_HMS_ENV": "production",
+        "EXPO_PUBLIC_HMS_API_URL": "https://hms-33pe.onrender.com/api"
+      }
+    },
+    "kenya-production": {
+      "extends": "production",
+      "env": {
+        "EXPO_PUBLIC_HMS_ENV": "production",
+        "EXPO_PUBLIC_HMS_API_URL": "https://hms-33pe.onrender.com/api"
+      }
     }
   }
 }
