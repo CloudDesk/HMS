@@ -1,0 +1,1033 @@
+import { Types, type ClientSession, type SortOrder } from 'mongoose';
+import {
+  PatientDocumentModel,
+  PatientModel,
+  PatientTimelineEventModel,
+  type PatientDocumentFields,
+  type PatientDocumentMetadataFields,
+  type PatientTimelineEventFields,
+} from './patient.model.js';
+import { PatientNumberSequenceModel } from './patient-number.model.js';
+import { buildPhoneMongoFilter } from '../../utils/phone.js';
+import type {
+  CreatePatientDTO,
+  CreatePatientDocumentDTO,
+  Patient,
+  PatientConsentContextType,
+  PatientDocument,
+  PatientDocumentListQuery,
+  PatientListQuery,
+  PatientTimelineListQuery,
+  PatientTimelineEvent,
+  UpdatePatientDTO,
+} from './patient.types.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import { RefreshTokenModel } from '../auth/refresh-token.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import { OpdVisitModel, type OpdVisitFields } from '../opd/opd-visit.model.js';
+import { OpdConsultationModel, type OpdConsultationFields } from '../opd/opd-consultation.model.js';
+import { OpdPrescriptionModel, type OpdPrescriptionFields } from '../opd/opd-prescription.model.js';
+import { OpdClinicalOrderModel, type OpdClinicalOrderFields } from '../opd/opd-clinical-order.model.js';
+import { OpdDentalExaminationModel, type OpdDentalExaminationFields } from '../opd/opd-dental-examination.model.js';
+import { OpdFollowUpModel, type OpdFollowUpFields } from '../opd/opd-follow-up.model.js';
+import { OpdReferralModel, type OpdReferralFields } from '../opd/opd-referral.model.js';
+
+type PatientLean = PatientDocumentFields & { _id: Types.ObjectId };
+type PatientDocumentLean = PatientDocumentMetadataFields & { _id: Types.ObjectId };
+type PatientProfilePhotoReference = { id: string; version: string };
+type PatientTimelineEventLean = PatientTimelineEventFields & { _id: Types.ObjectId };
+type OpdVisitTimelineLean = OpdVisitFields & { _id: Types.ObjectId };
+type OpdConsultationTimelineLean = OpdConsultationFields & { _id: Types.ObjectId };
+type OpdPrescriptionTimelineLean = OpdPrescriptionFields & { _id: Types.ObjectId };
+type OpdClinicalOrderTimelineLean = OpdClinicalOrderFields & { _id: Types.ObjectId };
+type OpdDentalExaminationTimelineLean = OpdDentalExaminationFields & { _id: Types.ObjectId };
+type OpdFollowUpTimelineLean = OpdFollowUpFields & { _id: Types.ObjectId };
+type OpdReferralTimelineLean = OpdReferralFields & { _id: Types.ObjectId };
+
+const nullableString = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const toObjectId = (value: string | null | undefined) => (value && /^[a-f\d]{24}$/i.test(value) ? new Types.ObjectId(value) : null);
+const canonicalConsentStatus = (value: string | null | undefined) => {
+  if (!value) return null;
+  if (value === 'SIGNED') return 'ATTACHED' as const;
+  if (value === 'EXPIRED' || value === 'REJECTED') return 'PENDING' as const;
+  return value as PatientDocument['consent_status'];
+};
+
+const toPatient = (patient: PatientLean, profilePhoto?: PatientProfilePhotoReference | null): Patient => ({
+  id: patient._id.toString(),
+  patient_number: patient.patientNumber,
+  first_name: patient.firstName ?? null,
+  middle_name: patient.middleName ?? null,
+  last_name: patient.lastName,
+  date_of_birth: patient.dateOfBirth,
+  gender: patient.gender,
+  phone: patient.phone ?? null,
+  email: patient.email ?? null,
+  address: {
+    line1: patient.address?.line1 ?? null,
+    line2: patient.address?.line2 ?? null,
+    city: patient.address?.city ?? null,
+    state: patient.address?.state ?? null,
+    country: patient.address?.country ?? null,
+    postal_code: patient.address?.postalCode ?? null,
+  },
+  emergency_contact: {
+    name: patient.emergencyContact?.name ?? null,
+    relationship: patient.emergencyContact?.relationship ?? null,
+    phone: patient.emergencyContact?.phone ?? null,
+  },
+  parent_guardian: patient.parentGuardian ?? null,
+  registration_branch_id: patient.registrationBranchId?.toString() ?? null,
+  blood_group: patient.bloodGroup ?? null,
+  status: patient.status,
+  photo_document_id: profilePhoto?.id ?? null,
+  // The endpoint always serves the latest active profile-photo document. Include
+  // its update timestamp in the URL so creating or replacing a photo changes the
+  // cache key used by the admin workspace, directory, and patient card.
+  photo_url: profilePhoto
+    ? `/api/patients/${patient._id.toString()}/photo?v=${encodeURIComponent(profilePhoto.version)}`
+    : null,
+  notes: patient.notes ?? null,
+  created_by: patient.createdBy?.toString() ?? null,
+  updated_by: patient.updatedBy?.toString() ?? null,
+  created_at: patient.createdAt,
+  updated_at: patient.updatedAt,
+});
+
+const toPatientDocument = (
+  document: PatientDocumentLean,
+  uploadedByName: string | null = null,
+  reviewedByName: string | null = null,
+): PatientDocument => ({
+  id: document._id.toString(),
+  patient_id: document.patientId.toString(),
+  visit_id: document.visitId?.toString() ?? null,
+  admission_id: document.admissionId?.toString() ?? null,
+  procedure_id: document.procedureId?.toString() ?? null,
+  context_type: document.contextType ?? null,
+  context_id: document.contextId?.toString() ?? null,
+  consent_template_id: document.consentTemplateId?.toString() ?? null,
+  consent_category: document.consentCategory ?? null,
+  consent_version: document.consentVersion ?? null,
+  document_type: document.documentType,
+  title: document.title,
+  file_name: document.fileName,
+  mime_type: document.mimeType,
+  file_size_bytes: document.fileSizeBytes,
+  storage_key: document.storageKey,
+  description: document.description ?? null,
+  consent_status: document.consentStatus ?? null,
+  form_responses: document.formResponses ?? null,
+  digital_signatures: (document.digitalSignatures as any) ?? null,
+
+  consent_kind: document.consentKind ?? null,
+  signed_at: document.signedAt ?? null,
+  valid_until: document.validUntil ?? null,
+  signed_by_name: document.signedByName ?? null,
+  source: document.source ?? 'HOSPITAL',
+  review_status: document.reviewStatus ?? 'NOT_REQUIRED',
+  reviewed_by: document.reviewedBy?.toString() ?? null,
+  reviewed_by_name: reviewedByName,
+  reviewed_at: document.reviewedAt ?? null,
+  review_notes: document.reviewNotes ?? null,
+  document_date: document.documentDate ?? null,
+  provider_name: document.providerName ?? null,
+  status: document.status,
+  uploaded_by: document.uploadedBy?.toString() ?? null,
+  uploaded_by_name: uploadedByName,
+  uploaded_at: document.createdAt,
+  verified_by: document.verifiedBy?.toString() ?? null,
+  verified_at: document.verifiedAt ?? null,
+  created_at: document.createdAt,
+  updated_at: document.updatedAt,
+});
+
+const toTimelineEvent = (event: PatientTimelineEventLean, createdByName: string | null = null): PatientTimelineEvent => ({
+  id: event._id.toString(),
+  patient_id: event.patientId.toString(),
+  event_type: event.eventType,
+  title: event.title,
+  description: event.description ?? null,
+  occurred_at: event.occurredAt,
+  created_by: event.createdBy?.toString() ?? null,
+  created_by_name: createdByName,
+  created_at: event.createdAt,
+});
+
+const sortColumnMap = {
+  patient_number: 'patientNumber',
+  first_name: 'firstName',
+  last_name: 'lastName',
+  created_at: 'createdAt',
+  updated_at: 'updatedAt',
+} as const;
+
+const buildPatientPayload = (data: CreatePatientDTO | UpdatePatientDTO) => ({
+  ...(data.first_name !== undefined ? { firstName: nullableString(data.first_name) } : {}),
+  ...(data.middle_name !== undefined ? { middleName: nullableString(data.middle_name) } : {}),
+  ...(data.last_name !== undefined ? { lastName: data.last_name.trim() } : {}),
+  ...(data.date_of_birth !== undefined ? { dateOfBirth: new Date(data.date_of_birth) } : {}),
+  ...(data.gender !== undefined ? { gender: data.gender } : {}),
+  ...(data.phone !== undefined ? { phone: nullableString(data.phone) } : {}),
+  ...(data.email !== undefined ? { email: nullableString(data.email) } : {}),
+  ...(data.address !== undefined
+    ? {
+        address: {
+          line1: nullableString(data.address?.line1),
+          line2: nullableString(data.address?.line2),
+          city: nullableString(data.address?.city),
+          state: nullableString(data.address?.state),
+          country: nullableString(data.address?.country),
+          postalCode: nullableString(data.address?.postal_code),
+        },
+      }
+    : {}),
+  ...(data.emergency_contact !== undefined
+    ? {
+        emergencyContact: {
+          name: nullableString(data.emergency_contact?.name),
+          relationship: nullableString(data.emergency_contact?.relationship),
+          phone: nullableString(data.emergency_contact?.phone),
+        },
+      }
+    : {}),
+  ...(data.parent_guardian !== undefined ? { parentGuardian: nullableString(data.parent_guardian) } : {}),
+  ...(data.registration_branch_id !== undefined
+    ? { registrationBranchId: toObjectId(data.registration_branch_id) }
+    : {}),
+  ...(data.blood_group !== undefined ? { bloodGroup: nullableString(data.blood_group) } : {}),
+  ...(data.status !== undefined ? { status: data.status } : {}),
+  ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+});
+
+export class PatientRepository {
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({ _id: requestedBranchId, status: 'ACTIVE', deletedAt: null }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async findUserById(userId: string) {
+    const user = await UserModel.findById(userId).select('branchIds').lean<{ branchIds?: Types.ObjectId[] }>();
+    return user ? { branchIds: user.branchIds?.map((id) => id.toString()) ?? [] } : null;
+  }
+
+  async list(query: PatientListQuery, branchIds?: string[]) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.registrationBranchId = { $in: branchIds.map(toObjectId) };
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+    if (query.gender) {
+      filter.gender = query.gender;
+    }
+    if (query.search) {
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
+      filter.$or = [
+        { patientNumber: searchRegex },
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { phone: searchRegex },
+        { email: searchRegex },
+      ];
+    }
+
+    const sortBy = query.sortBy ? sortColumnMap[query.sortBy] : 'createdAt';
+    const sortOrder: SortOrder = query.sortOrder === 'asc' ? 1 : -1;
+
+    const [data, count] = await Promise.all([
+      PatientModel.find(filter)
+        .sort({ [sortBy]: sortOrder })
+        .skip(offset)
+        .limit(limit)
+        .lean<PatientLean[]>(),
+      PatientModel.countDocuments(filter),
+    ]);
+
+    const patientIds = data.map((patient) => patient._id);
+    const photoMap = new Map<string, PatientProfilePhotoReference>();
+    if (patientIds.length > 0) {
+      const photos = await PatientDocumentModel.find({
+        patientId: { $in: patientIds },
+        consentKind: 'PROFILE_PHOTO',
+        status: 'ACTIVE',
+      })
+        .sort({ createdAt: -1 })
+        .select('_id patientId updatedAt')
+        .lean<Array<{ _id: Types.ObjectId; patientId: Types.ObjectId; updatedAt: Date }>>();
+
+      for (const photo of photos) {
+        const pid = photo.patientId.toString();
+        if (!photoMap.has(pid)) {
+          photoMap.set(pid, {
+            id: photo._id.toString(),
+            version: new Date(photo.updatedAt).getTime().toString(),
+          });
+        }
+      }
+    }
+
+    return {
+      data: data.map((patient) => toPatient(patient, photoMap.get(patient._id.toString()) ?? null)),
+      meta: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit) || 1,
+      },
+    };
+  }
+
+  async getById(id: string, branchIds?: string[]): Promise<Patient | undefined> {
+    const filter: Record<string, unknown> = { _id: id, deletedAt: null };
+    if (branchIds) filter.registrationBranchId = { $in: branchIds.map(toObjectId) };
+    const patient = await PatientModel.findOne(filter).lean<PatientLean>();
+    if (!patient) return undefined;
+
+    const photoDoc = await PatientDocumentModel.findOne({
+      patientId: patient._id,
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .select('_id updatedAt')
+      .lean<{ _id: Types.ObjectId; updatedAt: Date }>();
+
+    return toPatient(patient, photoDoc ? {
+      id: photoDoc._id.toString(),
+      version: new Date(photoDoc.updatedAt).getTime().toString(),
+    } : null);
+  }
+
+  async findProfilePhotoDocument(patientId: string): Promise<PatientDocument | null> {
+    const document = await PatientDocumentModel.findOne({
+      patientId: toObjectId(patientId),
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : null;
+  }
+
+  async findLatestPatientNumber(year: number): Promise<string | undefined> {
+    const latest = await PatientModel.findOne({ patientNumber: new RegExp(`^HMS-${year}-\\d+$`) })
+      .select('patientNumber')
+      .sort({ patientNumber: -1 })
+      .lean<{ patientNumber?: string }>();
+    return latest?.patientNumber;
+  }
+
+  async allocatePatientNumberCounter(key: string, existingMaximum: number): Promise<number> {
+    const counter = await PatientNumberSequenceModel.findOneAndUpdate(
+      { key },
+      [{ $set: { value: { $add: [{ $max: [{ $ifNull: ['$value', 0] }, existingMaximum] }, 1] } } }],
+      { upsert: true, returnDocument: 'after', updatePipeline: true },
+    ).lean();
+    return counter!.value;
+  }
+
+  async findDuplicateCandidates(data: CreatePatientDTO, branchIds?: string[]) {
+    const filters: Record<string, unknown>[] = [
+      {
+        ...(data.first_name ? { firstName: new RegExp(`^${escapeRegex(data.first_name)}$`, 'i') } : {}),
+        lastName: new RegExp(`^${escapeRegex(data.last_name)}$`, 'i'),
+        dateOfBirth: new Date(data.date_of_birth),
+      },
+    ];
+
+    if (data.phone) {
+      filters.push(buildPhoneMongoFilter(data.phone));
+    }
+
+    const patients = await PatientModel.find({
+      deletedAt: null,
+      ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}),
+      $or: filters,
+    }).limit(5).lean<PatientLean[]>();
+    return patients.map((p) => toPatient(p));
+  }
+
+  async create(patientNumber: string, data: CreatePatientDTO, createdBy: string): Promise<Patient> {
+    const created = await PatientModel.create({
+      patientNumber,
+      ...buildPatientPayload(data),
+      status: data.status ?? 'ACTIVE',
+      createdBy: new Types.ObjectId(createdBy),
+      updatedBy: new Types.ObjectId(createdBy),
+    });
+    return toPatient(created.toObject<PatientLean>());
+  }
+
+  async update(id: string, data: UpdatePatientDTO, updatedBy: string, branchIds?: string[]): Promise<Patient | undefined> {
+    const updatePayload = {
+      ...buildPatientPayload(data),
+      updatedBy: new Types.ObjectId(updatedBy),
+    };
+
+    const patient = await PatientModel.findOneAndUpdate(
+      { _id: id, deletedAt: null, ...(branchIds ? { registrationBranchId: { $in: branchIds.map(toObjectId) } } : {}) },
+      { $set: updatePayload },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientLean>();
+
+    if (!patient) return undefined;
+
+    const photoDoc = await PatientDocumentModel.findOne({
+      patientId: patient._id,
+      consentKind: 'PROFILE_PHOTO',
+      status: 'ACTIVE',
+    })
+      .sort({ createdAt: -1 })
+      .select('_id updatedAt')
+      .lean<{ _id: Types.ObjectId; updatedAt: Date }>();
+
+    return toPatient(patient, photoDoc ? {
+      id: photoDoc._id.toString(),
+      version: new Date(photoDoc.updatedAt).getTime().toString(),
+    } : null);
+  }
+
+  async syncPortalOwnerPhone(patientId: string, phone: string | null) {
+    const owner = await UserModel.findOneAndUpdate(
+      { patientId: new Types.ObjectId(patientId), deletedAt: null },
+      { $set: { phone: nullableString(phone), updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    ).select('_id').lean();
+    if (owner) {
+      await RefreshTokenModel.updateMany(
+        { userId: owner._id, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
+    }
+  }
+
+  async addTimelineEvent(
+    patientId: string,
+    event: Pick<PatientTimelineEvent, 'event_type' | 'title' | 'description'>,
+    userId: string,
+    session?: ClientSession,
+  ) {
+    const records = await PatientTimelineEventModel.create([{
+      patientId: new Types.ObjectId(patientId),
+      eventType: event.event_type,
+      title: event.title,
+      description: event.description,
+      occurredAt: new Date(),
+      createdBy: new Types.ObjectId(userId),
+    }], session ? { session } : undefined);
+    const created = records[0];
+    if (!created) throw new AppError('Patient timeline event could not be created', 500, 'TIMELINE_CREATE_FAILED');
+    return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
+  }
+
+  async auditClinicalEvent(eventType: string, actorUserId: string, details: Record<string, unknown>, session?: ClientSession) {
+    await AuditLogModel.create([{
+      actorUserId,
+      eventType,
+      metadataJson: details,
+    }], session ? { session } : undefined);
+  }
+
+  async listTimeline(patientId: string, query: PatientTimelineListQuery = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
+    const filter: Record<string, unknown> = {
+      patientId: new Types.ObjectId(patientId),
+    };
+
+    if (query.event_type) {
+      filter.eventType = query.event_type;
+    } else if (query.clinical_only) {
+      filter.eventType = {
+        $in: [
+          'OPD_CONSULTATION_COMPLETED',
+          'OPD_DENTAL_EXAMINATION_COMPLETED',
+          'OPD_PRESCRIPTION_SUBMITTED',
+          'OPD_LAB_ORDER_SUBMITTED',
+          'OPD_IMAGING_ORDER_SUBMITTED',
+          'OPD_FOLLOW_UP_SCHEDULED',
+          'OPD_REFERRAL_SUBMITTED',
+        ],
+      };
+    }
+
+    if (query.from || query.to) {
+      filter.occurredAt = {};
+      if (query.from) {
+        filter.occurredAt = { ...(filter.occurredAt as object), $gte: new Date(query.from) };
+      }
+      if (query.to) {
+        const toDate = new Date(query.to);
+        toDate.setUTCHours(23, 59, 59, 999);
+        filter.occurredAt = { ...(filter.occurredAt as object), $lte: toDate };
+      }
+    }
+
+    const [events, count] = await Promise.all([
+      PatientTimelineEventModel.find(filter)
+        .sort({ occurredAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean<PatientTimelineEventLean[]>(),
+      PatientTimelineEventModel.countDocuments(filter),
+    ]);
+
+    const enrichedDescriptions = query.clinical_only
+      ? await this.buildHistoricalConsultationDescriptions(patientId, events)
+      : new Map<string, string>();
+
+    const creatorIds = events.flatMap((event) => (event.createdBy ? [event.createdBy] : []));
+    const creators = await UserModel.find({ _id: { $in: creatorIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const creatorNames = new Map(creators.map((user) => [user._id.toString(), user.fullName]));
+
+    return {
+      data: events.map((event) => {
+        const enriched = enrichedDescriptions.get(event._id.toString());
+        const timelineEvent = enriched ? { ...event, description: enriched } : event;
+        return toTimelineEvent(
+          timelineEvent,
+          event.createdBy ? creatorNames.get(event.createdBy.toString()) ?? null : null,
+        );
+      }),
+      meta: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit) || 1,
+      },
+    };
+  }
+
+  private async buildHistoricalConsultationDescriptions(
+    patientId: string,
+    events: PatientTimelineEventLean[],
+  ) {
+    const consultationEvents = events.flatMap((event) => {
+      if (event.eventType !== 'OPD_CONSULTATION_COMPLETED') return [];
+      const visitNumber = event.description?.match(/\bOPD-\d{4}-\d+\b/)?.[0];
+      return visitNumber ? [{ event, visitNumber }] : [];
+    });
+    if (consultationEvents.length === 0) return new Map<string, string>();
+
+    const patientObjectId = new Types.ObjectId(patientId);
+    const visits = await OpdVisitModel.find({
+      patientId: patientObjectId,
+      visitNumber: { $in: consultationEvents.map(({ visitNumber }) => visitNumber) },
+      deletedAt: null,
+    }).lean<OpdVisitTimelineLean[]>();
+    const visitIds = visits.map((visit) => visit._id);
+    if (visitIds.length === 0) return new Map<string, string>();
+
+    const [consultations, prescriptions, orders, dentalExaminations, followUps, referrals] = await Promise.all([
+      OpdConsultationModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdConsultationTimelineLean[]>(),
+      OpdPrescriptionModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdPrescriptionTimelineLean[]>(),
+      OpdClinicalOrderModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdClinicalOrderTimelineLean[]>(),
+      OpdDentalExaminationModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdDentalExaminationTimelineLean[]>(),
+      OpdFollowUpModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdFollowUpTimelineLean[]>(),
+      OpdReferralModel.find({ visitId: { $in: visitIds }, patientId: patientObjectId, deletedAt: null })
+        .lean<OpdReferralTimelineLean[]>(),
+    ]);
+
+    const byVisit = <Record extends { visitId?: Types.ObjectId | null }>(records: Record[]) =>
+      new Map<string, Record>(
+        records.flatMap((record) => (record.visitId ? [[record.visitId.toString(), record] as const] : [])),
+      );
+    const consultationByVisit = byVisit(consultations);
+    const prescriptionByVisit = byVisit(prescriptions);
+    const dentalByVisit = byVisit(dentalExaminations);
+    const followUpByVisit = byVisit(followUps);
+    const referralByVisit = byVisit(referrals);
+    const ordersByVisit = new Map<string, OpdClinicalOrderTimelineLean[]>();
+    for (const order of orders) {
+      if (!order.visitId) continue;
+      const key = order.visitId.toString();
+      ordersByVisit.set(key, [...(ordersByVisit.get(key) ?? []), order]);
+    }
+    const visitByNumber = new Map(visits.map((visit) => [visit.visitNumber, visit]));
+    const descriptions = new Map<string, string>();
+
+    for (const { event, visitNumber } of consultationEvents) {
+      const visit = visitByNumber.get(visitNumber);
+      if (!visit) continue;
+      const key = visit._id.toString();
+      const consultation = consultationByVisit.get(key);
+      const prescription = prescriptionByVisit.get(key);
+      const dental = dentalByVisit.get(key);
+      const followUp = followUpByVisit.get(key);
+      const referral = referralByVisit.get(key);
+      const visitOrders = ordersByVisit.get(key) ?? [];
+      const laboratoryNames = visitOrders
+        .filter((order) => order.orderType === 'LABORATORY')
+        .flatMap((order) => order.items.map((item) => item.investigationName));
+      const imagingNames = visitOrders
+        .filter((order) => order.orderType === 'IMAGING')
+        .flatMap((order) => order.items.map((item) => item.investigationName));
+      const details = [
+        visitNumber,
+        consultation?.chiefComplaint ? `Problem: ${consultation.chiefComplaint}` : visit.reason ? `Problem: ${visit.reason}` : null,
+        consultation?.assessment ? `Assessment: ${consultation.assessment}` : null,
+        consultation?.treatmentPlan ? `Treatment: ${consultation.treatmentPlan}` : null,
+        prescription?.items.length
+          ? `Medicines: ${prescription.items.map((item) => `${item.medicineName}${item.strength ? ` ${item.strength}` : ''}`).join(', ')}`
+          : null,
+        laboratoryNames.length ? `Laboratory: ${laboratoryNames.join(', ')}` : null,
+        imagingNames.length ? `Imaging: ${imagingNames.join(', ')}` : null,
+        dental?.teeth.length ? `Dental findings: ${dental.teeth.length} tooth finding${dental.teeth.length === 1 ? '' : 's'}` : null,
+        dental?.treatmentPlanItems.length
+          ? `Dental plan: ${dental.treatmentPlanItems.map((item) => item.procedureName).join(', ')}`
+          : null,
+        referral?.reason ? `Referral: ${referral.reason}` : null,
+        followUp?.reason && followUp.nextVisitDate
+          ? `Follow-up: ${followUp.reason} on ${followUp.nextVisitDate.toISOString().slice(0, 10)}${followUp.startTime ? ` at ${followUp.startTime}` : ''}`
+          : null,
+        `Doctor: ${visit.doctorName}`,
+      ].filter(Boolean).join(' · ');
+      descriptions.set(event._id.toString(), details);
+    }
+    return descriptions;
+  }
+
+  async listAllDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
+    const filter: Record<string, unknown> = {
+      patientId: new Types.ObjectId(patientId),
+      status: 'ACTIVE',
+    };
+    if (query.document_type) {
+      filter.documentType = query.document_type;
+    }
+    if (query.visit_id) {
+      filter.visitId = new Types.ObjectId(query.visit_id);
+    }
+    if (query.admission_id) filter.admissionId = new Types.ObjectId(query.admission_id);
+    if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
+    if (query.context_type) filter.contextType = query.context_type;
+
+    const documents = await PatientDocumentModel.find(filter)
+      .sort({ createdAt: -1 })
+      .lean<PatientDocumentLean[]>();
+
+    const userIds = documents.flatMap((document) => [
+      ...(document.uploadedBy ? [document.uploadedBy] : []),
+      ...(document.reviewedBy ? [document.reviewedBy] : []),
+    ]);
+    const users = await UserModel.find({ _id: { $in: userIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const userNames = new Map(users.map((user) => [user._id.toString(), user.fullName]));
+
+    return documents.map((document) =>
+      toPatientDocument(
+        document,
+        document.uploadedBy ? userNames.get(document.uploadedBy.toString()) ?? null : null,
+        document.reviewedBy ? userNames.get(document.reviewedBy.toString()) ?? null : null,
+      ),
+    );
+  }
+
+  async listDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const filter: Record<string, unknown> = {
+      patientId: new Types.ObjectId(patientId),
+      status: 'ACTIVE',
+    };
+    if (query.document_type) {
+      filter.documentType = query.document_type;
+    }
+    if (query.visit_id) {
+      filter.visitId = new Types.ObjectId(query.visit_id);
+    }
+    if (query.admission_id) filter.admissionId = new Types.ObjectId(query.admission_id);
+    if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
+    if (query.context_type) filter.contextType = query.context_type;
+
+    const [documents, total] = await Promise.all([
+      PatientDocumentModel.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean<PatientDocumentLean[]>(),
+      PatientDocumentModel.countDocuments(filter),
+    ]);
+    const userIds = documents.flatMap((document) => [
+      ...(document.uploadedBy ? [document.uploadedBy] : []),
+      ...(document.reviewedBy ? [document.reviewedBy] : []),
+    ]);
+    const users = await UserModel.find({ _id: { $in: userIds } })
+      .select({ fullName: 1 })
+      .lean<Array<{ _id: Types.ObjectId; fullName: string }>>();
+    const userNames = new Map(users.map((user) => [user._id.toString(), user.fullName]));
+
+    return {
+      data: documents.map((document) =>
+        toPatientDocument(
+          document,
+          document.uploadedBy ? userNames.get(document.uploadedBy.toString()) ?? null : null,
+          document.reviewedBy ? userNames.get(document.reviewedBy.toString()) ?? null : null,
+        ),
+      ),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
+  async getDocument(patientId: string, documentId: string) {
+    const document = await PatientDocumentModel.findOne({
+      _id: documentId,
+      patientId: new Types.ObjectId(patientId),
+      status: 'ACTIVE',
+    }).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async createDocument(patientId: string, data: CreatePatientDocumentDTO, userId: string) {
+    const created = await PatientDocumentModel.create({
+      patientId: new Types.ObjectId(patientId),
+      visitId: toObjectId(data.visit_id),
+      admissionId: toObjectId(data.admission_id),
+      procedureId: toObjectId(data.procedure_id),
+      contextType: data.context_type ?? null,
+      contextId: toObjectId(data.context_id),
+      consentTemplateId: toObjectId(data.consent_template_id),
+      consentCategory: nullableString(data.consent_category),
+      consentVersion: data.consent_version ?? null,
+      documentType: data.document_type,
+      title: data.title.trim(),
+      fileName: data.file_name.trim(),
+      mimeType: data.mime_type.trim(),
+      fileSizeBytes: data.file_size_bytes,
+      storageKey: data.storage_key.trim(),
+      description: nullableString(data.description),
+      consentStatus: data.consent_status ?? null,
+      consentKind: nullableString(data.consent_kind),
+      signedAt: data.signed_at ? new Date(data.signed_at) : null,
+      validUntil: data.valid_until ? new Date(data.valid_until) : null,
+      signedByName: nullableString(data.signed_by_name),
+      source: data.source ?? 'HOSPITAL',
+      reviewStatus: data.review_status ?? 'NOT_REQUIRED',
+      documentDate: data.document_date ? new Date(data.document_date) : null,
+      providerName: nullableString(data.provider_name),
+      formResponses: data.form_responses ?? null,
+      digitalSignatures: data.digital_signatures ?? null,
+      uploadedBy: new Types.ObjectId(userId),
+      verifiedBy: null,
+      verifiedAt: null,
+      status: 'ACTIVE',
+    });
+
+    if (data.consent_kind === 'PROFILE_PHOTO') {
+      const pIdObj = new Types.ObjectId(patientId);
+      await PatientDocumentModel.updateMany(
+        { patientId: pIdObj, consentKind: 'PROFILE_PHOTO', status: 'ACTIVE', _id: { $ne: created._id } },
+        { $set: { status: 'DELETED', deletedAt: new Date(), deletedBy: new Types.ObjectId(userId) } },
+      );
+      await PatientModel.updateOne(
+        { _id: pIdObj },
+        {
+          $set: {
+            profilePhoto: {
+              storageKey: data.storage_key.trim(),
+              mimeType: data.mime_type.trim(),
+              fileSizeBytes: data.file_size_bytes,
+              uploadedAt: new Date(),
+            },
+            updatedBy: new Types.ObjectId(userId),
+          },
+        },
+      );
+    }
+
+    return toPatientDocument(created.toObject<PatientDocumentLean>());
+  }
+
+  async updateProfilePhotoField(
+    patientId: string,
+    photo: { storageKey: string; mimeType: string; fileSizeBytes: number; uploadedAt: Date } | null,
+    userId: string,
+  ) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    await PatientModel.updateOne(
+      { _id: pId },
+      photo
+        ? {
+            $set: {
+              profilePhoto: photo,
+              updatedBy: toObjectId(userId),
+            },
+          }
+        : {
+            $unset: { profilePhoto: 1 },
+            $set: { updatedBy: toObjectId(userId) },
+          },
+    );
+  }
+
+  async saveProfilePhotoDocument(
+    patientId: string,
+    photo: { storageKey: string; mimeType: string; fileSizeBytes: number; fileName?: string },
+    userId: string,
+  ) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    const uId = toObjectId(userId);
+    const now = new Date();
+    await PatientDocumentModel.updateMany(
+      { patientId: pId, consentKind: 'PROFILE_PHOTO', status: 'ACTIVE' },
+      { $set: { status: 'DELETED', deletedAt: now, deletedBy: uId ?? undefined } },
+    );
+    await PatientDocumentModel.create({
+      patientId: pId,
+      documentType: 'IDENTITY',
+      title: 'Profile photo',
+      fileName: photo.fileName || 'profile-photo.jpg',
+      mimeType: photo.mimeType,
+      fileSizeBytes: photo.fileSizeBytes,
+      storageKey: photo.storageKey,
+      description: 'Patient portal profile photo',
+      consentKind: 'PROFILE_PHOTO',
+      source: 'PATIENT',
+      reviewStatus: 'NOT_REQUIRED',
+      uploadedBy: uId ?? undefined,
+      status: 'ACTIVE',
+    });
+    await PatientModel.updateOne(
+      { _id: pId },
+      {
+        $set: {
+          profilePhoto: {
+            storageKey: photo.storageKey,
+            mimeType: photo.mimeType,
+            fileSizeBytes: photo.fileSizeBytes,
+            uploadedAt: now,
+          },
+          updatedBy: uId ?? undefined,
+        },
+      },
+    );
+  }
+
+  async deleteProfilePhotoDocument(patientId: string, userId: string) {
+    const pId = toObjectId(patientId);
+    if (!pId) return;
+    const uId = toObjectId(userId);
+    await PatientDocumentModel.updateMany(
+      { patientId: pId, consentKind: 'PROFILE_PHOTO', status: 'ACTIVE' },
+      { $set: { status: 'DELETED', deletedAt: new Date(), deletedBy: uId ?? undefined } },
+    );
+    await PatientModel.updateOne(
+      { _id: pId },
+      {
+        $unset: { profilePhoto: 1 },
+        $set: { updatedBy: uId ?? undefined },
+      },
+    );
+  }
+
+  async replaceDocument(patientId: string, documentId: string, data: CreatePatientDocumentDTO, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId: new Types.ObjectId(patientId), status: 'ACTIVE' },
+      {
+        $set: {
+          documentType: data.document_type,
+          admissionId: toObjectId(data.admission_id),
+          procedureId: toObjectId(data.procedure_id),
+          contextType: data.context_type ?? null,
+          contextId: toObjectId(data.context_id),
+          consentTemplateId: toObjectId(data.consent_template_id),
+          consentCategory: nullableString(data.consent_category),
+          consentVersion: data.consent_version ?? null,
+          title: data.title.trim(),
+          fileName: data.file_name.trim(),
+          mimeType: data.mime_type.trim(),
+          fileSizeBytes: data.file_size_bytes,
+          storageKey: data.storage_key.trim(),
+          description: nullableString(data.description),
+          consentStatus: data.consent_status ?? null,
+          consentKind: nullableString(data.consent_kind),
+          signedAt: data.signed_at ? new Date(data.signed_at) : null,
+          validUntil: data.valid_until ? new Date(data.valid_until) : null,
+          signedByName: nullableString(data.signed_by_name),
+          source: data.source ?? 'HOSPITAL',
+          reviewStatus: data.review_status ?? 'NOT_REQUIRED',
+          documentDate: data.document_date ? new Date(data.document_date) : null,
+          providerName: nullableString(data.provider_name),
+          uploadedBy: new Types.ObjectId(userId),
+          verifiedBy: null,
+          verifiedAt: null,
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async reviewDocument(
+    patientId: string,
+    documentId: string,
+    reviewStatus: 'VERIFIED' | 'REJECTED',
+    reviewNotes: string | null,
+    userId: string,
+  ) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      {
+        _id: documentId,
+        patientId: new Types.ObjectId(patientId),
+        status: 'ACTIVE',
+        reviewStatus: 'PENDING',
+        source: { $in: ['PATIENT', 'GUARDIAN'] },
+      },
+      {
+        $set: {
+          reviewStatus,
+          reviewNotes: nullableString(reviewNotes),
+          reviewedBy: new Types.ObjectId(userId),
+          reviewedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
+    if (!document) return undefined;
+    const reviewer = await UserModel.findById(userId).select({ fullName: 1 }).lean<{ fullName: string }>();
+    return toPatientDocument(document, null, reviewer?.fullName ?? null);
+  }
+
+  async deleteDocument(patientId: string, documentId: string, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId, status: 'ACTIVE' },
+      {
+        $set: {
+          status: 'DELETED',
+          deletedAt: new Date(),
+          deletedBy: new Types.ObjectId(userId),
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
+    if (document && document.consentKind === 'PROFILE_PHOTO') {
+      const pIdObj = toObjectId(patientId);
+      if (pIdObj) {
+        await PatientModel.updateOne(
+          { _id: pIdObj },
+          {
+            $unset: { profilePhoto: 1 },
+            $set: { updatedBy: toObjectId(userId) ?? undefined },
+          },
+        );
+      }
+    }
+
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async verifyConsent(patientId: string, documentId: string, userId: string) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      { _id: documentId, patientId: new Types.ObjectId(patientId), documentType: 'CONSENT', status: 'ACTIVE', consentStatus: 'ATTACHED' },
+      { $set: { consentStatus: 'VERIFIED', verifiedBy: new Types.ObjectId(userId), verifiedAt: new Date() } },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async attachConsentSignature(
+    patientId: string,
+    consentDocumentId: string,
+    signatureDocumentId: string,
+    signedByName: string,
+    signedAt: Date = new Date(),
+    digitalSignatures?: any[],
+  ) {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(consentDocumentId),
+        patientId: new Types.ObjectId(patientId),
+        documentType: 'CONSENT',
+        status: 'ACTIVE',
+      },
+      {
+        $set: {
+          consentStatus: 'SIGNED',
+          signedAt,
+          signedByName,
+          reviewStatus: 'PENDING',
+          ...(digitalSignatures ? { digitalSignatures } : {}),
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
+  }
+
+  async consentStatuses(patientId: string, templateIds: string[], contextType: PatientConsentContextType, contextId: string) {
+    const records = await PatientDocumentModel.find({
+      patientId: new Types.ObjectId(patientId), consentTemplateId: { $in: templateIds.map((id) => new Types.ObjectId(id)) },
+      contextType, contextId: new Types.ObjectId(contextId), documentType: 'CONSENT', status: 'ACTIVE',
+    }).sort({ createdAt: -1 }).lean<PatientDocumentLean[]>();
+    const statuses = new Map<string, PatientDocument['consent_status']>();
+    for (const record of records) {
+      const templateId = record.consentTemplateId?.toString();
+      if (templateId && !statuses.has(templateId)) statuses.set(templateId, canonicalConsentStatus(record.consentStatus));
+    }
+    return statuses;
+  }
+
+  async getValidContextConsent(patientId: string, documentId: string, contextType: 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING', contextId: string, session?: ClientSession) {
+    const now = new Date();
+    const isDocOid = /^[a-f\d]{24}$/i.test(documentId);
+    const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
+    if (!isDocOid || !isPatientOid) return null;
+    const query = PatientDocumentModel.findOne({
+      _id: new Types.ObjectId(documentId),
+      patientId: new Types.ObjectId(patientId),
+      documentType: 'CONSENT',
+      consentStatus: { $in: ['SIGNED', 'ATTACHED', 'VERIFIED'] },
+      status: 'ACTIVE',
+      $or: [{ validUntil: null }, { validUntil: { $gte: now } }],
+    });
+    if (session) query.session(session);
+    const document = await query.lean<PatientDocumentLean>();
+    return document ? toPatientDocument(document) : null;
+  }
+}

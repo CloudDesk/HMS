@@ -1,0 +1,82 @@
+export const serviceIdParamsSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: {
+    id: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+export const listServicesQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    search: { type: 'string' },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE'] },
+    department_id: { type: 'string' },
+    page: { type: 'integer', minimum: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
+    sortBy: {
+      type: 'string',
+      enum: ['name', 'code', 'service_type', 'status', 'created_at', 'updated_at', 'standard_price'],
+    },
+    sortOrder: { type: 'string', enum: ['asc', 'desc'] },
+  },
+} as const;
+
+export const createServiceBodySchema = {
+  type: 'object',
+  required: ['code', 'name', 'department_id', 'standard_price'],
+  additionalProperties: false,
+  properties: {
+    code: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE'] },
+    department_id: { type: 'string', minLength: 1 },
+    standard_price: { type: 'number', minimum: 0 },
+    default_duration_minutes: { type: ['integer', 'null'], minimum: 5, maximum: 720 },
+    booking_capacity: { type: ['integer', 'null'], minimum: 1, maximum: 100 },
+    requires_bed: { type: 'boolean' },
+    requires_consent: { type: 'boolean' },
+    requires_advance_deposit: { type: 'boolean' },
+    minimum_advance_deposit_amount: { type: ['number', 'null'], minimum: 0 },
+    category: { type: ['string', 'null'] },
+    sample_type: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+  },
+} as const;
+
+export const updateServiceBodySchema = {
+  type: 'object',
+  minProperties: 1,
+  additionalProperties: false,
+  properties: {
+    code: { type: 'string', minLength: 1 },
+    name: { type: 'string', minLength: 1 },
+    service_type: { type: 'string', enum: ['GENERAL', 'LAB_TEST', 'IMAGING_SERVICE', 'PROCEDURE'] },
+    department_id: { type: 'string', minLength: 1 },
+    standard_price: { type: 'number', minimum: 0 },
+    default_duration_minutes: { type: ['integer', 'null'], minimum: 5, maximum: 720 },
+    booking_capacity: { type: ['integer', 'null'], minimum: 1, maximum: 100 },
+    requires_bed: { type: 'boolean' },
+    requires_consent: { type: 'boolean' },
+    requires_advance_deposit: { type: 'boolean' },
+    minimum_advance_deposit_amount: { type: ['number', 'null'], minimum: 0 },
+    category: { type: ['string', 'null'] },
+    sample_type: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+  },
+} as const;
+
+export const updateServiceStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
+} as const;

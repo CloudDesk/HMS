@@ -1,0 +1,95 @@
+import type { ClinicalContextSourceType } from './clinical-context.types.js';
+
+export type ClinicalOrderType = 'LABORATORY' | 'IMAGING';
+export type ClinicalOrderStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RECEIVED'
+  | 'SAMPLE_COLLECTED'
+  | 'IN_PROGRESS'
+  | 'RESULT_ENTERED'
+  | 'REPORT_ENTERED'
+  | 'VERIFIED'
+  | 'COMPLETED';
+export type ClinicalOrderPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+export type ClinicalOrderSourceType = ClinicalContextSourceType;
+
+export type ClinicalOrderItem = {
+  id: string;
+  service_id: string;
+  service_name: string;
+  investigation_name: string;
+  category: string;
+  tooth_number?: number | null;
+};
+
+export type ClinicalOrderDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  tooth_number?: number | null;
+};
+
+export type OpdClinicalOrder = {
+  id: string;
+  originating_order_id: string;
+  source_type: ClinicalOrderSourceType;
+  encounter_id: string | null;
+  admission_id: string | null;
+  procedure_id: string | null;
+  source_id: string;
+  visit_id: string | null;
+  consultation_id: string | null;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  branch_id: string;
+  order_type: ClinicalOrderType;
+  status: ClinicalOrderStatus;
+  priority: ClinicalOrderPriority;
+  destination: string | null;
+  specimen_type: string | null;
+  items: ClinicalOrderItem[];
+  clinical_notes: string | null;
+  instructions: string | null;
+  dental_context?: ClinicalOrderDentalContext | null;
+  submitted_at: Date | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type SaveClinicalOrderItemDTO = Omit<ClinicalOrderItem, 'id' | 'service_name'>;
+
+export type SaveOpdClinicalOrderDTO = {
+  expected_updated_at?: string | null;
+  priority: ClinicalOrderPriority;
+  destination?: string | null;
+  specimen_type?: string | null;
+  items: SaveClinicalOrderItemDTO[];
+  clinical_notes?: string | null;
+  instructions?: string | null;
+  dental_context?: ClinicalOrderDentalContext | null;
+};
+
+export type ClinicalOrderListQuery = {
+  search?: string;
+  status?: ClinicalOrderStatus;
+  priority?: ClinicalOrderPriority;
+  date_from?: string;
+  date_to?: string;
+  patient_id?: string;
+  doctor_id?: string;
+  branch_id?: string;
+  episode_id?: string;
+  visit_id?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type ClinicalOrderRequestMetadata = {
+  ipAddress?: string;
+  userAgent?: string;
+};

@@ -479,13 +479,6 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     );
 
     const status = await services.patientPortal.getUnlinkedPatientLoginStatus(parsed.data.phone);
-    if (status === 'MINOR_REQUIRES_GUARDIAN') {
-      throw new AppError(
-        'This patient is a minor. A parent or guardian account must be linked before signing in.',
-        409,
-        'MINOR_GUARDIAN_ACCOUNT_REQUIRED',
-      );
-    }
     if (status === 'MULTIPLE_PATIENT_MATCHES') {
       throw new AppError(
         'More than one patient record uses this mobile number. Contact hospital reception to verify and link the correct record.',

@@ -1,0 +1,136 @@
+/* DEV footer treatment layered over the Patient-Portal branch UI. */
+.hospital-site .hospital-portal-cta {
+  display: flex;
+  width: calc(100% - 4rem);
+  max-width: 1240px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin: 2.5rem auto;
+  padding: 2rem 2.25rem;
+  border: 1px solid #1e3a8a;
+  border-radius: 12px;
+  background: var(--patient-navy);
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.hospital-site .hospital-portal-cta > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1rem;
+}
+
+.hospital-site .hospital-portal-cta > div > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--patient-primary);
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.hospital-site .hospital-portal-cta p {
+  margin: 0 0 0.35rem;
+  color: #93c5fd;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hospital-site .hospital-portal-cta h2 {
+  margin: 0 0 0.4rem;
+  color: #fff;
+  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.hospital-site .hospital-portal-cta small {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.hospital-site .hospital-portal-cta > button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--patient-primary);
+  border-radius: 8px;
+  background: var(--patient-primary);
+  padding: 0 1.25rem;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.hospital-site .hospital-portal-cta > button:hover {
+  border-color: var(--patient-primary-hover);
+  background: var(--patient-primary-hover);
+}
+
+.hospital-site footer#contact {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-right: max(2rem, calc((100vw - 1240px) / 2 + 2rem));
+  padding-left: max(2rem, calc((100vw - 1240px) / 2 + 2rem));
+  border-top: 0;
+  background: var(--patient-navy);
+}
+
+.hospital-site footer#contact strong,
+.hospital-site footer#contact .hospital-footer-brand strong {
+  color: #fff;
+}
+
+.hospital-site footer#contact a,
+.hospital-site footer#contact button,
+.hospital-site footer#contact span,
+.hospital-site footer#contact .hospital-footer-brand small,
+.hospital-site footer#contact > p {
+  color: #cbd5e1;
+}
+
+.hospital-site footer#contact a:hover,
+.hospital-site footer#contact button:hover {
+  color: #93c5fd;
+}
+
+.hospital-site footer#contact > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .hospital-site .hospital-portal-cta {
+    width: calc(100% - 2rem);
+    align-items: stretch;
+    flex-direction: column;
+    margin: 2rem auto;
+    padding: 1.5rem;
+  }
+
+  .hospital-site .hospital-portal-cta > button {
+    width: 100%;
+  }
+
+  .hospital-site footer#contact {
+    padding-right: 1.25rem;
+    padding-left: 1.25rem;
+  }
+}

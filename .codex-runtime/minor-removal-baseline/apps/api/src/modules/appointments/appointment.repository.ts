@@ -1,0 +1,773 @@
+import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
+import { DentalTreatmentStageModel } from '../opd/dental-stage.model.js';
+import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
+import { PatientPreConsultationModel, type PatientPreConsultationFields } from './patient-pre-consultation.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
+import type {
+  Appointment,
+  AppointmentDashboardSummary,
+  AppointmentListQuery,
+  CreateAppointmentDTO,
+  PatientPreConsultation,
+  UpdateAppointmentDTO,
+  UpdateAppointmentStatusDTO,
+} from './appointment.types.js';
+
+type AppointmentLean = AppointmentFields & { _id: Types.ObjectId };
+
+type AppointmentCreateRecord = Omit<CreateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime' | 'priority'> & {
+  appointmentNumber: string;
+  patientNumber: string;
+  patientName: string;
+  doctorName: string;
+  doctorSpecialization: string;
+  branchId: string;
+  departmentId: string;
+  utcDateTime: Date;
+  utcEndTime: Date;
+  appointmentDate: Date;
+  startTime: string;
+  endTime: string;
+  priority: NonNullable<CreateAppointmentDTO['priority']>;
+};
+
+type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date' | 'start_time' | 'utc_datetime'> & {
+  patientNumber?: string;
+  patientName?: string;
+  doctorName?: string;
+  doctorSpecialization?: string;
+  branchId?: string;
+  departmentId?: string;
+  utcDateTime?: Date;
+  utcEndTime?: Date;
+  appointmentDate?: Date;
+  startTime?: string;
+  endTime?: string;
+};
+
+const nullableString = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const toObjectId = (value: string) => new Types.ObjectId(value);
+
+const activeSlotKey = (doctorId: string, appointmentDate: Date, startTime: string) =>
+  `${doctorId}:${appointmentDate.toISOString().slice(0, 10)}:${startTime}`;
+
+const toAppointment = (appointment: AppointmentLean): Appointment => ({
+  id: appointment._id.toString(),
+  appointment_number: appointment.appointmentNumber,
+  patient_id: appointment.patientId.toString(),
+  patient_number: appointment.patientNumber,
+  patient_name: appointment.patientName,
+  doctor_id: appointment.doctorId.toString(),
+  doctor_name: appointment.doctorName,
+  doctor_specialization: appointment.doctorSpecialization,
+  branch_id: appointment.branchId.toString(),
+  department_id: appointment.departmentId.toString(),
+  utc_datetime: appointment.utcDateTime?.toISOString(),
+  utc_end_time: appointment.utcEndTime?.toISOString(),
+  appointment_date: appointment.appointmentDate,
+  start_time: appointment.startTime,
+  end_time: appointment.endTime,
+  duration_minutes: appointment.durationMinutes,
+  visit_type: appointment.visitType,
+  priority: appointment.priority,
+  status: appointment.status,
+  reason: appointment.reason ?? null,
+  notes: appointment.notes ?? null,
+  consultation_intake: appointment.consultationIntake ? {
+    chief_complaint: appointment.consultationIntake.chiefComplaint ?? null,
+    history_present_illness: appointment.consultationIntake.historyPresentIllness ?? null,
+    past_history: appointment.consultationIntake.pastHistory ?? null,
+    family_history: appointment.consultationIntake.familyHistory ?? null,
+    allergies: appointment.consultationIntake.allergies ?? null,
+  } : null,
+  dental_context: appointment.dentalContext ? {
+    treatment_episode_id: appointment.dentalContext.treatmentEpisodeId?.toString() ?? null,
+    treatment_stage_id: appointment.dentalContext.treatmentStageId?.toString() ?? null,
+    treatment_plan_item_id: appointment.dentalContext.treatmentPlanItemId ?? null,
+    tooth_number: appointment.dentalContext.toothNumber ?? null,
+    stage_sequence: appointment.dentalContext.stageSequence ?? null,
+    stage_name: appointment.dentalContext.stageName ?? null,
+  } : null,
+  rescheduled_from_id: appointment.rescheduledFromId?.toString() ?? null,
+  rescheduled_to_id: appointment.rescheduledToId?.toString() ?? null,
+  rescheduled_at: appointment.rescheduledAt ?? null,
+  created_by: appointment.createdBy?.toString() ?? null,
+  updated_by: appointment.updatedBy?.toString() ?? null,
+  created_at: appointment.createdAt,
+  updated_at: appointment.updatedAt,
+});
+
+const toPatientPreConsultation = (
+  doc: PatientPreConsultationFields & { _id: Types.ObjectId },
+): PatientPreConsultation => ({
+  id: doc._id.toString(),
+  patient_id: doc.patientId.toString(),
+  appointment_id: doc.appointmentId.toString(),
+  doctor_id: doc.doctorId?.toString() ?? null,
+  chief_complaint: doc.chiefComplaint ?? null,
+  history_present_illness: doc.historyPresentIllness ?? null,
+  past_medical_history: doc.pastMedicalHistory ?? null,
+  family_history: doc.familyHistory ?? null,
+  allergies: doc.allergies ?? null,
+  submitted_at: doc.submittedAt,
+  created_at: doc.createdAt,
+  updated_at: doc.updatedAt,
+});
+
+const sortColumnMap = {
+  appointment_number: 'appointmentNumber',
+  appointment_date: 'appointmentDate',
+  start_time: 'startTime',
+  created_at: 'createdAt',
+  updated_at: 'updatedAt',
+} as const;
+
+const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
+  appointmentNumber: data.appointmentNumber,
+  patientId: toObjectId(data.patient_id),
+  patientNumber: data.patientNumber,
+  patientName: data.patientName,
+  doctorId: toObjectId(data.doctor_id),
+  doctorName: data.doctorName,
+  doctorSpecialization: data.doctorSpecialization,
+  branchId: toObjectId(data.branchId),
+  departmentId: toObjectId(data.departmentId),
+  utcDateTime: data.utcDateTime,
+  utcEndTime: data.utcEndTime,
+  appointmentDate: data.appointmentDate,
+  startTime: data.startTime,
+  endTime: data.endTime,
+  durationMinutes: data.duration_minutes,
+  visitType: data.visit_type,
+  priority: data.priority,
+  status: 'SCHEDULED' as const,
+  reason: nullableString(data.reason),
+  notes: nullableString(data.notes),
+  ...(data.consultation_intake !== undefined ? {
+    consultationIntake: data.consultation_intake ? {
+      chiefComplaint: nullableString(data.consultation_intake.chief_complaint),
+      historyPresentIllness: nullableString(data.consultation_intake.history_present_illness),
+      pastHistory: nullableString(data.consultation_intake.past_history),
+      familyHistory: nullableString(data.consultation_intake.family_history),
+      allergies: nullableString(data.consultation_intake.allergies),
+    } : null,
+  } : {}),
+  ...(data.dental_context !== undefined ? {
+    dentalContext: data.dental_context ? {
+      treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,
+      treatmentStageId: data.dental_context.treatment_stage_id ? toObjectId(data.dental_context.treatment_stage_id) : null,
+      treatmentPlanItemId: data.dental_context.treatment_plan_item_id ?? null,
+      toothNumber: data.dental_context.tooth_number ?? null,
+      stageSequence: data.dental_context.stage_sequence ?? null,
+      stageName: data.dental_context.stage_name ?? null,
+    } : null,
+  } : {}),
+  activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime),
+  createdBy: toObjectId(userId),
+  updatedBy: toObjectId(userId),
+});
+
+const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
+  ...(data.doctor_id !== undefined ? { doctorId: toObjectId(data.doctor_id) } : {}),
+  ...(data.doctorName !== undefined ? { doctorName: data.doctorName } : {}),
+  ...(data.doctorSpecialization !== undefined ? { doctorSpecialization: data.doctorSpecialization } : {}),
+  ...(data.branchId !== undefined ? { branchId: toObjectId(data.branchId) } : {}),
+  ...(data.departmentId !== undefined ? { departmentId: toObjectId(data.departmentId) } : {}),
+  ...(data.utcDateTime !== undefined ? { utcDateTime: data.utcDateTime } : {}),
+  ...(data.utcEndTime !== undefined ? { utcEndTime: data.utcEndTime } : {}),
+  ...(data.appointmentDate !== undefined ? { appointmentDate: data.appointmentDate } : {}),
+  ...(data.startTime !== undefined ? { startTime: data.startTime } : {}),
+  ...(data.endTime !== undefined ? { endTime: data.endTime } : {}),
+  ...(data.duration_minutes !== undefined ? { durationMinutes: data.duration_minutes } : {}),
+  ...(data.visit_type !== undefined ? { visitType: data.visit_type } : {}),
+  ...(data.priority !== undefined ? { priority: data.priority } : {}),
+  ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
+  ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.consultation_intake !== undefined ? {
+    consultationIntake: data.consultation_intake ? {
+      chiefComplaint: nullableString(data.consultation_intake.chief_complaint),
+      historyPresentIllness: nullableString(data.consultation_intake.history_present_illness),
+      pastHistory: nullableString(data.consultation_intake.past_history),
+      familyHistory: nullableString(data.consultation_intake.family_history),
+      allergies: nullableString(data.consultation_intake.allergies),
+    } : null,
+  } : {}),
+  ...(data.dental_context !== undefined ? {
+    dentalContext: data.dental_context ? {
+      treatmentEpisodeId: data.dental_context.treatment_episode_id ? toObjectId(data.dental_context.treatment_episode_id) : null,
+      treatmentStageId: data.dental_context.treatment_stage_id ? toObjectId(data.dental_context.treatment_stage_id) : null,
+      treatmentPlanItemId: data.dental_context.treatment_plan_item_id ?? null,
+      toothNumber: data.dental_context.tooth_number ?? null,
+      stageSequence: data.dental_context.stage_sequence ?? null,
+      stageName: data.dental_context.stage_name ?? null,
+    } : null,
+  } : {}),
+  ...(data.doctor_id && data.appointmentDate && data.startTime
+    ? { activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime) }
+    : {}),
+  updatedBy: toObjectId(userId),
+});
+
+export class AppointmentRepository {
+  async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('branchIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isSuperAdmin = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null,
+    }));
+    if (requestedBranchId) {
+      const branchExists = Boolean(await BranchModel.exists({ _id: requestedBranchId, status: 'ACTIVE', deletedAt: null }));
+      if (!branchExists) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      const assigned = (user.branchIds ?? []).some((id) => String(id) === requestedBranchId);
+      if (!isSuperAdmin && !assigned) throw new AppError('Branch access denied', 403, 'BRANCH_ACCESS_DENIED');
+      return [requestedBranchId];
+    }
+    if (isSuperAdmin) return undefined;
+    const activeBranches = await BranchModel.find({
+      _id: { $in: user.branchIds ?? [] }, status: 'ACTIVE', deletedAt: null,
+    }).select('_id').lean();
+    return activeBranches.map((branch) => String(branch._id));
+  }
+
+  async list(query: AppointmentListQuery, branchIds?: string[]) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(toObjectId) };
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+    if (query.doctor_id) {
+      filter.doctorId = toObjectId(query.doctor_id);
+    }
+    if (query.patient_id) {
+      filter.patientId = toObjectId(query.patient_id);
+    }
+    if (query.branch_id) {
+      filter.branchId = toObjectId(query.branch_id);
+    }
+    if (query.department_id) {
+      filter.departmentId = toObjectId(query.department_id);
+    }
+    if (query.treatment_episode_id) {
+      filter['dentalContext.treatmentEpisodeId'] = toObjectId(query.treatment_episode_id);
+    }
+    if (query.treatment_stage_id) {
+      filter['dentalContext.treatmentStageId'] = toObjectId(query.treatment_stage_id);
+    }
+    if (query.date_from || query.date_to) {
+      filter.appointmentDate = {
+        ...(query.date_from ? { $gte: new Date(query.date_from) } : {}),
+        ...(query.date_to ? { $lte: new Date(query.date_to) } : {}),
+      };
+    }
+    if (query.search) {
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
+      filter.$or = [
+        { appointmentNumber: searchRegex },
+        { patientNumber: searchRegex },
+        { patientName: searchRegex },
+        { doctorName: searchRegex },
+        { doctorSpecialization: searchRegex },
+      ];
+    }
+
+    const sortBy = query.sortBy ? sortColumnMap[query.sortBy] : 'appointmentDate';
+    const sortOrder: SortOrder = query.sortOrder === 'asc' ? 1 : -1;
+
+    const [data, count] = await Promise.all([
+      AppointmentModel.find(filter)
+        .sort({ [sortBy]: sortOrder, startTime: sortOrder })
+        .skip(offset)
+        .limit(limit)
+        .lean<AppointmentLean[]>(),
+      AppointmentModel.countDocuments(filter),
+    ]);
+
+    return {
+      data: data.map(toAppointment),
+      meta: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit) || 1,
+      },
+    };
+  }
+
+  async resolveDashboardDepartmentScope(userId: string): Promise<string[] | undefined> {
+    const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
+      .select('departmentIds roleIds').lean();
+    if (!user) throw new AppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const isNurse = Boolean(await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] }, code: 'CLINICIAN_NURSE', status: 'active', deletedAt: null,
+    }));
+    return isNurse ? (user.departmentIds ?? []).map(String) : undefined;
+  }
+
+  async dashboardSummary(query: AppointmentListQuery, branchIds?: string[], departmentIds?: string[]): Promise<AppointmentDashboardSummary> {
+    const filter: Record<string, unknown> = { deletedAt: null };
+    if (branchIds) filter.branchId = { $in: branchIds.map(toObjectId) };
+    if (query.branch_id) filter.branchId = toObjectId(query.branch_id);
+    if (query.department_id) filter.departmentId = toObjectId(query.department_id);
+    else if (departmentIds) filter.departmentId = { $in: departmentIds.map(toObjectId) };
+    if (query.doctor_id) filter.doctorId = toObjectId(query.doctor_id);
+    if (query.status) filter.status = query.status;
+    if (query.search) {
+      const searchRegex = new RegExp(escapeRegex(query.search), 'i');
+      filter.$or = [
+        { appointmentNumber: searchRegex }, { patientNumber: searchRegex },
+        { patientName: searchRegex }, { doctorName: searchRegex }, { doctorSpecialization: searchRegex },
+      ];
+    }
+    if (query.date_from || query.date_to) filter.appointmentDate = {
+      ...(query.date_from ? { $gte: new Date(query.date_from) } : {}),
+      ...(query.date_to ? { $lte: new Date(query.date_to) } : {}),
+    };
+    const [row] = await AppointmentModel.aggregate<{
+      total: number; statuses: Array<{ _id: Appointment['status']; count: number }>;
+      followUps: number; urgent: number;
+    }>([{ $match: filter }, { $facet: {
+      total: [{ $count: 'count' }],
+      statuses: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+      followUps: [{ $match: { visitType: 'FOLLOW_UP' } }, { $count: 'count' }],
+      urgent: [{ $match: { priority: { $in: ['URGENT', 'EMERGENCY'] }, status: { $nin: ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] } } }, { $count: 'count' }],
+    } }, { $project: {
+      total: { $ifNull: [{ $arrayElemAt: ['$total.count', 0] }, 0] }, statuses: 1,
+      followUps: { $ifNull: [{ $arrayElemAt: ['$followUps.count', 0] }, 0] },
+      urgent: { $ifNull: [{ $arrayElemAt: ['$urgent.count', 0] }, 0] },
+    } }]);
+    const counts = new Map((row?.statuses ?? []).map((item) => [item._id, item.count]));
+    return { total: row?.total ?? 0, by_status: {
+      SCHEDULED: counts.get('SCHEDULED') ?? 0, CONFIRMED: counts.get('CONFIRMED') ?? 0,
+      CHECKED_IN: counts.get('CHECKED_IN') ?? 0, CANCELLED: counts.get('CANCELLED') ?? 0,
+      RESCHEDULED: counts.get('RESCHEDULED') ?? 0, NO_SHOW: counts.get('NO_SHOW') ?? 0,
+      SKIPPED: counts.get('SKIPPED') ?? 0, COMPLETED: counts.get('COMPLETED') ?? 0,
+    }, follow_ups: row?.followUps ?? 0, urgent: row?.urgent ?? 0 };
+  }
+
+  async getById(id: string, branchIds?: string[]): Promise<Appointment | undefined> {
+    const appointment = await AppointmentModel.findOne({
+      _id: id, deletedAt: null,
+      ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}),
+    }).lean<AppointmentLean>();
+    return appointment ? toAppointment(appointment) : undefined;
+  }
+
+  async create(data: AppointmentCreateRecord, userId: string, session?: ClientSession): Promise<Appointment> {
+    const records = await AppointmentModel.create(
+      [buildCreatePayload(data, userId)],
+      session ? { session } : undefined,
+    );
+    const created = records[0];
+    if (!created) throw new AppError('Appointment could not be created', 500, 'APPOINTMENT_CREATE_FAILED');
+    return toAppointment(created.toObject<AppointmentLean>());
+  }
+
+  async update(id: string, data: AppointmentUpdateRecord, userId: string, branchIds?: string[]): Promise<Appointment | undefined> {
+    const appointment = await AppointmentModel.findOneAndUpdate(
+      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
+      { $set: buildUpdatePayload(data, userId) },
+      { returnDocument: 'after', lean: true },
+    ).lean<AppointmentLean>();
+
+    return appointment ? toAppointment(appointment) : undefined;
+  }
+
+  async updateStatus(
+    id: string,
+    data: UpdateAppointmentStatusDTO,
+    userId: string,
+    branchIds?: string[],
+    session?: ClientSession,
+  ): Promise<Appointment | undefined> {
+    const appointment = await AppointmentModel.findOneAndUpdate(
+      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
+      {
+        $set: {
+          status: data.status,
+          ...(['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'].includes(data.status)
+            ? { activeSlotKey: null }
+            : {}),
+          ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+          updatedBy: toObjectId(userId),
+        },
+      },
+      { returnDocument: 'after', lean: true, session },
+    ).lean<AppointmentLean>();
+
+    const mapped = appointment ? toAppointment(appointment) : undefined;
+    if (mapped && data.status === 'CANCELLED' && mapped.dental_context?.treatment_stage_id) {
+      await DentalTreatmentStageModel.updateOne(
+        { _id: toObjectId(mapped.dental_context.treatment_stage_id) },
+        { $set: { appointmentId: null, status: 'PLANNED', updatedBy: toObjectId(userId) } },
+        session ? { session } : undefined,
+      );
+    }
+
+    return mapped;
+  }
+
+  async findDoctorConflict(
+    doctorId: string,
+    appointmentDate: Date,
+    startTime: string,
+    endTime: string,
+    excludeAppointmentId?: string,
+    utcStart?: Date,
+    utcEnd?: Date,
+  ) {
+    const timeFilter = utcStart && utcEnd ? {
+      $or: [
+        {
+          utcDateTime: { $lt: utcEnd },
+          utcEndTime: { $gt: utcStart },
+        },
+        {
+          utcDateTime: { $exists: false },
+          appointmentDate,
+          startTime: { $lt: endTime },
+          endTime: { $gt: startTime },
+        }
+      ]
+    } : {
+      appointmentDate,
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
+      startTime: { $lt: endTime },
+      endTime: { $gt: startTime },
+    };
+
+    const filter: Record<string, unknown> = {
+      doctorId: toObjectId(doctorId),
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+      ...timeFilter,
+    };
+
+    if (excludeAppointmentId) {
+      filter._id = { $ne: toObjectId(excludeAppointmentId) };
+    }
+
+    const appointment = await AppointmentModel.findOne(filter).lean<AppointmentLean>();
+    return appointment ? toAppointment(appointment) : undefined;
+  }
+
+async listActiveWindows(doctorId: string, appointmentDate: Date) {
+  const appointments = await AppointmentModel.find({
+    doctorId: toObjectId(doctorId),
+    appointmentDate,
+    status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+    deletedAt: null,
+  })
+    .select('startTime endTime')
+    .sort({ startTime: 1 })
+    .lean<Array<{ startTime: string; endTime: string }>>();
+
+  return appointments.map((appointment) => ({
+    start_time: appointment.startTime,
+    end_time: appointment.endTime,
+  }));
+}
+
+  async listPatientActiveWindows(patientId: string, appointmentDate: Date, excludeAppointmentId?: string) {
+    const filter: Record<string, unknown> = {
+      patientId: toObjectId(patientId),
+      appointmentDate,
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
+    };
+
+    if (excludeAppointmentId) {
+      filter._id = { $ne: toObjectId(excludeAppointmentId) };
+    }
+
+    const appointments = await AppointmentModel.find(filter)
+      .select('startTime endTime')
+      .sort({ startTime: 1 })
+      .lean<Array<{ startTime: string; endTime: string }>>();
+
+    return appointments.map((appointment) => ({
+      start_time: appointment.startTime,
+      end_time: appointment.endTime,
+    }));
+  }
+
+async findPatientConflict(
+  patientId: string,
+  appointmentDate: Date,
+  startTime: string,
+  endTime: string,
+  excludeAppointmentId?: string,
+  utcStart?: Date,
+  utcEnd?: Date,
+) {
+  const timeFilter = utcStart && utcEnd ? {
+    $or: [
+      {
+        utcDateTime: { $lt: utcEnd },
+        utcEndTime: { $gt: utcStart },
+      },
+      {
+        utcDateTime: { $exists: false },
+        appointmentDate,
+        startTime: { $lt: endTime },
+        endTime: { $gt: startTime },
+      }
+    ]
+  } : {
+    appointmentDate,
+    deletedAt: null,
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
+    startTime: { $lt: endTime },
+    endTime: { $gt: startTime },
+  };
+
+  const filter: Record<string, unknown> = {
+    patientId: toObjectId(patientId),
+    deletedAt: null,
+    status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'] },
+    ...timeFilter,
+  };
+
+  if (excludeAppointmentId) {
+    filter._id = { $ne: toObjectId(excludeAppointmentId) };
+  }
+
+  const appointment = await AppointmentModel.findOne(filter).lean<AppointmentLean>();
+  return appointment ? toAppointment(appointment) : undefined;
+}
+
+  async auditStatusTransition(
+    appointment: Appointment,
+    previousStatus: Appointment['status'],
+    actorUserId: string,
+    session?: ClientSession,
+  ) {
+    await AuditLogModel.create(
+      [
+        {
+          actorUserId,
+          eventType: 'appointment.status.updated',
+          metadataJson: {
+            appointmentId: appointment.id,
+            appointmentNumber: appointment.appointment_number,
+            fromStatus: previousStatus,
+            patientId: appointment.patient_id,
+            toStatus: appointment.status,
+            reason: appointment.notes,
+          },
+        },
+      ],
+      { session },
+    );
+  }
+
+async auditCreated(appointment: Appointment, actorUserId: string, session?: ClientSession) {
+  await AuditLogModel.create([{
+    actorUserId,
+    eventType: 'appointment.created',
+    metadataJson: {
+      appointmentId: appointment.id,
+      appointmentNumber: appointment.appointment_number,
+      branchId: appointment.branch_id,
+      doctorId: appointment.doctor_id,
+      patientId: appointment.patient_id,
+    },
+  }], session ? { session } : undefined);
+}
+
+  async listPastOpen(patientId?: string) {
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const appointments = await AppointmentModel.find({
+      ...(patientId ? { patientId: toObjectId(patientId) } : {}),
+      $or: [
+        { appointmentDate: { $lt: startOfToday } },
+        { appointmentDate: startOfToday, endTime: { $lte: currentTimeStr } },
+      ],
+      status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+      deletedAt: null,
+    }).lean<AppointmentLean[]>();
+    return appointments.map(toAppointment);
+  }
+
+  async updateStatusBySystem(id: string, status: Appointment['status']) {
+    const appointment = await AppointmentModel.findOneAndUpdate(
+      { _id: id, deletedAt: null, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] } },
+      { $set: { status, activeSlotKey: null } },
+      { returnDocument: 'after', lean: true },
+    ).lean<AppointmentLean>();
+    return appointment ? toAppointment(appointment) : undefined;
+  }
+
+  async auditSystemStatusTransition(appointment: Appointment, previousStatus: Appointment['status']) {
+    await AuditLogModel.create({
+      eventType: 'appointment.status.reconciled',
+      metadataJson: {
+        appointmentId: appointment.id,
+        appointmentNumber: appointment.appointment_number,
+        fromStatus: previousStatus,
+        patientId: appointment.patient_id,
+        source: 'system_overdue_reconciliation',
+        toStatus: appointment.status,
+      },
+    });
+  }
+
+  async rescheduleAtomically(
+    original: Appointment,
+    replacement: AppointmentCreateRecord,
+    userId: string,
+  ) {
+    let created: Appointment | undefined;
+    try {
+      await executeTransaction(() => mongoose.startSession(), async (session) => {
+        const current = await AppointmentModel.findOne({
+          _id: toObjectId(original.id),
+          status: original.status,
+          deletedAt: null,
+        }).session(session ?? null).lean<AppointmentLean>();
+        if (!current) {
+          throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
+        }
+
+        created = await this.create(replacement, userId, session);
+        const changedAt = new Date();
+        const updated = await AppointmentModel.findOneAndUpdate(
+          { _id: current._id, status: original.status, deletedAt: null },
+          {
+            $set: {
+              status: 'RESCHEDULED',
+              activeSlotKey: null,
+              rescheduledToId: toObjectId(created.id),
+              rescheduledAt: changedAt,
+              updatedBy: toObjectId(userId),
+            },
+          },
+          { returnDocument: 'after', session: session ?? undefined },
+        ).lean<AppointmentLean>();
+        if (!updated) {
+          throw new AppError('Appointment changed while rescheduling. Refresh and try again.', 409, 'APPOINTMENT_CHANGED');
+        }
+        await AppointmentModel.updateOne(
+          { _id: toObjectId(created.id) },
+          { $set: { rescheduledFromId: current._id, rescheduledAt: changedAt } },
+          { session: session ?? undefined },
+        );
+        await AuditLogModel.create([{
+          actorUserId: userId,
+          eventType: 'appointment.rescheduled',
+          metadataJson: {
+            appointmentId: original.id,
+            appointmentNumber: original.appointment_number,
+            from: {
+              doctorId: original.doctor_id,
+              appointmentDate: original.appointment_date,
+              startTime: original.start_time,
+              endTime: original.end_time,
+            },
+            patientId: original.patient_id,
+            replacementAppointmentId: created.id,
+            replacementAppointmentNumber: created.appointment_number,
+            to: {
+              doctorId: created.doctor_id,
+              appointmentDate: created.appointment_date,
+              startTime: created.start_time,
+              endTime: created.end_time,
+            },
+          },
+        }], { session: session ?? undefined });
+      });
+    } catch (error) {
+      const databaseError = error as { code?: unknown; keyPattern?: Record<string, unknown> };
+      if (databaseError.code === 11000 && databaseError.keyPattern?.activeSlotKey) {
+        throw new AppError('This slot is no longer available. Select another time.', 409, 'APPOINTMENT_SLOT_CONFLICT');
+      }
+      throw error;
+    }
+    if (!created) throw new AppError('Appointment could not be rescheduled', 500, 'RESCHEDULE_FAILED');
+    return created;
+  }
+
+  async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
+    await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
+      appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
+      reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
+        startTime: previous.start_time, durationMinutes: previous.duration_minutes },
+      next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
+        startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
+    } });
+  }
+
+  async nextAppointmentSequence(session?: ClientSession) {
+    const query = AppointmentModel.countDocuments();
+    return session ? query.session(session) : query;
+  }
+
+  async savePatientPreConsultation(
+    data: {
+      patientId: string;
+      appointmentId: string;
+      doctorId?: string | null;
+      chiefComplaint?: string | null;
+      historyPresentIllness?: string | null;
+      pastMedicalHistory?: string | null;
+      familyHistory?: string | null;
+      allergies?: string | null;
+    },
+    userId?: string,
+    session?: ClientSession,
+  ): Promise<PatientPreConsultation> {
+    const doc = await PatientPreConsultationModel.findOneAndUpdate(
+      { appointmentId: toObjectId(data.appointmentId) },
+      {
+        $set: {
+          patientId: toObjectId(data.patientId),
+          appointmentId: toObjectId(data.appointmentId),
+          doctorId: data.doctorId ? toObjectId(data.doctorId) : null,
+          chiefComplaint: nullableString(data.chiefComplaint),
+          historyPresentIllness: nullableString(data.historyPresentIllness),
+          pastMedicalHistory: nullableString(data.pastMedicalHistory),
+          familyHistory: nullableString(data.familyHistory),
+          allergies: nullableString(data.allergies),
+          submittedAt: new Date(),
+          updatedBy: userId ? toObjectId(userId) : undefined,
+        },
+        $setOnInsert: {
+          createdBy: userId ? toObjectId(userId) : undefined,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true, session },
+    ).lean<PatientPreConsultationFields & { _id: Types.ObjectId }>();
+
+    return toPatientPreConsultation(doc!);
+  }
+
+  async getPatientPreConsultationByAppointmentId(
+    appointmentId: string,
+  ): Promise<PatientPreConsultation | null> {
+    const doc = await PatientPreConsultationModel.findOne({
+      appointmentId: toObjectId(appointmentId),
+      deletedAt: null,
+    }).lean<PatientPreConsultationFields & { _id: Types.ObjectId }>();
+
+    return doc ? toPatientPreConsultation(doc) : null;
+  }
+}
+

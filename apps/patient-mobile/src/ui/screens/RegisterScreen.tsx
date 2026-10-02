@@ -207,7 +207,7 @@ export function RegisterScreen() {
                 }}
                 disabled={isSubmitting}
               />
-              <Text style={styles.fieldHint}>Patients under 15 must register through a parent or guardian.</Text>
+              <Text style={styles.fieldHint}>Enter the patient’s date of birth.</Text>
             </View>
           </View>
 

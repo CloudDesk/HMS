@@ -8,17 +8,6 @@ import { patientPortalApi, type PortalPatientInput } from '../../api/patient-por
 import { portalQueryKeys } from '../../api/query-keys';
 import { PortalLinkDependentForm } from './PortalLinkDependentForm';
 
-const calculateAge = (dob?: string) => {
-  if (!dob) return null;
-  const birthDate = new Date(dob);
-  if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
-};
-
 const schema = z.object({
   first_name: z.string().trim().min(1, 'First name is required.'),
   last_name: z.string().trim().min(1, 'Last name is required.'),
@@ -34,17 +23,6 @@ const schema = z.object({
   relationship: z.enum(['PARENT', 'LEGAL_GUARDIAN']),
   emergency_name: z.string().trim().optional(),
   emergency_phone: z.string().trim().optional(),
-}).superRefine((data, ctx) => {
-  const age = calculateAge(data.date_of_birth);
-  if (age !== null && age < 15) {
-    if (!data.emergency_name || data.emergency_name.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['emergency_name'],
-        message: 'Parent or guardian full name is required for patients under 15.',
-      });
-    }
-  }
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -75,7 +53,14 @@ export function PortalPatientForm({
   });
   const initialName = parseFullName(mode === 'SELF' ? defaultFullName : undefined);
   const { register, handleSubmit, watch, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema.superRefine((data, ctx) => {
+      const anniversary = new Date(data.date_of_birth);
+      anniversary.setFullYear(anniversary.getFullYear() + 15);
+      if (mode === 'DEPENDENT' && anniversary > new Date() && !data.emergency_name?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['emergency_name'],
+          message: 'Parent or guardian full name is required for a dependent under 15.' });
+      }
+    })),
     defaultValues: {
       first_name: initialName.firstName, last_name: initialName.lastName, date_of_birth: '', gender: 'UNKNOWN', preferred_branch_id: '', blood_group: '',
       line1: '', city: '', state: '', country: '', postal_code: '', relationship: 'PARENT', emergency_name: '', emergency_phone: '',
@@ -97,10 +82,6 @@ export function PortalPatientForm({
   const isMinorAge = currentAge !== null && currentAge < 15;
 
   const submit = async (values: FormValues) => {
-    if (isMinorAge && !values.emergency_name?.trim()) {
-      setError('emergency_name', { message: 'Parent or guardian full name is required for patients under 15.' });
-      return;
-    }
     const patient: PortalPatientInput = {
       first_name: values.first_name,
       last_name: values.last_name,
@@ -108,7 +89,7 @@ export function PortalPatientForm({
       gender: values.gender,
       preferred_branch_id: values.preferred_branch_id,
       blood_group: values.blood_group || null,
-      emergency_contact: isMinorAge || values.emergency_name ? {
+      emergency_contact: values.emergency_name ? {
         name: values.emergency_name || null,
         relationship: values.relationship || 'PARENT',
         phone: values.emergency_phone || null,
@@ -148,11 +129,11 @@ export function PortalPatientForm({
             {currentAge !== null ? (
               isMinorAge ? (
                 <small style={{ color: '#d97706', fontWeight: 600 }}>
-                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'} (Child / Minor — Parent/Guardian required)
+                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'}
                 </small>
               ) : (
                 <small style={{ color: '#16a34a', fontWeight: 600 }}>
-                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'} (Adult — Eligible for self-enrollment)
+                  Age: {currentAge} {currentAge === 1 ? 'year' : 'years'}
                 </small>
               )
             ) : null}
@@ -206,13 +187,13 @@ export function PortalPatientForm({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <i className="ph ph-shield-check" style={{ color: '#d97706', fontSize: '1.3rem' }} />
                 <div>
-                  <strong style={{ color: '#92400e', fontSize: '0.85rem', display: 'block' }}>Parent / Guardian Information Required</strong>
-                  <small style={{ color: '#b45309', fontSize: '0.68rem' }}>Patients under 15 years old require parent or guardian details for medical consent.</small>
+                  <strong style={{ color: '#92400e', fontSize: '0.85rem', display: 'block' }}>{mode === 'DEPENDENT' ? 'Parent / Guardian Information Required' : 'Parent / Guardian Information (optional)'}</strong>
+                  <small style={{ color: '#b45309', fontSize: '0.68rem' }}>Optional contact details do not affect patient account access.</small>
                 </div>
               </div>
               <div className="portal-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                 <label>
-                  <span>Parent / Guardian full name <span className="required-asterisk">*</span></span>
+                  <span>Parent / Guardian full name {mode === 'DEPENDENT' ? <span className="required-asterisk">*</span> : null}</span>
                   <input placeholder="Full name of parent or guardian" {...register('emergency_name')} />
                   {errors.emergency_name ? <small className="portal-field-error">{errors.emergency_name.message}</small> : null}
                 </label>

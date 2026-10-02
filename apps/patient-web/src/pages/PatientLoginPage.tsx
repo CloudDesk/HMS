@@ -79,8 +79,8 @@ export function PatientLoginPage() {
     try {
       await loginWithOtp(phone.trim(), otp);
     } catch (requestError) {
-      if (requestError instanceof ApiError && (requestError.code === 'NEW_PATIENT_REQUIRES_REGISTRATION' || requestError.code === 'MINOR_GUARDIAN_ACCOUNT_REQUIRED')) {
-        const mode = requestError.code === 'MINOR_GUARDIAN_ACCOUNT_REQUIRED' ? 'guardian' : 'new';
+      if (requestError instanceof ApiError && requestError.code === 'NEW_PATIENT_REQUIRES_REGISTRATION') {
+        const mode = 'new';
         let registrationToken = (requestError.details as { registrationToken?: string } | undefined)?.registrationToken;
         if (!registrationToken) {
           try {
@@ -138,7 +138,7 @@ export function PatientLoginPage() {
           </div>
         ) : null}
       </form>
-      <div className="patient-login-help"><i className="ph ph-info" /><span>Existing patients are linked automatically when one adult record matches. New patients continue to personal information after verification.</span></div>
+      <div className="patient-login-help"><i className="ph ph-info" /><span>Existing patients are linked automatically when one patient record matches. New patients continue to personal information after verification.</span></div>
       {appConfig.staffWebUrl ? <button className="patient-staff-link" onClick={() => window.location.assign(appConfig.staffWebUrl)} type="button">Staff login <i className="ph ph-arrow-up-right" /></button> : null}
     </div></section>
   </main>;

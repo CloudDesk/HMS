@@ -1,0 +1,164 @@
+import mongoose, { Types, type ClientSession } from 'mongoose';
+import { type SequenceService } from '../../shared/sequence/sequence.service.js';
+import { BedHoldModel } from '../admissions-configuration/admissions-configuration.model.js';
+import { InpatientAdmissionModel, AdmissionRequestModel } from '../inpatient-admissions/inpatient-admission.model.js';
+import { AppointmentModel } from '../appointments/appointment.model.js';
+import { AuditLogModel } from '../auth/auth.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { DepartmentModel } from '../departments/department.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
+import { OpdVisitModel } from '../opd/opd-visit.model.js';
+import { PatientModel } from '../patients/patient.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { ServiceModel } from '../services/service.model.js';
+import { UserModel } from '../users/user.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel, type ProcedureBookingFields, type ProcedureRecommendationFields } from './surgery.model.js';
+import type { CreateProcedureBookingDTO, CreateProcedureRecommendationDTO, SurgeryListQuery, SurgeryMetadata } from './surgery.types.js';
+
+const oid = (value: string) => new Types.ObjectId(value);
+const safeOid = (value: string | null | undefined) => (value && /^[a-f\d]{24}$/i.test(value) ? new Types.ObjectId(value) : null);
+const paging = (total: number, page: number, limit: number) => ({ total, page, limit, totalPages: Math.ceil(total / limit) || 1 });
+export type RecommendationLean = ProcedureRecommendationFields & { _id: Types.ObjectId };
+export type BookingLean = ProcedureBookingFields & { _id: Types.ObjectId };
+const recommendationDto = (item: RecommendationLean) => ({ id: item._id.toString(), recommendation_number: item.recommendationNumber, patient_id: item.patientId.toString(), patient_number: item.patientNumber, patient_name: item.patientName, branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), department_name: item.departmentName, recommending_doctor_id: item.recommendingDoctorId.toString(), recommending_doctor_name: item.recommendingDoctorName, service_id: item.serviceId.toString(), service_name: item.serviceName, encounter_type: item.encounterType ?? null, encounter_id: item.encounterId?.toString() ?? null, clinical_reason: item.clinicalReason, notes: item.notes ?? null, status: item.status, booking_id: item.bookingId?.toString() ?? null, cancellation_reason: item.cancellationReason ?? null, created_at: item.createdAt, updated_at: item.updatedAt });
+const bookingDto = (item: BookingLean) => ({ id: item._id.toString(), booking_number: item.bookingNumber, recommendation_id: item.recommendationId.toString(), patient_id: item.patientId.toString(), patient_number: item.patientNumber, patient_name: item.patientName, branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), department_name: item.departmentName, service_id: item.serviceId.toString(), service_name: item.serviceName, doctor_id: item.doctorId.toString(), doctor_name: item.doctorName, scheduled_start: item.scheduledStart, scheduled_end: item.scheduledEnd, duration_minutes: item.durationMinutes, status: item.status, hold_id: item.holdId?.toString() ?? null, consent_document_id: item.consentDocumentId?.toString() ?? null, deposit_invoice_id: item.depositInvoiceId?.toString() ?? null, prerequisite_snapshot: item.prerequisiteSnapshot ?? null, notes: item.notes ?? null, schedule_history: item.scheduleHistory.map((row) => ({ previous_start: row.previousStart, previous_end: row.previousEnd, new_start: row.newStart, new_end: row.newEnd, previous_doctor_id: row.previousDoctorId.toString(), new_doctor_id: row.newDoctorId.toString(), reason: row.reason, changedBy: row.changedBy.toString(), changed_at: row.changedAt })), cancellation_reason: item.cancellationReason ?? null, completed_at: item.completedAt ?? null, created_at: item.createdAt, updated_at: item.updatedAt });
+
+export class SurgeryRepository {
+  constructor(private readonly sequenceService: SequenceService) {}
+  session() { return mongoose.startSession(); }
+
+  async acquireConcurrencyLock(doctorId: string, serviceId: string, session?: ClientSession) {
+    const locks = [
+      { type: 'Doctor', id: doctorId },
+      { type: 'Service', id: serviceId }
+    ].sort((a, b) => a.id.localeCompare(b.id));
+
+    for (const lock of locks) {
+      if (lock.type === 'Doctor') {
+        const q = DoctorModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
+        if (session) q.session(session);
+        await q;
+      } else {
+        const q = ServiceModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
+        if (session) q.session(session);
+        await q;
+      }
+    }
+  }
+
+  async hasBranchAccess(userId: string, branchId: string) { const [user, branch] = await Promise.all([UserModel.findOne({ _id: userId, status: 'active', deletedAt: null }).select('branchIds roleIds').lean(), BranchModel.exists({ _id: branchId, status: 'ACTIVE', deletedAt: null })]); if (!user || !branch) return false; if ((user.branchIds ?? []).some((id) => id.toString() === branchId)) return true; return Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null })); }
+  async departmentScope(userId: string) {
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('departmentIds roleIds').lean();
+    if (!user) return [];
+    const unrestricted = await RoleModel.exists({
+      _id: { $in: user.roleIds ?? [] },
+      code: { $in: ['SUPER_ADMIN', 'ADMINISTRATOR', 'RECEPTIONIST', 'DOCTOR', 'CLINICIAN_DOCTOR'] },
+      status: 'active',
+      deletedAt: null,
+    });
+    return unrestricted ? undefined : (user.departmentIds ?? []).map((id) => id.toString());
+  }
+  async actorIsDoctor(userId: string) {
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('roleIds').lean();
+    if (!user) return false;
+    return Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: { $in: ['DOCTOR', 'CLINICIAN_DOCTOR'] }, status: 'active', deletedAt: null }));
+  }
+  async doctorByUserId(userId: string, session?: ClientSession) {
+    const q = DoctorModel.findOne({ userId: oid(userId), deletedAt: null });
+    if (session) q.session(session);
+    return q.lean();
+  }
+  async recommendationReferences(data: CreateProcedureRecommendationDTO, session?: ClientSession) {
+    const qPat = PatientModel.findOne({ _id: oid(data.patient_id), status: 'ACTIVE', deletedAt: null });
+    if (session) qPat.session(session);
+    const patient = await qPat.lean();
+    const qDoc = data.recommending_doctor_id
+      ? DoctorModel.findOne({ _id: oid(data.recommending_doctor_id), branchId: oid(data.branch_id), status: 'ACTIVE', deletedAt: null })
+      : null;
+    if (qDoc && session) qDoc.session(session);
+    const doctor = qDoc ? await qDoc.lean() : null;
+    const qDept = DepartmentModel.findOne({ _id: oid(data.department_id), branchIds: oid(data.branch_id), status: 'ACTIVE', deletedAt: null });
+    if (session) qDept.session(session);
+    const department = await qDept.lean();
+    const qServ = ServiceModel.findOne({ _id: oid(data.service_id), departmentId: oid(data.department_id), serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null });
+    if (session) qServ.session(session);
+    const service = await qServ.lean();
+    const qEnc = data.encounter_id ? OpdVisitModel.findOne({ _id: oid(data.encounter_id), patientId: oid(data.patient_id), deletedAt: null }) : null;
+    if (qEnc && session) qEnc.session(session);
+    const encounter = qEnc ? await qEnc.lean() : null;
+    return { patient, doctor, department, service, encounter };
+  }
+  async createRecommendation(data: CreateProcedureRecommendationDTO, refs: { patientNumber: string; patientName: string; doctorName: string; departmentName: string; serviceName: string }, actor: string, session?: ClientSession) { const rows = await ProcedureRecommendationModel.create([{ recommendationNumber: `PR-${Date.now()}-${Math.floor(Math.random() * 1000)}`, patientId: oid(data.patient_id), patientNumber: refs.patientNumber, patientName: refs.patientName, branchId: oid(data.branch_id), departmentId: oid(data.department_id), departmentName: refs.departmentName, recommendingDoctorId: oid(data.recommending_doctor_id!), recommendingDoctorName: refs.doctorName, serviceId: oid(data.service_id), serviceName: refs.serviceName, encounterType: data.encounter_type ?? (data.encounter_id ? 'OPD_VISIT' : 'DIRECT'), encounterId: data.encounter_id ? oid(data.encounter_id) : null, clinicalReason: data.clinical_reason, notes: data.notes ?? null, status: 'ACTIVE', createdBy: oid(actor), updatedBy: oid(actor) }], { session: session ?? undefined }); const row = rows[0]; if (!row) throw new Error('Recommendation create returned no record'); return recommendationDto(row.toObject() as RecommendationLean); }
+  async listRecommendations(query: SurgeryListQuery, departmentIds?: string[], doctorId?: string) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id), ...(departmentIds ? { departmentId: { $in: departmentIds.map(oid) } } : {}) }; if (doctorId) filter.recommendingDoctorId = oid(doctorId); if (query.status) filter.status = query.status; if (query.patient_id) filter.patientId = oid(query.patient_id); if (query.service_id) filter.serviceId = oid(query.service_id); if (query.search) { const value = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); filter.$or = [{ recommendationNumber: value }, { patientName: value }, { patientNumber: value }, { serviceName: value }]; } const [rows, total] = await Promise.all([ProcedureRecommendationModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean<RecommendationLean[]>(), ProcedureRecommendationModel.countDocuments(filter)]); return { data: rows.map(recommendationDto), meta: paging(total, page, limit) }; }
+  async getRecommendation(id: string, branchId: string, session?: ClientSession) { const q = ProcedureRecommendationModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<RecommendationLean>(); if (session) q.session(session); const row = await q; return row ? recommendationDto(row) : null; }
+  async cancelRecommendation(id: string, branchId: string, reason: string, actor: string, session?: ClientSession) { const row = await ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<RecommendationLean>(); return row ? recommendationDto(row) : null; }
+  async getActiveRecommendationRecord(id: string, branchId: string, session?: ClientSession) { const q = ProcedureRecommendationModel.findOne({ _id: oid(id), branchId: oid(branchId), status: 'ACTIVE', bookingId: null }); if (session) q.session(session); return q.lean<RecommendationLean>(); }
+  async bookingReferences(recommendation: RecommendationLean, doctorId: string, session?: ClientSession) { const qServ = ServiceModel.findOne({ _id: recommendation.serviceId, serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }); if (session) qServ.session(session); const service = await qServ.lean(); const qDoc = DoctorModel.findOne({ _id: oid(doctorId), branchId: recommendation.branchId, departmentId: recommendation.departmentId, status: 'ACTIVE', deletedAt: null }); if (session) qDoc.session(session); const doctor = await qDoc.lean(); return { service, doctor }; }
+  async getProcedureService(id: string) { return ServiceModel.findOne({ _id: oid(id), serviceType: 'PROCEDURE', status: 'ACTIVE', deletedAt: null }).lean(); }
+  async createBooking(data: CreateProcedureBookingDTO, recommendation: RecommendationLean, refs: { doctorName: string; duration: number }, actor: string, session?: ClientSession) { const start = new Date(data.scheduled_start); const end = new Date(start.getTime() + refs.duration * 60000); const rows = await ProcedureBookingModel.create([{ bookingNumber: `PB-${Date.now()}-${Math.floor(Math.random() * 1000)}`, recommendationId: recommendation._id, patientId: recommendation.patientId, patientNumber: recommendation.patientNumber, patientName: recommendation.patientName, branchId: recommendation.branchId, departmentId: recommendation.departmentId, departmentName: recommendation.departmentName, serviceId: recommendation.serviceId, serviceName: recommendation.serviceName, doctorId: oid(data.doctor_id), doctorName: refs.doctorName, scheduledStart: start, scheduledEnd: end, durationMinutes: refs.duration, status: 'PENDING_CONFIRMATION', holdId: safeOid(data.hold_id), consentDocumentId: safeOid(data.consent_document_id), depositInvoiceId: safeOid(data.deposit_invoice_id), notes: data.notes ?? null, createdBy: oid(actor), updatedBy: oid(actor) }], { session: session ?? undefined }); const row = rows[0]; if (!row) throw new Error('Booking create returned no record'); return bookingDto(row.toObject() as BookingLean); }
+  async getBookingRecord(id: string, branchId: string, session?: ClientSession) { const q = ProcedureBookingModel.findOne({ _id: oid(id), branchId: oid(branchId) }).lean<BookingLean>(); if (session) q.session(session); return q; }
+  async getBooking(id: string, branchId: string) { const row = await this.getBookingRecord(id, branchId); return row ? bookingDto(row) : null; }
+  async listBookings(query: SurgeryListQuery, departmentIds?: string[], doctorId?: string) { const page = query.page ?? 1; const limit = query.limit ?? 20; const filter: Record<string, unknown> = { branchId: oid(query.branch_id), ...(departmentIds ? { departmentId: { $in: departmentIds.map(oid) } } : {}) }; if (doctorId) { filter.doctorId = oid(doctorId); } else if (query.doctor_id) { filter.doctorId = oid(query.doctor_id); } if (query.status) filter.status = query.status; if (query.patient_id) filter.patientId = oid(query.patient_id); if (query.service_id) filter.serviceId = oid(query.service_id); if (query.from || query.to) filter.scheduledStart = { ...(query.from ? { $gte: new Date(query.from) } : {}), ...(query.to ? { $lte: new Date(query.to) } : {}) }; if (query.search) { const value = new RegExp(query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); filter.$or = [{ bookingNumber: value }, { patientName: value }, { patientNumber: value }, { serviceName: value }, { doctorName: value }]; } const [rows, total] = await Promise.all([ProcedureBookingModel.find(filter).sort({ scheduledStart: 1 }).skip((page - 1) * limit).limit(limit).lean<BookingLean[]>(), ProcedureBookingModel.countDocuments(filter)]); return { data: rows.map(bookingDto), meta: paging(total, page, limit) }; }
+  async countServiceOverlap(serviceId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { serviceId: oid(serviceId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.countDocuments(filter); if (session) q.session(session); return q; }
+  async hasDoctorOverlap(doctorId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { doctorId: oid(doctorId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.exists(filter); if (session) q.session(session); return Boolean(await q); }
+  async hasAppointmentOverlap(doctorId: string, dateOnly: Date, startTime: string, endTime: string, session?: ClientSession) { const q = AppointmentModel.exists({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, startTime: { $lt: endTime }, endTime: { $gt: startTime }, deletedAt: null }); if (session) q.session(session); return Boolean(await q); }
+  async listDoctorAppointments(doctorId: string, dateOnly: Date, session?: ClientSession) { const q = AppointmentModel.find({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, deletedAt: null }).lean(); if (session) q.session(session); return q; }
+  async listDoctorSurgeries(doctorId: string, dateOnly: Date, session?: ClientSession) { const nextDay = new Date(dateOnly.getTime() + 24 * 60 * 60 * 1000); const q = ProcedureBookingModel.find({ doctorId: oid(doctorId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $gte: dateOnly, $lt: nextDay } }).lean(); if (session) q.session(session); return q; }
+  async validateHold(holdId: string, patientId: string, branchId: string, session?: ClientSession) {
+    const isOid = /^[a-f\d]{24}$/i.test(holdId);
+    const holdFilter: Record<string, unknown> = {
+      branchId: oid(branchId),
+      patientId: oid(patientId),
+      status: 'ACTIVE',
+      expiresAt: { $gt: new Date() },
+    };
+    if (isOid) {
+      holdFilter.$or = [{ _id: oid(holdId) }, { holdNumber: holdId }];
+    } else {
+      holdFilter.holdNumber = holdId;
+    }
+    const qHold = BedHoldModel.findOne(holdFilter);
+    if (session) qHold.session(session);
+    const hold = await qHold.lean();
+    if (hold) return hold;
+
+    const admissionFilter: Record<string, unknown> = {
+      branchId: oid(branchId),
+      patientId: oid(patientId),
+      status: 'ADMITTED',
+    };
+    if (isOid) {
+      admissionFilter.$or = [{ _id: oid(holdId) }, { admissionNumber: holdId }];
+    } else {
+      admissionFilter.admissionNumber = holdId;
+    }
+    const qAdm = InpatientAdmissionModel.findOne(admissionFilter);
+    if (session) qAdm.session(session);
+    const admission = await qAdm.lean();
+    if (admission) return admission;
+
+    const reqFilter: Record<string, unknown> = {
+      branchId: oid(branchId),
+      patientId: oid(patientId),
+      status: { $in: ['PENDING_APPROVAL', 'APPROVED', 'HOLD_PLACED', 'ADMITTED'] },
+    };
+    if (isOid) {
+      reqFilter.$or = [{ _id: oid(holdId) }, { requestNumber: holdId }];
+    } else {
+      reqFilter.requestNumber = holdId;
+    }
+    const qReq = AdmissionRequestModel.findOne(reqFilter);
+    if (session) qReq.session(session);
+    const req = await qReq.lean();
+    if (req) return req;
+
+    return null;
+  }
+  async markRecommendationBooked(id: string, bookingId: string, actor: string, session?: ClientSession) { return ProcedureRecommendationModel.findOneAndUpdate({ _id: oid(id), status: 'ACTIVE', bookingId: null }, { $set: { status: 'BOOKED', bookingId: oid(bookingId), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }); }
+  async confirmBooking(id: string, branchId: string, data: { holdId: string | null; consentId: string | null; invoiceId: string | null; snapshot: Record<string, unknown> }, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'PENDING_CONFIRMATION' }, { $set: { status: 'BOOKED', holdId: safeOid(data.holdId), consentDocumentId: safeOid(data.consentId), depositInvoiceId: safeOid(data.invoiceId), prerequisiteSnapshot: data.snapshot, updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async rescheduleBooking(record: BookingLean, start: Date, end: Date, doctorId: string, doctorName: string, reason: string, holdId: string | null, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: record._id, status: 'BOOKED', scheduledStart: record.scheduledStart, scheduledEnd: record.scheduledEnd }, { $set: { scheduledStart: start, scheduledEnd: end, doctorId: oid(doctorId), doctorName, holdId: safeOid(holdId), updatedBy: oid(actor) }, $push: { scheduleHistory: { previousStart: record.scheduledStart, previousEnd: record.scheduledEnd, newStart: start, newEnd: end, previousDoctorId: record.doctorId, newDoctorId: oid(doctorId), reason, changedBy: oid(actor), changedAt: new Date() } } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async cancelBooking(id: string, branchId: string, reason: string, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } }, { $set: { status: 'CANCELLED', cancellationReason: reason, cancelledAt: new Date(), cancelledBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async completeBooking(id: string, branchId: string, actor: string, session?: ClientSession) { const row = await ProcedureBookingModel.findOneAndUpdate({ _id: oid(id), branchId: oid(branchId), status: 'BOOKED', scheduledStart: { $lte: new Date() } }, { $set: { status: 'COMPLETED', completedAt: new Date(), completedBy: oid(actor), updatedBy: oid(actor) } }, { returnDocument: 'after', session: session ?? undefined }).lean<BookingLean>(); return row ? bookingDto(row) : null; }
+  async audit(eventType: string, actor: string, metadata: SurgeryMetadata, details: Record<string, unknown>, session?: ClientSession) { await AuditLogModel.create([{ eventType, actorUserId: actor, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent, metadataJson: details }], { session: session ?? undefined }); }
+}
+

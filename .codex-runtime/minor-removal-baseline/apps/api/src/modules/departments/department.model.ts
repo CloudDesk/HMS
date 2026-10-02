@@ -1,0 +1,56 @@
+import mongoose, { Schema, Document, Types } from 'mongoose';
+import { departmentModuleKeys, type DepartmentModuleKey } from './department.types.js';
+
+export interface IDepartment extends Document {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  branchIds: Types.ObjectId[];
+  status: 'ACTIVE' | 'INACTIVE';
+  isClinical: boolean;
+  hiddenModules: DepartmentModuleKey[];
+
+  createdBy?: Types.ObjectId;
+  updatedBy?: Types.ObjectId;
+  deletedBy?: Types.ObjectId;
+  deletedAt?: Date;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const departmentSchema = new Schema<IDepartment>(
+  {
+    code: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    description: { type: String },
+    branchIds: [{ type: Schema.Types.ObjectId, ref: 'Branch', required: true }],
+    status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
+    isClinical: { type: Boolean, default: false },
+    hiddenModules: { type: [String], enum: departmentModuleKeys, default: [] },
+
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    deletedAt: { type: Date },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform: (_, ret: Record<string, unknown>) => {
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
+  },
+);
+
+departmentSchema.index({ name: 1 });
+departmentSchema.index({ branchIds: 1 });
+departmentSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
+departmentSchema.index({ deletedAt: 1, status: 1, isClinical: 1, branchIds: 1, name: 1 });
+
+export const DepartmentModel = mongoose.model<IDepartment>('Department', departmentSchema);

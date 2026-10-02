@@ -1,0 +1,196 @@
+import { Types } from 'mongoose';
+import { areVitalsOptional } from './opd-vitals-policy.js';
+import { AppError } from '../../shared/errors/app-error.js';
+import type { AppointmentRepository } from '../appointments/appointment.repository.js';
+import type { PatientRepository } from '../patients/patient.repository.js';
+import type { OpdConsultationRepository } from './opd-consultation.repository.js';
+import type { SaveOpdConsultationDTO } from './opd-consultation.types.js';
+import type { OpdVitalsRepository } from './opd-vitals.repository.js';
+import type { OpdVisitRepository } from './opd-visit.repository.js';
+import type { OpdVisit } from './opd-visit.types.js';
+import { OpdDentalExaminationRepository } from './opd-dental-examination.repository.js';
+import { OpdDentalExaminationService } from './opd-dental-examination.service.js';
+
+const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
+
+const isObjectId = (value: string | null | undefined) =>
+  Boolean(value && Types.ObjectId.isValid(value));
+
+export class OpdConsultationService {
+  constructor(
+    private readonly repository: OpdConsultationRepository,
+    private readonly visitRepository: OpdVisitRepository,
+    private readonly vitalsRepository: OpdVitalsRepository,
+    private readonly patientRepository: PatientRepository,
+    private readonly appointmentRepository: AppointmentRepository,
+    private readonly dentalExaminations = new OpdDentalExaminationService(
+      new OpdDentalExaminationRepository(),
+      visitRepository,
+      repository,
+      patientRepository,
+    ),
+  ) {}
+
+  async getByVisit(visitId: string, userId: string) {
+    await this.getVisit(visitId, userId);
+    return this.repository.getByVisit(visitId);
+  }
+
+  async getPreConsultation(visitId: string, userId: string) {
+    const visit = await this.getVisit(visitId, userId);
+    if (!visit.appointment_id) {
+      return null;
+    }
+    return this.appointmentRepository.getPatientPreConsultationByAppointmentId(visit.appointment_id);
+  }
+
+  async saveDraft(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
+    const visit = await this.getVisit(visitId, userId);
+    await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);
+    this.ensureOpenVisit(visit);
+    this.ensureConsultationReady(visit);
+
+    const consultation = await this.repository.saveForVisit(
+      {
+        ...data,
+        status: 'DRAFT',
+        visit,
+      },
+      userId,
+    );
+
+    if (visit.status === 'READY_FOR_CONSULTATION') {
+      await this.visitRepository.updateStatus(
+        visit.id,
+        {
+          notes: 'Doctor consultation started.',
+          status: 'IN_CONSULTATION',
+        },
+        userId,
+      );
+    }
+
+    return consultation;
+  }
+
+  async complete(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
+    const visit = await this.getVisit(visitId, userId);
+    await this.dentalExaminations.validateAssessment(visit, data.assessment, userId);
+    this.ensureOpenVisit(visit);
+    this.ensureConsultationReady(visit);
+    if (!await areVitalsOptional(visit)) await this.ensureVitalsRecorded(visit.id);
+
+    if (visit.status === 'READY_FOR_CONSULTATION') {
+      await this.visitRepository.updateStatus(
+        visit.id,
+        {
+          notes: 'Doctor consultation completed directly.',
+          status: 'IN_CONSULTATION',
+        },
+        userId,
+      );
+    }
+
+    const consultation = await this.repository.saveForVisit(
+      {
+        ...data,
+        completedAt: new Date(),
+        status: 'COMPLETED',
+        visit,
+      },
+      userId,
+    );
+
+    await this.visitRepository.updateStatus(
+      visit.id,
+      {
+        notes: data.assessment ?? 'Doctor consultation completed.',
+        status: 'COMPLETED',
+      },
+      userId,
+    );
+
+    if (visit.appointment_id) {
+      await this.appointmentRepository.updateStatus(
+        visit.appointment_id,
+        { status: 'COMPLETED', notes: 'Consultation completed by doctor.' },
+        userId,
+      );
+    }
+
+    await this.patientRepository.addTimelineEvent(
+      visit.patient_id,
+      {
+        event_type: 'OPD_CONSULTATION_COMPLETED',
+        title: 'OPD consultation completed',
+        description: [
+          visit.visit_number,
+          data.chief_complaint?.trim() ? `Complaint: ${data.chief_complaint.trim()}` : null,
+          data.assessment?.trim() ? `Assessment: ${data.assessment.trim()}` : 'Assessment recorded',
+          data.treatment_plan?.trim() ? `Plan: ${data.treatment_plan.trim()}` : null,
+          `Doctor: ${visit.doctor_name}`,
+        ].filter(Boolean).join(' · '),
+      },
+      userId,
+    );
+
+    await this.patientRepository.auditClinicalEvent('opd.consultation.completed', userId, {
+      consultationId: consultation.id,
+      patientId: visit.patient_id,
+      visitId: visit.id,
+      visitNumber: visit.visit_number,
+    });
+
+    return consultation;
+  }
+
+  private async getVisit(visitId: string, userId: string) {
+    this.validateId(visitId, 'OPD visit id is invalid');
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    const visit = await this.visitRepository.getById(visitId, scope);
+
+    if (!visit) {
+      throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+    }
+
+    return visit;
+  }
+
+  private ensureOpenVisit(visit: OpdVisit) {
+    if (terminalVisitStatuses.includes(visit.status)) {
+      throw new AppError(
+        'Consultation cannot be updated for a closed OPD visit',
+        400,
+        'VISIT_CLOSED',
+      );
+    }
+  }
+
+  private ensureConsultationReady(visit: OpdVisit) {
+    if (!['READY_FOR_CONSULTATION', 'IN_CONSULTATION'].includes(visit.status)) {
+      throw new AppError(
+        'Patient must complete the vitals handoff before consultation',
+        400,
+        'VISIT_NOT_READY_FOR_CONSULTATION',
+      );
+    }
+  }
+
+  private async ensureVitalsRecorded(visitId: string) {
+    const latestVitals = await this.vitalsRepository.getLatestByVisit(visitId);
+
+    if (!latestVitals) {
+      throw new AppError(
+        'Vitals must be recorded before completing consultation',
+        400,
+        'VITALS_REQUIRED',
+      );
+    }
+  }
+
+  private validateId(id: string | null | undefined, message: string) {
+    if (!isObjectId(id)) {
+      throw new AppError(message, 400, 'VALIDATION_ERROR');
+    }
+  }
+}

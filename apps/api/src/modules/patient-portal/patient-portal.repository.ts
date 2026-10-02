@@ -530,12 +530,10 @@ export class PatientPortalRepository {
     }));
     if (linkedPortalOwnerExists) return null;
 
-    const adultDate = new Date(patient.dateOfBirth);
-    adultDate.setFullYear(adultDate.getFullYear() + 18);
-    return adultDate > new Date() ? 'MINOR_REQUIRES_GUARDIAN' as const : 'ACCOUNT_NOT_LINKED' as const;
+    return 'ACCOUNT_NOT_LINKED' as const;
   }
 
-  async getUniqueUnlinkedAdultPatientByPhone(phone: string) {
+  async getUniqueUnlinkedPatientByPhone(phone: string) {
     const phoneFilter = buildPhoneMongoFilter(phone);
     const patients = await PatientModel.find({
       deletedAt: null,
@@ -545,10 +543,6 @@ export class PatientPortalRepository {
     if (patients.length !== 1) return null;
 
     const patient = patients[0]!;
-    const adultDate = new Date(patient.dateOfBirth);
-    adultDate.setFullYear(adultDate.getFullYear() + 18);
-    if (adultDate > new Date()) return null;
-
     const alreadyLinked = await Promise.all([
       UserModel.exists({ patientId: patient._id, deletedAt: null }),
       PatientAccessGrantModel.exists({ patientId: patient._id, status: 'VERIFIED', deletedAt: null }),

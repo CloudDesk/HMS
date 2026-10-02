@@ -1,0 +1,40 @@
+{
+  "name": "@hms/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --env-file=.env.dev src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "migrate:billing-context-index": "node --import tsx src/scripts/migrate-billing-context-index.ts",
+    "migrate:dental-billing-index": "node --import tsx src/scripts/migrate-dental-billing-index.ts",
+    "migrate:clinical-context-visit-indexes": "node --import tsx src/scripts/migrate-clinical-context-visit-indexes.ts",
+    "migrate:pharmacy-dispensing-idempotency": "node --import tsx src/scripts/migrate-pharmacy-dispensing-idempotency.ts",
+    "migrate:procedure-recommendation-index": "node --import tsx src/scripts/migrate-procedure-recommendation-index.ts",
+    "migrate:role-index": "node --import tsx src/scripts/migrate-role-index.ts",
+    "seed:dental-services": "node --env-file=.env.dev --import tsx src/scripts/seed-dental-services.ts",
+    "start": "node --env-file=.env.prod dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/aws-lambda": "^6.4.1",
+    "@fastify/compress": "^9.2.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/multipart": "^10.1.0",
+    "@google-cloud/storage": "^8.2.0",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "fastify": "^5.12.1",
+    "mongoose": "^9.9.2",
+    "whatwg-url": "^14.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0",
+    "typescript": "^6.0.3"
+  }
+}

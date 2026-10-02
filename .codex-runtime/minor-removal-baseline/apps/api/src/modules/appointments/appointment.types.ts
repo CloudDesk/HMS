@@ -1,0 +1,150 @@
+export type AppointmentStatus =
+  | 'SCHEDULED'
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'CANCELLED'
+  | 'RESCHEDULED'
+  | 'NO_SHOW'
+  | 'SKIPPED'
+  | 'COMPLETED';
+
+export type AppointmentVisitType =
+  | 'NEW_CONSULTATION'
+  | 'FOLLOW_UP'
+  | 'PROCEDURE'
+  | 'EMERGENCY';
+
+export type AppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+
+export type AppointmentDentalContext = {
+  treatment_episode_id?: string | null;
+  treatment_stage_id?: string | null;
+  treatment_plan_item_id?: string | null;
+  tooth_number?: number | null;
+  stage_sequence?: number | null;
+  stage_name?: string | null;
+};
+
+export type AppointmentConsultationIntake = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
+export type Appointment = {
+  id: string;
+  appointment_number: string;
+  patient_id: string;
+  patient_number: string;
+  patient_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  doctor_specialization: string;
+  branch_id: string;
+  department_id: string;
+  utc_datetime?: string;
+  utc_end_time?: string;
+  appointment_date?: Date;
+  start_time?: string;
+  end_time?: string;
+  duration_minutes: number;
+  visit_type: AppointmentVisitType;
+  priority: AppointmentPriority;
+  status: AppointmentStatus;
+  reason: string | null;
+  notes: string | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
+  dental_context?: AppointmentDentalContext | null;
+  rescheduled_from_id: string | null;
+  rescheduled_to_id: string | null;
+  rescheduled_at: Date | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type PortalRescheduleAppointmentDTO = {
+  doctor_id: string;
+  appointment_date: string;
+  start_time: string;
+  duration_minutes: number;
+};
+
+export type AppointmentListQuery = {
+  search?: string;
+  status?: AppointmentStatus;
+  doctor_id?: string;
+  patient_id?: string;
+  branch_id?: string;
+  department_id?: string;
+  treatment_episode_id?: string;
+  treatment_stage_id?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: 'appointment_number' | 'appointment_date' | 'start_time' | 'created_at' | 'updated_at';
+  sortOrder?: 'asc' | 'desc';
+};
+
+export type AppointmentDashboardSummary = {
+  total: number;
+  by_status: Record<AppointmentStatus, number>;
+  follow_ups: number;
+  urgent: number;
+};
+
+export type CreateAppointmentDTO = {
+  patient_id: string;
+  doctor_id: string;
+  utc_datetime?: string;
+  appointment_date?: string;
+  start_time?: string;
+  duration_minutes: number;
+  visit_type: AppointmentVisitType;
+  priority?: AppointmentPriority;
+  reason?: string | null;
+  notes?: string | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
+  dental_context?: AppointmentDentalContext | null;
+  clinical_history?: PatientPreConsultationDTO | null;
+};
+
+export type PatientPreConsultationDTO = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_medical_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
+export type PatientPreConsultation = {
+  id: string;
+  patient_id: string;
+  appointment_id: string;
+  doctor_id: string | null;
+  chief_complaint: string | null;
+  history_present_illness: string | null;
+  past_medical_history: string | null;
+  family_history: string | null;
+  allergies: string | null;
+  submitted_at: Date;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type UpdateAppointmentDTO = Partial<
+  Pick<
+    CreateAppointmentDTO,
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'consultation_intake' | 'dental_context'
+  >
+> & { reschedule_reason?: string | null };
+
+export type UpdateAppointmentStatusDTO = {
+  status: AppointmentStatus;
+  notes?: string | null;
+};
+
