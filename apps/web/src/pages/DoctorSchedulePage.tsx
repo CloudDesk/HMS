@@ -265,7 +265,11 @@ export function DoctorSchedulePage() {
   const moveDate = (offset: number) => {
     const next = new Date(`${scheduleDate}T00:00:00`);
     if (viewMode === 'month') {
+      const targetDay = next.getDate();
+      next.setDate(1);
       next.setMonth(next.getMonth() + offset);
+      const daysInTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      next.setDate(Math.min(targetDay, daysInTargetMonth));
     } else if (viewMode === 'week') {
       next.setDate(next.getDate() + offset * 7);
     } else {
@@ -306,13 +310,6 @@ export function DoctorSchedulePage() {
               Doctor Schedule {doctorTitle}
             </h2>
             <div className="hms-cal-controls-group">
-              <button
-                className="hms-cal-today-btn"
-                onClick={() => setScheduleDate(todayInputValue())}
-                type="button"
-              >
-                Today
-              </button>
               <div className="hms-cal-view-modes">
                 {scheduleViewModes.map((mode) => (
                   <button
@@ -434,7 +431,7 @@ export function DoctorSchedulePage() {
                   onClick={() => moveDate(-1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-left-bold" />
+                  <i className="ph ph-caret-left" />
                 </button>
                 <h3 className="hms-cal-banner-title">{bannerTitle}</h3>
                 <button
@@ -443,7 +440,7 @@ export function DoctorSchedulePage() {
                   onClick={() => moveDate(1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-right-bold" />
+                  <i className="ph ph-caret-right" />
                 </button>
               </div>
 

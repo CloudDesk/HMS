@@ -4,7 +4,7 @@ import { hasPermission } from '../../auth/access-control';
 import { useAppLocation } from '../../routing/navigation';
 import { usePasswordPolicy } from '../../auth/usePasswordPolicy';
 import { ApiError } from '../../api/api-error';
-import { useUsersList, useUserSummary, useCreateUser, useUpdateUser, useUpdateUserStatus, useResetPassword } from './useUsers';
+import { useUsersList, useUserSummary, useCreateUser, useUpdateUser, useUpdateUserStatus, useResetPassword, useDeleteUser } from './useUsers';
 import { useRolesList } from '../roles/useRoles';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
@@ -172,6 +172,7 @@ export function useUserManagementFeature() {
   const updateUserMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
   const resetPasswordMutation = useResetPassword();
+  const deleteUserMutation = useDeleteUser();
 
   const handleSort = (column: SortColumn) => {
     setSortColumn((currentColumn) => {
@@ -238,7 +239,7 @@ export function useUserManagementFeature() {
       isFetching,
       loadError,
       forbidden,
-      isMutating: createUserMutation.isPending || updateUserMutation.isPending || updateStatusMutation.isPending || resetPasswordMutation.isPending,
+      isMutating: createUserMutation.isPending || updateUserMutation.isPending || updateStatusMutation.isPending || resetPasswordMutation.isPending || deleteUserMutation.isPending,
     },
     rbac: {
       canCreate, canEdit, canDelete, canExport, canChangePassword, canResetPassword
@@ -253,6 +254,7 @@ export function useUserManagementFeature() {
       updateUser: updateUserMutation,
       updateStatus: updateStatusMutation,
       resetPassword: resetPasswordMutation,
+      deleteUser: deleteUserMutation,
     }
   };
 }

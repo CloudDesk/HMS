@@ -263,7 +263,11 @@ export function AppointmentCalendarPage() {
   const moveCalendarDate = (offset: number) => {
     const current = parseInputDate(calendarDate);
     if (mode === 'month') {
+      const targetDay = current.getDate();
+      current.setDate(1);
       current.setMonth(current.getMonth() + offset);
+      const daysInTargetMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+      current.setDate(Math.min(targetDay, daysInTargetMonth));
     } else if (mode === 'week') {
       current.setDate(current.getDate() + offset * 7);
     } else {
@@ -296,13 +300,6 @@ export function AppointmentCalendarPage() {
           <div className="hms-cal-top-header">
             <h2 className="hms-cal-page-heading">Calendar View</h2>
             <div className="hms-cal-controls-group">
-              <button
-                className="hms-cal-today-btn"
-                onClick={() => setCalendarDate(todayInputValue())}
-                type="button"
-              >
-                Today
-              </button>
               <div className="hms-cal-view-modes">
                 {(['day', 'week', 'month'] as const).map((item) => (
                   <button
@@ -423,7 +420,7 @@ export function AppointmentCalendarPage() {
                   onClick={() => moveCalendarDate(-1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-left-bold" />
+                  <i className="ph ph-caret-left" />
                 </button>
                 <h3 className="hms-cal-banner-title">{bannerTitle}</h3>
                 <button
@@ -432,7 +429,7 @@ export function AppointmentCalendarPage() {
                   onClick={() => moveCalendarDate(1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-right-bold" />
+                  <i className="ph ph-caret-right" />
                 </button>
               </div>
 

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -593,6 +593,11 @@ export function UserManagementPage() {
         showToast('User created successfully.');
       } else if (modalMode === 'edit' && activeUser) {
         await mutations.updateUser.mutateAsync({ id: activeUser.apiId, payload });
+        const targetApiStatus = payload.status;
+        const currentApiStatus = activeUser.status.toLowerCase();
+        if (targetApiStatus && targetApiStatus !== currentApiStatus) {
+          await mutations.updateStatus.mutateAsync({ id: activeUser.apiId, status: targetApiStatus });
+        }
         showToast('User updated successfully.');
       } else if (modalMode === 'assign-role' && activeUser) {
         await mutations.updateUser.mutateAsync({ id: activeUser.apiId, payload });
@@ -636,16 +641,37 @@ export function UserManagementPage() {
   };
 
 
-  const executeDelete = () => {
-    if (!deleteTarget) return;
-    showToast(`${deleteTarget.fullName} has been deleted.`);
-    setDeleteTarget(null);
+  const executeDelete = async () => {
+    if (!deleteTarget || submitting) return;
+    if (deleteTarget.status !== 'Inactive') {
+      showToast('Active users cannot be deleted. Please set user status to Inactive first.', 'error');
+      setDeleteTarget(null);
+      return;
+    }
+    try {
+      await mutations.deleteUser.mutateAsync(deleteTarget.apiId);
+      showToast(`${deleteTarget.fullName} has been deleted.`);
+      setDeleteTarget(null);
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (!canDelete || submitting || selectedIds.size === 0) return;
-    showToast(`Deleted ${selectedIds.size} users.`);
-    setSelectedIds(new Set());
+    const selectedUsers = pageUsers.filter((u) => selectedIds.has(u.apiId));
+    const nonInactiveUsers = selectedUsers.filter((u) => u.status !== 'Inactive');
+    if (nonInactiveUsers.length > 0) {
+      showToast(`Cannot delete active users (${nonInactiveUsers.length}). Please set status to Inactive first.`, 'error');
+      return;
+    }
+    try {
+      await Promise.all(Array.from(selectedIds).map((id) => mutations.deleteUser.mutateAsync(id)));
+      showToast(`Deleted ${selectedIds.size} users.`);
+      setSelectedIds(new Set());
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    }
   };
 
   const togglePasswordVisibility = (field: PasswordFieldKey) => {
@@ -1008,8 +1034,15 @@ export function UserManagementPage() {
                                 </button> : null} */}
                                 {canDelete ? <button
                                   className="action-icon-btn danger"
-                                  onClick={() => setDeleteTarget(user)}
-                                  title="Delete"
+                                  disabled={user.status !== 'Inactive' || submitting}
+                                  onClick={() => {
+                                    if (user.status !== 'Inactive') {
+                                      showToast('Active users cannot be deleted. Please set status to Inactive first.', 'error');
+                                      return;
+                                    }
+                                    setDeleteTarget(user);
+                                  }}
+                                  title={user.status !== 'Inactive' ? 'Active user cannot be deleted. Deactivate user first.' : 'Delete'}
                                   type="button"
                                 >
                                   <i className="ph ph-trash" aria-hidden="true" />
@@ -1349,9 +1382,9 @@ export function UserManagementPage() {
       <ConfirmDialog
         confirmLabel="Delete User"
         loading={submitting}
-        message={deleteTarget ? `Delete ${deleteTarget.fullName}? This will remove the user from active user lists.` : ''}
+        message={deleteTarget ? `Are you sure you want to delete inactive user "${deleteTarget.fullName}"? This action cannot be undone.` : ''}
         onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => executeDelete()}
+        onConfirm={() => void executeDelete()}
         open={Boolean(deleteTarget)}
         title="Delete User"
       />
