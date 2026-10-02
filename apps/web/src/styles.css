@@ -10158,19 +10158,46 @@ textarea.has-error {
   gap: 0.5rem;
 }
 
+.hms-cal-nav-group {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.hms-cal-nav-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #ffffff;
+  border: none;
+  color: #475569;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hms-cal-nav-arrow:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
 .hms-cal-today-btn {
   padding: 0.5rem 1.15rem;
   background: #2563eb;
   color: #ffffff;
   border: none;
-  border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: background-color 0.15s ease;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
 }
 
 .hms-cal-today-btn:hover {
@@ -10228,31 +10255,40 @@ textarea.has-error {
 .hms-cal-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 1.5rem;
   background: #2563eb;
   background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
   color: #ffffff;
   padding: 0.85rem 1.25rem;
   min-height: 48px;
+  position: relative;
 }
 
 .hms-cal-banner-nav-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  background: transparent;
-  border: none;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   color: #ffffff;
   font-size: 1.35rem;
+  font-weight: 700;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background-color 0.15s ease;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .hms-cal-banner-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.06);
+}
+
+.hms-cal-banner-nav-btn:active {
+  transform: scale(0.96);
 }
 
 .hms-cal-banner-title {
@@ -10263,6 +10299,7 @@ textarea.has-error {
   text-transform: uppercase;
   color: #ffffff;
   text-align: center;
+  min-width: 280px;
 }
 
 /* Weekday Columns Row */

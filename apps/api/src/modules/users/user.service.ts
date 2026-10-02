@@ -41,7 +41,7 @@ type CreateUserInput = {
 
 type NormalizedCreateUserInput = Omit<CreateUserInput, 'roleIds'> & { roleIds: string[] };
 
-type UpdateUserInput = Partial<Omit<CreateUserInput, 'password' | 'status'>> & {
+type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & {
   branches?: AssignmentInput[];
   departments?: AssignmentInput[];
 };
@@ -328,9 +328,13 @@ export class UserService {
   }
 
   async update(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
-    await this.requireUser(id);
+    const current = await this.requireUser(id);
     await this.assertCanManageUser(actorUserId, id);
     const normalized = this.normalizeUpdateInput(input);
+
+    if (normalized.status && normalized.status !== current.status) {
+      await this.updateStatus(id, { status: normalized.status }, actorUserId, metadata);
+    }
 
     if (normalized.username || normalized.email !== undefined || normalized.employeeCode) {
       await this.assertUniqueFields({
@@ -473,8 +477,11 @@ export class UserService {
     if (id === actorUserId) {
       throw new AppError('You cannot delete your own account', 409, 'SELF_DELETE_FORBIDDEN');
     }
-    await this.requireUser(id);
+    const user = await this.requireUser(id);
     await this.assertCanManageUser(actorUserId, id);
+    if (user.status !== 'inactive') {
+      throw new AppError('Only inactive users can be deleted. Please set user status to inactive first.', 400, 'USER_MUST_BE_INACTIVE_TO_DELETE');
+    }
     if (await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
       throw new AppError('The last active Super Admin cannot be deleted', 409, 'LAST_SUPER_ADMIN_REQUIRED');
     }
@@ -666,6 +673,7 @@ export class UserService {
       hireDate: normalizeOptionalText(input.hireDate),
       profilePhotoUrl: normalizeOptionalText(input.profilePhotoUrl),
       address: normalizeOptionalText(input.address),
+      status: input.status,
       branches: input.branches ? this.normalizeAssignments(input.branches, 'branch') : undefined,
       departments: input.departments
         ? this.normalizeAssignments(input.departments, 'department')

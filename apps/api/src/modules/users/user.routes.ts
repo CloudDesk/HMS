@@ -49,7 +49,7 @@ type CreateUserBody = {
   roleIds?: string[];
 };
 
-type UpdateUserBody = Partial<Omit<CreateUserBody, 'password' | 'status'>>;
+type UpdateUserBody = Partial<Omit<CreateUserBody, 'password'>>;
 
 type UpdateUserStatusBody = {
   status: UserStatus;

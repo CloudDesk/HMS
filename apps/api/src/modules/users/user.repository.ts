@@ -277,6 +277,7 @@ export class UserRepository {
       hireDate?: string | null;
       profilePhotoUrl?: string | null;
       address?: string | null;
+      status?: UserStatus;
       actorUserId: string;
       roleIds?: string[];
     },

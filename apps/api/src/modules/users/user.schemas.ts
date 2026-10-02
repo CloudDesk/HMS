@@ -76,6 +76,7 @@ export const updateUserBodySchema = {
     hireDate: { type: ['string', 'null'] },
     profilePhotoUrl: { type: ['string', 'null'] },
     address: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['active', 'inactive', 'locked'] },
     branches: { type: 'array', minItems: 1, items: assignmentSchema },
     departments: { type: 'array', minItems: 1, items: assignmentSchema },
     roleIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
