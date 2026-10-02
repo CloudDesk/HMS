@@ -144,4 +144,23 @@ describe('PrescriptionQueuePage dispensing detail', () => {
     );
     expect(confirm?.disabled).toBe(true);
   });
+
+  it('renders correct column headers, widths, and centered status badge', async () => {
+    await act(async () => root.render(<PrescriptionQueuePage />));
+
+    const sourceCol = container.querySelector('col.col-source');
+    const doctorCol = container.querySelector('col.col-doctor');
+    expect(sourceCol?.getAttribute('style')).toContain('width: 14%');
+    expect(doctorCol?.getAttribute('style')).toContain('width: 15%');
+
+    const sourceTh = container.querySelector('th.col-source-th');
+    const doctorTh = container.querySelector('th.col-doctor-th');
+    expect(sourceTh).not.toBeNull();
+    expect(doctorTh).not.toBeNull();
+
+    const statusBadge = container.querySelector('.col-status-cell .doc-status');
+    expect(statusBadge).not.toBeNull();
+    expect(statusBadge?.textContent?.trim()).toBe('PENDING');
+    expect(statusBadge?.className).toContain('waiting');
+  });
 });

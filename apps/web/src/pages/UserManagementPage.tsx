@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -241,22 +241,36 @@ function SortableHeader({
   sortColumn,
   sortDirection,
   onSort,
+  className,
 }: {
   column: SortColumn;
   label: string;
   sortColumn: SortColumn | null;
   sortDirection: SortDirection;
   onSort: (column: SortColumn) => void;
+  className?: string;
 }) {
   const sorted = sortColumn === column;
 
   return (
     <th
-      className={`sortable${sorted ? ` sorted-${sortDirection}` : ''}`}
+      className={`sortable${sorted ? ` sorted-${sortDirection} active-sort` : ''}${className ? ` ${className}` : ''}`}
       onClick={() => onSort(column)}
       scope="col"
     >
-      {label} <i className="ph ph-arrows-down-up sort-icon" aria-hidden="true" />
+      <span className="th-content">
+        {label}
+        <i
+          className={`ph ${
+            sorted
+              ? sortDirection === 'asc'
+                ? 'ph-caret-up'
+                : 'ph-caret-down'
+              : 'ph-arrows-down-up'
+          } sort-icon${sorted ? ' active' : ''}`}
+          aria-hidden="true"
+        />
+      </span>
     </th>
   );
 }
@@ -877,11 +891,21 @@ export function UserManagementPage() {
               ) : null}
             </div>
 
-            <div className="table-responsive">
-              <table className="data-table">
+            <div className="um-table-wrap">
+              <table className="um-table data-table">
+                <colgroup>
+                  <col className="um-col-check" style={{ width: '4%' }} />
+                  <col className="um-col-name" style={{ width: '20%' }} />
+                  <col className="um-col-username" style={{ width: '25%' }} />
+                  <col className="um-col-role" style={{ width: '12%' }} />
+                  <col className="um-col-department" style={{ width: '13%' }} />
+                  <col className="um-col-branch" style={{ width: '11%' }} />
+                  <col className="um-col-status" style={{ width: '8%' }} />
+                  <col className="um-col-actions" style={{ width: '7%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col">
+                    <th className="um-th-check" scope="col">
                       <input
                         aria-label="Select all visible users"
                         checked={pageSelected}
@@ -891,14 +915,16 @@ export function UserManagementPage() {
                       />
                     </th>
                     <SortableHeader
+                      className="um-th-name"
                       column="fullName"
                       label="Name"
                       onSort={handleSort}
                       sortColumn={sortColumn}
                       sortDirection={sortDirection}
                     />
-                    <th scope="col">Username</th>
+                    <th className="um-th-username" scope="col">Username</th>
                     <SortableHeader
+                      className="um-th-role"
                       column="role"
                       label="Role"
                       onSort={handleSort}
@@ -906,33 +932,35 @@ export function UserManagementPage() {
                       sortDirection={sortDirection}
                     />
                     <SortableHeader
+                      className="um-th-department"
                       column="department"
                       label="Department"
                       onSort={handleSort}
                       sortColumn={sortColumn}
                       sortDirection={sortDirection}
                     />
-                    <th scope="col">Branch</th>
+                    <th className="um-th-branch" scope="col">Branch</th>
                     <SortableHeader
+                      className="um-th-status"
                       column="status"
                       label="Status"
                       onSort={handleSort}
                       sortColumn={sortColumn}
                       sortDirection={sortDirection}
                     />
-                    <th scope="col">Actions</th>
+                    <th className="um-th-actions" scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={10} style={{ padding: '2.5rem 1rem' }}>
+                      <td colSpan={8} style={{ padding: '2.5rem 1rem' }}>
                         <MedicalLoader text="Loading hospital staff records..." subtext="Retrieving access & credentials data" />
                       </td>
                     </tr>
                   ) : loadError ? (
                     <tr>
-                      <td className="um-state-cell" colSpan={10}>
+                      <td className="um-state-cell" colSpan={8}>
                         <i className="ph ph-warning" aria-hidden="true" />
                         {loadError}
                       </td>
@@ -940,7 +968,7 @@ export function UserManagementPage() {
                   ) : pageUsers.length ? (
                     pageUsers.map((user) => (
                       <tr className={selectedIds.has(user.apiId) ? 'selected' : ''} key={user.apiId} onClick={() => openModal('view', user)} style={{ cursor: 'pointer' }}>
-                        <td onClick={(e) => e.stopPropagation()}>
+                        <td className="um-td-check" onClick={(e) => e.stopPropagation()}>
                           <input
                             aria-label={`Select ${user.fullName}`}
                             checked={selectedIds.has(user.apiId)}
@@ -949,7 +977,7 @@ export function UserManagementPage() {
                             type="checkbox"
                           />
                         </td>
-                        <td>
+                        <td className="um-td-name">
                           <div className="user-cell">
                             <span className="table-avatar table-avatar-initials">{initials(user.fullName)}</span>
                             <div className="user-cell-info">
@@ -957,63 +985,55 @@ export function UserManagementPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="muted-cell">{user.username}</td>
-                        <td>
+                        <td className="um-td-username muted-cell" title={user.username}>{user.username}</td>
+                        <td className="um-td-role">
                           <span className={`role-badge ${roleToneClass[user.role] ?? 'role-gray'}`}>{user.role}</span>
                         </td>
-                        <td>{user.department}</td>
-                        <td>{user.branch}</td>
-                        <td>
+                        <td className="um-td-department">{user.department}</td>
+                        <td className="um-td-branch">{user.branch}</td>
+                        <td className="um-td-status">
                           <span className={`status-badge ${statusClass[user.status]}`}>{user.status}</span>
                         </td>
-                        <td onClick={(e) => e.stopPropagation()}>
+                        <td className="um-td-actions" onClick={(e) => e.stopPropagation()}>
                           <div className="action-icons">
                             {canEdit || canDelete || canChangePassword || canResetPassword ? (
                               <>
-                                 {canEdit ? <button
-                                   className="action-icon-btn"
-                                   onClick={() => openModal('edit', user)}
-                                  title="Edit"
-                                  type="button"
-                                >
-                                   <i className="ph ph-pencil" aria-hidden="true" />
-                                 </button> : null}
-                                {canEdit ? <button
-                                  className="action-icon-btn success"
-                                  disabled={submitting}
-                                  onClick={() =>
-                                    void mutations.updateStatus.mutateAsync({ id: user.apiId, status: user.status === 'Active' ? 'inactive' : 'active' })
-                                  }
-                                  title={user.status === 'Locked' ? 'Unlock' : user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                                  type="button"
-                                >
-                                  <i className={`ph ${user.status === 'Active' ? 'ph-user-minus' : 'ph-user-check'}`} />
-                                </button> : null}
-                                {/* {canEdit ? <button
-                                  className="action-icon-btn"
-                                  disabled={submitting}
-                                  onClick={() => void mutations.updateStatus.mutateAsync({ id: user.apiId, status: user.status === 'Active' ? 'inactive' : 'active' })}
-                                  title={user.status === 'Locked' ? 'Unlock' : 'Lock'}
-                                  type="button"
-                                >
-                                  <i className={`ph ${user.status === 'Locked' ? 'ph-lock-open' : 'ph-lock'}`} />
-                                </button> : null} */}
-                                {/* {canChangePassword ? <button
-                                  className="action-icon-btn"
-                                  onClick={() => openModal('change-password', user)}
-                                  title="Change Password"
-                                  type="button"
-                                >
-                                  <i className="ph ph-keyhole" aria-hidden="true" />
-                                </button> : null} */}
-                                {canDelete ? <button
-                                  className="action-icon-btn danger"
-                                  onClick={() => setDeleteTarget(user)}
-                                  title="Delete"
-                                  type="button"
-                                >
-                                  <i className="ph ph-trash" aria-hidden="true" />
-                                </button> : null}
+                                {canEdit ? (
+                                  <button
+                                    aria-label={`Edit ${user.fullName}`}
+                                    className="action-icon-btn"
+                                    onClick={() => openModal('edit', user)}
+                                    title="Edit"
+                                    type="button"
+                                  >
+                                    <i className="ph ph-pencil" aria-hidden="true" />
+                                  </button>
+                                ) : null}
+                                {canEdit ? (
+                                  <button
+                                    aria-label={user.status === 'Locked' ? `Unlock ${user.fullName}` : user.status === 'Active' ? `Deactivate ${user.fullName}` : `Activate ${user.fullName}`}
+                                    className={`action-icon-btn ${user.status === 'Active' ? 'warning' : 'success'}`}
+                                    disabled={submitting}
+                                    onClick={() =>
+                                      void mutations.updateStatus.mutateAsync({ id: user.apiId, status: user.status === 'Active' ? 'inactive' : 'active' })
+                                    }
+                                    title={user.status === 'Locked' ? 'Unlock' : user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                                    type="button"
+                                  >
+                                    <i className={`ph ${user.status === 'Active' ? 'ph-user-minus' : 'ph-user-check'}`} aria-hidden="true" />
+                                  </button>
+                                ) : null}
+                                {canDelete ? (
+                                  <button
+                                    aria-label={`Delete ${user.fullName}`}
+                                    className="action-icon-btn danger"
+                                    onClick={() => setDeleteTarget(user)}
+                                    title="Delete"
+                                    type="button"
+                                  >
+                                    <i className="ph ph-trash" aria-hidden="true" />
+                                  </button>
+                                ) : null}
                               </>
                             ) : null}
                           </div>
@@ -1022,7 +1042,7 @@ export function UserManagementPage() {
                     ))
                   ) : (
                     <tr>
-                      <td className="um-state-cell" colSpan={10}>
+                      <td className="um-state-cell" colSpan={8}>
                         <i className="ph ph-users" aria-hidden="true" />
                         No users found matching your filters.
                       </td>

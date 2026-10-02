@@ -163,40 +163,218 @@ export function BillingWorkspacePage() {
           <button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-x" /> Cancel</button>
         </div>
       </section>
+
       <div className="billing-workspace-grid">
         <main>
+          {/* ── STEP 1: Patient & Encounter ── */}
           <section className="billing-card">
-            <div className="billing-card-head"><div><h3>Patient and Encounter</h3><p>Charges remain linked to the selected OPD, Emergency, or Procedure context</p></div></div>
-            <div className="billing-form-grid">
-              <label><span>Branch *</span><select {...invoiceForm.register('branch_id', { onChange: () => invoiceForm.setValue('visit_id', '') })}><option value="">Select branch</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><small>{invoiceForm.formState.errors.branch_id?.message}</small></label>
-              <label><span>Patient *</span><select {...invoiceForm.register('patient_id', { onChange: () => invoiceForm.setValue('visit_id', '') })}><option value="">Select patient</option>{patientsQuery.data?.data.map((patient) => <option key={patient.id} value={patient.id}>{patient.patient_number} / {patient.first_name} {patient.last_name}</option>)}</select><small>{invoiceForm.formState.errors.patient_id?.message}</small></label>
-              <label><span>Clinical Encounter *</span><select disabled={!selectedPatient || !selectedBranch || visitsQuery.isLoading} {...invoiceForm.register('visit_id')}><option value="">{visitsQuery.isLoading ? 'Loading encounters...' : 'Select encounter'}</option>{visitsQuery.data?.data.map((visit) => <option key={visit.id} value={visit.id}>{visit.visit_number} / {visit.visit_type.replaceAll('_', ' ')} / {formatBillingDate(visit.visit_date)} / {visit.doctor_name}</option>)}</select><small>{invoiceForm.formState.errors.visit_id?.message}</small></label>
-              <label><span>Invoice Date *</span><input type="date" {...invoiceForm.register('invoice_date')} /><small>{invoiceForm.formState.errors.invoice_date?.message}</small></label>
+            <div className="billing-card-head">
+              <div>
+                <div className="billing-create-step-label"><span className="billing-step-badge">1</span> Patient & Encounter</div>
+                <p>Select the branch, patient, and clinical encounter to link charges correctly</p>
+              </div>
             </div>
-            {selectedPatient && selectedBranch && !visitsQuery.isLoading && (visitsQuery.data?.data.length ?? 0) === 0 ? <div className="billing-inline-alert"><i className="ph ph-warning" /> No clinical encounter matches this patient and branch.</div> : null}
+            <div className="billing-create-form-grid">
+              <label>
+                <span>Branch <abbr className="billing-req" title="required">*</abbr></span>
+                <select {...invoiceForm.register('branch_id', { onChange: () => invoiceForm.setValue('visit_id', '') })}>
+                  <option value="">Select branch</option>
+                  {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+                <small>{invoiceForm.formState.errors.branch_id?.message}</small>
+              </label>
+              <label>
+                <span>Patient <abbr className="billing-req" title="required">*</abbr></span>
+                <select {...invoiceForm.register('patient_id', { onChange: () => invoiceForm.setValue('visit_id', '') })}>
+                  <option value="">Select patient</option>
+                  {patientsQuery.data?.data.map((patient) => <option key={patient.id} value={patient.id}>{patient.patient_number} · {patient.first_name} {patient.last_name}</option>)}
+                </select>
+                <small>{invoiceForm.formState.errors.patient_id?.message}</small>
+              </label>
+              <label className="billing-encounter-span">
+                <span>Clinical Encounter <abbr className="billing-req" title="required">*</abbr></span>
+                <select disabled={!selectedPatient || !selectedBranch || visitsQuery.isLoading} {...invoiceForm.register('visit_id')}>
+                  <option value="">{!selectedBranch || !selectedPatient ? 'Select a branch and patient first' : visitsQuery.isLoading ? 'Loading encounters…' : 'Select encounter'}</option>
+                  {visitsQuery.data?.data.map((visit) => <option key={visit.id} value={visit.id}>{visit.visit_number} · {visit.visit_type.replaceAll('_', ' ')} · {formatBillingDate(visit.visit_date)} · {visit.doctor_name}</option>)}
+                </select>
+                <small>{invoiceForm.formState.errors.visit_id?.message}</small>
+              </label>
+              <label>
+                <span>Invoice Date <abbr className="billing-req" title="required">*</abbr></span>
+                <input type="date" {...invoiceForm.register('invoice_date')} />
+                <small>{invoiceForm.formState.errors.invoice_date?.message}</small>
+              </label>
+            </div>
+            {selectedPatient && selectedBranch && !visitsQuery.isLoading && (visitsQuery.data?.data.length ?? 0) === 0
+              ? <div className="billing-inline-alert"><i className="ph ph-warning" /> No clinical encounters found for this patient and branch combination.</div>
+              : null}
           </section>
+
+          {/* ── STEP 2: Billable Services ── */}
           <section className="billing-card">
-            <div className="billing-card-head"><div><h3>Billable Services</h3><p>Names and prices are copied from active Service Catalogue records</p></div></div>
-            <form className="billing-item-builder" onSubmit={addItem}>
-              <label><span>Charge Source</span><select {...itemForm.register('service_type', { onChange: () => itemForm.setValue('service_id', '') })}><option value="CONSULTATION">Consultation</option><option value="LAB_TEST">Laboratory Test</option><option value="IMAGING_SERVICE">Imaging Service</option></select></label>
-              <label><span>Service</span><select disabled={servicesQuery.isLoading} {...itemForm.register('service_id')}><option value="">{servicesQuery.isLoading ? 'Loading...' : 'Select item'}</option>
-                {servicesQuery.data?.data.map((service) => <option key={service.id} value={service.id}>{service.name} / {formatBillingMoney(service.standard_price)}</option>)}
-              </select>{itemForm.formState.errors.service_id?.message ? <small>{itemForm.formState.errors.service_id.message}</small> : null}</label>
-              <label><span>Quantity</span><input min="1" type="number" {...itemForm.register('quantity', { valueAsNumber: true })} /></label>
-              <button className="btn-secondary" disabled={!selectedService} style={{ height: '38px', minHeight: '38px', alignSelf: 'flex-end' }} type="submit"><i className="ph ph-plus" /> Add</button>
+            <div className="billing-card-head">
+              <div>
+                <div className="billing-create-step-label"><span className="billing-step-badge">2</span> Billable Services</div>
+                <p>Add services from the active Service Catalogue — prices are copied at the time of addition</p>
+              </div>
+            </div>
+
+            <form className="billing-service-builder" onSubmit={addItem}>
+              <label>
+                <span>Charge Source</span>
+                <select {...itemForm.register('service_type', { onChange: () => itemForm.setValue('service_id', '') })}>
+                  <option value="CONSULTATION">Consultation</option>
+                  <option value="LAB_TEST">Laboratory Test</option>
+                  <option value="IMAGING_SERVICE">Imaging Service</option>
+                </select>
+              </label>
+              <label>
+                <span>Service</span>
+                <select disabled={servicesQuery.isLoading} {...itemForm.register('service_id')}>
+                  <option value="">{servicesQuery.isLoading ? 'Loading services…' : 'Select a service'}</option>
+                  {servicesQuery.data?.data.map((service) => <option key={service.id} value={service.id}>{service.name} · {formatBillingMoney(service.standard_price)}</option>)}
+                </select>
+                {itemForm.formState.errors.service_id?.message ? <small>{itemForm.formState.errors.service_id.message}</small> : null}
+              </label>
+              <label>
+                <span>Qty</span>
+                <input min="1" type="number" {...itemForm.register('quantity', { valueAsNumber: true })} />
+              </label>
+              <div className="billing-service-builder-action">
+                <button className="btn-primary" disabled={!selectedService} type="submit">
+                  <i className="ph ph-plus" /> Add Service
+                </button>
+              </div>
             </form>
-            {servicesQuery.isError ? <div className="billing-inline-alert error"><i className="ph ph-warning-circle" /> Service Catalogue could not be loaded.</div> : null}
-            {!servicesQuery.isLoading && !servicesQuery.isError && (servicesQuery.data?.data.length ?? 0) === 0 ? <div className="billing-inline-alert"><i className="ph ph-info" /> No active {billingServiceLabel[selectedSource]} services are configured.</div> : null}
-            <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Source</th><th>Service</th><th>Quantity</th><th>Unit Price</th><th>Line Total</th><th aria-label="Remove" /></tr></thead><tbody>
-              {draftItems.length === 0 ? <tr><td className="um-state-cell" colSpan={6}>No billable services added.</td></tr> : null}
-              {draftItems.map((item) => <tr key={item.service_id}><td>{billingServiceLabel[item.service_type]}</td><td><strong>{item.service_name}</strong></td><td>{item.quantity}</td><td>{formatBillingMoney(item.unit_price)}</td><td>{formatBillingMoney(item.line_total)}</td><td><button aria-label={`Remove ${item.service_name}`} className="icon-btn danger" onClick={() => setDraftItems((current) => current.filter((candidate) => candidate.service_id !== item.service_id))} type="button"><i className="ph ph-trash" /></button></td></tr>)}
-            </tbody></table></div>
+
+            {servicesQuery.isError
+              ? <div className="billing-inline-alert error"><i className="ph ph-warning-circle" /> Service Catalogue could not be loaded. Check your connection and retry.</div>
+              : null}
+            {!servicesQuery.isLoading && !servicesQuery.isError && (servicesQuery.data?.data.length ?? 0) === 0
+              ? <div className="billing-inline-alert"><i className="ph ph-info" /> No active {billingServiceLabel[selectedSource]} services are configured in the Service Catalogue.</div>
+              : null}
+
+            <div className="billing-service-table-wrap">
+              <table className="billing-service-draft-table">
+                <colgroup>
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '38%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '6%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Service</th>
+                    <th className="align-center">Qty</th>
+                    <th className="align-right">Unit Price</th>
+                    <th className="align-right">Line Total</th>
+                    <th aria-label="Remove" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftItems.length === 0
+                    ? <tr>
+                        <td colSpan={6} className="billing-service-empty-state">
+                          <i className="ph ph-stack" />
+                          <div>
+                            <strong>No services added yet</strong>
+                            <span>Use the form above to search and add billable services</span>
+                          </div>
+                        </td>
+                      </tr>
+                    : null}
+                  {draftItems.map((item) => (
+                    <tr key={item.service_id}>
+                      <td><span className="billing-service-source-badge">{billingServiceLabel[item.service_type]}</span></td>
+                      <td><strong className="billing-service-name">{item.service_name}</strong></td>
+                      <td className="align-center billing-qty-cell">{item.quantity}</td>
+                      <td className="align-right billing-amount">{formatBillingMoney(item.unit_price)}</td>
+                      <td className="align-right billing-amount billing-line-total">{formatBillingMoney(item.line_total)}</td>
+                      <td className="align-center">
+                        <button
+                          aria-label={`Remove ${item.service_name}`}
+                          className="billing-remove-btn"
+                          onClick={() => setDraftItems((current) => current.filter((candidate) => candidate.service_id !== item.service_id))}
+                          type="button"
+                          title={`Remove ${item.service_name}`}
+                        >
+                          <i className="ph ph-trash" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {draftItems.length > 0
+                  ? <tfoot>
+                      <tr>
+                        <td colSpan={4} className="billing-service-table-subtotal-label">Subtotal</td>
+                        <td className="align-right billing-amount billing-service-subtotal">{formatBillingMoney(draftSubtotal)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  : null}
+              </table>
+            </div>
           </section>
         </main>
+
+        {/* ── STEP 3: Invoice Summary ── */}
         <aside className="billing-summary-card">
-          <h3>Invoice Summary</h3><label><span>Discount Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('discount_amount', { valueAsNumber: true })} /></label><label><span>Tax Amount</span><input min="0" step="0.01" type="number" {...invoiceForm.register('tax_amount', { valueAsNumber: true })} /></label>
-          <div className="billing-total-row"><span>Subtotal</span><strong>{formatBillingMoney(draftSubtotal)}</strong></div><div className="billing-total-row"><span>Discount</span><strong>- {formatBillingMoney(invoiceForm.watch('discount_amount'))}</strong></div><div className="billing-total-row"><span>Tax</span><strong>{formatBillingMoney(invoiceForm.watch('tax_amount'))}</strong></div><div className="billing-total-row grand"><span>Total</span><strong>{formatBillingMoney(Math.max(0, draftTotal))}</strong></div>
-          <button className="btn-primary billing-full-button" disabled={!canCreate || createMutation.isPending} onClick={createInvoice} type="button">{createMutation.isPending ? <><MedicalSpinner size="sm" /><span>Creating...</span></> : <><i className="ph ph-receipt" aria-hidden="true" /> Create Invoice Draft</>}</button>
+          <div className="billing-summary-header">
+            <div className="billing-create-step-label"><span className="billing-step-badge">3</span> Invoice Summary</div>
+          </div>
+
+          <div className="billing-summary-adjustments">
+            <label>
+              <span>Discount Amount</span>
+              <div className="billing-amount-input-wrap">
+                <input min="0" step="0.01" type="number" {...invoiceForm.register('discount_amount', { valueAsNumber: true })} />
+              </div>
+            </label>
+            <label>
+              <span>Tax Amount</span>
+              <div className="billing-amount-input-wrap">
+                <input min="0" step="0.01" type="number" {...invoiceForm.register('tax_amount', { valueAsNumber: true })} />
+              </div>
+            </label>
+          </div>
+
+          <div className="billing-summary-breakdown">
+            <div className="billing-total-row">
+              <span>Subtotal</span>
+              <strong>{formatBillingMoney(draftSubtotal)}</strong>
+            </div>
+            <div className="billing-total-row">
+              <span>Discount</span>
+              <strong className="billing-discount-value">− {formatBillingMoney(invoiceForm.watch('discount_amount'))}</strong>
+            </div>
+            <div className="billing-total-row">
+              <span>Tax</span>
+              <strong>{formatBillingMoney(invoiceForm.watch('tax_amount'))}</strong>
+            </div>
+            <div className="billing-total-row grand">
+              <span>Total</span>
+              <strong>{formatBillingMoney(Math.max(0, draftTotal))}</strong>
+            </div>
+          </div>
+
+          {draftItems.length === 0
+            ? <p className="billing-summary-hint"><i className="ph ph-info" /> Add at least one service to create the invoice draft.</p>
+            : null}
+
+          <button
+            className="btn-primary billing-full-button"
+            disabled={!canCreate || createMutation.isPending}
+            onClick={createInvoice}
+            type="button"
+          >
+            {createMutation.isPending
+              ? <><MedicalSpinner size="sm" /><span>Creating…</span></>
+              : <><i className="ph ph-receipt" aria-hidden="true" /> Create Invoice Draft</>}
+          </button>
         </aside>
       </div>
     </div>;
