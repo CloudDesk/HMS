@@ -86,6 +86,129 @@ describe('native authentication and protected web compatibility (replica set)', 
   const logout = (refreshToken: string, accessToken?: string) => app.inject({ method: 'POST', url: `${prefix}/logout`,
     payload: { refreshToken }, ...(accessToken ? { headers: { authorization: `Bearer ${accessToken}` } } : {}) });
 
+  describe.each(['web', 'native'] as const)('%s age-independent patient login', (client) => {
+    const attempt = (otp = '1234') => app.inject({ method: 'POST',
+      url: client === 'web' ? '/api/patient-portal/login/otp' : `${prefix}/login/otp`,
+      payload: client === 'web' ? { phone, otp }
+        : { phone, otp, installationId: randomUUID(), platform: 'android' },
+    });
+    const patient = async (number = 'AGE-1') => PatientModel.create({
+      patientNumber: number, firstName: 'Age', lastName: 'Patient',
+      dateOfBirth: new Date('2020-01-01'), gender: 'UNKNOWN', phone,
+      status: 'ACTIVE', deletedAt: null,
+    });
+
+    it.each(['2020-01-01', '2010-01-01', '1990-01-01'])('activates and logs in DOB %s after OTP', async (dob) => {
+      await UserModel.deleteMany({});
+      const record = await patient();
+      await PatientModel.updateOne({ _id: record._id }, { $set: { dateOfBirth: new Date(dob) } });
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode, response.body).toBe(200);
+      const owner = await UserModel.findOne({ patientId: record._id }).lean();
+      expect(owner?.status).toBe('active');
+      expect(await PatientAccessGrantModel.findOne({ patientId: record._id, userId: owner?._id }).lean())
+        .toMatchObject({ relationship: 'SELF', status: 'VERIFIED', isPrimary: true });
+      expect(await PatientModel.countDocuments()).toBe(1);
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await RefreshTokenModel.countDocuments()).toBe(1);
+      expect(response.body).not.toContain('MINOR_GUARDIAN_ACCOUNT_REQUIRED');
+      if (client === 'native') {
+        expect(response.headers['set-cookie']).toBeUndefined();
+        const result = response.json<NativeResponse>().data;
+        expect(verifyJwt(result.tokens.accessToken, env.auth.accessTokenSecret))
+          .toMatchObject({ aud: 'hms-patient-mobile', sid: result.session.id });
+      } else {
+        expect(String(response.headers['set-cookie'])).toContain('hms-patient-refresh-token=');
+        expect(String(response.headers['set-cookie']).toLowerCase()).toContain('httponly');
+        expect(response.body).not.toContain('refreshToken');
+      }
+      expect((await attempt()).statusCode).toBe(401);
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await RefreshTokenModel.countDocuments()).toBe(1);
+    });
+
+    it('does not activate without a requested, valid OTP', async () => {
+      await UserModel.deleteMany({});
+      await patient();
+      expect((await attempt()).statusCode).toBe(401);
+      await challenge();
+      expect((await attempt('9999')).statusCode).toBe(401);
+      expect(await UserModel.countDocuments()).toBe(0);
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(0);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it.each(['expired', 'consumed'] as const)('does not activate with an %s challenge', async (state) => {
+      await UserModel.deleteMany({});
+      await patient();
+      await challenge();
+      await OtpChallengeModel.updateOne({ phone }, { $set: state === 'expired'
+        ? { expiresAt: new Date(Date.now() - 1000) } : { verifiedAt: new Date() } });
+      expect((await attempt()).statusCode).toBe(401);
+      expect(await UserModel.countDocuments()).toBe(0);
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(0);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it('requires an OTP field before activating', async () => {
+      await UserModel.deleteMany({});
+      await patient();
+      await challenge();
+      const response = await app.inject({ method: 'POST',
+        url: client === 'web' ? '/api/patient-portal/login/otp' : `${prefix}/login/otp`,
+        payload: { phone, installationId: randomUUID(), platform: 'android' } });
+      expect(response.statusCode).toBe(400);
+      expect(await UserModel.countDocuments()).toBe(0);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it.each(['active', 'inactive'] as const)('preserves an existing %s direct owner on another phone', async (status) => {
+      const record = await patient();
+      await UserModel.updateOne({ _id: userId }, { $set: { phone: '27820000000', patientId: record._id, status } });
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode).toBe(status === 'active' ? 401 : 409);
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(String((await UserModel.findById(userId).lean())?.patientId)).toBe(String(record._id));
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(0);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it('rejects duplicate patient matches without creating an account', async () => {
+      await UserModel.deleteMany({});
+      await patient();
+      await patient('AGE-2');
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: { code: 'MULTIPLE_PATIENT_MATCHES' } });
+      expect(await UserModel.countDocuments()).toBe(0);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it.each(['inactive', 'locked'])('still rejects a %s existing account', async (status) => {
+      await UserModel.updateOne({ _id: userId }, { $set: { status } });
+      await challenge();
+      expect((await attempt()).statusCode).toBe(401);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+
+    it('does not take over a patient with an existing guardian grant', async () => {
+      const record = await patient();
+      await UserModel.updateOne({ _id: userId }, { $set: { phone: '27820000000' } });
+      await PatientAccessGrantModel.create({ userId, patientId: record._id,
+        relationship: 'PARENT', status: 'VERIFIED' });
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ error: { code: 'PATIENT_AUTOMATIC_LINK_NOT_AVAILABLE' } });
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(1);
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+  });
+
   it('issues hashed credentials without cookies; uses the existing authenticated resource path', async () => {
     const result = await login();
     expect(result.user.id).toBe(userId);

@@ -237,7 +237,7 @@ describe('Patient Portal Atomic Signup Flow', () => {
     expect(grantCount).toBe(0);
   });
 
-  it('rejects minor self-registration under 15 without creating user or patient', async () => {
+  it('creates a minor self account with a patient, MRN and SELF access grant', async () => {
     const branch = await BranchModel.create({
       code: 'BR-MAIN',
       name: 'Main Hospital',
@@ -266,13 +266,14 @@ describe('Patient Portal Atomic Signup Flow', () => {
       },
     });
 
-    expect(signupResponse.statusCode).toBe(400);
-    expect(signupResponse.json().error.code).toBe('MINOR_GUARDIAN_REQUIRED');
+    expect(signupResponse.statusCode).toBe(201);
+    const user = await UserModel.findOne({ email: 'child@example.test' }).lean();
+    const patient = await PatientModel.findOne({ firstName: 'Minor' }).lean();
+    expect(patient?.patientNumber).toBeTruthy();
+    expect(String(user?.patientId)).toBe(String(patient?._id));
+    expect(await PatientAccessGrantModel.findOne({ userId: user?._id, patientId: patient?._id }).lean())
+      .toMatchObject({ relationship: 'SELF', status: 'VERIFIED', isPrimary: true });
 
-    const userCount = await UserModel.countDocuments({ email: 'child@example.test' });
-    expect(userCount).toBe(0);
-    const patientCount = await PatientModel.countDocuments({ firstName: 'Minor' });
-    expect(patientCount).toBe(0);
   });
 
   it('preserves Patient Web two-step registration when self_profile is omitted', async () => {
@@ -296,5 +297,16 @@ describe('Patient Portal Atomic Signup Flow', () => {
     const user = await UserModel.findById(body.data.account.id);
     expect(user).toBeTruthy();
     expect(user?.patientId).toBeNull(); // Historical behavior: User created, patientId null until /profile
+    const branch = await BranchModel.create({ code: 'PROFILE', name: 'Profile Hospital', city: 'Mumbai', status: 'ACTIVE' });
+    const completed = await app.inject({ method: 'POST', url: '/api/patient-portal/profile',
+      headers: { authorization: `Bearer ${body.data.tokens.accessToken}` },
+      payload: { first_name: 'Web', last_name: 'User', date_of_birth: '2020-01-01',
+        gender: 'UNKNOWN', preferred_branch_id: String(branch._id) } });
+    expect(completed.statusCode, completed.body).toBe(201);
+    const linked = await UserModel.findById(body.data.account.id).lean();
+    expect(linked?.patientId).toBeTruthy();
+    expect(await PatientAccessGrantModel.findOne({ userId: linked?._id, patientId: linked?.patientId }).lean())
+      .toMatchObject({ relationship: 'SELF', status: 'VERIFIED' });
+
   });
 });

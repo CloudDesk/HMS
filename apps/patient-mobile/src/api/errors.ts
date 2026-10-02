@@ -124,9 +124,6 @@ function resolveDefaultUserMessage(category: ApiErrorCategory, code?: string, st
   if (code === 'DUPLICATE_USERNAME') {
     return 'An account already exists with this username.';
   }
-  if (code === 'MINOR_GUARDIAN_REQUIRED') {
-    return 'Patients under 15 must be registered through a parent or guardian account.';
-  }
   if (code === 'INVALID_BRANCH') {
     return 'Please select an active hospital branch.';
   }

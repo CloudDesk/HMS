@@ -218,19 +218,26 @@ describe('patient refresh session cookie contract', () => {
     expect(refresh.statusCode).toBe(200);
   });
 
-  it('existing-patient activation establishes a refresh session', async () => {
+  it.each(['1990-01-01', '2020-01-01'])('existing-patient activation establishes a refresh session for %s', async (dob) => {
     await createRole('PATIENT');
     await PatientModel.create({
       patientNumber: 'HMS-2026-000001', firstName: 'Existing', lastName: 'Patient',
-      dateOfBirth: new Date('1990-01-01'), gender: 'UNKNOWN', phone: normalizedPhone,
+      dateOfBirth: new Date(dob), gender: 'UNKNOWN', phone: normalizedPhone,
       status: 'ACTIVE', deletedAt: null,
     });
+    await createChallenge();
+    const mismatch = await app.inject({ method: 'POST', url: '/api/patient-portal/existing-patient/activate',
+      payload: { patient_number: 'HMS-2026-999999', phone, date_of_birth: dob,
+        email: 'existing.patient@example.test', otp } });
+    expect(mismatch.statusCode).toBe(404);
+    expect(await UserModel.countDocuments()).toBe(0);
+    await OtpChallengeModel.deleteMany({});
     await createChallenge();
     const activation = await app.inject({
       method: 'POST',
       url: '/api/patient-portal/existing-patient/activate',
       payload: {
-        patient_number: 'HMS-2026-000001', phone, date_of_birth: '1990-01-01',
+        patient_number: 'HMS-2026-000001', phone, date_of_birth: dob,
         email: 'existing.patient@example.test', otp,
       },
     });
@@ -243,6 +250,13 @@ describe('patient refresh session cookie contract', () => {
       headers: { cookie: requestCookie(activation.headers['set-cookie']) }, payload: {},
     });
     expect(refresh.statusCode).toBe(200);
+    await OtpChallengeModel.deleteMany({});
+    await createChallenge();
+    const duplicate = await app.inject({ method: 'POST', url: '/api/patient-portal/existing-patient/activate',
+      payload: { patient_number: 'HMS-2026-000001', phone, date_of_birth: dob,
+        email: 'existing.patient@example.test', otp } });
+    expect(duplicate.statusCode).toBe(409);
+    expect(await UserModel.countDocuments()).toBe(1);
   });
 
   it('guardian activation establishes a safe refresh session', async () => {
@@ -253,13 +267,6 @@ describe('patient refresh session cookie contract', () => {
       status: 'ACTIVE', deletedAt: null,
     });
     await createChallenge();
-    const initialLogin = await app.inject({
-      method: 'POST', url: '/api/patient-portal/login/otp', payload: { phone, otp },
-    });
-    expect(initialLogin.statusCode).toBe(409);
-    expect(initialLogin.json<{ error: { code: string } }>().error.code).toBe('MINOR_GUARDIAN_ACCOUNT_REQUIRED');
-    expect((await OtpChallengeModel.findOne({ phone: normalizedPhone }).lean())?.verifiedAt).toBeNull();
-
     const activation = await app.inject({
       method: 'POST',
       url: '/api/patient-portal/guardian-activation',

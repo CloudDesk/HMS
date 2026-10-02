@@ -11,7 +11,6 @@ import type { UploadPatientDocumentDTO } from '../patients/patient.types.js';
 import type { RequestMetadata } from '../users/user.types.js';
 import type { UserService } from '../users/user.service.js';
 import { PatientPortalRepository } from './patient-portal.repository.js';
-import type { PatientAccessRelationship } from './patient-access-grant.model.js';
 import type { PatientOtpService } from './patient-otp.service.js';
 import type { OpdVisitService } from '../opd/opd-visit.service.js';
 
@@ -450,9 +449,6 @@ export class PatientPortalService {
     }
 
     if (input.accountType === 'PATIENT' && input.selfProfile) {
-      if (isMinor(input.selfProfile.dateOfBirth)) {
-        throw new AppError('Patients under 15 must be registered through a parent or guardian account.', 400, 'MINOR_GUARDIAN_REQUIRED');
-      }
       await this.requireActiveBranch(input.selfProfile.preferredBranchId);
 
       const result = await this.executePortalTransaction(async (session) => {
@@ -521,9 +517,6 @@ export class PatientPortalService {
     if (!patient) {
       throw new AppError('MRN, registered mobile number and date of birth do not match an active patient record', 404, 'PATIENT_IDENTITY_NOT_MATCHED');
     }
-    if (isMinor(patient.dateOfBirth.toISOString())) {
-      throw new AppError('A minor patient must be linked through a parent or guardian account', 409, 'MINOR_GUARDIAN_REQUIRED');
-    }
     const fullName = [patient.firstName, patient.middleName, patient.lastName].filter(Boolean).join(' ');
     const email = input.email.trim() || patient.email || '';
     if (!email) throw new AppError('An email address is required to create portal access', 400, 'EMAIL_REQUIRED');
@@ -546,7 +539,7 @@ export class PatientPortalService {
   }
 
   async activateExistingPatientByPhone(phone: string, metadata: RequestMetadata) {
-    const patient = await this.repository.getUniqueUnlinkedAdultPatientByPhone(phone);
+    const patient = await this.repository.getUniqueUnlinkedPatientByPhone(phone);
     if (!patient) {
       throw new AppError(
         'This patient record could not be linked automatically. Contact hospital reception for identity verification.',
@@ -600,9 +593,6 @@ export class PatientPortalService {
   async completePatientProfile(userId: string, input: PatientProfileInput) {
     const context = await this.context(userId);
     if (context.patients.some((patient) => patient.relationship === 'SELF')) throw new AppError('Your own patient profile is already linked to this account', 409, 'PATIENT_PROFILE_EXISTS');
-    if (isMinor(input.dateOfBirth) && !input.emergencyContact?.name?.trim()) {
-      throw new AppError('Parent or guardian full name is required for patients under 15.', 400, 'GUARDIAN_DETAILS_REQUIRED');
-    }
     await this.requireActiveBranch(input.preferredBranchId);
 
     const result = await this.executePortalTransaction(async (session) => {
@@ -620,9 +610,7 @@ export class PatientPortalService {
         ...input,
         email: context.account.email,
         phone: context.account.phone,
-        relationship: isMinor(input.dateOfBirth)
-          ? (input.emergencyContact?.relationship as PatientAccessRelationship || 'PARENT')
-          : 'SELF',
+        relationship: 'SELF',
       }, session);
       if (!patientId) throw new AppError('A possible existing patient record was found. Contact hospital staff to link it safely.', 409, 'DUPLICATE_PATIENT');
       return { patientId };
