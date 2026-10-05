@@ -86,6 +86,72 @@ describe('native authentication and protected web compatibility (replica set)', 
   const logout = (refreshToken: string, accessToken?: string) => app.inject({ method: 'POST', url: `${prefix}/logout`,
     payload: { refreshToken }, ...(accessToken ? { headers: { authorization: `Bearer ${accessToken}` } } : {}) });
 
+  describe.each(['web', 'native'] as const)('%s OTP user identity resolution', (client) => {
+    const attempt = () => app.inject({ method: 'POST',
+      url: client === 'web' ? '/api/patient-portal/login/otp' : `${prefix}/login/otp`,
+      payload: client === 'web' ? { phone, otp: '1234' }
+        : { phone, otp: '1234', installationId: randomUUID(), platform: 'android' },
+    });
+
+    it('authenticates the same guardian user with PARENT and SELF patient relationships', async () => {
+      const guardianRole = await RoleModel.create({ code: 'GUARDIAN', name: 'Guardian', status: 'active', permissionIds: [] });
+      const [child, father] = await PatientModel.create([
+        { patientNumber: 'CHILD', firstName: 'Child', lastName: 'Patient', dateOfBirth: new Date('2020-01-01'), gender: 'UNKNOWN', phone, status: 'ACTIVE' },
+        { patientNumber: 'FATHER', firstName: 'Father', lastName: 'Patient', dateOfBirth: new Date('1980-01-01'), gender: 'UNKNOWN', phone, status: 'ACTIVE' },
+      ]);
+      if (!child || !father) throw new Error('Missing test patients');
+      await UserModel.updateOne({ _id: userId }, { $set: { patientId: father._id, roleIds: [guardianRole._id] } });
+      await PatientAccessGrantModel.create([
+        { userId, patientId: child._id, relationship: 'PARENT', status: 'VERIFIED' },
+        { userId, patientId: father._id, relationship: 'SELF', status: 'VERIFIED' },
+      ]);
+      const grantsBefore = await PatientAccessGrantModel.find().sort({ _id: 1 }).lean();
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode, response.body).toBe(200);
+      const result = response.json<NativeResponse>().data;
+      expect(result.user.id).toBe(userId);
+      expect(verifyJwt(result.tokens.accessToken, env.auth.accessTokenSecret).sub).toBe(userId);
+      expect(String((await RefreshTokenModel.findOne().orFail()).userId)).toBe(userId);
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await PatientModel.countDocuments()).toBe(2);
+      expect(await PatientAccessGrantModel.find().sort({ _id: 1 }).lean()).toEqual(grantsBefore);
+    });
+
+    it.each(['active', 'inactive', 'locked'])('rejects multiple phone owners even when another owner is %s', async (status) => {
+      await UserModel.create({ username: 'other-user', email: 'other@example.test', fullName: 'Other User',
+        phone: `+${phone}`, passwordHash: 'test-only', status });
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toMatchObject({ error: { code: 'INVALID_CREDENTIALS' } });
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+      expect(await UserModel.countDocuments()).toBe(2);
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(0);
+      expect((await OtpChallengeModel.findOne({ phone }).orFail()).verifiedAt).toBeTruthy();
+    });
+
+    it('ignores a username matching the phone and a deleted phone owner', async () => {
+      await UserModel.create([
+        { username: phone, email: 'username@example.test', fullName: 'Username Match', phone: '27829999999', passwordHash: 'test-only' },
+        { username: 'deleted-owner', email: 'deleted@example.test', fullName: 'Deleted User', phone, passwordHash: 'test-only', deletedAt: new Date() },
+      ]);
+      await challenge();
+      const response = await attempt();
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json<NativeResponse>().data.user.id).toBe(userId);
+    });
+
+    it('does not authenticate a username-only match after phone verification', async () => {
+      await UserModel.updateOne({ _id: userId }, { $set: { username: phone, phone: '27829999999' } });
+      await challenge();
+      const proof = await services.patientPortal.verifyAndConsumeOtp(phone, '1234');
+      await expect(services.auth.loginPatientAfterOtpVerification(phone, proof, {}))
+        .rejects.toMatchObject({ statusCode: 401, code: 'INVALID_CREDENTIALS' });
+      expect(await RefreshTokenModel.countDocuments()).toBe(0);
+    });
+  });
+
   describe.each(['web', 'native'] as const)('%s age-independent patient login', (client) => {
     const attempt = (otp = '1234') => app.inject({ method: 'POST',
       url: client === 'web' ? '/api/patient-portal/login/otp' : `${prefix}/login/otp`,

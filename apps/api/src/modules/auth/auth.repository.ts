@@ -112,6 +112,17 @@ export class AuthRepository {
     return user ? mapUser(user) : null;
   }
 
+  async findUniqueUserByPhone(phone: string) {
+    // OTP proves phone control, not ownership of a matching username or patient.
+    // Include inactive/locked accounts when detecting ambiguous ownership.
+    const users = await UserModel.find({
+      deletedAt: null,
+      ...buildPhoneMongoFilter(phone),
+    }).limit(2).lean();
+    const user = users[0];
+    return users.length === 1 && user ? mapUser(user) : null;
+  }
+
   async incrementFailedLogin(userId: string, failedLoginLimit: number, lockedUntil: Date) {
     const user = await UserModel.findById(userId);
     if (!user) throw new AppError('User not found', 404, 'USER_NOT_FOUND');
