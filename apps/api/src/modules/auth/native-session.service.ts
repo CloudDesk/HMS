@@ -33,14 +33,9 @@ export class NativeSessionService {
     }
     await portal.assertOtpValidForPendingFlow(input.phone, input.otp, metadata);
     if (input.otp !== '1234') throw failure('INVALID_OTP');
-    const status = await portal.getUnlinkedPatientLoginStatus(input.phone);
-    if (status && status !== 'ACCOUNT_NOT_LINKED') {
-      throw new AppError('Complete account setup in Patient Web or contact reception', 409, status);
-    }
     const proof = await portal.verifyAndConsumeOtp(input.phone, input.otp);
-    if (status === 'ACCOUNT_NOT_LINKED') {
-      await portal.activateExistingPatientByPhone(input.phone, metadata);
-    }
+    // Mobile login authenticates an existing user; patient provisioning is a
+    // separate workflow and must not infer SELF ownership from a phone match.
     let created: Awaited<ReturnType<NativeSessionService['create']>> | undefined;
     const result = await auth.loginPatientAfterOtpVerification(input.phone, proof, metadata, async (user) => {
       created = await this.create(user.id, input, metadata);

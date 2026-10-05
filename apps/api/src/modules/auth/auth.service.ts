@@ -206,13 +206,13 @@ export class AuthService {
     );
     if (!isPatientOtpVerificationForPhone(verification, phone)) throw invalidCredentials();
 
-    const user = await this.repository.findUserByIdentifier(phone);
+    const user = await this.repository.findUniqueUserByPhone(phone);
 
     if (!user) {
       await this.repository.audit('auth.patient_otp.failed', {
         ...metadata,
         subjectUserId: undefined,
-        metadata: { reason: 'unknown_phone' },
+        metadata: { reason: 'unknown_or_ambiguous_phone' },
       });
       throw invalidCredentials();
     }

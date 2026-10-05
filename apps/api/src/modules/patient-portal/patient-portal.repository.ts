@@ -18,6 +18,7 @@ import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
 import { buildPhoneMongoFilter } from '../../utils/phone.js';
+import { AppError } from '../../shared/errors/app-error.js';
 
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
@@ -856,11 +857,20 @@ export class PatientPortalRepository {
   }
 
   async ensureAccessGrant(userId: string, patientId: string, relationship: PatientAccessRelationship, session?: ClientSession) {
-    await PatientAccessGrantModel.updateOne(
-      { userId: objectId(userId), patientId: objectId(patientId) },
-      { $set: { relationship, status: 'VERIFIED', isPrimary: relationship === 'SELF', verifiedAt: new Date(), revokedAt: null } },
-      { upsert: true, session },
-    );
+    try {
+      // The unique user/patient index prevents this upsert from converting an
+      // existing relationship, including when two different relationships race.
+      await PatientAccessGrantModel.updateOne(
+        { userId: objectId(userId), patientId: objectId(patientId), relationship },
+        { $set: { status: 'VERIFIED', isPrimary: relationship === 'SELF', verifiedAt: new Date(), revokedAt: null } },
+        { upsert: true, session },
+      );
+    } catch (error) {
+      if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000) {
+        throw new AppError('An existing relationship to this patient cannot be converted.', 409, 'PATIENT_RELATIONSHIP_CONFLICT');
+      }
+      throw error;
+    }
   }
 
   async getPatientForProvisioning(patientId: string) {

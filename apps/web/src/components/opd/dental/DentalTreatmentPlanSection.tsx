@@ -1156,7 +1156,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
                   {/* Service Catalogue Picker */}
                   <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Service Catalogue</label>
+                    <label className={styles.label}>Service</label>
                     <select
                       className={styles.select}
                       value={selectedServiceId}

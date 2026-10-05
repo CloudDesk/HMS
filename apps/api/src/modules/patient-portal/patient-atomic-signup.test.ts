@@ -46,11 +46,12 @@ const createRoles = async () => {
 describe('Patient Portal Atomic Signup Flow', () => {
   let replSet: MongoMemoryReplSet;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
+  let services: Awaited<ReturnType<typeof buildApp>>['services'];
 
   beforeAll(async () => {
     replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     await mongoose.connect(replSet.getUri());
-    ({ app } = await buildApp());
+    ({ app, services } = await buildApp());
   });
 
   afterAll(async () => {
@@ -62,6 +63,69 @@ describe('Patient Portal Atomic Signup Flow', () => {
   beforeEach(async () => {
     await mongoose.connection.db?.dropDatabase();
     await createRoles();
+  });
+
+  describe.each(['PARENT', 'LEGAL_GUARDIAN'] as const)('%s also becomes a patient', (relationship) => {
+    const setupGuardian = async () => {
+      await PatientAccessGrantModel.createIndexes();
+      const role = await RoleModel.findOne({ code: 'GUARDIAN' }).orFail();
+      const branch = await BranchModel.create({ code: 'SELF', name: 'Main', city: 'Mumbai', status: 'ACTIVE' });
+      const user = await UserModel.create({
+        username: 'father', email: 'father@example.test', fullName: 'Father Patient',
+        phone, passwordHash: 'test-only', roleIds: [role._id], status: 'active',
+      });
+      const child = await PatientModel.create({
+        patientNumber: 'CHILD-1', firstName: 'Child', lastName: 'Patient',
+        dateOfBirth: new Date('2020-01-01'), gender: 'UNKNOWN', phone,
+        registrationBranchId: branch._id, status: 'ACTIVE',
+      });
+      const grant = await PatientAccessGrantModel.create({
+        userId: user._id, patientId: child._id, relationship, status: 'VERIFIED',
+      });
+      const profile = {
+        firstName: 'Father', lastName: 'Patient', dateOfBirth: '1980-01-01',
+        gender: 'MALE' as const, preferredBranchId: String(branch._id),
+      };
+      return { user, child, grant: grant.toObject(), profile };
+    };
+
+    it.each(['new', 'existing'])('reuses the guardian user for a %s SELF record and preserves the child grant', async (mode) => {
+      const { user, child, grant, profile } = await setupGuardian();
+      const existing = mode === 'existing' ? await PatientModel.create({
+        patientNumber: 'FATHER-1', ...profile, dateOfBirth: new Date(profile.dateOfBirth),
+        phone, status: 'ACTIVE', registrationBranchId: profile.preferredBranchId,
+      }) : null;
+
+      const result = await services.patientPortal.completePatientProfile(String(user._id), profile);
+
+      expect(result.patientId).not.toBe(String(child._id));
+      if (existing) expect(result.patientId).toBe(String(existing._id));
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await PatientModel.countDocuments()).toBe(2);
+      expect(String((await UserModel.findById(user._id).orFail()).patientId)).toBe(result.patientId);
+      expect(await PatientAccessGrantModel.findById(grant._id).lean()).toEqual(grant);
+      expect(await PatientAccessGrantModel.findOne({ userId: user._id, patientId: result.patientId }).lean())
+        .toMatchObject({ relationship: 'SELF', status: 'VERIFIED' });
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(2);
+      expect((await services.patientPortal.context(String(user._id))).patients)
+        .toEqual(expect.arrayContaining([
+          expect.objectContaining({ id: String(child._id), relationship }),
+          expect.objectContaining({ id: result.patientId, relationship: 'SELF' }),
+        ]));
+    });
+
+    it('rejects converting the existing child relationship to SELF', async () => {
+      const { user, child, grant, profile } = await setupGuardian();
+      await expect(services.patientPortal.completePatientProfile(String(user._id), {
+        ...profile, firstName: 'Child', dateOfBirth: '2020-01-01',
+      })).rejects.toMatchObject({ code: 'PATIENT_RELATIONSHIP_CONFLICT', statusCode: 409 });
+      expect(await PatientAccessGrantModel.findById(grant._id).lean()).toEqual(grant);
+      expect((await UserModel.findById(user._id).orFail()).patientId).toBeNull();
+      expect(await UserModel.countDocuments()).toBe(1);
+      expect(await PatientModel.countDocuments()).toBe(1);
+      expect(await PatientAccessGrantModel.countDocuments()).toBe(1);
+      expect(await PatientAccessGrantModel.countDocuments({ patientId: child._id, relationship: 'SELF' })).toBe(0);
+    });
   });
 
   it.each(['fresh', 'stale-counter'])('performs atomic registration with %s MRN state', async (scenario) => {
