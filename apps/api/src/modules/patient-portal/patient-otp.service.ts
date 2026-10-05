@@ -7,7 +7,7 @@ import { AuthRateLimitRepository } from '../auth/auth-rate-limit.repository.js';
 import { PatientOtpRepository } from './patient-otp.repository.js';
 import { RegistrationTokenModel } from './registration-token.model.js';
 
-const verificationBrand = Symbol('patient-otp-verification');
+const verificationBrand = Symbol.for('patient-otp-verification');
 
 export type PatientOtpVerification = {
   readonly phone: string;
@@ -18,7 +18,13 @@ export type PatientOtpVerification = {
 export const isPatientOtpVerificationForPhone = (
   verification: PatientOtpVerification,
   phone: string,
-) => verification[verificationBrand] === true && verification.phone === normalizePatientOtpIdentity(phone);
+) =>
+  Boolean(
+    verification &&
+      typeof verification === 'object' &&
+      verification[verificationBrand] === true &&
+      verification.phone === normalizePatientOtpIdentity(phone),
+  );
 
 export const normalizePatientOtpIdentity = (phone: string) => {
   const normalizedPhone = phone.replace(/\D/g, '');

@@ -12,7 +12,7 @@ import { UserModel } from '../users/user.model.js';
 import { hashPassword } from '../../shared/security/hash.js';
 import { OtpChallengeModel } from './otp-challenge.model.js';
 import { PatientOtpRepository } from './patient-otp.repository.js';
-import { PatientOtpService } from './patient-otp.service.js';
+import { isPatientOtpVerificationForPhone, PatientOtpService } from './patient-otp.service.js';
 
 const phone = '+27821234567';
 const normalizedPhone = '27821234567';
@@ -386,5 +386,34 @@ describe('patient OTP challenge security', () => {
     })).not.toThrow();
     expect(() => assertPatientPortalDemoOtpConfiguration({ enabled: true, otp: '' })).toThrow('exactly four digits');
     expect(() => assertPatientPortalDemoOtpConfiguration({ enabled: true, otp: '12345' })).toThrow('exactly four digits');
+  });
+
+  it('proves a valid PatientOtpVerification produced by verifyAndConsume passes isPatientOtpVerificationForPhone and allows auth', async () => {
+    const guardianRole = await RoleModel.create({
+      code: 'GUARDIAN',
+      name: 'Parent / Guardian',
+      status: 'active',
+      permissionIds: [],
+    });
+    const passwordHash = await hashPassword('ValidPassword1!');
+    const user = await UserModel.create({
+      username: 'guardian-user@example.test',
+      email: 'guardian-user@example.test',
+      fullName: 'Guardian User',
+      phone: normalizedPhone,
+      passwordHash,
+      status: 'active',
+      roleIds: [guardianRole._id],
+    });
+
+    await createChallenge({ otp: '4821' });
+    const proof = await service.verifyAndConsume(phone, '4821', metadata);
+
+    expect(isPatientOtpVerificationForPhone(proof, phone)).toBe(true);
+    expect(isPatientOtpVerificationForPhone(proof, normalizedPhone)).toBe(true);
+
+    const authService = new AuthService(new AuthRepository(), service);
+    const result = await authService.loginPatientAfterOtpVerification(phone, proof, metadata);
+    expect(result.user.id).toBe(String(user._id));
   });
 });
