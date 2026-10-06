@@ -617,6 +617,7 @@ export class UserService {
       deletedBy: user.deletedBy,
       roleIds: user.roleIds,
       patientId: user.patientId,
+      patientRegistrationBranch: assignments.patientRegistrationBranchesByUserId?.get(user.id) ?? null,
       branches: assignments.branchesByUserId.get(user.id) ?? [],
       departments: assignments.departmentsByUserId.get(user.id) ?? [],
       roles: assignments.rolesByUserId.get(user.id) ?? [],

@@ -136,10 +136,8 @@ export function AppointmentCalendarPage() {
     state: {
       mode,
       calendarDate,
-      departmentFilter,
       doctorFilter,
       statusFilter,
-      departments,
       visibleDoctors,
       branches,
       appointments,
@@ -156,7 +154,6 @@ export function AppointmentCalendarPage() {
     actions: {
       setMode,
       setCalendarDate,
-      setDepartmentFilter,
       setDoctorFilter,
       setStatusFilter,
       handleUpdateAppointment,
@@ -333,25 +330,6 @@ export function AppointmentCalendarPage() {
 
           {/* Filter Toolbar */}
           <section className="doc-toolbar" style={{ marginTop: 0 }}>
-            <div className="doc-field">
-              <label htmlFor="calendar-department">Department</label>
-              <select
-                id="calendar-department"
-                disabled={Boolean(loggedInDoctor)}
-                onChange={(event) => {
-                  setDepartmentFilter(event.target.value);
-                  setDoctorFilter('');
-                }}
-                value={departmentFilter}
-              >
-                <option value="">All Departments</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </select>
-            </div>
             <div className="doc-field">
               <label htmlFor="calendar-doctor">Doctor</label>
               <select 

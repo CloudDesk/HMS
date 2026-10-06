@@ -72,7 +72,6 @@ export function AppointmentQueuePage() {
       priorityFilter,
       branchFilter,
       queueDate,
-      departments,
       doctors,
       branches,
       appointments,
@@ -89,7 +88,6 @@ export function AppointmentQueuePage() {
       canViewConsultation,
     },
     actions: {
-      setDepartmentFilter,
       setDoctorFilter,
       setStatusFilter,
       setPriorityFilter,
@@ -196,18 +194,7 @@ export function AppointmentQueuePage() {
         ))}
       </section>
 
-      <section className="doc-toolbar">
-        <div className="doc-field">
-          <label htmlFor="queue-department">Department</label>
-          <select id="queue-department" onChange={(event) => setDepartmentFilter(event.target.value)} value={departmentFilter}>
-            <option value="">All Departments</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <section className="doc-toolbar appointment-queue-filters">
         <div className="doc-field">
           <label htmlFor="queue-doctor">Doctor</label>
           <select id="queue-doctor" onChange={(event) => setDoctorFilter(event.target.value)} value={doctorFilter}>

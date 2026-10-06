@@ -1,6 +1,7 @@
 import {
   billingApi,
   type BillingInvoiceListParams,
+  type BillingSummaryParams,
   type CollectBillingPaymentPayload,
   type CreateBillingInvoicePayload,
   type LinkAdmissionBillingContextPayload,
@@ -13,7 +14,7 @@ export const billingService = {
   createDentalTreatmentInvoice: (visitId: string, treatmentItemId: string) =>
     billingApi.createDentalTreatmentInvoice(visitId, treatmentItemId),
   list: (params: BillingInvoiceListParams = {}) => billingApi.list(params),
-  summary: (params: Pick<BillingInvoiceListParams, 'branch_id' | 'date_from' | 'date_to'> = {}) =>
+  summary: (params: BillingSummaryParams = {}) =>
     billingApi.summary(params),
   getById: (id: string) => billingApi.getById(id),
   create: (payload: CreateBillingInvoicePayload) => billingApi.create(payload),

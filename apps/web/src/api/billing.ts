@@ -128,6 +128,8 @@ export type BillingSummary = {
   by_status: Record<BillingInvoiceStatus, number>;
 };
 
+export type BillingSummaryParams = Partial<Pick<BillingInvoiceListParams, 'branch_id' | 'patient_id' | 'date_from' | 'date_to'>>;
+
 export type SaveBillingInvoiceItem = {
   service_id: string;
   service_type: ManualBillingServiceType;
@@ -193,7 +195,7 @@ export const billingApi = {
   list(params: BillingInvoiceListParams = {}) {
     return apiClient.request<BillingInvoiceList>(`/billing/invoices${queryString(params)}`);
   },
-  summary(params: Pick<BillingInvoiceListParams, 'branch_id' | 'date_from' | 'date_to'> = {}) {
+  summary(params: BillingSummaryParams = {}) {
     return apiClient.request<BillingSummary>(`/billing/summary${queryString(params)}`);
   },
   getById(id: string) {

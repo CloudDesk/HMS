@@ -169,7 +169,7 @@ export function MedicineMasterPage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid medicine-master-page">
         <div className="um-top-row">
           <div className="um-top-title-area">
             <h2 className="um-page-title">Medicine Master</h2>
@@ -266,7 +266,7 @@ export function MedicineMasterPage() {
               <div style={{ display: 'grid', gridTemplateColumns: watch('dosage_form_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
                 <label className="form-field">
                   <span>Dosage Form</span>
-                  <select {...register('dosage_form_type')} disabled={saveMutation.isPending}>
+                  <select className={watch('dosage_form_type') ? undefined : 'medicine-form-placeholder'} {...register('dosage_form_type')} disabled={saveMutation.isPending}>
                     <option value="">Select dosage form</option>
                     {COMMON_DOSAGE_FORMS.map(df => <option key={df} value={df}>{df}</option>)}
                     <option value="Other">Other</option>
@@ -284,7 +284,7 @@ export function MedicineMasterPage() {
               <div style={{ display: 'grid', gridTemplateColumns: watch('unit_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
                 <label className="form-field">
                   <span>Unit</span>
-                  <select {...register('unit_type')} disabled={saveMutation.isPending}>
+                  <select className={watch('unit_type') ? undefined : 'medicine-form-placeholder'} {...register('unit_type')} disabled={saveMutation.isPending}>
                     <option value="">Select unit</option>
                     {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                     <option value="Other">Other</option>

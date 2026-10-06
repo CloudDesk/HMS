@@ -540,6 +540,7 @@ export class BillingRepository {
     const match: Record<string, unknown> = { deletedAt: null };
     if (branchIds) match.branchId = { $in: branchIds.map(objectId) };
     if (query.branch_id) match.branchId = objectId(query.branch_id);
+    if (query.patient_id) match.patientId = objectId(query.patient_id);
     if (query.date_from || query.date_to) {
       match.invoiceDate = {
         ...(query.date_from ? { $gte: new Date(`${query.date_from}T00:00:00.000Z`) } : {}),

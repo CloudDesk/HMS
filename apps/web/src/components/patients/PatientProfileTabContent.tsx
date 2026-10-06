@@ -70,6 +70,9 @@ export function PatientProfileTabContent({
     imagingOrders,
     documents,
     billingInvoices,
+    outstandingBillsBalance,
+    loadingOutstandingBills,
+    canViewBilling,
     doctors: doctorsList,
     filters: { timeline: timelineFilters, visits: visitsFilters, appointments: appointmentFilters },
     pageInfo: { timeline: timelinePageInfo },
@@ -93,6 +96,9 @@ export function PatientProfileTabContent({
       {activeTab === 'Overview' ? (
         <PatientOverviewTab
           formatCurrency={formatCurrency}
+          outstandingBillsBalance={outstandingBillsBalance}
+          loadingOutstandingBills={loadingOutstandingBills}
+          canViewBilling={canViewBilling}
           onViewBilling={() => setActiveTab('Billing')}
           patient={patient}
           prescriptions={prescriptions}

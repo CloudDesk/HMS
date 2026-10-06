@@ -49,6 +49,7 @@ export type UserRoleAssignment = {
 export type UserResponse = Omit<UserRecord, 'failedLoginAttempts'> & {
   branches: UserAssignment[];
   departments: UserAssignment[];
+  patientRegistrationBranch: UserAssignment | null;
   roles: UserRoleAssignment[];
   audit: {
     createdAt: Date;

@@ -509,7 +509,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -587,7 +587,7 @@
   left: 0;
   z-index: 300;
   width: 300px;
-  max-height: 480px;
+  max-height: min(480px, max(240px, calc(100dvh - 14rem)));
   display: flex;
   flex-direction: column;
   border: 1px solid #cbd5e1;

@@ -417,16 +417,6 @@ export function DoctorDirectoryPage() {
       ),
     [directory.departments, form.branchId],
   );
-  const departmentsForFilter = useMemo(
-    () =>
-      directory.departments.filter(
-        (department) =>
-          (!branchFilter || department.branch_ids.includes(branchFilter)) &&
-          department.isClinical,
-      ),
-    [branchFilter, directory.departments],
-  );
-
   const formError =
     errors.root?.message ??
     errors.firstName?.message ??
@@ -575,23 +565,6 @@ export function DoctorDirectoryPage() {
               <option value="">All Branches</option>
               {directory.branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="doctor-department-filter">Department</label>
-            <select
-              disabled={!directory.canViewDepartments}
-              id="doctor-department-filter"
-              onChange={(event) => {
-                setDepartmentFilter(event.target.value);
-                setCurrentPage(1);
-              }}
-              value={departmentFilter}
-            >
-              <option value="">All Departments</option>
-              {departmentsForFilter.map((department) => (
-                <option key={department.id} value={department.id}>{department.name}</option>
               ))}
             </select>
           </div>

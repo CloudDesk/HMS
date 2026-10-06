@@ -257,8 +257,13 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  width: 100%;
   padding: 7px 10px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
   cursor: pointer;
   font-size: 0.84rem;
   color: #334155;
@@ -280,21 +285,35 @@
 .hms-multi-select-checkbox {
   width: 16px;
   height: 16px;
+  appearance: none;
   border: 1.5px solid #cbd5e1;
   border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: #ffffff;
-  font-size: 0.7rem;
-  color: #ffffff;
+  padding: 0;
+  margin: 0;
   transition: all 0.15s ease;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
-.hms-multi-select-checkbox.checked {
+.hms-multi-select-checkbox:checked {
   background: #2563eb;
   border-color: #2563eb;
+}
+
+.hms-multi-select-checkbox:checked::after {
+  content: '✓';
+  color: #ffffff;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.hms-multi-select-item:focus-within {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 1px;
 }
 
 .hms-multi-select-item-content {

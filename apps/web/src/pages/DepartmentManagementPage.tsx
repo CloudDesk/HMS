@@ -334,7 +334,7 @@ export function DepartmentManagementPage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid department-management-page">
         <div className="um-top-row">
           <div className="um-top-title-area">
             <h2 className="um-page-title">Department Management</h2>
@@ -744,7 +744,7 @@ export function DepartmentManagementPage() {
 
             <div className="form-section-title">Organisation</div>
             <div className="form-grid-3">
-              <label className="form-field">
+              <div className="form-field">
                 <span>Branch <span className="required">*</span></span>
                 <BranchMultiSelect
                   branches={branches}
@@ -763,7 +763,7 @@ export function DepartmentManagementPage() {
                     {deptForm.formState.errors.branch_ids.message}
                   </small>
                 ) : null}
-              </label>
+              </div>
               {modalMode === 'edit' && (
                 <label className="form-field">
                   <span>Status</span>

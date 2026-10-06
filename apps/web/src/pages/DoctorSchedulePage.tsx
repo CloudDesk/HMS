@@ -209,7 +209,7 @@ const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode, fir
 export function DoctorSchedulePage() {
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  const [departmentFilter, setDepartmentFilter] = useState(initialParams.get('department_id') ?? '');
+  const departmentFilter = initialParams.get('department_id') ?? '';
   const [visitTypeFilter, setVisitTypeFilter] = useState<ApiAppointmentVisitType | ''>(() =>
     parseVisitType(initialParams.get('visit_type')),
   );
@@ -346,22 +346,6 @@ export function DoctorSchedulePage() {
                 {schedule.doctors.map((doctor) => (
                   <option key={doctor.id} value={doctor.id}>
                     {doctor.display_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="doc-field">
-              <label htmlFor="schedule-department">Department</label>
-              <select
-                disabled={!schedule.canViewDepartments}
-                id="schedule-department"
-                onChange={(event) => setDepartmentFilter(event.target.value)}
-                value={departmentFilter}
-              >
-                <option value="">All Departments</option>
-                {schedule.departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
                   </option>
                 ))}
               </select>

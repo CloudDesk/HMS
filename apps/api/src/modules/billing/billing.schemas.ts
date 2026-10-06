@@ -38,6 +38,7 @@ const invoiceListSchema = z.object({
 
 const summarySchema = z.object({
   branch_id: objectId.optional(),
+  patient_id: objectId.optional(),
   date_from: dateOnly.optional(),
   date_to: dateOnly.optional(),
 }).strict().refine((data) => !data.date_from || !data.date_to || data.date_from <= data.date_to, {

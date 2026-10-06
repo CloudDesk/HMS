@@ -210,7 +210,7 @@ export function BranchManagementPage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid branch-management-page">
         <div className="um-top-row">
           <div className="um-top-title-area">
             <h2 className="um-page-title">Branch Management</h2>
@@ -563,8 +563,8 @@ export function BranchManagementPage() {
                   disabled={submitting}
                     {...branchForm.register('status')}
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
 

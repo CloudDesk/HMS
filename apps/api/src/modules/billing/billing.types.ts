@@ -113,6 +113,7 @@ export type BillingInvoiceListQuery = {
 
 export type BillingSummaryQuery = {
   branch_id?: string;
+  patient_id?: string;
   date_from?: string;
   date_to?: string;
 };
