@@ -8,6 +8,7 @@ import type { ProcedureBooking, ProcedureRecommendation } from '../../api/surger
 import { useBillingInvoices } from '../../hooks/billing/useBilling';
 import { Modal } from '../ui/Modal';
 import { toast } from 'sonner';
+import { useCurrencyFormatter } from '../../api/useSettings';
 
 type WorkspaceTab = 'orders' | 'rounds' | 'vitals' | 'surgeries' | 'discharge';
 
@@ -665,6 +666,7 @@ function DischargePlanningTab({
   canSaveDischargeSummary?: boolean;
   canFinalizeDischarge?: boolean;
 }) {
+  const formatCurrency = useCurrencyFormatter();
   const existingSummary = admission.discharge_summary;
 
   const [hemo, setHemo] = useState(existingSummary?.hemodynamic_stability_24h ?? true);
@@ -870,9 +872,9 @@ function DischargePlanningTab({
                 {billingLoading ? (
                   <span style={{ color: '#64748b' }}>Checking...</span>
                 ) : isFinanciallyCleared ? (
-                  <strong style={{ color: '#16a34a' }}>✓ Cleared ({activeInvoices.length > 0 ? `KES ${totalBilled.toLocaleString()}` : 'No billing'})</strong>
+                  <strong style={{ color: '#16a34a' }}>✓ Cleared ({activeInvoices.length > 0 ? formatCurrency(totalBilled) : 'No billing'})</strong>
                 ) : (
-                  <strong style={{ color: '#d97706' }}>⚠ Outstanding: KES {totalBalance.toLocaleString()}</strong>
+                  <strong style={{ color: '#d97706' }}>⚠ Outstanding: {formatCurrency(totalBalance)}</strong>
                 )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

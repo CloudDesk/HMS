@@ -62,7 +62,7 @@ export class DentalQuotationService {
 
     // Resolve currency from settings
     const settings = await this.settingsRepository.get();
-    const currency = settings?.localization?.currency ?? 'KES';
+    const currency = settings.localization.currency;
 
     // Doctor resolution
     let doctorId = new Types.ObjectId(episode.primary_doctor_id);

@@ -10,6 +10,7 @@ import type { AuthUser } from '../auth/auth-types';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { formatDateTime } from './patient-utils';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
+import { useCurrencyFormatter } from '../api/useSettings';
 
 const DoctorDashboardPage = lazy(() => import('./DoctorDashboardPage').then((m) => ({ default: m.DoctorDashboardPage })));
 const AppointmentDashboardPage = lazy(() => import('./AppointmentDashboardPage').then((m) => ({ default: m.AppointmentDashboardPage })));
@@ -98,6 +99,7 @@ function getSplinePath(pts: { x: number; y: number }[]): string {
 
 function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => void }) {
   const { user } = useAuth();
+  const formatCurrency = useCurrencyFormatter();
   const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'Doctor';
   const [chartRange, setChartRange] = useState<'week' | 'month' | 'year'>('week');
   const { data, isLoading: loading, isError, isFetching, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature(chartRange);
@@ -587,13 +589,13 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                         <div className="hms-spark-stat">
                           <div>
                             <small>Collected</small>
-                            <strong>₹{(data.financialSummary.collectedFunds ?? 0).toLocaleString()}</strong>
+                            <strong>{formatCurrency(data.financialSummary.collectedFunds ?? 0)}</strong>
                           </div>
                         </div>
                         <div className="hms-spark-stat">
                           <div>
                             <small>Pending</small>
-                            <strong>₹{(data.financialSummary.pendingOutstanding ?? 0).toLocaleString()}</strong>
+                            <strong>{formatCurrency(data.financialSummary.pendingOutstanding ?? 0)}</strong>
                           </div>
                         </div>
                       </>

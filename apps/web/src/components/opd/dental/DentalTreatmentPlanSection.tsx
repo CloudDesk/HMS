@@ -15,7 +15,7 @@ import type {
   BillingInvoiceStatus,
   DentalTreatmentBillingState,
 } from '../../../api/billing';
-import { useCurrencyFormatter } from '../../../api/useSettings';
+import { useCurrencyFormatter, useSettings } from '../../../api/useSettings';
 import {
   opdKeys,
   useAssignDoctorToDentalStage,
@@ -198,6 +198,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   episodes: episodesProp = [],
 }) => {
   const formatCurrency = useCurrencyFormatter();
+  const settings = useSettings();
   const [isExpanded, setIsExpanded] = useState(true);
   const [toothNumber, setToothNumber] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -2343,7 +2344,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     <th style={{ textAlign: 'center', padding: '8px 12px' }}>Items</th>
                     <th style={{ textAlign: 'right', padding: '8px 12px' }}>Subtotal</th>
                     <th style={{ textAlign: 'right', padding: '8px 12px' }}>Discount</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px' }}>Total ({episodeQuotations[0]?.currency ?? 'KES'})</th>
+                    <th style={{ textAlign: 'right', padding: '8px 12px' }}>Total ({episodeQuotations[0]?.currency ?? settings?.localization.currency ?? ''})</th>
                     <th style={{ textAlign: 'center', padding: '8px 12px' }}>Status</th>
                     <th style={{ textAlign: 'center', padding: '8px 12px' }}>Action</th>
                   </tr>

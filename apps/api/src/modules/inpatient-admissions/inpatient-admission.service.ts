@@ -12,6 +12,7 @@ import type { SaveOpdPrescriptionDTO } from '../opd/opd-prescription.types.js';
 import type { InpatientAdmissionRepository } from './inpatient-admission.repository.js';
 import type { AdmissionRequestListQuery, AdmissionRequestMetadata, AdmissionPrerequisiteSnapshot, CancelAdmissionRequestDTO, ConfirmAdmissionRequestDTO, CreateAdmissionRequestDTO, CreateInpatientAdmissionDTO, CreateInpatientRoundNoteDTO, CreateInpatientVitalDTO, InpatientAdmissionListQuery, SaveDischargeSummaryDTO, ValidateAdmissionRequestDTO } from './inpatient-admission.types.js';
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
+import type { SettingsRepository } from '../settings/settings.repository.js';
 
 const rethrowDuplicate = (error: unknown): never => {
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) throw new AppError('An active admission request or admission already exists for this patient or source', 409, 'ACTIVE_ADMISSION_CONFLICT');
@@ -21,7 +22,7 @@ const rethrowDuplicate = (error: unknown): never => {
 import { executeTransaction } from '../../shared/database/transaction.js';
 
 export class InpatientAdmissionService {
-  constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService) {}
+  constructor(private readonly repository: InpatientAdmissionRepository, private readonly beds: AdmissionsConfigurationService, private readonly patients: PatientService, private readonly billing: BillingService, private readonly opdVisits: OpdVisitRepository, private readonly emergencies: EmergencyRepository, private readonly advancePayment: AdvancePaymentService, private readonly prescriptions: OpdPrescriptionService, private readonly clinicalOrders: OpdClinicalOrderService, private readonly settingsRepository?: SettingsRepository) {}
 
   async list(query: InpatientAdmissionListQuery, actor: string) {
     await this.authorize(actor, query.branch_id);
@@ -169,7 +170,17 @@ export class InpatientAdmissionService {
       const policy = await this.beds.getPolicyForConfirmation(branchId, session);
       // If policy requires advance deposit or full clearance before discharge
       if (policy.admission_advance_deposit_required && totalOutstanding > 0) {
-        throw new AppError(`Financial clearance failed. Patient has an outstanding balance of KES ${totalOutstanding.toLocaleString()} that must be settled before discharge.`, 409, 'FINANCIAL_CLEARANCE_REQUIRED');
+        // Currency formatting is informational; settings lookup must not replace the clearance error.
+        const localization = await this.settingsRepository?.get()
+          .then((settings) => settings.localization)
+          .catch(() => undefined);
+        const locale = localization?.numberFormat === '1.000,00' ? 'de-DE' : 'en-US';
+        const formattedOutstanding = new Intl.NumberFormat(locale, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(totalOutstanding);
+        const currencyLabel = localization?.currencySymbol ? `${localization.currencySymbol} ` : '';
+        throw new AppError(`Financial clearance failed. Patient has an outstanding balance of ${currencyLabel}${formattedOutstanding} that must be settled before discharge.`, 409, 'FINANCIAL_CLEARANCE_REQUIRED');
       }
 
       // 3. Mark Admission as DISCHARGED

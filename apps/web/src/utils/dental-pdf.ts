@@ -188,7 +188,7 @@ export function downloadDentalStagesPdf(options: DentalStagesPdfOptions): void {
 }
 
 export function downloadDentalQuotationPdf(options: DentalQuotationPdfOptions): void {
-  const { quotation, patientName, patientId, episodeNumber, formatCurrency = (v) => `KES ${v.toLocaleString()}` } = options;
+  const { quotation, patientName, patientId, episodeNumber, formatCurrency = (value) => new Intl.NumberFormat(undefined, { style: 'currency', currency: quotation.currency }).format(value) } = options;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
 
   let y = 18;
