@@ -758,7 +758,7 @@ export function UserManagementPage() {
 
   const renderModalHeader = () => {
     let icon = 'ph-user-plus';
-    let title = 'Add New Staff User';
+    let title = 'Add New User';
     let subtitle = 'Provision employee credentials, contact details, and department roles.';
     const modeClass = modalMode === 'create' ? 'create' : modalMode === 'edit' ? 'edit' : modalMode === 'view' ? 'view' : 'security';
 
@@ -1274,7 +1274,7 @@ export function UserManagementPage() {
                   ) : (
                     <>
                       <i className="ph ph-user-plus" />
-                      <span>Create Staff User</span>
+                      <span>Create User</span>
                     </>
                   )}
                 </button>

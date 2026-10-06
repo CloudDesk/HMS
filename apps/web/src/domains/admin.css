@@ -442,13 +442,50 @@
 /* Roles & Permissions screen */
 .rp-page {
   flex: 1;
-  height: calc(100vh - 70px);
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  overflow-y: auto;
+  overflow: hidden;
   box-sizing: border-box;
-  padding: 1.1rem 1.5rem;
+  padding: 1.1rem 1.5rem 1rem;
+}
+
+/* Roles List Table Card - flex container with sticky pinned pagination */
+.rp-table-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.rp-table-card .um-toolbar {
+  flex-shrink: 0;
+}
+
+.rp-table-card .table-responsive {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rp-table-card .data-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 2;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+
+.rp-table-card .um-pagination {
+  flex-shrink: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.75rem 1.25rem;
+  margin-top: auto;
 }
 
 /* ── Compact stat strip ── */
@@ -525,6 +562,29 @@
   display: flex;
   align-items: center;
   gap: 0.85rem;
+}
+
+.rp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.75rem;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.rp-back-btn:hover {
+  background: #ffffff;
+  border-color: #2563eb;
+  color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 /* Role Dropdown Selector Trigger */
@@ -2903,7 +2963,7 @@
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 1.2rem;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   transition: border-color 0.15s ease;
@@ -2920,6 +2980,8 @@
   padding: 0.75rem 1.1rem;
   background: #f8fafc;
   border-bottom: 1px solid #f1f5f9;
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
 }
 
 .um-card-title-wrap {
@@ -3056,14 +3118,15 @@
 .um-field-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0.25rem;
   font-size: 0.78rem;
   font-weight: 600;
   color: #334155;
 }
 
 .um-field-label-text {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
@@ -3075,7 +3138,8 @@
 
 .um-required-star {
   color: #ef4444;
-  margin-left: 2px;
+  margin-left: 1px;
+  font-weight: 700;
 }
 
 .um-input-wrap {
@@ -3633,5 +3697,65 @@
   .um-modal-header-custom {
     padding-right: 1.5rem;
   }
+}
+
+/* ── Generic Admin Modal Shared Enhancements ── */
+.um-textarea {
+  width: 100%;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  resize: vertical;
+  min-height: 72px;
+  box-sizing: border-box;
+  transition: all 0.18s ease;
+}
+
+.um-textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  background: #ffffff;
+}
+
+.um-color-picker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 40px;
+  padding: 0 0.75rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+}
+
+.um-color-picker-wrap input[type="color"] {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+}
+
+.um-color-hex-label {
+  font-size: 0.82rem;
+  font-family: monospace;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Readonly view styling inside modal cards */
+.um-input-wrap input[readonly],
+.um-textarea[readonly] {
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: default;
+  border-color: #e2e8f0;
 }
 
