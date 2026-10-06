@@ -1,7 +1,11 @@
 import { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { Icd10Diagnosis } from '../../data/icd10-diagnoses';
 import { isDentalMedication } from '../../pages/dental-utils';
 import { MedicalSpinner } from '../ui/MedicalLoader';
+import { PrintPrescriptionDocument } from '../print/PrintPrescriptionModal';
+import type { OpdPrescriptionResponse, OpdVisitResponse } from '../../api/opd';
+import type { PatientResponse } from '../../api/patients';
 
 export type MedicationFormState = {
   medicine_name: string;
@@ -45,6 +49,10 @@ export type OpdPrescriptionSectionProps = {
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
   isDental?: boolean;
+  prescription?: OpdPrescriptionResponse | null;
+  patient?: PatientResponse | null;
+  visit?: OpdVisitResponse | null;
+  isSentToPharmacy?: boolean;
 };
 
 export function OpdPrescriptionSection({
@@ -61,6 +69,10 @@ export function OpdPrescriptionSection({
   handleNextStep,
   canEdit,
   isDental = false,
+  prescription,
+  patient,
+  visit,
+  isSentToPharmacy = false,
 }: OpdPrescriptionSectionProps) {
   const displayMedicines = useMemo(() => {
     if (!isDental) return masterMedicines;
@@ -71,7 +83,88 @@ export function OpdPrescriptionSection({
       return a.name.localeCompare(b.name);
     });
   }, [masterMedicines, isDental]);
-  const nextStep = isDental ? 'Referral' : 'Lab Orders';
+
+  const effectivePatient = useMemo<PatientResponse | null>(() => {
+    if (patient) return patient;
+    if (!visit) return null;
+    const nameParts = (visit.patient_name || '').trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Patient';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    return {
+      id: visit.patient_id,
+      patient_number: visit.patient_number,
+      first_name: firstName,
+      middle_name: null,
+      last_name: lastName,
+      gender: 'OTHER',
+      date_of_birth: '',
+      parent_guardian: null,
+      phone: null,
+      email: null,
+      status: 'ACTIVE',
+      address: {},
+      emergency_contact: {},
+      registration_branch_id: visit.branch_id || null,
+      blood_group: null,
+      notes: null,
+      created_by: null,
+      updated_by: null,
+      created_at: visit.created_at,
+      updated_at: visit.updated_at,
+    };
+  }, [patient, visit]);
+
+  const printablePrescription = useMemo<OpdPrescriptionResponse | null>(() => {
+    if (!visit && !prescription) return null;
+    const items = prescriptionForm.items.length > 0
+      ? prescriptionForm.items.map((item, idx) => ({
+          id: item.local_id || `item-${idx}`,
+          medicine_name: item.medicine_name,
+          strength: item.strength || null,
+          dosage: item.dosage,
+          route: item.route,
+          frequency: item.frequency,
+          duration: item.duration,
+          quantity: Number(item.quantity) || null,
+          intake_time: null,
+          instructions: item.instructions || null,
+        }))
+      : (prescription?.items || []);
+
+    return {
+      id: prescription?.id || (visit?.id ? `RX-${visit.id.slice(0, 8).toUpperCase()}` : 'RX-NEW'),
+      visit_id: visit?.id || prescription?.visit_id || '',
+      consultation_id: prescription?.consultation_id || '',
+      patient_id: visit?.patient_id || prescription?.patient_id || '',
+      patient_number: visit?.patient_number || prescription?.patient_number || '',
+      patient_name: visit?.patient_name || prescription?.patient_name || '',
+      doctor_id: visit?.doctor_id || prescription?.doctor_id || '',
+      doctor_name: prescription?.doctor_name || visit?.doctor_name || '-',
+      status: prescription?.status || (isSentToPharmacy ? 'SUBMITTED' : 'DRAFT'),
+      items,
+      follow_up_date: prescriptionForm.follow_up_date || prescription?.follow_up_date || null,
+      doctor_instructions: prescriptionForm.doctor_instructions || prescription?.doctor_instructions || null,
+      patient_instructions: prescriptionForm.patient_instructions || prescription?.patient_instructions || null,
+      submitted_at: prescription?.submitted_at || null,
+      created_by: prescription?.created_by || null,
+      updated_by: prescription?.updated_by || null,
+      created_at: prescription?.created_at || new Date().toISOString(),
+      updated_at: prescription?.updated_at || new Date().toISOString(),
+    };
+  }, [visit, prescription, prescriptionForm, isSentToPharmacy]);
+
+  const handlePrintClick = () => {
+    if (
+      prescriptionForm.items.length === 0 &&
+      (!prescription?.items || prescription.items.length === 0)
+    ) {
+      showToast('Add at least one medication before printing prescription.', 'error');
+      return;
+    }
+    window.print();
+  };
+
+  const nextStep = 'Imaging';
 
   return (
     <article className="doc-card opd-tab-card">
@@ -388,21 +481,29 @@ export function OpdPrescriptionSection({
               Save Draft
             </button>
           )}
-          <button className="doc-btn" onClick={() => window.print()} type="button">
+          <button className="doc-btn" onClick={handlePrintClick} type="button">
             <i aria-hidden="true" className="ph ph-printer" />
             Print Prescription
           </button>
-          {canEdit && (
+          {(canEdit || isSentToPharmacy) && (
             <button
-              className="doc-btn primary"
-              disabled={updating === 'prescription-submit'}
-              onClick={() => void handleSendToPharmacy()}
+              className={isSentToPharmacy ? 'doc-btn sent-disabled' : 'doc-btn primary'}
+              disabled={updating === 'prescription-submit' || isSentToPharmacy || !canEdit}
+              onClick={() => {
+                if (updating === 'prescription-submit' || isSentToPharmacy || !canEdit) return;
+                void handleSendToPharmacy();
+              }}
               type="button"
             >
               {updating === 'prescription-submit' ? (
                 <>
                   <MedicalSpinner size="sm" />
                   <span>Sending...</span>
+                </>
+              ) : isSentToPharmacy ? (
+                <>
+                  <i aria-hidden="true" className="ph ph-check-circle" />
+                  Sent To Pharmacy
                 </>
               ) : (
                 <>
@@ -422,6 +523,16 @@ export function OpdPrescriptionSection({
           </button>
         </div>
       </div>
+
+      {typeof document !== 'undefined' && effectivePatient && printablePrescription && createPortal(
+        <div className="opd-prescription-print-container" aria-hidden="true">
+          <PrintPrescriptionDocument
+            patient={effectivePatient}
+            prescription={printablePrescription}
+          />
+        </div>,
+        document.body,
+      )}
     </article>
   );
 }

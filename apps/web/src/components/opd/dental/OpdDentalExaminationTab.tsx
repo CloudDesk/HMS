@@ -866,11 +866,15 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
                   const saved = await handleSaveDraft();
                   if (!saved) return;
                 }
-                onNextStep?.('Prescription');
+                if (onNextStep) {
+                  onNextStep('Diagnosis');
+                } else if (visitId) {
+                  navigate(`/opd/treatment-plan?id=${encodeURIComponent(visitId)}&tab=Diagnosis`, { replace: true });
+                }
               }}
               disabled={isSaving}
             >
-              Next: Prescription
+              Next: Diagnosis & Treatment Plan
               <i className="ph ph-arrow-right" />
             </button>
           )}

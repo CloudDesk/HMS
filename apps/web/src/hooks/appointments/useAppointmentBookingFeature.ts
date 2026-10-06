@@ -1,3 +1,6 @@
+import { useDepartmentsList } from '../departments/useDepartments';
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission, isSuperAdministrator } from '../../auth/access-control';
 import { useDoctorsList, useDoctorAvailableSlots } from '../doctors/useDoctors';
 import { usePatientsList, usePatientDetails } from '../patients/usePatients';
 import { useCreateAppointment, useAppointmentsList } from './useAppointments';
@@ -19,6 +22,11 @@ export function useAppointmentBookingFeature(
   emergencyBranchId = '',
 ) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canViewDepartments = isSuperAdministrator(user?.roles ?? []) || hasPermission(
+    user?.permissions ?? [], { module: 'Administration', screen: 'Departments', action: 'View' },
+  );
+  const { data: departmentData } = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, canViewDepartments);
   const referralQuery = useReceptionReferral(referralVisitId, Boolean(referralVisitId));
   const emergencyReferralQuery = useEmergencyReferral(
     emergencyReferralId,
@@ -97,6 +105,7 @@ export function useAppointmentBookingFeature(
 
   return {
     state: {
+      departments: departmentData?.data ?? [],
       initialPatientData,
       referral,
       patientResults: patientResultsData?.data || [],

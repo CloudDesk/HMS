@@ -1156,7 +1156,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
                   {/* Service Catalogue Picker */}
                   <div className={styles.formGroup} style={{ minWidth: 0 }}>
-                    <label className={styles.label}>Service Catalogue</label>
+                    <label className={styles.label}>Service</label>
                     <select
                       className={styles.select}
                       value={selectedServiceId}
@@ -2333,19 +2333,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               )}
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className={styles.table} style={{ width: '100%', fontSize: '0.825rem' }}>
+            <div className={styles.quotationsTableContainer}>
+              <table className={styles.quotationsTable}>
                 <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 12px' }}>Quotation #</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px' }}>Date</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px' }}>Doctor</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px' }}>Items</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px' }}>Subtotal</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px' }}>Discount</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px' }}>Total ({episodeQuotations[0]?.currency ?? 'KES'})</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px' }}>Status</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px' }}>Action</th>
+                  <tr>
+                    <th className={styles.colQuoteNumber} style={{ textAlign: 'left' }}>Quotation #</th>
+                    <th className={styles.colQuoteDate} style={{ textAlign: 'left' }}>Date</th>
+                    <th className={styles.colQuoteDoctor} style={{ textAlign: 'left' }}>Doctor</th>
+                    <th className={styles.colQuoteTotal} style={{ textAlign: 'left' }}>Total ({episodeQuotations[0]?.currency ?? 'KES'})</th>
+                    <th className={styles.colQuoteStatus}>Status</th>
+                    <th className={styles.colQuoteAction}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2368,32 +2365,23 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                       }
                     })();
 
+                    const isDecide = q.status === 'SENT';
+
                     return (
-                      <tr key={q.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0f172a' }}>
+                      <tr key={q.id}>
+                        <td className={styles.colQuoteNumber}>
                           {q.quotation_number}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#64748b' }}>
+                        <td className={styles.colQuoteDate}>
                           {new Date(q.created_at).toLocaleDateString()}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#334155' }}>
+                        <td className={styles.colQuoteDoctor}>
                           {q.doctor_name}
                         </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                          <span style={{ fontWeight: 600 }}>
-                            {q.options && q.options.length > 0 ? `${q.options.length} options` : `${q.items.length} items`}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#64748b' }}>
-                          {formatCurrency(q.subtotal)}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: q.discount_amount > 0 ? '#16a34a' : '#64748b' }}>
-                          {q.discount_amount > 0 ? `-${formatCurrency(q.discount_amount)}` : '—'}
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                        <td className={styles.colQuoteTotal}>
                           {formatCurrency(q.total)}
                         </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                        <td className={styles.colQuoteStatus}>
                           <span
                             style={{
                               display: 'inline-block',
@@ -2404,17 +2392,17 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                               background: statusBadgeColors.bg,
                               color: statusBadgeColors.text,
                               border: `1px solid ${statusBadgeColors.border}`,
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {q.status}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                        <td className={styles.colQuoteAction}>
+                          <div className={styles.quoteActionGroup}>
                             <button
                               type="button"
-                              className={styles.btnSecondary}
-                              style={{ fontSize: '0.75rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              className={`${styles.btnIconAction} ${isDecide ? styles.btnIconActionDecide : ''}`}
                               onClick={() => {
                                 setSelectedQuotation(q);
                                 setSelectedDecisionOptionId(
@@ -2424,30 +2412,35 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                                 setDecisionReasonInput('');
                                 setDecisionMode('view');
                               }}
+                              title={isDecide ? 'Decide' : 'View'}
+                              aria-label={isDecide ? 'Decide' : 'View'}
                               data-testid={`view-quotation-${q.id}`}
                             >
-                              <i className="ph ph-eye" /> {q.status === 'SENT' ? 'Decide' : 'View'}
+                              <i className={isDecide ? 'ph ph-check-circle' : 'ph ph-eye'} aria-hidden="true" />
+                              <span className={`${styles.srOnly} sr-only`}>{isDecide ? 'Decide' : 'View'}</span>
                             </button>
                             <button
                               type="button"
-                              className={styles.btnSecondary}
-                              style={{ fontSize: '0.75rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              className={`${styles.btnIconAction} ${styles.btnIconActionPdf}`}
                               onClick={() => handleDownloadQuotation(q)}
-                              title="Download quotation PDF"
+                              title="Download PDF"
+                              aria-label="Download PDF"
                               data-testid={`download-quotation-${q.id}`}
                             >
-                              <i className="ph ph-file-pdf" /> Download PDF
+                              <i className="ph ph-file-pdf" aria-hidden="true" />
+                              <span className={`${styles.srOnly} sr-only`}>Download PDF</span>
                             </button>
                             {q.status === 'DRAFT' && !disabled && (
                               <button
                                 type="button"
-                                className={styles.btnPrimary}
-                                style={{ fontSize: '0.75rem', padding: '2px 8px', background: '#4338ca', borderColor: '#4338ca' }}
+                                className={`${styles.btnIconAction} ${styles.btnIconActionSend}`}
                                 disabled={sendQuotationMutation.isPending}
                                 onClick={() => sendQuotationMutation.mutate(q.id)}
-                                title="Send quotation to patient for decision"
+                                title="Send"
+                                aria-label="Send"
                               >
-                                <i className="ph ph-paper-plane-tilt" /> Send
+                                <i className="ph ph-paper-plane-tilt" aria-hidden="true" />
+                                <span className={`${styles.srOnly} sr-only`}>Send</span>
                               </button>
                             )}
                           </div>

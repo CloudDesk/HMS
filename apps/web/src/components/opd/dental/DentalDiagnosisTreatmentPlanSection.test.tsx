@@ -215,7 +215,7 @@ describe('DentalDiagnosisTreatmentPlanSection Component', () => {
     });
 
     expect(container.textContent).toContain('Add Dental Treatment Procedure');
-    expect(container.textContent).toContain('Service Catalogue');
+    expect(Array.from(container.querySelectorAll('label')).some((label) => label.textContent === 'Service')).toBe(true);
     expect(container.textContent).toContain('Composite Restoration - Posterior (KES 250.00)');
   });
 

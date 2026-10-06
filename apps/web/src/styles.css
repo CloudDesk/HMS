@@ -7076,6 +7076,90 @@ textarea.has-error {
   min-height: 40px !important;
 }
 
+/* Disabled / Sent To Pharmacy button state in OPD Sticky Actions */
+.opd-sticky-actions .doc-btn:disabled,
+.opd-sticky-actions .doc-btn.sent-disabled,
+.opd-sticky-actions .doc-btn.sent-disabled:disabled {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.opd-sticky-actions .doc-btn:disabled i,
+.opd-sticky-actions .doc-btn.sent-disabled i,
+.opd-sticky-actions .doc-btn.sent-disabled:disabled i {
+  color: #94a3b8 !important;
+}
+
+/* OPD Prescription Print Container */
+.opd-prescription-print-container {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* When printing from OPD Prescription, isolate the printed document and remove all application UI */
+  body:has(.opd-prescription-print-container) > *:not(.opd-prescription-print-container) {
+    display: none !important;
+  }
+
+  .opd-prescription-print-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .opd-prescription-print-container .print-receipt-paper,
+  .opd-prescription-print-container .billing-receipt-paper {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .opd-prescription-print-container .print-receipt-paper *,
+  .opd-prescription-print-container .billing-receipt-paper * {
+    visibility: visible !important;
+  }
+
+  .opd-prescription-print-container table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .opd-prescription-print-container tr {
+    page-break-inside: avoid !important;
+  }
+
+  .print-hidden,
+  .no-print {
+    display: none !important;
+  }
+}
+
 /* OPD Waiting Queue Table Layout & Visible Action Buttons Fix */
 .opd-queue-layout {
   display: grid !important;

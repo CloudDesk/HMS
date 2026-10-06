@@ -218,7 +218,8 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     await render(35, true, true, 'ep-99');
     await settle();
 
-    expect(container.textContent).not.toContain('Capture Image');
+    expect(container.textContent).toContain('Capture Image');
+    expect(container.textContent).toContain('Order X-Ray');
     expect(container.textContent).not.toContain('Upload Chairside Image');
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
     expect(container.textContent).toContain('IOPA X-Ray');
@@ -439,13 +440,15 @@ describe('Phase 4C Chairside Dental Imaging Workflow', () => {
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
   });
 
-  it('8. Renders Immediate Chairside Imaging history without duplicate creation actions', async () => {
+  it('8. Renders Immediate Chairside Imaging history with action controls', async () => {
     await render(35, true, true, 'ep-1');
     await settle();
 
     expect(container.textContent).toContain('Chairside Images');
+    expect(container.textContent).toContain('Capture Image');
+    expect(container.textContent).toContain('Upload Image');
+    expect(container.textContent).toContain('Order X-Ray');
     expect(container.textContent).not.toContain('Upload Chairside Image');
-    expect(container.textContent).not.toContain('Capture Image');
     expect(container.textContent).not.toContain('+ Add X-Ray / Scan');
     // Radiology orders section remains intact below
     expect(container.textContent).toContain('Formal Radiology Department investigations');

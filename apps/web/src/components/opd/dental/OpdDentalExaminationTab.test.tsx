@@ -204,6 +204,33 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(odontogramPanel?.querySelector('#oral-exam-soft-tissues')).not.toBeNull();
   });
 
+  it('displays Next: Diagnosis & Treatment Plan on the odontogram sub-tab and navigates correctly', async () => {
+    const handleNextStep = vi.fn();
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} onNextStep={handleNextStep} />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Next: Odontogram'))
+        ?.click();
+    });
+
+    const nextBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Next: Diagnosis & Treatment Plan'));
+    expect(nextBtn).toBeDefined();
+
+    await act(async () => {
+      nextBtn?.click();
+    });
+
+    expect(handleNextStep).toHaveBeenCalledWith('Diagnosis');
+  });
+
   it('shows both arches with the clinical legend below the odontogram', async () => {
     await act(async () => {
       root.render(
