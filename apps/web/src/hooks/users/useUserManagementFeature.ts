@@ -4,10 +4,11 @@ import { hasPermission } from '../../auth/access-control';
 import { useAppLocation } from '../../routing/navigation';
 import { usePasswordPolicy } from '../../auth/usePasswordPolicy';
 import { ApiError } from '../../api/api-error';
-import { useUsersList, useUserSummary, useCreateUser, useUpdateUser, useUpdateUserStatus, useResetPassword } from './useUsers';
+import { useUsersList, useUserSummary, useCreateUser, useUpdateUser, useUpdateUserStatus, useResetPassword, useDeleteUser } from './useUsers';
 import { useRolesList } from '../roles/useRoles';
 import { useBranchesList } from '../branches/useBranches';
 import { useDepartmentsList } from '../departments/useDepartments';
+import type { DepartmentResponse } from '../../api/departments';
 import {
   type ApiUserStatus,
   type UserAssignment,
@@ -35,6 +36,40 @@ export type UiUser = {
   password: string;
   addedThisMonth: boolean;
   source: UserResponse;
+};
+
+export type DepartmentFilterOption = {
+  key: string;
+  name: string;
+  value: string;
+};
+
+const normalizeDepartmentName = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
+export const groupDepartmentFilterOptions = (
+  departments: DepartmentResponse[],
+  branchId: string,
+): DepartmentFilterOption[] => {
+  const grouped = new Map<string, { name: string; ids: string[] }>();
+
+  for (const department of departments) {
+    if (branchId && !department.branch_ids.includes(branchId)) continue;
+
+    const displayName = department.name.trim().replace(/\s+/g, ' ');
+    const key = normalizeDepartmentName(displayName);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.ids.push(department.id);
+    } else {
+      grouped.set(key, { name: displayName, ids: [department.id] });
+    }
+  }
+
+  return Array.from(grouped, ([key, group]) => ({
+    key,
+    name: group.name,
+    value: [...new Set(group.ids)].sort().join(','),
+  }));
 };
 
 const apiStatusByUiStatus = {
@@ -175,6 +210,7 @@ export function useUserManagementFeature() {
   const updateUserMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
   const resetPasswordMutation = useResetPassword();
+  const deleteUserMutation = useDeleteUser();
 
   const handleSort = (column: SortColumn) => {
     setSortColumn((currentColumn) => {
@@ -204,6 +240,11 @@ export function useUserManagementFeature() {
   const forbidden = error instanceof ApiError && error.status === 403;
 
   const users = useMemo(() => usersListQuery.data?.items.map(mapUser) ?? [], [usersListQuery.data]);
+  const departmentOptions = departmentsQuery.data?.data ?? [];
+  const departmentFilterOptions = useMemo(
+    () => groupDepartmentFilterOptions(departmentOptions, branchFilter),
+    [departmentOptions, branchFilter],
+  );
 
   const filteredUsers = useMemo(() => {
     if (!sortColumn || apiSortByColumn[sortColumn]) return users;
@@ -234,7 +275,8 @@ export function useUserManagementFeature() {
       summary: usersSummaryQuery.data ?? { total: 0, active: 0, inactive: 0, locked: 0, addedThisMonth: 0 },
       roleOptions: (rolesQuery.data?.items ?? []).filter((role) => role.status === 'active'),
       branchOptions: branchesQuery.data?.data ?? [],
-      departmentOptions: departmentsQuery.data?.data ?? [],
+      departmentOptions,
+      departmentFilterOptions,
       assignmentOptionsLoaded: branchesQuery.isSuccess && departmentsQuery.isSuccess,
       passwordPolicy: passwordPolicyQuery.data ?? null,
     },
@@ -242,7 +284,7 @@ export function useUserManagementFeature() {
       isFetching,
       loadError,
       forbidden,
-      isMutating: createUserMutation.isPending || updateUserMutation.isPending || updateStatusMutation.isPending || resetPasswordMutation.isPending,
+      isMutating: createUserMutation.isPending || updateUserMutation.isPending || updateStatusMutation.isPending || resetPasswordMutation.isPending || deleteUserMutation.isPending,
     },
     rbac: {
       canCreate, canEdit, canDelete, canExport, canChangePassword, canResetPassword
@@ -257,6 +299,7 @@ export function useUserManagementFeature() {
       updateUser: updateUserMutation,
       updateStatus: updateStatusMutation,
       resetPassword: resetPasswordMutation,
+      deleteUser: deleteUserMutation,
     }
   };
 }
