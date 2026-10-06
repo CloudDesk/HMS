@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { useAppointmentsList } from '../appointments/useAppointments';
-import { useBillingInvoices } from '../billing/useBilling';
+import { useBillingInvoices, useBillingSummary } from '../billing/useBilling';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { useImagingOrders } from '../imaging/useImaging';
 import { useLaboratoryOrders } from '../laboratory/useLaboratory';
@@ -42,6 +42,9 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   });
 
   const canEdit = can('Edit');
+  const canViewBilling = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Billing', screen: 'Invoices', action: 'View',
+  });
 
   const [activeTab, setActiveTab] = useState<PatientProfileTab>(initialTab);
 
@@ -99,6 +102,10 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
   const billingInvoicesQuery = useBillingInvoices(
     { patient_id: patientId || undefined, limit: 50 },
     activeTab === 'Billing' && Boolean(patientId)
+  );
+  const patientBillingSummaryQuery = useBillingSummary(
+    { patient_id: patientId || undefined },
+    activeTab === 'Overview' && Boolean(patientId) && canViewBilling,
   );
 
   const doctorsQuery = useDoctorsList({ limit: 100, status: 'ACTIVE' }, activeTab === 'Appointments');
@@ -165,6 +172,9 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
 
       billingInvoices: billingInvoicesQuery.data?.data ?? [],
       loadingBillingInvoices: billingInvoicesQuery.isLoading,
+      outstandingBillsBalance: canViewBilling ? patientBillingSummaryQuery.data?.outstanding_amount ?? null : null,
+      loadingOutstandingBills: patientBillingSummaryQuery.isLoading,
+      canViewBilling,
 
       doctors: doctorsQuery.data?.data ?? [],
       formatMoney,

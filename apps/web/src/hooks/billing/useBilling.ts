@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { ApiError } from '../../api/api-error';
 import {
   type BillingInvoiceListParams,
+  type BillingSummaryParams,
   type CollectBillingPaymentPayload,
   type CreateBillingInvoicePayload,
   type LinkAdmissionBillingContextPayload,
@@ -89,7 +90,7 @@ export function useBillingInvoices(params: BillingInvoiceListParams, enabled = t
 }
 
 export function useBillingSummary(
-  params: Pick<BillingInvoiceListParams, 'branch_id' | 'date_from' | 'date_to'>,
+  params: BillingSummaryParams,
   enabled = true,
 ) {
   return useQuery({

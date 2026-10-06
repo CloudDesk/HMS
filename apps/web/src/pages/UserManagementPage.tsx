@@ -326,7 +326,7 @@ export function UserManagementPage() {
   const { state, data, status, rbac, actions, mutations } = feature;
   const { query, roleFilter, departmentFilter, branchFilter, statusFilter, sortColumn, sortDirection, currentPage, pageSize } = state;
   const { setQuery, setRoleFilter, setDepartmentFilter, setBranchFilter, setStatusFilter, setCurrentPage, setPageSize } = state;
-  const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, passwordPolicy } = data;
+  const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, assignmentOptionsLoaded, passwordPolicy } = data;
   const { isFetching: loading, loadError, forbidden, isMutating: submitting } = status;
   const { canCreate, canEdit, canDelete, canChangePassword, canResetPassword } = rbac;
   const { handleSort, resetFilters, locationSearch } = actions;
@@ -365,6 +365,31 @@ export function UserManagementPage() {
   const watchedBranchId = userForm.watch('branchId');
   const watchedDepartmentId = userForm.watch('departmentId');
   const watchedEmail = userForm.watch('email');
+  const isEditingSuperAdmin = modalMode === 'edit' &&
+    Boolean(activeUser?.source.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const activeSuperAdminRoleId = activeUser?.source.roles.find((role) => role.code === 'SUPER_ADMIN')?.id;
+
+  useEffect(() => {
+    if (!isEditingSuperAdmin || !activeUser || !assignmentOptionsLoaded) return;
+
+    const currentBranchId = userForm.getValues('branchId');
+    const selectedBranchId = branchOptions.some((branch) => branch.id === currentBranchId)
+      ? currentBranchId
+      : branchOptions[0]?.id ?? '';
+    const currentDepartmentId = userForm.getValues('departmentId');
+    const selectedDepartmentId = departmentOptions.some(
+      (department) => department.id === currentDepartmentId && department.branch_ids.includes(selectedBranchId),
+    )
+      ? currentDepartmentId
+      : departmentOptions.find((department) => department.branch_ids.includes(selectedBranchId))?.id ?? '';
+
+    if (currentBranchId !== selectedBranchId) {
+      userForm.setValue('branchId', selectedBranchId, { shouldValidate: true });
+    }
+    if (currentDepartmentId !== selectedDepartmentId) {
+      userForm.setValue('departmentId', selectedDepartmentId, { shouldValidate: true });
+    }
+  }, [activeUser, assignmentOptionsLoaded, branchOptions, departmentOptions, isEditingSuperAdmin, userForm]);
 
   useEffect(() => {
     if (modalMode === 'create') {
@@ -374,7 +399,9 @@ export function UserManagementPage() {
   }, [watchedEmail, modalMode, userForm]);
 
   useEffect(() => {
+    if (!assignmentOptionsLoaded) return;
     if (!watchedBranchId) {
+      if (isEditingSuperAdmin) return;
       userForm.setValue('departmentId', '');
       userForm.setValue('roleId', '');
     } else {
@@ -389,7 +416,7 @@ export function UserManagementPage() {
         }
       }
     }
-  }, [watchedBranchId, departmentOptions, userForm]);
+  }, [assignmentOptionsLoaded, isEditingSuperAdmin, watchedBranchId, departmentOptions, userForm]);
 
   const availableDepartmentsForBranch = useMemo(() => {
     if (!watchedBranchId) return [];
@@ -408,10 +435,16 @@ export function UserManagementPage() {
 
     return roleOptions.filter((role) => {
       const rCode = (role.code || '').toUpperCase();
+      const rName = (role.name || '').toUpperCase();
 
       // System-wide roles (Super Admin, Administrator, Patient, Guardian) are excluded from department-specific staff user creation
       if (['SUPER_ADMIN', 'ADMINISTRATOR', 'PATIENT', 'GUARDIAN'].includes(rCode)) {
         return false;
+      }
+
+      // Dental
+      if (deptCode.includes('DENT') || deptName.includes('DENTAL') || deptName.includes('DENTISTRY')) {
+        return rCode.includes('DENTAL') || rCode.includes('DENTIST') || rName.includes('DENTAL') || rName.includes('DENTIST');
       }
 
       // Imaging / Radiology
@@ -453,6 +486,7 @@ export function UserManagementPage() {
   }, [selectedDepartment, roleOptions]);
 
   useEffect(() => {
+    if (isEditingSuperAdmin && userForm.getValues('roleId') === activeSuperAdminRoleId) return;
     if (!watchedDepartmentId) {
       userForm.setValue('roleId', '');
     } else {
@@ -464,7 +498,7 @@ export function UserManagementPage() {
         }
       }
     }
-  }, [watchedDepartmentId, availableRolesForDepartment, userForm]);
+  }, [activeSuperAdminRoleId, activeUser, isEditingSuperAdmin, watchedDepartmentId, availableRolesForDepartment, userForm]);
 
   useEffect(() => {
     if (canCreate && new URLSearchParams(locationSearch).get('action') === 'create' && !modalMode) {
@@ -513,7 +547,7 @@ export function UserManagementPage() {
         fullName: user.fullName,
         phone: user.phone ?? '',
         jobTitle: user.source.jobTitle ?? user.role ?? '',
-        roleId: user.roleId,
+        roleId: user.source.roles.find((role) => role.code === 'SUPER_ADMIN')?.id ?? user.roleId,
         branchId: user.branchId,
         departmentId: user.departmentId,
         status: user.status as UserFormData['status'],
@@ -676,7 +710,7 @@ export function UserManagementPage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid user-management-page">
         <div className="um-top-row">
           <div className="um-top-title-area">
             <h2 className="um-page-title">User Management</h2>
@@ -1122,7 +1156,7 @@ export function UserManagementPage() {
         ) : null}
 
         {modalMode === 'create' || modalMode === 'edit' || modalMode === 'assign-role' ? (
-          <form id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void userForm.handleSubmit(handleSaveUser)(event); }}>
+          <form className="user-management-edit-form" id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void userForm.handleSubmit(handleSaveUser)(event); }}>
             {modalMode !== 'assign-role' ? <>
             <div className="form-section-title">Personal Information</div>
             <div className="form-grid-3">
@@ -1219,7 +1253,7 @@ export function UserManagementPage() {
                       ? 'Select a department first'
                       : 'Select role'}
                   </option>
-                  {availableRolesForDepartment.map((role) => (
+                  {(isEditingSuperAdmin ? roleOptions : availableRolesForDepartment).map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
                     </option>

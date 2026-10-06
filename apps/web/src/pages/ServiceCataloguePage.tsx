@@ -417,7 +417,7 @@ export function ServiceCataloguePage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid service-catalogue-page">
         <div className="um-top-row">
           <div className="um-top-title-area">
             <h2 className="um-page-title">Service Catalogue</h2>
@@ -899,7 +899,7 @@ export function ServiceCataloguePage() {
             <div className="form-section-title">Organisation</div>
             <div className="form-grid-3">
               <div className="form-field">
-                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#475569', marginBottom: '4px', display: 'block' }}>Branch</span>
+                <span>Branch</span>
                 <BranchMultiSelect
                   branches={branches}
                   disabled={submitting}
@@ -921,6 +921,7 @@ export function ServiceCataloguePage() {
                 <select
                   disabled={submitting}
                   aria-invalid={Boolean(svcForm.formState.errors.department_id)}
+                  className={svcForm.watch('department_id') ? undefined : 'svc-form-placeholder'}
                   {...svcForm.register('department_id')}
                 >
                   <option value="">Select Department</option>

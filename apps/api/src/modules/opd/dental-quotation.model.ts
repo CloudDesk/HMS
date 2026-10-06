@@ -141,7 +141,7 @@ const dentalTreatmentQuotationSchema = new Schema<DentalTreatmentQuotationFields
       required: true,
       index: true,
     },
-    currency: { type: String, required: true, default: 'KES', trim: true },
+    currency: { type: String, required: true, trim: true },
     subtotal: { type: Number, required: true, default: 0, min: 0 },
     discountAmount: { type: Number, default: 0, min: 0 },
     taxAmount: { type: Number, default: 0, min: 0 },

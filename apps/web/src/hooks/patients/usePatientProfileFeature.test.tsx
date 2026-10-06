@@ -26,6 +26,7 @@ vi.mock('../appointments/useAppointments', () => ({
 }));
 vi.mock('../billing/useBilling', () => ({
   useBillingInvoices: () => ({ data: { data: [] }, isLoading: false }),
+  useBillingSummary: () => ({ data: { outstanding_amount: 0 }, isLoading: false }),
 }));
 vi.mock('../doctors/useDoctors', () => ({
   useDoctorsList: () => ({ data: { data: [] } }),

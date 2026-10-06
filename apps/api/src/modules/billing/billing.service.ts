@@ -27,6 +27,7 @@ import type {
   UpdateBillingInvoiceDTO,
 } from './billing.types.js';
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
+import type { SettingsRepository } from '../settings/settings.repository.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -69,6 +70,7 @@ export class BillingService {
     private readonly advancePaymentService: AdvancePaymentService,
     private readonly dentalExaminationRepository?: OpdDentalExaminationRepository,
     private readonly departmentRepository?: DepartmentRepository,
+    private readonly settingsRepository?: SettingsRepository,
   ) {}
 
   async listDentalTreatmentBillingStates(
@@ -460,12 +462,18 @@ export class BillingService {
       }
       const currentBalance = roundMoney(invoice.balance_amount);
       if (amount > currentBalance) {
-        const formattedBalance = currentBalance.toLocaleString('en-US', {
+        // Currency formatting is informational; settings lookup must not replace the balance validation error.
+        const localization = await this.settingsRepository?.get()
+          .then((settings) => settings.localization)
+          .catch(() => undefined);
+        const locale = localization?.numberFormat === '1.000,00' ? 'de-DE' : 'en-US';
+        const formattedBalance = new Intl.NumberFormat(locale, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
-        });
+        }).format(currentBalance);
+        const currencyLabel = localization?.currencySymbol ? `${localization.currencySymbol} ` : '';
         throw new AppError(
-          `Payment amount cannot exceed the outstanding balance of KES ${formattedBalance}.`,
+          `Payment amount cannot exceed the outstanding balance of ${currencyLabel}${formattedBalance}.`,
           400,
           'PAYMENT_EXCEEDS_BALANCE',
           { balance_amount: currentBalance },

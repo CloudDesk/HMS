@@ -140,7 +140,7 @@ export const userResponseDataSchema = {
     'id', 'employeeCode', 'username', 'email', 'fullName', 'phone', 'jobTitle', 'employeeType',
     'hireDate', 'profilePhotoUrl', 'address', 'status', 'lockedUntil', 'passwordChangedAt',
     'lastLoginAt', 'createdAt', 'updatedAt', 'deletedAt', 'createdBy', 'updatedBy', 'deletedBy',
-    'roleIds', 'patientId', 'branches', 'departments', 'roles', 'audit',
+    'roleIds', 'patientId', 'patientRegistrationBranch', 'branches', 'departments', 'roles', 'audit',
   ],
   additionalProperties: false,
   properties: {
@@ -167,6 +167,7 @@ export const userResponseDataSchema = {
     deletedBy: { type: ['string', 'null'] },
     roleIds: { type: 'array', items: { type: 'string' } },
     patientId: { type: ['string', 'null'] },
+    patientRegistrationBranch: { anyOf: [userAssignmentResponseSchema, { type: 'null' }] },
     branches: { type: 'array', items: userAssignmentResponseSchema },
     departments: { type: 'array', items: userAssignmentResponseSchema },
     roles: { type: 'array', items: userRoleResponseSchema },

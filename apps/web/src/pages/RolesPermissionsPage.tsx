@@ -148,15 +148,13 @@ export function RolesPermissionsPage() {
   // Dropdown states
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!roleDropdownOpen && !actionsMenuOpen && !moreMenuOpen) return;
+    if (!roleDropdownOpen && !actionsMenuOpen) return;
     const handler = (e: MouseEvent) => {
       if (roleDropdownOpen && roleDropdownRef.current && !roleDropdownRef.current.contains(e.target as Node)) {
         setRoleDropdownOpen(false);
@@ -164,13 +162,10 @@ export function RolesPermissionsPage() {
       if (actionsMenuOpen && actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
         setActionsMenuOpen(false);
       }
-      if (moreMenuOpen && moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreMenuOpen(false);
-      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [roleDropdownOpen, actionsMenuOpen, moreMenuOpen]);
+  }, [roleDropdownOpen, actionsMenuOpen]);
 
   useEffect(() => {
     if (rolePermissions) {
@@ -185,7 +180,6 @@ export function RolesPermissionsPage() {
   // Close menus when role changes
   useEffect(() => {
     setActionsMenuOpen(false);
-    setMoreMenuOpen(false);
     setRoleDropdownOpen(false);
   }, [selectedRoleId]);
 
@@ -787,40 +781,22 @@ export function RolesPermissionsPage() {
               >
                 {dirty ? '● Unsaved' : '● Saved'}
               </span>
-              {/* Export / Refresh overflow */}
-              <div className="rp-more-wrap" ref={moreMenuRef}>
-                <button
-                  className="rp-more-btn"
-                  onClick={() => setMoreMenuOpen((o) => !o)}
-                  type="button"
-                  aria-label="More options"
-                  title="Export / Refresh"
-                >
-                  <i className="ph ph-dots-three-vertical" aria-hidden="true" />
-                </button>
-                {moreMenuOpen && (
-                  <div className="rp-actions-menu rp-actions-menu--right" role="menu">
-                    <button
-                      className="rp-actions-menu-item"
-                      disabled={submitting}
-                      onClick={() => { exportPermissionMatrix(); setMoreMenuOpen(false); }}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <i className="ph ph-download-simple" aria-hidden="true" /> Export
-                    </button>
-                    <button
-                      className="rp-actions-menu-item"
-                      disabled={rolesLoading || permissionsLoading || roleLoading}
-                      onClick={() => { refreshWithConfirmation(); setMoreMenuOpen(false); }}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                className="rp-btn-ghost rp-btn-sm"
+                disabled={submitting}
+                onClick={exportPermissionMatrix}
+                type="button"
+              >
+                <i className="ph ph-download-simple" aria-hidden="true" /> Export
+              </button>
+              <button
+                className="rp-btn-ghost rp-btn-sm"
+                disabled={rolesLoading || permissionsLoading || roleLoading}
+                onClick={refreshWithConfirmation}
+                type="button"
+              >
+                <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
+              </button>
               <button
                 className={`rp-save-btn${dirty ? ' has-changes' : ''}`}
                 disabled={!canEditPermissions || !dirty}

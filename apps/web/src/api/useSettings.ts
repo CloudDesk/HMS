@@ -1,48 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { settingsApi, type SystemSettings } from './settings';
 
 let globalSettings: SystemSettings | null = null;
-let fetchPromise: Promise<SystemSettings> | null = null;
 
 export function useSettings() {
-  const [settings, setSettings] = useState<SystemSettings | null>(globalSettings);
-
+  const { data } = useQuery({
+    queryKey: ['settings', 'detail'],
+    queryFn: () => settingsApi.get(),
+  });
   useEffect(() => {
-    let isMounted = true;
-    if (globalSettings) {
-      setSettings(globalSettings);
-      return;
-    }
-    if (!fetchPromise) {
-      fetchPromise = settingsApi.get().then((res) => {
-        globalSettings = res;
-        return res;
-      });
-    }
-    fetchPromise
-      .then((res) => {
-        if (isMounted) setSettings(res);
-      })
-      .catch(() => {
-        // Handle error if needed
-      });
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    if (data) globalSettings = data;
+  }, [data]);
 
-  return settings;
+  return data ?? null;
 }
 
 export function useCurrencyFormatter() {
   const settings = useSettings();
   return (value: number) => {
-    const currency = settings?.localization.currency || 'KES';
+    const currency = settings?.localization.currency;
     const numberFormat = settings?.localization.numberFormat || '1,000.00';
     
     // Choose a locale that enforces the correct thousands and decimal separators
     const locale = numberFormat === '1.000,00' ? 'de-DE' : 'en-US';
+
+    if (!currency) return new Intl.NumberFormat(locale, { minimumFractionDigits: 2 }).format(value);
 
     return new Intl.NumberFormat(locale, {
       style: 'currency',

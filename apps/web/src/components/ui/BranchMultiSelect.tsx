@@ -213,19 +213,21 @@ export function BranchMultiSelect({
               filteredBranches.map((b) => {
                 const isSelected = selectedIds.includes(b.id);
                 return (
-                  <div
+                  <label
                     className={`hms-multi-select-item${isSelected ? ' selected' : ''}`}
                     key={b.id}
-                    onClick={() => handleToggleItem(b.id)}
                   >
-                    <div className={`hms-multi-select-checkbox${isSelected ? ' checked' : ''}`}>
-                      {isSelected && <i className="ph ph-check" />}
-                    </div>
+                    <input
+                      checked={isSelected}
+                      className="hms-multi-select-checkbox"
+                      onChange={() => handleToggleItem(b.id)}
+                      type="checkbox"
+                    />
                     <div className="hms-multi-select-item-content">
                       <span className="hms-multi-select-item-name">{b.name}</span>
                       {b.code && <span className="hms-multi-select-item-code">({b.code})</span>}
                     </div>
-                  </div>
+                  </label>
                 );
               })
             )}

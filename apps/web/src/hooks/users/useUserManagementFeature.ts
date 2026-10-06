@@ -81,6 +81,7 @@ const isAddedThisMonth = (value: string) => {
 const mapUser = (user: UserResponse): UiUser => {
   const branch = getPrimaryAssignment(user.branches);
   const department = getPrimaryAssignment(user.departments);
+  const isPatientUser = user.roles.some((assignedRole) => assignedRole.code === 'PATIENT');
   const role = user.roles[0]?.name || 'Unassigned';
 
   return {
@@ -91,9 +92,11 @@ const mapUser = (user: UserResponse): UiUser => {
     phone: user.phone ?? '',
     role,
     roleId: user.roles[0]?.id ?? '',
-    department: department?.name || department?.id || 'Unassigned',
+    department: department?.name || department?.id || (isPatientUser ? 'Not applicable' : 'Unassigned'),
     departmentId: department?.id ?? '',
-    branch: branch?.name || branch?.id || 'Unassigned',
+    branch: branch?.name || branch?.id || (isPatientUser
+      ? user.patientRegistrationBranch?.name || user.patientRegistrationBranch?.id || 'Unassigned'
+      : 'Unassigned'),
     branchId: branch?.id ?? '',
     status: uiStatusByApiStatus[user.status],
     lastLogin: formatDateTime(user.lastLoginAt),
@@ -232,6 +235,7 @@ export function useUserManagementFeature() {
       roleOptions: (rolesQuery.data?.items ?? []).filter((role) => role.status === 'active'),
       branchOptions: branchesQuery.data?.data ?? [],
       departmentOptions: departmentsQuery.data?.data ?? [],
+      assignmentOptionsLoaded: branchesQuery.isSuccess && departmentsQuery.isSuccess,
       passwordPolicy: passwordPolicyQuery.data ?? null,
     },
     status: {

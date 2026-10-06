@@ -550,7 +550,7 @@ export function DoctorDirectoryPage() {
               ))}
             </select>
           </div>
-          <div className="doc-field doc-filter-status">
+          <div className="doc-field">
             <label htmlFor="doctor-status-filter">Status</label>
             <select
               id="doctor-status-filter"

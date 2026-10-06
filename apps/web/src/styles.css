@@ -1914,6 +1914,103 @@ body.modal-open {
   font-weight: 700;
 }
 
+#svc-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#svc-management-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#svc-management-form input::placeholder,
+#svc-management-form textarea::placeholder,
+#svc-management-form .hms-multi-select-placeholder,
+#svc-management-form .svc-form-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#role-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#role-form .form-field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#dept-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#dept-management-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#dept-management-form .hms-multi-select-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#medicine-master-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#medicine-master-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#medicine-master-form input::placeholder,
+#medicine-master-form textarea::placeholder,
+#medicine-master-form .medicine-form-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#branch-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#branch-management-form .form-group > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.consent-template-form input::placeholder,
+.consent-template-form textarea::placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.consent-template-form .doc-field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-management-edit-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.user-management-edit-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-management-edit-form input::placeholder,
+.user-management-edit-form select:disabled {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 .form-field input,
 .form-field select,
 .form-field textarea,
@@ -1927,6 +2024,16 @@ body.modal-open {
   color: var(--text-main);
   padding: 0 0.75rem;
   outline: 0;
+}
+
+.form-field .hms-multi-select-checkbox {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 4px;
 }
 
 .form-field textarea,
@@ -2049,6 +2156,26 @@ fieldset.form-field {
   flex-direction: column;
   gap: 1rem;
   overflow-y: auto;
+}
+
+.user-management-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.department-management-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.service-catalogue-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.medicine-master-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.branch-management-page {
+  padding: 1.25rem 1.75rem;
 }
 
 .kpi-card {
@@ -4837,13 +4964,13 @@ fieldset.form-field {
 /* Roles & Permissions screen migrated from HMS Local */
 .rp-page {
   flex: 1;
-  height: calc(100vh - 70px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 1.5rem 2rem;
+  padding: 1.25rem 1.75rem;
 }
 
 .rp-left-panel,
@@ -7165,6 +7292,10 @@ textarea.has-error {
   display: grid !important;
   grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) !important;
   gap: 1.25rem !important;
+}
+
+.appointment-queue-filters > .doc-field {
+  flex: 1 1 180px;
 }
 
 .appointment-page .doc-card.appointment-queue-card,

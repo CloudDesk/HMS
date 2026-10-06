@@ -6,6 +6,9 @@ type PatientOverviewTabProps = {
   patient: PatientResponse;
   prescriptions: OpdPrescriptionResponse[];
   timeline: PatientTimelineEventResponse[];
+  outstandingBillsBalance: number | null;
+  loadingOutstandingBills: boolean;
+  canViewBilling: boolean;
   formatCurrency: (value: number) => string;
   onViewBilling: () => void;
 };
@@ -14,7 +17,7 @@ function EmptyRecords({ message }: { message: string }) {
   return <div className="patient-empty-inline">{message}</div>;
 }
 
-export function PatientOverviewTab({ patient, prescriptions, timeline, formatCurrency, onViewBilling }: PatientOverviewTabProps) {
+export function PatientOverviewTab({ patient, prescriptions, timeline, outstandingBillsBalance, loadingOutstandingBills, canViewBilling, formatCurrency, onViewBilling }: PatientOverviewTabProps) {
   return (
     <div className="profile-6card-grid">
       <article className="profile-overview-card">
@@ -85,11 +88,11 @@ export function PatientOverviewTab({ patient, prescriptions, timeline, formatCur
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Current balance</span>
-            <strong style={{ fontSize: '1.2rem', color: '#0f172a' }}>{formatCurrency(0)}</strong>
+            <strong style={{ fontSize: '1.2rem', color: '#0f172a' }}>
+              {loadingOutstandingBills ? 'Loading…' : outstandingBillsBalance === null ? 'Unavailable' : formatCurrency(outstandingBillsBalance)}
+            </strong>
           </div>
-          <div>
-            <button className="doc-btn" onClick={onViewBilling} type="button">View Billing</button>
-          </div>
+          {canViewBilling ? <div><button className="doc-btn" onClick={onViewBilling} type="button">View Billing</button></div> : null}
         </div>
       </article>
 

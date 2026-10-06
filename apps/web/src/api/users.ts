@@ -38,6 +38,8 @@ export type UserResponse = {
   updatedBy: string | null;
   deletedBy: string | null;
   roleIds: string[];
+  patientId?: string | null;
+  patientRegistrationBranch?: UserAssignment | null;
   branches: UserAssignment[];
   departments: UserAssignment[];
   roles: UserRoleAssignment[];

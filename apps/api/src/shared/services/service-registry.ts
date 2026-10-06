@@ -227,6 +227,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     advancePaymentService,
     opdDentalExaminationRepository,
     departmentRepository,
+    settingsRepository,
   );
 
   const dentalQuotationRepository = new DentalQuotationRepository();
@@ -334,6 +335,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       advancePaymentService,
       opdPrescriptionService,
       opdClinicalOrderService,
+      settingsRepository,
     ),
     surgery: new SurgeryService(
       surgeryRepository,

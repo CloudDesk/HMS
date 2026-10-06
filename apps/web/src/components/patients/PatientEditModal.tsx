@@ -152,7 +152,7 @@ export function PatientEditModal({ open, patient, canEditAllDetails, submitting,
             <div className="form-group">
               <label htmlFor="search-edit-status">Status</label>
               <select disabled={submitting} id="search-edit-status" {...register('status')}>
-                <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="DECEASED">Deceased</option>
+                <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
               </select>
             </div>
             <div className="form-group full-width">

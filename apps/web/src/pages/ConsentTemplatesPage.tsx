@@ -350,7 +350,7 @@ export function ConsentTemplatesPage() {
         icon="ph-file-text"
         size="large"
       >
-        <form className="modal-form" onSubmit={handleNextToBuilder}>
+        <form className="modal-form consent-template-form" onSubmit={handleNextToBuilder}>
           <div className="doc-form-grid">
             <div className="doc-field">
               <label>

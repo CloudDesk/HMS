@@ -5,6 +5,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { usePatientDocuments } from '../../hooks/patients/usePatients';
 import { useBillingInvoiceDetails } from '../../hooks/billing/useBilling';
 import { useReservedBeds } from '../../hooks/admissions/useBedAvailability';
+import { useCurrencyFormatter } from '../../api/useSettings';
 
 export function ProcedureBookingPrerequisiteManager({
   booking,
@@ -28,6 +29,7 @@ export function ProcedureBookingPrerequisiteManager({
   onSelectConsent: (id: string) => void;
   onSelectHold: (id: string) => void;
 }) {
+  const formatCurrency = useCurrencyFormatter();
   const docsQuery = usePatientDocuments(booking.patient_id, {}, Boolean(procedure?.requires_consent));
   const invoiceQuery = useBillingInvoiceDetails(booking.deposit_invoice_id);
   const reservedBedsQuery = useReservedBeds(branchId, Boolean(procedure?.requires_bed && branchId));
@@ -313,14 +315,14 @@ export function ProcedureBookingPrerequisiteManager({
                 <span style={{ color: '#64748b', fontSize: '0.72rem', display: 'block' }}>
                   REQUIRED ADVANCE
                 </span>
-                <strong>KES {minDeposit.toLocaleString()}</strong>
+                <strong>{formatCurrency(minDeposit)}</strong>
               </div>
               <div>
                 <span style={{ color: '#64748b', fontSize: '0.72rem', display: 'block' }}>
                   PAID AMOUNT
                 </span>
                 <strong style={{ color: paidAmount >= minDeposit ? '#16a34a' : '#dc2626' }}>
-                  KES {paidAmount.toLocaleString()}
+                  {formatCurrency(paidAmount)}
                 </strong>
               </div>
               <div>
@@ -342,7 +344,7 @@ export function ProcedureBookingPrerequisiteManager({
                   color: '#b45309',
                 }}
               >
-                Please collect payment of KES {minDeposit.toLocaleString()} for Invoice{' '}
+                Please collect payment of {formatCurrency(minDeposit)} for Invoice{' '}
                 <strong>{invoice?.invoice_number}</strong> under Billing History before confirming this booking.
               </div>
             ) : null}

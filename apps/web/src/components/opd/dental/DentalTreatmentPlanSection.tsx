@@ -15,7 +15,7 @@ import type {
   BillingInvoiceStatus,
   DentalTreatmentBillingState,
 } from '../../../api/billing';
-import { useCurrencyFormatter } from '../../../api/useSettings';
+import { useCurrencyFormatter, useSettings } from '../../../api/useSettings';
 import {
   opdKeys,
   useAssignDoctorToDentalStage,
@@ -198,6 +198,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   episodes: episodesProp = [],
 }) => {
   const formatCurrency = useCurrencyFormatter();
+  const settings = useSettings();
   const [isExpanded, setIsExpanded] = useState(true);
   const [toothNumber, setToothNumber] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -2340,7 +2341,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     <th className={styles.colQuoteNumber} style={{ textAlign: 'left' }}>Quotation #</th>
                     <th className={styles.colQuoteDate} style={{ textAlign: 'left' }}>Date</th>
                     <th className={styles.colQuoteDoctor} style={{ textAlign: 'left' }}>Doctor</th>
-                    <th className={styles.colQuoteTotal} style={{ textAlign: 'left' }}>Total ({episodeQuotations[0]?.currency ?? 'KES'})</th>
+                    <th className={styles.colQuoteTotal} style={{ textAlign: 'left' }}>Total ({episodeQuotations[0]?.currency ?? settings?.localization.currency ?? ''})</th>
                     <th className={styles.colQuoteStatus}>Status</th>
                     <th className={styles.colQuoteAction}>Action</th>
                   </tr>
