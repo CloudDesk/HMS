@@ -169,7 +169,6 @@ const formatDentalContext = (appointment: AppointmentResponse): string | null =>
 export function DoctorSchedulePage() {
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  const departmentFilter = initialParams.get('department_id') ?? '';
   const [visitTypeFilter, setVisitTypeFilter] = useState<ApiAppointmentVisitType | ''>(() =>
     parseVisitType(initialParams.get('visit_type')),
   );
@@ -308,7 +307,7 @@ export function DoctorSchedulePage() {
                 ))}
               </select>
             </div>
-            <div className="doc-field">
+            <div className="doc-field schedule-filter-type">
               <label htmlFor="schedule-type">Appointment Type</label>
               <select
                 id="schedule-type"

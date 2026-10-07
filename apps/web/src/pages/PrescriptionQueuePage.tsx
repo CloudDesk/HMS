@@ -95,7 +95,7 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
     isQueueStatus(initialStatus) ? initialStatus : 'PENDING',
   );
   const [page, setPage] = useState(positiveInteger(initialParams.get('page'), 1));
-  const [limit, setLimit] = useState(positiveInteger(initialParams.get('limit'), 10));
+  const [limit] = useState(positiveInteger(initialParams.get('limit'), 10));
   const [actionReason, setActionReason] = useState('');
   const queue = usePharmacyDispensingFeature({
     requestedBranch: branchId,
@@ -229,67 +229,67 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
           <div className="table-responsive pharmacy-queue-table-wrap">
             <table className="data-table pharmacy-queue-table">
               <colgroup>
-                <col className="col-patient" style={{ width: '21%' }} />
-                <col className="col-source" style={{ width: '11%' }} />
-                <col className="col-doctor" style={{ width: '14%' }} />
-                <col className="col-items" style={{ width: '8%' }} />
+                <col className="col-patient" style={{ width: '16%' }} />
+                <col className="col-source" style={{ width: '14%' }} />
+                <col className="col-doctor" style={{ width: '15%' }} />
+                <col className="col-items" style={{ width: '7%' }} />
                 <col className="col-submitted" style={{ width: '13%' }} />
-                <col className="col-status" style={{ width: '9%' }} />
-                <col className="col-invoice" style={{ width: '6%' }} />
-                <col className="col-actions" style={{ width: '18%' }} />
+                <col className="col-status" style={{ width: '10%' }} />
+                <col className="col-invoice" style={{ width: '5%' }} />
+                <col className="col-actions" style={{ width: '20%' }} />
               </colgroup>
               <thead>
                 <tr>
                   <th
-                    className={`sortable${sortField === 'patient' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-patient-th sortable${sortField === 'patient' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('patient')}
                     aria-sort={sortField === 'patient' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Patient <SortIcon field="patient" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'source' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-source-th sortable${sortField === 'source' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('source')}
                     aria-sort={sortField === 'source' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Source <SortIcon field="source" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'doctor' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-doctor-th sortable${sortField === 'doctor' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('doctor')}
                     aria-sort={sortField === 'doctor' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Doctor <SortIcon field="doctor" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'items' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-items-th sortable${sortField === 'items' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('items')}
                     aria-sort={sortField === 'items' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Items <SortIcon field="items" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'submitted' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-submitted-th sortable${sortField === 'submitted' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('submitted')}
                     aria-sort={sortField === 'submitted' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Submitted <SortIcon field="submitted" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'status' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-status-th sortable${sortField === 'status' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('status')}
                     aria-sort={sortField === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
                   </th>
                   <th
-                    className={`sortable${sortField === 'invoice' ? ` sort-${sortDir}` : ''}`}
+                    className={`col-invoice-th sortable${sortField === 'invoice' ? ` sort-${sortDir}` : ''}`}
                     onClick={() => handleSort('invoice')}
                     aria-sort={sortField === 'invoice' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Invoice <SortIcon field="invoice" sortField={sortField} sortDir={sortDir} />
                   </th>
-                  <th className="align-right" style={{ textAlign: 'right' }}>Actions</th>
+                  <th className="col-actions-th align-right" style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,10 +353,12 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
                         <button
                           className={dispensing.status === 'DRAFT' && queue.permissions.canEdit ? 'btn-primary compact' : 'btn-secondary compact'}
                           onClick={() => queue.actions.openDispensing(dispensing.prescription_id)}
+                          title={dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View Prescription'}
+                          aria-label={dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View Prescription'}
                           type="button"
                         >
-                          <i className={`ph ${dispensing.status === 'DRAFT' ? 'ph-prescription' : 'ph-eye'}`} aria-hidden="true" />{' '}
-                          {dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View'}
+                          <i className={`ph ${dispensing.status === 'DRAFT' ? 'ph-prescription' : 'ph-eye'}`} aria-hidden="true" />
+                          <span>{dispensing.status === 'DRAFT' ? 'Open Dispensing' : 'View'}</span>
                         </button>
                       </td>
                     </tr>

@@ -12,13 +12,16 @@ import {
 import { useAuth } from '../AuthContext';
 import { usePatient } from '../../portal/PatientContext';
 import { AppointmentsApi } from '../../appointments/appointments-api';
-import type { PortalAppointment } from '../../appointments/contracts';
+import type { AppointmentCreated, PortalAppointment } from '../../appointments/contracts';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import {
   AppointmentDetailsModal,
   formatVisitType,
 } from '../components/AppointmentDetailsModal';
-import { formatAppointmentDate } from '../../appointments/date-utils';
+import {
+  formatAppointmentDate,
+  isAppointmentCheckInEligible,
+} from '../../appointments/date-utils';
 import { BookAppointmentModal } from '../components/BookAppointmentModal';
 import { RescheduleAppointmentModal } from '../components/RescheduleAppointmentModal';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
@@ -35,6 +38,7 @@ const getStatusVariant = (status: string): StatusVariant => {
     case 'SCHEDULED':
       return 'info';
     case 'IN_PROGRESS':
+    case 'CHECKED_IN':
     case 'SKIPPED':
       return 'warning';
     case 'CANCELLED':
@@ -47,7 +51,7 @@ const getStatusVariant = (status: string): StatusVariant => {
 
 export function AppointmentsScreen() {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { selectedPatient, selectedPatientId, refresh: refreshPatientContext } = usePatient();
 
   const [scope, setScope] = useState<'upcoming' | 'past'>('upcoming');
   const [appointments, setAppointments] = useState<PortalAppointment[]>([]);
@@ -62,6 +66,7 @@ export function AppointmentsScreen() {
   const [reschedulingAppointment, setReschedulingAppointment] = useState<PortalAppointment | null>(
     null
   );
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
   const api = useMemo(() => new AppointmentsApi(manager), [manager]);
 
@@ -101,14 +106,61 @@ export function AppointmentsScreen() {
   const handleBookingSuccess = () => {
     setIsBookingOpen(false);
     Alert.alert('Appointment Booked', 'Your appointment has been confirmed successfully.');
-    fetchAppointments();
+    void refreshPatientContext();
+    void fetchAppointments();
   };
 
-  const handleRescheduleSuccess = () => {
+  const handleRescheduleSuccess = (updatedAppointment?: AppointmentCreated) => {
     setReschedulingAppointment(null);
+    if (updatedAppointment) {
+      setAppointments((prev) =>
+        prev.map((item) =>
+          item.id === updatedAppointment.id
+            ? {
+                ...item,
+                status: (updatedAppointment.status as PortalAppointment['status']) || item.status,
+              }
+            : item
+        )
+      );
+    }
     Alert.alert('Appointment Rescheduled', 'Your appointment has been updated successfully.');
-    fetchAppointments();
+    void refreshPatientContext();
+    void fetchAppointments();
   };
+
+  const handleCheckIn = useCallback(
+    async (apt: PortalAppointment) => {
+      if (checkingInId) return;
+      setCheckingInId(apt.id);
+
+      try {
+        const result = await api.checkInAppointment(apt.id);
+        // Reactively update local status immediately without waiting for network refresh
+        setAppointments((prev) =>
+          prev.map((item) =>
+            item.id === apt.id ? { ...item, status: 'CHECKED_IN' as const } : item
+          )
+        );
+        setViewingAppointment((prev) =>
+          prev && prev.id === apt.id ? { ...prev, status: 'CHECKED_IN' as const } : prev
+        );
+        void refreshPatientContext();
+        Alert.alert(
+          'Checked In Successfully',
+          `You have checked in for your appointment with ${apt.doctor_name}.${
+            result.visit_number ? ` Visit #${result.visit_number} created.` : ''
+          }`
+        );
+        void fetchAppointments();
+      } catch (err: unknown) {
+        Alert.alert('Check-In Failed', friendlyError(err));
+      } finally {
+        setCheckingInId(null);
+      }
+    },
+    [api, checkingInId, fetchAppointments, refreshPatientContext]
+  );
 
   return (
     <View style={styles.screenContainer}>
@@ -206,6 +258,8 @@ export function AppointmentsScreen() {
               const canReschedule = ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'].includes(
                 apt.status
               );
+              const checkInEligibility = isAppointmentCheckInEligible(apt);
+              const canCheckIn = checkInEligibility.canCheckIn;
 
               return (
                 <TouchableOpacity
@@ -252,6 +306,20 @@ export function AppointmentsScreen() {
                   <View style={styles.cardFooter}>
                     <Text style={styles.appointmentNum}>#{apt.appointment_number}</Text>
                     <View style={styles.cardActions}>
+                      {canCheckIn && scope === 'upcoming' ? (
+                        <TouchableOpacity
+                          style={styles.actionCheckInBtn}
+                          onPress={() => handleCheckIn(apt)}
+                          disabled={checkingInId === apt.id}
+                          activeOpacity={0.7}
+                        >
+                          {checkingInId === apt.id ? (
+                            <ActivityIndicator size="small" color={colors.text.inverse} />
+                          ) : (
+                            <Text style={styles.actionCheckInText}>Check In</Text>
+                          )}
+                        </TouchableOpacity>
+                      ) : null}
                       {canReschedule && scope === 'upcoming' ? (
                         <TouchableOpacity
                           style={styles.actionRescheduleBtn}
@@ -279,6 +347,8 @@ export function AppointmentsScreen() {
           setViewingAppointment(null);
           setReschedulingAppointment(apt);
         }}
+        onCheckIn={handleCheckIn}
+        isCheckingIn={checkingInId === viewingAppointment?.id}
       />
 
       <BookAppointmentModal
@@ -445,6 +515,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  actionCheckInBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.status.success,
+    borderRadius: radius.xs,
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCheckInText: {
+    ...typography.presets.captionStrong,
+    color: colors.text.inverse,
   },
   actionRescheduleBtn: {
     paddingVertical: spacing.xs,

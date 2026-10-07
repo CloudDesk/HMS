@@ -155,6 +155,7 @@ export function BookAppointmentModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorObj, setErrorObj] = useState<unknown>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
   // Find active patient context
   const currentPatient = useMemo(() => {
@@ -175,6 +176,7 @@ export function BookAppointmentModal({
     setClinicalHistory(emptyClinicalHistory);
     setErrorMessage(null);
     setErrorObj(null);
+    setReasonError(null);
     onClose();
   };
 
@@ -195,6 +197,7 @@ export function BookAppointmentModal({
       setClinicalHistory(emptyClinicalHistory);
       setErrorMessage(null);
       setErrorObj(null);
+      setReasonError(null);
     }
   }, [visible, selectedPatientId, context]);
 
@@ -431,11 +434,20 @@ export function BookAppointmentModal({
       return;
     }
 
-    const effectiveReason = reason.trim() || clinicalHistory.chiefComplaint.trim();
-    if (!effectiveReason || effectiveReason.length < 3) {
-      setErrorMessage('Please provide a reason for the visit (at least 3 characters).');
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setReasonError('Reason for visit is required.');
       return;
     }
+    if (trimmedReason.length < 3) {
+      setReasonError('Reason for visit must be at least 3 characters.');
+      return;
+    }
+    setReasonError(null);
+    setErrorMessage(null);
+    setErrorObj(null);
+
+    const effectiveReason = trimmedReason;
 
     setIsSubmitting(true);
     try {
@@ -777,11 +789,28 @@ export function BookAppointmentModal({
 
               {/* 7. Reason for Visit */}
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Reason for Visit (Required)</Text>
+                <Text style={styles.label}>
+                  Reason for Visit <Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    reasonError ? styles.inputError : undefined,
+                  ]}
                   value={reason}
-                  onChangeText={setReason}
+                  onChangeText={(text) => {
+                    setReason(text);
+                    if (reasonError) {
+                      if (text.trim().length >= 3) {
+                        setReasonError(null);
+                      } else if (text.trim().length === 0) {
+                        setReasonError('Reason for visit is required.');
+                      } else {
+                        setReasonError('Reason for visit must be at least 3 characters.');
+                      }
+                    }
+                  }}
                   onFocus={() => handleFieldFocus('reason')}
                   placeholder="Describe your symptoms or consultation reason (min 3 chars)…"
                   placeholderTextColor="#94A3B8"
@@ -790,6 +819,9 @@ export function BookAppointmentModal({
                   maxLength={500}
                   editable={!isSubmitting}
                 />
+                {reasonError ? (
+                  <Text style={styles.inlineErrorText}>{reasonError}</Text>
+                ) : null}
                 <Text style={styles.charCount}>{reason.length}/500</Text>
               </View>
 
@@ -1210,6 +1242,20 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 72,
     textAlignVertical: 'top',
+  },
+  inputError: {
+    borderColor: colors.status.danger,
+    borderWidth: 1.5,
+  },
+  inlineErrorText: {
+    ...typography.presets.caption,
+    color: colors.status.danger,
+    marginTop: spacing.xs,
+    fontWeight: typography.weight.medium,
+  },
+  requiredAsterisk: {
+    color: colors.status.danger,
+    fontWeight: typography.weight.bold,
   },
   charCount: {
     ...typography.presets.caption,

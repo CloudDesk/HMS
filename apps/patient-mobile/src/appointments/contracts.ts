@@ -144,6 +144,14 @@ export const appointmentCreatedSchema = z.object({
   status: z.string(),
 });
 
+export const appointmentCheckInResultSchema = z.object({
+  id: z.string(),
+  visit_number: z.string().optional(),
+  queue_token_number: z.number().nullable().optional(),
+  appointment_id: z.string().nullable().optional(),
+  status: z.string(),
+});
+
 export const rescheduleEligibilitySchema = z.object({
   eligible: z.boolean(),
   reason: z.string().nullable().optional(),
@@ -184,6 +192,7 @@ export type SlotItem = z.infer<typeof slotItemSchema>;
 export type PublicDoctorSlots = z.infer<typeof publicDoctorSlotsSchema>;
 export type BookAppointmentInput = z.infer<typeof bookAppointmentInputSchema>;
 export type AppointmentCreated = z.infer<typeof appointmentCreatedSchema>;
+export type AppointmentCheckInResult = z.infer<typeof appointmentCheckInResultSchema>;
 export type RescheduleEligibility = z.infer<typeof rescheduleEligibilitySchema>;
 export type RescheduleAppointmentInput = z.infer<typeof rescheduleAppointmentInputSchema>;
 

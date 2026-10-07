@@ -235,7 +235,9 @@ export function ConsentSignatureModal({
                       incognito
                       nestedScrollEnabled
                       originWhitelist={['*']}
-                      onShouldStartLoadWithRequest={(request) => request.url === 'about:blank'}
+                      onShouldStartLoadWithRequest={(request) =>
+                        request.url === 'about:blank' || request.url.startsWith('data:')
+                      }
                       onLoadStart={() => setFormRenderError(false)}
                       onError={() => setFormRenderError(true)}
                       accessibilityLabel="Consent form content"

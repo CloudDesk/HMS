@@ -347,6 +347,41 @@ describe('HMS Patient Portal Consent Security & Authorization Integration Tests'
       expect(json.data.consent_status).toBe('SIGNED');
       expect(json.data.signed_by_name).toBe('Alice Patient');
     });
+
+    it('Patient A can download own consent document and recovers missing consent HTML on the fly', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/patient-portal/patients/${patientAId}/documents/${consentFormPatientAId}/download`,
+        headers: { authorization: `Bearer ${patientAToken}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('application/pdf');
+
+      // Consent document whose physical storage file is missing (e.g. consent-DENTAL-001-v2.html)
+      const missingStorageDoc = await PatientDocumentModel.create({
+        patientId: new Types.ObjectId(patientAId),
+        documentType: 'CONSENT',
+        title: 'Dental Consent Form (v2)',
+        fileName: 'consent-DENTAL-001-v2.html',
+        mimeType: 'text/html',
+        fileSizeBytes: 6144,
+        storageKey: `patients/${patientAId}/documents/missing-consent-dental-v2.html`,
+        source: 'HOSPITAL',
+        consentStatus: 'PENDING',
+        status: 'ACTIVE',
+      });
+
+      const recoveredResponse = await app.inject({
+        method: 'GET',
+        url: `/api/patient-portal/patients/${patientAId}/documents/${missingStorageDoc._id}/download`,
+        headers: { authorization: `Bearer ${patientAToken}` },
+      });
+
+      expect(recoveredResponse.statusCode).toBe(200);
+      expect(recoveredResponse.headers['content-type']).toContain('text/html');
+      expect(recoveredResponse.body).toContain('Dental Consent Form (v2)');
+    });
   });
 
   describe('Scenario B: Authorized Guardian / Dependent Access & Signing', () => {

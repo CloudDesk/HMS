@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Modal,
   ScrollView,
   StyleSheet,
@@ -9,7 +10,10 @@ import {
   View,
 } from 'react-native';
 import type { PortalAppointment } from '../../appointments/contracts';
-import { formatAppointmentDate } from '../../appointments/date-utils';
+import {
+  formatAppointmentDate,
+  isAppointmentCheckInEligible,
+} from '../../appointments/date-utils';
 import { StatusBadge, type StatusVariant } from './StatusBadge';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 
@@ -17,6 +21,8 @@ interface AppointmentDetailsModalProps {
   appointment: PortalAppointment | null;
   onClose: () => void;
   onReschedule?: (appointment: PortalAppointment) => void;
+  onCheckIn?: (appointment: PortalAppointment) => void;
+  isCheckingIn?: boolean;
 }
 
 export function statusColor(status: PortalAppointment['status']): { bg: string; text: string } {
@@ -77,12 +83,16 @@ export function AppointmentDetailsModal({
   appointment,
   onClose,
   onReschedule,
+  onCheckIn,
+  isCheckingIn,
 }: AppointmentDetailsModalProps) {
   if (!appointment) return null;
 
   const canReschedule = ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'].includes(
     appointment.status
   );
+  const checkInEligibility = isAppointmentCheckInEligible(appointment);
+  const canCheckIn = checkInEligibility.canCheckIn;
 
   return (
     <Modal
@@ -163,10 +173,33 @@ export function AppointmentDetailsModal({
                     </Text>
                   ) : null}
                 </View>
+
+                {/* Check-in Notice */}
+                {checkInEligibility.reason &&
+                appointment.status !== 'CHECKED_IN' &&
+                !['CANCELLED', 'RESCHEDULED'].includes(appointment.status) ? (
+                  <View style={styles.noticeBox}>
+                    <Text style={styles.noticeText}>ℹ️ {checkInEligibility.reason}</Text>
+                  </View>
+                ) : null}
               </ScrollView>
 
               {/* Action Buttons */}
               <View style={styles.footer}>
+                {canCheckIn && onCheckIn ? (
+                  <TouchableOpacity
+                    style={styles.checkInBtn}
+                    onPress={() => onCheckIn(appointment)}
+                    disabled={isCheckingIn}
+                    activeOpacity={0.8}
+                  >
+                    {isCheckingIn ? (
+                      <ActivityIndicator size="small" color={colors.text.inverse} />
+                    ) : (
+                      <Text style={styles.checkInBtnText}>Check In</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
                 {canReschedule && onReschedule ? (
                   <TouchableOpacity
                     style={styles.rescheduleBtn}
@@ -328,5 +361,30 @@ const styles = StyleSheet.create({
   dismissBtnText: {
     ...typography.presets.buttonSmall,
     color: colors.text.secondary,
+  },
+  noticeBox: {
+    backgroundColor: colors.neutral.surfaceSubtle,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginTop: spacing.md,
+  },
+  noticeText: {
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+  },
+  checkInBtn: {
+    backgroundColor: colors.status.success,
+    borderRadius: radius.md,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  checkInBtnText: {
+    ...typography.presets.buttonSmall,
+    color: colors.text.inverse,
   },
 });

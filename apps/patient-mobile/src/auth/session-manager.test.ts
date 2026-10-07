@@ -97,9 +97,9 @@ describe('SessionManager', () => {
 
   beforeEach(() => {
     storage = new InMemoryPrivateStorage();
-    store = new SessionStore(storage, apiBaseUrl);
-    isOnline = true;
     currentTime = Date.parse('2026-09-25T10:00:00.000Z');
+    store = new SessionStore(storage, apiBaseUrl, () => currentTime);
+    isOnline = true;
 
     mockApi = {
       requestOtp: vi.fn(),
@@ -625,6 +625,84 @@ describe('SessionManager', () => {
       expect(state.status).toBe('unauthenticated');
       expect(state.authMode).toBe('login');
       expect(state.registrationToken).toBeUndefined();
+    });
+
+    it('restores pending registration session on start if non-expired', async () => {
+      await store.initialize();
+      await store.saveRegistrationSession({
+        phone: '+919876543210',
+        registrationToken: 'saved-token-123',
+        expiresAt: new Date(currentTime + 10 * 60 * 1000).toISOString(),
+      });
+
+      const manager = createManager();
+      await manager.start();
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('registrationDetails');
+      expect(state.authMode).toBe('register');
+      expect(state.phone).toBe('+919876543210');
+      expect(state.registrationToken).toBe('saved-token-123');
+    });
+
+    it('clears registration token and session from storage on 401 INVALID_REGISTRATION_TOKEN', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('expired-token-456');
+
+      mockApi.signup.mockRejectedValue(
+        new ApiFailure({
+          kind: 'auth',
+          status: 401,
+          code: 'INVALID_REGISTRATION_TOKEN',
+          userMessage: 'The registration session is invalid or has expired. Please verify your mobile number again.',
+        })
+      );
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+
+      expect(await store.readRegistrationSession()).not.toBeNull();
+
+      await manager.registerPatient({
+        fullName: 'Daniel Test',
+        email: 'daniel@example.com',
+        dateOfBirth: '1990-01-01',
+        gender: 'MALE',
+        preferredBranchId: 'branch-1',
+      });
+
+      const state = manager.getSnapshot();
+      expect(state.status).toBe('registrationDetails');
+      expect(state.registrationToken).toBeUndefined();
+      expect(state.message).toBe('The registration session is invalid or has expired. Please verify your mobile number again.');
+      expect(await store.readRegistrationSession()).toBeNull();
+    });
+
+    it('sets cooldown resendAt and user-friendly error on 429 AUTH_RATE_LIMITED', async () => {
+      const manager = createManager();
+      await manager.start();
+
+      mockApi.requestOtp.mockRejectedValue(
+        new ApiFailure({
+          kind: 'validation',
+          status: 429,
+          code: 'AUTH_RATE_LIMITED',
+          userMessage: 'Too many attempts. Please wait before trying again.',
+        })
+      );
+
+      await manager.requestOtp('+919876543210', 'login');
+
+      const state = manager.getSnapshot();
+      expect(state.message).toBe('Too many attempts. Please wait before trying again.');
+      expect(state.resendAt).toBeDefined();
+      expect(state.resendAt!).toBeGreaterThan(currentTime);
     });
   });
 });

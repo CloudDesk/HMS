@@ -57,7 +57,19 @@ export class ConsentsApi {
       headers: source.headers, credentials: 'omit', signal,
     });
     if (!response.ok) {
-      throw new ApiFailure(response.status === 401 || response.status === 403 ? 'auth' : 'server', response.status);
+      if (response.status === 401 || response.status === 403) {
+        throw new ApiFailure('auth', response.status);
+      }
+      if (response.status === 404) {
+        throw new ApiFailure({
+          category: 'HTTP_404',
+          kind: 'server',
+          status: 404,
+          code: 'DOCUMENT_FILE_NOT_FOUND',
+          userMessage: 'The requested consent form could not be found.',
+        });
+      }
+      throw new ApiFailure('server', response.status);
     }
     if (!response.headers.get('content-type')?.toLowerCase().includes('text/html')) {
       throw new Error('This consent form is not an HTML document. Please review it in Patient Portal.');

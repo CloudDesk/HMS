@@ -40,7 +40,10 @@ export function ErrorDiagnosticView({
 
   if (!error) return null;
 
-  const userMessage = friendlyError(error);
+  const userMessage =
+    typeof error === 'string' && error.trim().length > 0
+      ? error.trim()
+      : friendlyError(error);
   const diagnosticId = getDiagnosticId(error);
   const canRetry = Boolean(onRetry && isRetryable(error));
   const apiFailure = error instanceof ApiFailure ? error : null;

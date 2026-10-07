@@ -131,7 +131,7 @@ export function useAuthenticatedImage(
           setState({ uri: dataUri, isLoading: false, isError: false });
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted && controller.signal.aborted) return;
         if (isMounted) {
           setState({ uri: null, isLoading: false, isError: true });

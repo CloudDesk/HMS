@@ -48,6 +48,8 @@ type AppointmentUpdateRecord = Omit<UpdateAppointmentDTO, 'appointment_date' | '
   appointmentDate?: Date;
   startTime?: string;
   endTime?: string;
+  status?: Appointment['status'];
+  rescheduledAt?: Date;
 };
 
 const nullableString = (value: string | null | undefined) => {
@@ -192,8 +194,10 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.duration_minutes !== undefined ? { durationMinutes: data.duration_minutes } : {}),
   ...(data.visit_type !== undefined ? { visitType: data.visit_type } : {}),
   ...(data.priority !== undefined ? { priority: data.priority } : {}),
+  ...(data.status !== undefined ? { status: data.status } : {}),
   ...(data.reason !== undefined ? { reason: nullableString(data.reason) } : {}),
   ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+  ...(data.rescheduledAt !== undefined ? { rescheduledAt: data.rescheduledAt } : {}),
   ...(data.consultation_intake !== undefined ? {
     consultationIntake: data.consultation_intake ? {
       chiefComplaint: nullableString(data.consultation_intake.chief_complaint),

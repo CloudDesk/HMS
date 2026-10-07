@@ -114,4 +114,46 @@ describe('SessionStore', () => {
     const marker = JSON.parse((await storage.readMarker()) ?? '{}');
     expect(marker.signedOut).toBe(true);
   });
+
+  it('saves, reads, and clears pending registration session', async () => {
+    await store.initialize();
+
+    const pending = {
+      phone: '+919876543210',
+      registrationToken: 'test-reg-token-abc',
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    };
+
+    await store.saveRegistrationSession(pending);
+
+    const retrieved = await store.readRegistrationSession();
+    expect(retrieved).toEqual(pending);
+
+    // Initializing store does not wipe pending registration
+    const secondStore = new SessionStore(storage, apiBaseUrl);
+    const restoredAuth = await secondStore.initialize();
+    expect(restoredAuth).toBeNull();
+
+    const secondRetrieved = await secondStore.readRegistrationSession();
+    expect(secondRetrieved).toEqual(pending);
+
+    // Clear registration session
+    await store.clearRegistrationSession();
+    expect(await store.readRegistrationSession()).toBeNull();
+  });
+
+  it('returns null and purges expired pending registration session', async () => {
+    await store.initialize();
+
+    const expiredPending = {
+      phone: '+919876543210',
+      registrationToken: 'expired-token',
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    };
+
+    await store.saveRegistrationSession(expiredPending);
+
+    const retrieved = await store.readRegistrationSession();
+    expect(retrieved).toBeNull();
+  });
 });

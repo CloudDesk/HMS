@@ -212,17 +212,11 @@ export class AppointmentService {
         'RESCHEDULE_NOT_ALLOWED',
       );
     }
-    const [hours = 0, minutes = 0] = data.start_time.split(':').map(Number);
+    const settings = await this.settingsRepository.get();
+    const tz = settings.localization.timezone;
     const appointmentDate = this.validateAppointmentDate(data.appointment_date);
-
-    // Convert local strings back to UTC using the same time logic from old appointmentStart
-    const utcDateTime = new Date(
-      appointmentDate.getUTCFullYear(),
-      appointmentDate.getUTCMonth(),
-      appointmentDate.getUTCDate(),
-      hours,
-      minutes,
-    );
+    const localStr = `${data.appointment_date}T${data.start_time}:00`;
+    const utcDateTime = fromZonedTime(localStr, tz);
     const utcEndTime = new Date(utcDateTime.getTime() + data.duration_minutes * 60000);
     const endTimeStr = this.validateAppointmentWindow(data.start_time, data.duration_minutes);
 
@@ -254,32 +248,46 @@ export class AppointmentService {
       utcEndTime,
     );
 
-    const sequence = await this.sequenceService.getNextSequence('appointment');
-    return this.repository.rescheduleAtomically(
-      original,
-      {
-        patient_id: original.patient_id,
-        doctor_id: doctor.id,
-        startTime: data.start_time,
-        endTime: endTimeStr,
-        duration_minutes: data.duration_minutes,
-        visit_type: original.visit_type,
-        priority: original.priority,
-        reason: original.reason,
-        notes: null,
-        appointmentNumber: this.sequenceService.formatStandardSequence('APT', sequence),
-        patientNumber: original.patient_number,
-        patientName: original.patient_name,
-        doctorName: doctor.display_name,
-        doctorSpecialization: doctor.specialization,
-        branchId: doctor.branch_id,
-        departmentId: doctor.department_id,
-        appointmentDate,
-        utcDateTime,
-        utcEndTime,
-      },
-      userId,
-    );
+    try {
+      const updated = await this.repository.update(
+        original.id,
+        {
+          doctor_id: doctor.id,
+          doctorName: doctor.display_name,
+          doctorSpecialization: doctor.specialization,
+          branchId: doctor.branch_id,
+          departmentId: doctor.department_id,
+          utcDateTime,
+          utcEndTime,
+          appointmentDate,
+          startTime: data.start_time,
+          endTime: endTimeStr,
+          duration_minutes: data.duration_minutes,
+          status: 'SCHEDULED',
+          rescheduledAt: new Date(),
+        },
+        userId,
+      );
+
+      if (!updated) {
+        throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+      }
+
+      await this.repository.auditRescheduled(
+        original,
+        updated,
+        'Rescheduled via Patient Portal',
+        userId,
+      );
+
+      return updated;
+    } catch (error) {
+      const databaseError = error as { code?: unknown; keyPattern?: Record<string, unknown> };
+      if (databaseError.code === 11000 && databaseError.keyPattern?.activeSlotKey) {
+        throw new AppError('This slot is no longer available. Select another time.', 409, 'APPOINTMENT_SLOT_CONFLICT');
+      }
+      throw error;
+    }
   }
 
   async reconcilePastAppointments(patientId?: string) {

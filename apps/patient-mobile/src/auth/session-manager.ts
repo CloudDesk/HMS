@@ -19,6 +19,8 @@ export type AuthState = {
     | 'unauthenticated'
     | 'requestingOtp'
     | 'otpVerification'
+    | 'verifyingOtp'
+    | 'resendingOtp'
     | 'registrationDetails'
     | 'registering'
     | 'authenticated'
@@ -62,7 +64,20 @@ export class SessionManager {
       const saved = await this.store.initialize();
       if (generation !== this.generation) return;
       this.saved = saved;
-      if (!saved) { this.set({ status: 'unauthenticated', authMode: 'login' }); return; }
+      if (!saved) {
+        const pendingReg = await this.store.readRegistrationSession();
+        if (pendingReg && pendingReg.registrationToken && Date.parse(pendingReg.expiresAt) > this.now()) {
+          this.set({
+            status: 'registrationDetails',
+            authMode: 'register',
+            phone: pendingReg.phone,
+            registrationToken: pendingReg.registrationToken,
+          });
+          return;
+        }
+        this.set({ status: 'unauthenticated', authMode: 'login' });
+        return;
+      }
       if (Date.parse(saved.expiresAt) <= this.now()) { await this.invalidate(); return; }
       if (saved.status === 'in-flight') {
         saved.status = 'ready';
@@ -100,7 +115,14 @@ export class SessionManager {
     const targetMode = mode ?? this.state.authMode ?? 'login';
     const previous = this.state;
     const generation = this.generation;
-    this.set({ ...previous, status: 'requestingOtp', authMode: targetMode, message: undefined, errorDetails: undefined });
+    const isResend = previous.status === 'otpVerification';
+    this.set({
+      ...previous,
+      status: isResend ? 'resendingOtp' : 'requestingOtp',
+      authMode: targetMode,
+      message: undefined,
+      errorDetails: undefined,
+    });
     try {
       if (!await this.online()) throw new ApiFailure('offline');
       const response = await this.api.requestOtp(parsed.data);
@@ -116,8 +138,16 @@ export class SessionManager {
       }
     } catch (error) {
       if (generation === this.generation) {
+        const isRateLimited =
+          error instanceof ApiFailure && (error.status === 429 || error.code === 'AUTH_RATE_LIMITED');
         this.set({
           ...previous,
+          phone: parsed.data,
+          resendAt: isRateLimited
+            ? previous.resendAt && previous.resendAt > this.now()
+              ? previous.resendAt
+              : this.now() + 60_000
+            : previous.resendAt,
           message: friendlyError(error),
           errorDetails: toApiFailure(error, '/patient-portal/otp/request', 'POST'),
         });
@@ -126,6 +156,7 @@ export class SessionManager {
   }
   backToPhone() {
     if (this.state.status === 'otpVerification' || this.state.status === 'registrationDetails') {
+      this.store.clearRegistrationSession().catch(() => {});
       this.set({
         status: 'unauthenticated',
         authMode: this.state.authMode ?? 'login',
@@ -146,7 +177,7 @@ export class SessionManager {
     const previous = this.state;
     const phone = this.state.phone;
     const generation = this.generation;
-    this.set({ ...previous, status: 'requestingOtp', message: undefined, errorDetails: undefined });
+    this.set({ ...previous, status: 'verifyingOtp', message: undefined, errorDetails: undefined });
     try {
       if (!await this.online()) throw new ApiFailure('offline');
       const result = await this.api.login({ phone, otp: parsed.data.otp,
@@ -157,6 +188,7 @@ export class SessionManager {
       if (generation === this.generation && this.getSnapshot().status !== 'error') {
         this.set({
           ...previous,
+          status: 'otpVerification',
           message: friendlyError(error),
           errorDetails: toApiFailure(error, '/patient-portal/login/otp', 'POST'),
         });
@@ -173,11 +205,17 @@ export class SessionManager {
     const previous = this.state;
     const phone = this.state.phone;
     const generation = this.generation;
-    this.set({ ...previous, status: 'requestingOtp', message: undefined, errorDetails: undefined });
+    this.set({ ...previous, status: 'verifyingOtp', message: undefined, errorDetails: undefined });
     try {
       if (!await this.online()) throw new ApiFailure('offline');
       const registrationToken = await this.api.verifyRegistrationOtp(phone, parsed.data.otp);
       if (generation === this.generation) {
+        await this.store.saveRegistrationSession({
+          phone,
+          registrationToken,
+          expiresAt: new Date(this.now() + 15 * 60 * 1000).toISOString(),
+        }).catch(() => {});
+
         this.set({
           status: 'registrationDetails',
           authMode: 'register',
@@ -191,6 +229,7 @@ export class SessionManager {
       if (generation === this.generation) {
         this.set({
           ...previous,
+          status: 'otpVerification',
           message: friendlyError(error),
           errorDetails: toApiFailure(error, '/patient-portal/otp/verify', 'POST'),
         });
@@ -243,9 +282,28 @@ export class SessionManager {
         return;
       }
 
+      await this.store.clearRegistrationSession().catch(() => {});
       await this.accept(result, generation);
     } catch (error) {
       if (generation === this.generation) {
+        const isInvalidToken =
+          error instanceof ApiFailure &&
+          (error.status === 401 ||
+            error.code === 'INVALID_REGISTRATION_TOKEN' ||
+            error.message?.includes('registration session is invalid or has expired'));
+
+        if (isInvalidToken) {
+          await this.store.clearRegistrationSession().catch(() => {});
+          this.set({
+            ...previous,
+            status: 'registrationDetails',
+            registrationToken: undefined,
+            message: 'The registration session is invalid or has expired. Please verify your mobile number again.',
+            errorDetails: toApiFailure(error, '/patient-portal/signup', 'POST'),
+          });
+          return;
+        }
+
         this.set({
           ...previous,
           status: 'registrationDetails',
@@ -256,6 +314,7 @@ export class SessionManager {
     }
   }
   cancelRegistration() {
+    this.store.clearRegistrationSession().catch(() => {});
     this.set({
       status: 'unauthenticated',
       authMode: 'login',

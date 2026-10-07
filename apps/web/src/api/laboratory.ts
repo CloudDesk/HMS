@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export type LaboratoryStatus = 'SUBMITTED' | 'RECEIVED' | 'SAMPLE_COLLECTED' | 'IN_PROGRESS' | 'RESULT_ENTERED' | 'VERIFIED' | 'COMPLETED';
 export type DiagnosticPriority = 'ROUTINE' | 'URGENT' | 'STAT';
-export type DiagnosticSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY';
+export type DiagnosticSourceType = 'OPD' | 'EMERGENCY' | 'IP_ADMISSION' | 'PROCEDURE' | 'SURGERY' | 'OPD_VISIT' | 'EMERGENCY_ENCOUNTER' | 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING';
 export type DiagnosticOrder = {
   id: string; originating_order_id: string; source_type: DiagnosticSourceType; encounter_id: string | null;
   admission_id: string | null; procedure_id: string | null;

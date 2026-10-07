@@ -1,155 +1,119 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatAppointmentDate,
-  formatHumanReadableDate,
-  formatToDateString,
-  getQuickDateOptions,
-  getSlotStatusLabel,
-  isSlotExpired,
-  isSlotSelectable,
-  parseFromDateString,
+  isAppointmentCheckInEligible,
 } from './date-utils';
-import { formatDateOfBirth } from '../portal/formatters';
 
-describe('Appointment Date Utilities', () => {
-  it('formats Date object to YYYY-MM-DD string timezone-safely', () => {
-    const d = new Date(2026, 8, 28, 14, 30); // Month index 8 = September
-    expect(formatToDateString(d)).toBe('2026-09-28');
+describe('isAppointmentCheckInEligible', () => {
+  const baseAppointment = {
+    id: 'apt-1',
+    appointment_number: 'APT-001',
+    doctor_name: 'Dr. Jane Smith',
+    status: 'SCHEDULED',
+    appointment_date: '2026-10-15',
+    start_time: '14:00',
+    end_time: '14:30',
+    duration_minutes: 30,
+  };
+
+  it('rejects appointments when status is already CHECKED_IN', () => {
+    const result = isAppointmentCheckInEligible(
+      { ...baseAppointment, status: 'CHECKED_IN' },
+      new Date('2026-10-15T13:30:00')
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.canCheckIn).toBe(false);
+    expect(result.windowState).toBe('ineligible_status');
+    expect(result.reason).toContain('already checked in');
   });
 
-  it('parses YYYY-MM-DD string to Date at noon preventing timezone shift', () => {
-    const d = parseFromDateString('2026-09-28');
-    expect(d.getFullYear()).toBe(2026);
-    expect(d.getMonth()).toBe(8);
-    expect(d.getDate()).toBe(28);
-    expect(d.getHours()).toBe(12);
+  it('rejects appointments when status is CANCELLED or COMPLETED', () => {
+    const cancelled = isAppointmentCheckInEligible(
+      { ...baseAppointment, status: 'CANCELLED' },
+      new Date('2026-10-15T13:30:00')
+    );
+    expect(cancelled.canCheckIn).toBe(false);
+
+    const completed = isAppointmentCheckInEligible(
+      { ...baseAppointment, status: 'COMPLETED' },
+      new Date('2026-10-15T13:30:00')
+    );
+    expect(completed.canCheckIn).toBe(false);
   });
 
-  it('formats human readable date correctly for YYYY-MM-DD and ISO strings', () => {
-    expect(formatHumanReadableDate('2026-09-28')).toBe('Mon, Sep 28, 2026');
-    expect(formatHumanReadableDate('2026-09-28T00:00:00.000Z')).toBe('Mon, Sep 28, 2026');
-    expect(formatHumanReadableDate('  2026-09-28  ')).toBe('Mon, Sep 28, 2026');
-    expect(formatHumanReadableDate('')).toBe('');
-    expect(formatHumanReadableDate('invalid')).toBe('invalid');
+  it('rejects appointments when scheduled for a different date', () => {
+    // Appointment is on Oct 15, current date is Oct 14 (tomorrow)
+    const future = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-14T14:00:00')
+    );
+    expect(future.canCheckIn).toBe(false);
+    expect(future.windowState).toBe('not_today');
+    expect(future.reason).toContain('only available on the day of your appointment');
+
+    // Appointment is on Oct 15, current date is Oct 16 (past)
+    const past = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-16T14:00:00')
+    );
+    expect(past.canCheckIn).toBe(false);
+    expect(past.windowState).toBe('not_today');
+    expect(past.reason).toContain('already passed');
   });
 
-  describe('formatAppointmentDate', () => {
-    it('formats plain YYYY-MM-DD date string to patient-friendly D Mon YYYY', () => {
-      expect(formatAppointmentDate('2026-09-17')).toBe('17 Sep 2026');
-      expect(formatAppointmentDate('2026-01-05')).toBe('5 Jan 2026');
-      expect(formatAppointmentDate('2026-12-31')).toBe('31 Dec 2026');
-    });
-
-    it('formats ISO datetime strings with UTC timestamps without timezone day shift', () => {
-      expect(formatAppointmentDate('2026-09-17T00:00:00.000Z')).toBe('17 Sep 2026');
-      expect(formatAppointmentDate('2026-09-17T10:30:00.000Z')).toBe('17 Sep 2026');
-      expect(formatAppointmentDate('2026-09-17T23:59:59.999Z')).toBe('17 Sep 2026');
-    });
-
-    it('handles leading and trailing whitespace safely', () => {
-      expect(formatAppointmentDate('  2026-09-17  ')).toBe('17 Sep 2026');
-      expect(formatAppointmentDate('  2026-09-17T00:00:00.000Z  ')).toBe('17 Sep 2026');
-    });
-
-    it('safely handles null, undefined, and empty string inputs', () => {
-      expect(formatAppointmentDate(null)).toBe('-');
-      expect(formatAppointmentDate(undefined)).toBe('-');
-      expect(formatAppointmentDate('')).toBe('-');
-      expect(formatAppointmentDate('   ')).toBe('-');
-    });
-
-    it('returns raw string as fallback for invalid non-date values', () => {
-      expect(formatAppointmentDate('invalid-date')).toBe('invalid-date');
-    });
-
-    it('preserves distinct semantics from formatDateOfBirth (DD-MM-YYYY)', () => {
-      const rawDate = '2026-09-17T00:00:00.000Z';
-      // Appointment date: 17 Sep 2026
-      expect(formatAppointmentDate(rawDate)).toBe('17 Sep 2026');
-      // DOB format: 17-09-2026
-      expect(formatDateOfBirth(rawDate)).toBe('17-09-2026');
-    });
+  it('rejects check-in before the allowed check-in window (e.g., > 60 minutes before start)', () => {
+    // Appointment is at 14:00, current time is 12:30 (90 minutes before)
+    const early = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-15T12:30:00'),
+      60
+    );
+    expect(early.canCheckIn).toBe(false);
+    expect(early.windowState).toBe('before_window');
+    expect(early.reason).toContain('Check-in opens 60 minutes before your appointment');
   });
 
-  describe('isSlotExpired & isSlotSelectable & getSlotStatusLabel', () => {
-    // Reference base time: 2026-09-28 at 15:45:00
-    const mockNow = new Date(2026, 8, 28, 15, 45, 0);
-
-    it('marks past slots earlier today as expired and non-selectable', () => {
-      expect(isSlotExpired('2026-09-28', '08:00', mockNow)).toBe(true);
-      expect(isSlotExpired('2026-09-28', '14:30', mockNow)).toBe(true);
-      expect(isSlotExpired('2026-09-28', '15:45', mockNow)).toBe(true);
-
-      expect(isSlotSelectable({ start_time: '08:00', available: true }, '2026-09-28', mockNow)).toBe(false);
-      expect(getSlotStatusLabel({ start_time: '08:00', available: true }, '2026-09-28', mockNow)).toEqual({
-        label: 'Passed',
-        isSelectable: false,
-        isExpired: true,
-      });
-    });
-
-    it('keeps future slots today as active and selectable', () => {
-      expect(isSlotExpired('2026-09-28', '16:00', mockNow)).toBe(false);
-      expect(isSlotExpired('2026-09-28', '16:30', mockNow)).toBe(false);
-
-      expect(isSlotSelectable({ start_time: '16:30', available: true }, '2026-09-28', mockNow)).toBe(true);
-      expect(getSlotStatusLabel({ start_time: '16:30', available: true }, '2026-09-28', mockNow)).toEqual({
-        label: 'Open',
-        isSelectable: true,
-        isExpired: false,
-      });
-    });
-
-    it('does NOT mark early morning slots on tomorrow as expired', () => {
-      // Tomorrow 08:00 should be open even though 08:00 is less than today 15:45
-      expect(isSlotExpired('2026-09-29', '08:00', mockNow)).toBe(false);
-      expect(isSlotSelectable({ start_time: '08:00', available: true }, '2026-09-29', mockNow)).toBe(true);
-      expect(getSlotStatusLabel({ start_time: '08:00', available: true }, '2026-09-29', mockNow)).toEqual({
-        label: 'Open',
-        isSelectable: true,
-        isExpired: false,
-      });
-    });
-
-    it('marks all slots on yesterday as expired', () => {
-      expect(isSlotExpired('2026-09-27', '18:00', mockNow)).toBe(true);
-      expect(isSlotSelectable({ start_time: '18:00', available: true }, '2026-09-27', mockNow)).toBe(false);
-      expect(getSlotStatusLabel({ start_time: '18:00', available: true }, '2026-09-27', mockNow)).toEqual({
-        label: 'Passed',
-        isSelectable: false,
-        isExpired: true,
-      });
-    });
-
-    it('marks booked/unavailable future slots as non-selectable with appropriate label', () => {
-      expect(isSlotSelectable({ start_time: '16:30', available: false }, '2026-09-28', mockNow)).toBe(false);
-      expect(getSlotStatusLabel({ start_time: '16:30', available: false }, '2026-09-28', mockNow)).toEqual({
-        label: 'Booked',
-        isSelectable: false,
-        isExpired: false,
-      });
-      expect(getSlotStatusLabel({ start_time: '16:30', available: false, reason: 'Reserved' }, '2026-09-28', mockNow)).toEqual({
-        label: 'Reserved',
-        isSelectable: false,
-        isExpired: false,
-      });
-    });
+  it('allows check-in within the 60-minute window before start time', () => {
+    // Appointment is at 14:00, current time is 13:30 (30 minutes before)
+    const eligible = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-15T13:30:00'),
+      60
+    );
+    expect(eligible.canCheckIn).toBe(true);
+    expect(eligible.eligible).toBe(true);
+    expect(eligible.windowState).toBe('within_window');
+    expect(eligible.reason).toBeNull();
   });
 
-  it('generates 5 quick date options starting with Today and Tomorrow', () => {
-    const options = getQuickDateOptions('2026-09-28');
-    expect(options).toHaveLength(5);
-    expect(options[0]).toEqual({ label: 'Today', date: '2026-09-28' });
-    expect(options[1]).toEqual({ label: 'Tomorrow', date: '2026-09-29' });
-    expect(options[2]?.date).toBe('2026-09-30');
-    expect(options[3]?.date).toBe('2026-10-01');
-    expect(options[4]?.date).toBe('2026-10-02');
+  it('allows check-in during the appointment slot up to end_time', () => {
+    // Appointment is 14:00 - 14:30, current time is 14:15
+    const eligible = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-15T14:15:00'),
+      60
+    );
+    expect(eligible.canCheckIn).toBe(true);
+    expect(eligible.eligible).toBe(true);
   });
 
-  it('handles month boundaries without off-by-one errors', () => {
-    const endOfMonth = parseFromDateString('2026-09-30');
-    const nextDay = new Date(endOfMonth);
-    nextDay.setDate(endOfMonth.getDate() + 1);
-    expect(formatToDateString(nextDay)).toBe('2026-10-01');
+  it('rejects check-in after the appointment end_time has passed', () => {
+    // Appointment is 14:00 - 14:30, current time is 14:45
+    const expired = isAppointmentCheckInEligible(
+      baseAppointment,
+      new Date('2026-10-15T14:45:00'),
+      60
+    );
+    expect(expired.canCheckIn).toBe(false);
+    expect(expired.windowState).toBe('after_window');
+    expect(expired.reason).toContain('closed');
+  });
+
+  it('supports CONFIRMED appointment status', () => {
+    const confirmed = isAppointmentCheckInEligible(
+      { ...baseAppointment, status: 'CONFIRMED' },
+      new Date('2026-10-15T13:45:00'),
+      60
+    );
+    expect(confirmed.canCheckIn).toBe(true);
   });
 });

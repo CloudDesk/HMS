@@ -127,6 +127,9 @@ function resolveDefaultUserMessage(category: ApiErrorCategory, code?: string, st
   if (code === 'INVALID_BRANCH') {
     return 'Please select an active hospital branch.';
   }
+  if (code === 'INVALID_REGISTRATION_TOKEN') {
+    return 'The registration session is invalid or has expired. Please verify your mobile number again.';
+  }
   if (status === 409) {
     return 'Please complete your account setup in Patient Web or contact reception.';
   }
