@@ -50,6 +50,7 @@ export type SaveOpdPrescriptionDTO = {
 };
 
 export type ListPrescriptionsParams = {
+  patient_id?: string;
   status?: OpdPrescriptionStatus;
   limit?: number;
   skip?: number;

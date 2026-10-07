@@ -38,6 +38,7 @@ vi.mock('../../../api/opd', async (importOriginal) => {
 
 vi.mock('../../../api/useSettings', () => ({
   useCurrencyFormatter: () => (val: number) => `$${val.toFixed(2)}`,
+  useSettings: () => null,
 }));
 
 vi.mock('../../../auth/useAuth', () => ({

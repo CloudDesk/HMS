@@ -52,6 +52,7 @@ vi.mock('../../../api/doctors', async (importOriginal) => {
 
 vi.mock('../../../api/useSettings', () => ({
   useCurrencyFormatter: () => (val: number) => `$${val.toFixed(2)}`,
+  useSettings: () => null,
 }));
 
 const mockDoctors: DoctorListResponse = {
@@ -185,6 +186,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     queryClient.clear();
   });
 
+  const openInvoice = vi.fn();
   const renderSection = async () => {
     await act(async () => {
       root.render(
@@ -195,6 +197,7 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
             onChange={vi.fn()}
             episodeId="episode-1"
             departmentId="dept-1"
+            onOpenInvoice={openInvoice}
           />
         </QueryClientProvider>,
       );
@@ -453,6 +456,83 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
           }),
         ]),
       }),
+    );
+  });
+
+  it('Option B: renders Treatment Quotations when episodeId is null and auto-ensures episode seamlessly', async () => {
+    const ensureEpisodeMock = vi.fn().mockResolvedValue('ensured-episode-99');
+    mockApi.createDentalQuotation.mockResolvedValueOnce({
+      id: 'quote-auto-1',
+      quotation_number: 'DTQ-2026-00099',
+      patient_id: 'patient-1',
+      patient_number: 'PAT-001',
+      patient_name: 'Daniel Balaji',
+      treatment_episode_id: 'ensured-episode-99',
+      doctor_id: 'doc-1',
+      doctor_name: 'Dr. Alice Endo',
+      branch_id: 'branch-1',
+      department_id: 'dept-1',
+      status: 'DRAFT',
+      currency: 'KES',
+      subtotal: 850,
+      discount_amount: 0,
+      tax_amount: 0,
+      total: 850,
+      items: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalTreatmentPlanSection
+            items={mockItems}
+            teeth={[]}
+            onChange={vi.fn()}
+            episodeId={null}
+            patientId="patient-1"
+            onEnsureEpisode={ensureEpisodeMock}
+            departmentId="dept-1"
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // 1. Treatment Quotations card is displayed even when episodeId is null!
+    expect(container.textContent).toContain('Treatment Quotations (Pricing)');
+    expect(container.textContent).toContain('No treatment quotations generated for this episode yet');
+
+    // 2. Click Generate Quotation -> triggers onEnsureEpisode
+    const generateBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Generate Quotation') || btn.textContent?.includes('Generate First Quotation'),
+    );
+    expect(generateBtn).toBeTruthy();
+
+    await act(async () => {
+      generateBtn?.click();
+    });
+
+    expect(ensureEpisodeMock).toHaveBeenCalled();
+    expect(container.textContent).toContain('Generate Treatment Quotation');
+
+    // 3. Submitting quotation uses the auto-ensured episode id
+    const createBtn = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Create Draft Quotation'),
+    );
+    expect(createBtn).toBeTruthy();
+
+    await act(async () => {
+      createBtn?.click();
+    });
+
+    expect(mockApi.createDentalQuotation).toHaveBeenCalledWith(
+      'ensured-episode-99',
+      expect.anything(),
     );
   });
 
@@ -865,6 +945,8 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
         selected_option_name: 'Option A: Root Canal Treatment',
         accepted_at: '2026-09-20T10:00:00Z',
         accepted_by: 'Dr. Alice Endo',
+        invoice_id: 'invoice-1',
+        invoice_number: 'INV-2026-00001',
         items: [],
         options: [
           {
@@ -899,6 +981,14 @@ describe('Dental Treatment Stages & Multi-Doctor Workflow Component', () => {
     expect(container.textContent).toContain('Patient Decision: Option Accepted');
     expect(container.textContent).toContain('Option A: Root Canal Treatment');
     expect(container.textContent).toContain('Procedures synchronized with active Treatment Plan');
+    const invoiceButton = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Show Invoice'),
+    );
+    expect(invoiceButton).toBeTruthy();
+    await act(async () => {
+      invoiceButton?.click();
+    });
+    expect(openInvoice).toHaveBeenCalledWith('invoice-1');
   });
 
   it('Phase 8D: displays accepted treatment plan item and enables viewing/scheduling active clinical stages', async () => {

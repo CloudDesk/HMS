@@ -75,18 +75,35 @@ export function DentalLabSection(input: DentalLabFeatureInput) {
         </ul>
       )}
       {order.data?.status === 'DRAFT' && (
-        <p className={styles.labDraftNote}>Saved draft. Laboratory receives the request after consultation completion and submission.</p>
+        <p className={styles.labDraftNote}>Saved draft. Click &quot;Send To Laboratory&quot; to send request to the laboratory department queue.</p>
       )}
-      {input.consultationCompleted && input.canEdit && order.data?.status === 'DRAFT' && (
+      {(input.canEdit || order.data?.status !== 'DRAFT') && Boolean(order.data) && (
         <button
           type="button"
-          className={styles.btnSubmitLab}
-          disabled={feature.saving}
+          className={order.data?.status !== 'DRAFT' ? 'doc-btn sent-disabled' : 'doc-btn primary'}
+          disabled={feature.saving || order.data?.status !== 'DRAFT' || !input.canEdit || items.length === 0}
           onClick={() => {
+            if (feature.saving || order.data?.status !== 'DRAFT' || !input.canEdit || items.length === 0) return;
             void feature.submitRequest();
           }}
+          style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
         >
-          Submit laboratory request
+          {feature.saving ? (
+            <>
+              <i className="ph ph-spinner ph-spin" />
+              <span>Sending...</span>
+            </>
+          ) : order.data?.status !== 'DRAFT' ? (
+            <>
+              <i aria-hidden="true" className="ph ph-check-circle" />
+              Sent To Laboratory
+            </>
+          ) : (
+            <>
+              <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+              Send To Laboratory
+            </>
+          )}
         </button>
       )}
       {feature.saveError && !feature.open && <p role="alert" style={{ color: '#dc2626', fontSize: '0.8125rem' }}>{feature.saveError}</p>}

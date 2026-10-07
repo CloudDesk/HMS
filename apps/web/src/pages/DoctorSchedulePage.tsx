@@ -263,13 +263,6 @@ export function DoctorSchedulePage() {
               Doctor Schedule {doctorTitle}
             </h2>
             <div className="hms-cal-controls-group">
-              <button
-                className="hms-cal-today-btn"
-                onClick={() => setScheduleDate(todayInputValue())}
-                type="button"
-              >
-                Today
-              </button>
               <div className="hms-cal-view-modes">
                 {scheduleViewModes.map((mode) => (
                   <button
@@ -379,7 +372,7 @@ export function DoctorSchedulePage() {
                   onClick={() => moveDate(-1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-left-bold" />
+                  <i className="ph ph-caret-left" />
                 </button>
                 <h3 className="hms-cal-banner-title">{bannerTitle}</h3>
                 <button
@@ -388,7 +381,7 @@ export function DoctorSchedulePage() {
                   onClick={() => moveDate(1)}
                   type="button"
                 >
-                  <i className="ph ph-caret-right-bold" />
+                  <i className="ph ph-caret-right" />
                 </button>
               </div>
 

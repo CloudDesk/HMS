@@ -115,6 +115,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const laboratoryRepository = new LaboratoryRepository();
   const imagingRepository = new ImagingRepository();
   const billingRepository = new BillingRepository();
+  const dentalQuotationRepository = new DentalQuotationRepository();
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const notificationRepository = new NotificationRepository();
@@ -228,9 +229,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdDentalExaminationRepository,
     departmentRepository,
     settingsRepository,
+    dentalQuotationRepository,
+    dentalEpisodeRepository,
   );
 
-  const dentalQuotationRepository = new DentalQuotationRepository();
   const dentalQuotationService = new DentalQuotationService(
     dentalQuotationRepository,
     dentalEpisodeRepository,
@@ -239,6 +241,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     settingsRepository,
     sequenceService,
     dentalStageRepository,
+    billingService,
     notificationService,
   );
   const opdVisitService = new OpdVisitService(

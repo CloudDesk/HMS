@@ -8,6 +8,7 @@ import { SettingsRepository } from '../settings/settings.repository.js';
 import { UserModel } from '../users/user.model.js';
 import { SequenceService } from '../../shared/sequence/sequence.service.js';
 import { PatientAccessGrantModel } from '../patient-portal/patient-access-grant.model.js';
+import type { BillingService } from '../billing/billing.service.js';
 import { NotificationModel } from '../notifications/notification.model.js';
 import type { NotificationService } from '../notifications/notification.service.js';
 
@@ -46,6 +47,7 @@ export class DentalQuotationService {
     private readonly settingsRepository: SettingsRepository,
     private readonly sequenceService: SequenceService,
     private readonly stageRepository?: DentalStageRepository,
+    private readonly billingService?: BillingService,
     private readonly notificationService?: NotificationService,
   ) {}
 
@@ -348,7 +350,7 @@ export class DentalQuotationService {
     // Validate state transitions
     if (quotation.status === 'ACCEPTED') {
       if (quotation.selected_option_id === data.selected_option_id) {
-        return quotation;
+        return this.ensureAcceptedQuotationInvoice(quotation, userId);
       }
       throw new AppError('Quotation has already been accepted with a different option', 400, 'INVALID_STATE');
     }
@@ -419,6 +421,38 @@ export class DentalQuotationService {
       userId,
     );
 
+    return this.ensureAcceptedQuotationInvoice(updated, userId);
+  }
+
+  private async ensureAcceptedQuotationInvoice(
+    quotation: DentalTreatmentQuotation,
+    userId: string,
+  ): Promise<DentalTreatmentQuotation> {
+    if (quotation.invoice_id) return quotation;
+    const selectedOption = quotation.options.find(
+      (option) => option.id === quotation.selected_option_id,
+    );
+    // Legacy/custom quotation lines without a Service Catalogue reference cannot
+    // be converted into auditable billing items. Keep acceptance available, but
+    // only auto-invoice fully catalogue-backed accepted options.
+    if (!selectedOption || selectedOption.items.some((item) => !item.service_id)) {
+      return quotation;
+    }
+    if (!this.billingService) {
+      throw new AppError('Dental quotation billing is unavailable', 503, 'DENTAL_QUOTATION_BILLING_UNAVAILABLE');
+    }
+    const invoice = await this.billingService.createAcceptedDentalQuotationInvoice(
+      quotation.id,
+      userId,
+    );
+    const updated = await this.repository.update(quotation.id, {
+      invoiceId: new Types.ObjectId(invoice.id),
+      invoiceNumber: invoice.invoice_number,
+      updatedBy: new Types.ObjectId(userId),
+    });
+    if (!updated) {
+      throw new AppError('Invoice was created but could not be linked to the quotation', 500, 'QUOTATION_INVOICE_LINK_FAILED');
+    }
     return updated;
   }
 

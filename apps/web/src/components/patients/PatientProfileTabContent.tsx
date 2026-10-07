@@ -70,6 +70,8 @@ export function PatientProfileTabContent({
     imagingOrders,
     documents,
     billingInvoices,
+    billingMeta,
+    loadingBillingInvoices,
     outstandingBillsBalance,
     loadingOutstandingBills,
     canViewBilling,
@@ -85,7 +87,10 @@ export function PatientProfileTabContent({
     setVisitsPage,
     setAppointmentFilters,
     setAppointmentsPage,
+    setBillingPage,
   } = actions;
+
+  const setBillingMeta = (value: Partial<{ page: number; limit: number }>) => setBillingPage((previous) => ({ ...previous, ...value }));
 
   const setTimelineMeta = (value: Partial<{ page: number; limit: number }>) => setTimelinePage((previous) => ({ ...previous, ...value }));
   const setVisitsMeta = (value: Partial<{ page: number; limit: number }>) => setVisitsPage((previous) => ({ ...previous, ...value }));
@@ -398,23 +403,77 @@ export function PatientProfileTabContent({
         billingInvoices.length === 0 ? (
           <EmptyRecords message="No billing statements or invoices found for this patient." />
         ) : (
-          <div className="table-responsive">
-            <table className="data-table">
-              <thead><tr><th>INVOICE #</th><th>DATE</th><th>SERVICES BILLED</th><th>TOTAL AMOUNT</th><th>BALANCE</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr></thead>
-              <tbody>
-                {billingInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td><strong>{invoice.invoice_number}</strong></td>
-                    <td>{formatDate(invoice.invoice_date || invoice.created_at)}</td>
-                    <td>{invoice.items.map((item) => item.service_name).join(', ') || 'OPD Services'}</td>
-                    <td>{formatCurrency(invoice.total_amount)}</td>
-                    <td><strong style={{ color: invoice.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>{formatCurrency(invoice.balance_amount)}</strong></td>
-                    <td><span className="doc-status active">{invoice.status}</span></td>
-                    <td style={{ textAlign: 'center' }}><button className="doc-btn small" onClick={() => onViewInvoice(invoice)} title="View Invoice" type="button"><i aria-hidden="true" className="ph ph-file-text" /></button></td>
-                  </tr>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead><tr><th>INVOICE #</th><th>DATE</th><th>SERVICES BILLED</th><th>TOTAL AMOUNT</th><th>BALANCE</th><th>STATUS</th><th style={{ width: '80px', textAlign: 'center' }}>ACTION</th></tr></thead>
+                <tbody>
+                  {billingInvoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td><strong>{invoice.invoice_number}</strong></td>
+                      <td>{formatDate(invoice.invoice_date || invoice.created_at)}</td>
+                      <td>{invoice.items.map((item) => item.service_name).join(', ') || 'OPD Services'}</td>
+                      <td>{formatCurrency(invoice.total_amount)}</td>
+                      <td><strong style={{ color: invoice.balance_amount > 0 ? '#dc2626' : '#16a34a' }}>{formatCurrency(invoice.balance_amount)}</strong></td>
+                      <td><span className="doc-status active">{invoice.status}</span></td>
+                      <td style={{ textAlign: 'center' }}><button className="doc-btn small" onClick={() => onViewInvoice(invoice)} title="View Invoice" type="button"><i aria-hidden="true" className="ph ph-file-text" /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="um-pagination" style={{ borderTop: '1px solid #e2e8f0', padding: '0.85rem 1.25rem' }}>
+              <div className="um-showing">
+                Showing {billingInvoices.length === 0 ? 0 : (billingMeta.page - 1) * billingMeta.limit + 1}–{Math.min(billingMeta.page * billingMeta.limit, billingMeta.total || 0)} of {billingMeta.total || 0} invoices
+              </div>
+              <div className="um-page-size" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Rows:</span>
+                <select
+                  aria-label="Invoices per page"
+                  onChange={(e) => {
+                    const newLimit = Number(e.target.value);
+                    setBillingMeta({ limit: newLimit, page: 1 });
+                  }}
+                  value={billingMeta.limit}
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+              <div className="um-page-controls">
+                <button
+                  aria-label="Previous page"
+                  className="pg-btn"
+                  disabled={billingMeta.page <= 1 || loadingBillingInvoices}
+                  onClick={() => setBillingMeta({ page: Math.max(billingMeta.page - 1, 1) })}
+                  type="button"
+                >
+                  <i className="ph ph-caret-left" aria-hidden="true" />
+                </button>
+                {Array.from({ length: billingMeta.totalPages || 1 }, (_, i) => i + 1).map((p) => (
+                  <button
+                    aria-label={`Page ${p}`}
+                    className={`pg-btn${p === billingMeta.page ? ' active' : ''}`}
+                    key={p}
+                    onClick={() => setBillingMeta({ page: p })}
+                    type="button"
+                  >
+                    {p}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+                <button
+                  aria-label="Next page"
+                  className="pg-btn"
+                  disabled={billingMeta.page >= billingMeta.totalPages || loadingBillingInvoices}
+                  onClick={() => setBillingMeta({ page: billingMeta.page + 1 })}
+                  type="button"
+                >
+                  <i className="ph ph-caret-right" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
           </div>
         )
       ) : null}

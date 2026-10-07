@@ -51,6 +51,8 @@ export type DentalTreatmentQuotationFields = {
   selectedOptionName?: string | null;
   acceptedAt?: Date | null;
   acceptedBy?: Types.ObjectId | null;
+  invoiceId?: Types.ObjectId | null;
+  invoiceNumber?: string | null;
   decisionReason?: string | null;
   decisionAt?: Date | null;
   sentAt?: Date | null;
@@ -154,6 +156,8 @@ const dentalTreatmentQuotationSchema = new Schema<DentalTreatmentQuotationFields
     selectedOptionName: { type: String, default: null, trim: true },
     acceptedAt: { type: Date, default: null },
     acceptedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'BillingInvoice', default: null, index: true },
+    invoiceNumber: { type: String, default: null, trim: true },
     decisionReason: { type: String, default: null, trim: true },
     decisionAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },

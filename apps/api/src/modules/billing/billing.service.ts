@@ -28,6 +28,8 @@ import type {
 } from './billing.types.js';
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
 import type { SettingsRepository } from '../settings/settings.repository.js';
+import type { DentalQuotationRepository } from '../opd/dental-quotation.repository.js';
+import type { DentalEpisodeRepository } from '../opd/dental-episode.repository.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -71,7 +73,88 @@ export class BillingService {
     private readonly dentalExaminationRepository?: OpdDentalExaminationRepository,
     private readonly departmentRepository?: DepartmentRepository,
     private readonly settingsRepository?: SettingsRepository,
+    private readonly dentalQuotationRepository?: DentalQuotationRepository,
+    private readonly dentalEpisodeRepository?: DentalEpisodeRepository,
   ) {}
+
+  async createAcceptedDentalQuotationInvoice(
+    quotationId: string,
+    actorUserId: string,
+    metadata: BillingRequestMetadata = {},
+  ) {
+    this.requireObjectId(quotationId, 'Dental quotation id is invalid');
+    if (!this.dentalQuotationRepository || !this.dentalEpisodeRepository) {
+      throw new AppError('Dental quotation billing is unavailable', 503, 'DENTAL_QUOTATION_BILLING_UNAVAILABLE');
+    }
+    const quotation = await this.dentalQuotationRepository.getById(quotationId);
+    if (!quotation || quotation.status !== 'ACCEPTED' || !quotation.selected_option_id) {
+      throw new AppError('Only an accepted quotation can create an invoice', 409, 'QUOTATION_NOT_ACCEPTED');
+    }
+    // Quotation access is authorized by DentalQuotationService before this
+    // internal billing operation. Patient/guardian accounts used by the mobile
+    // app do not have staff branch assignments, so deriving billing scope from
+    // the accepting user would hide the newly-created invoice and prevent the
+    // quotation from being linked to it.
+    const scope = [quotation.branch_id];
+    const existing = await this.repository.getInvoiceByOriginatingOrderId(quotationId, scope);
+    if (existing) return existing;
+
+    const episode = await this.dentalEpisodeRepository.getById(quotation.treatment_episode_id);
+    const visit = episode
+      ? await this.visitRepository.getById(episode.originating_visit_id, scope)
+      : undefined;
+    const option = quotation.options.find((item) => item.id === quotation.selected_option_id);
+    if (!episode || !visit || !option || visit.patient_id !== quotation.patient_id) {
+      throw new AppError('Dental quotation billing context is incomplete', 409, 'DENTAL_BILLING_CONTEXT_INCOMPLETE');
+    }
+    if (option.items.length === 0 || option.items.some((item) => !item.service_id)) {
+      throw new AppError('Every accepted quotation item must reference a service', 409, 'DENTAL_BILLING_CONTEXT_INCOMPLETE');
+    }
+
+    return executeTransaction(() => mongoose.startSession(), async (session) => {
+      const concurrent = await this.repository.getInvoiceByOriginatingOrderId(quotationId, scope, session);
+      if (concurrent) return concurrent;
+      const items: ResolvedBillingItem[] = option.items.map((item, index) => ({
+        serviceId: item.service_id!,
+        serviceName: item.procedure_name,
+        serviceType: 'PROCEDURE',
+        originatingOrderId: index === 0
+          ? quotationId
+          : (item.treatment_plan_item_id ?? item.id ?? null),
+        quantity: item.quantity,
+        unitPrice: roundMoney(item.unit_price),
+        lineTotal: roundMoney(item.line_total),
+      }));
+      const created = await this.repository.createInvoice({
+        invoiceNumber: createBillingNumber('INV'),
+        patientId: quotation.patient_id,
+        visitId: visit.id,
+        sourceType: sourceTypeForVisit(visit.visit_type),
+        encounterId: visit.id,
+        admissionId: null,
+        procedureId: null,
+        appointmentId: visit.appointment_id,
+        branchId: quotation.branch_id,
+        invoiceDate: new Date(),
+        subtotal: roundMoney(option.subtotal),
+        discountAmount: roundMoney(option.discount_amount),
+        taxAmount: roundMoney(option.tax_amount),
+        totalAmount: roundMoney(option.total),
+        balanceAmount: roundMoney(option.total),
+      }, items, actorUserId, session);
+      await this.repository.audit('billing.invoice.created', actorUserId, metadata, {
+        invoiceId: created.id,
+        invoiceNumber: created.invoice_number,
+        patientId: quotation.patient_id,
+        visitId: visit.id,
+        branchId: quotation.branch_id,
+        dentalQuotationId: quotationId,
+        totalAmount: option.total,
+        itemCount: items.length,
+      }, session);
+      return created;
+    });
+  }
 
   async listDentalTreatmentBillingStates(
     visitId: string,

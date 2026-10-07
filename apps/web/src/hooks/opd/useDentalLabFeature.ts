@@ -108,7 +108,11 @@ export function useDentalLabFeature(input: DentalLabFeatureInput) {
     }
   });
   const submitRequest = async () => {
-    if (!input.consultationCompleted || !input.canEdit || !canView || order.data?.status !== 'DRAFT') return;
+    if (!input.canEdit || !canView || order.data?.status !== 'DRAFT') return;
+    if (!order.data?.items || order.data.items.length === 0) {
+      toast.error('Add at least one laboratory investigation before submitting.');
+      return;
+    }
     try {
       await submit.mutateAsync({
         visitId: input.visitId,

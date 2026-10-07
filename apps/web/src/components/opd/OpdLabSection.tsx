@@ -1,6 +1,7 @@
 import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
 import { isDentalLabService } from '../../pages/dental-utils';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 import dentalStyles from './dental/DentalClinicalOrders.module.css';
 
 export type LabOrderItem = {
@@ -37,6 +38,9 @@ export type OpdLabSectionProps = {
   canEdit: boolean;
   isDental?: boolean;
   nextTab?: 'Imaging Orders' | 'Follow-up';
+  handleSendToLaboratory?: () => void;
+  isSentToLaboratory?: boolean;
+  updating?: string;
 };
 
 export function OpdLabSection({
@@ -66,6 +70,9 @@ export function OpdLabSection({
   canEdit,
   isDental = false,
   nextTab = 'Imaging Orders',
+  handleSendToLaboratory,
+  isSentToLaboratory = false,
+  updating = '',
 }: OpdLabSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -322,6 +329,34 @@ export function OpdLabSection({
             <i aria-hidden="true" className="ph ph-printer" />
             Print Laboratory Order
           </button>
+          {handleSendToLaboratory && (canEdit || isSentToLaboratory) && (
+            <button
+              className={isSentToLaboratory ? 'doc-btn sent-disabled' : 'doc-btn primary'}
+              disabled={updating === 'laboratory-submit' || isSentToLaboratory || !canEdit}
+              onClick={() => {
+                if (updating === 'laboratory-submit' || isSentToLaboratory || !canEdit) return;
+                void handleSendToLaboratory();
+              }}
+              type="button"
+            >
+              {updating === 'laboratory-submit' ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Sending...</span>
+                </>
+              ) : isSentToLaboratory ? (
+                <>
+                  <i aria-hidden="true" className="ph ph-check-circle" />
+                  Sent To Laboratory
+                </>
+              ) : (
+                <>
+                  <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                  Send To Laboratory
+                </>
+              )}
+            </button>
+          )}
           <button
             className="doc-btn primary"
             onClick={() => handleNextStep(nextTab)}

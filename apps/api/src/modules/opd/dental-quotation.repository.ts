@@ -71,6 +71,8 @@ const toDomainQuotation = (doc: DentalTreatmentQuotationLean): DentalTreatmentQu
   selected_option_name: doc.selectedOptionName ?? null,
   accepted_at: doc.acceptedAt ?? null,
   accepted_by: doc.acceptedBy?.toString() ?? null,
+  invoice_id: doc.invoiceId?.toString() ?? null,
+  invoice_number: doc.invoiceNumber ?? null,
   decision_reason: doc.decisionReason ?? null,
   decision_at: doc.decisionAt ?? null,
   sent_at: doc.sentAt ?? null,

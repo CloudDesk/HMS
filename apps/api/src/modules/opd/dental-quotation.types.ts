@@ -58,6 +58,8 @@ export type DentalTreatmentQuotation = {
   selected_option_name?: string | null;
   accepted_at?: Date | null;
   accepted_by?: string | null;
+  invoice_id?: string | null;
+  invoice_number?: string | null;
   decision_reason?: string | null;
   decision_at?: Date | null;
   sent_at?: Date | null;

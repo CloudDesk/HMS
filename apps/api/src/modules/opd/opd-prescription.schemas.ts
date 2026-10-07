@@ -41,6 +41,7 @@ export const saveOpdPrescriptionBodySchema = {
 export const listOpdPrescriptionsQuerySchema = {
   type: 'object',
   properties: {
+    patient_id: { type: 'string', minLength: 1 },
     status: { type: 'string', enum: ['DRAFT', 'SUBMITTED', 'DISPENSED'] },
     limit: { type: 'number', minimum: 1, maximum: 100 },
     skip: { type: 'number', minimum: 0 },

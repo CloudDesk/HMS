@@ -58,6 +58,7 @@ vi.mock('../../../api/doctors', async (importOriginal) => {
 
 vi.mock('../../../api/useSettings', () => ({
   useCurrencyFormatter: () => (val: number) => `$${val.toFixed(2)}`,
+  useSettings: () => null,
 }));
 
 const PLAN_ITEM_ID = '607f1f77bcf86cd799439011';

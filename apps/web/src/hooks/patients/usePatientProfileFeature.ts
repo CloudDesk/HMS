@@ -6,7 +6,7 @@ import { useBillingInvoices, useBillingSummary } from '../billing/useBilling';
 import { useDoctorsList } from '../doctors/useDoctors';
 import { useImagingOrders } from '../imaging/useImaging';
 import { useLaboratoryOrders } from '../laboratory/useLaboratory';
-import { useOpdVisits } from '../opd/useOpd';
+import { useOpdVisits, useOpdPrescriptionsList } from '../opd/useOpd';
 import {
   usePatientDetails,
   useDownloadPatientDocument,
@@ -57,6 +57,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
 
   const [appointmentFilters, setAppointmentFilters] = useState({ date_from: '', date_to: '', doctor_id: '' });
   const [appointmentsPage, setAppointmentsPage] = useState({ page: 1, limit: 10 });
+  const [billingPage, setBillingPage] = useState({ page: 1, limit: 10 });
 
   // Details
   const detailsQuery = usePatientDetails(patientId, Boolean(patientId));
@@ -98,9 +99,15 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
     activeTab === 'Documents' && Boolean(patientId)
   );
 
+  // Prescriptions
+  const prescriptionsQuery = useOpdPrescriptionsList(
+    { patient_id: patientId || undefined, limit: 50 },
+    (activeTab === 'Prescriptions' || activeTab === 'Overview') && Boolean(patientId)
+  );
+
   // Billing
   const billingInvoicesQuery = useBillingInvoices(
-    { patient_id: patientId || undefined, limit: 50 },
+    { patient_id: patientId || undefined, page: billingPage.page, limit: billingPage.limit },
     activeTab === 'Billing' && Boolean(patientId)
   );
   const patientBillingSummaryQuery = useBillingSummary(
@@ -167,10 +174,14 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
       imagingOrders: imagingOrdersQuery.data?.data ?? [],
       loadingImagingOrders: imagingOrdersQuery.isLoading,
 
+      prescriptions: prescriptionsQuery.data?.data ?? [],
+      loadingPrescriptions: prescriptionsQuery.isLoading,
+
       documents: documentsQuery.data?.data ?? [],
       loadingDocuments: documentsQuery.isLoading,
 
       billingInvoices: billingInvoicesQuery.data?.data ?? [],
+      billingMeta: billingInvoicesQuery.data?.meta || { page: 1, limit: 10, totalPages: 1, total: 0 },
       loadingBillingInvoices: billingInvoicesQuery.isLoading,
       outstandingBillsBalance: canViewBilling ? patientBillingSummaryQuery.data?.outstanding_amount ?? null : null,
       loadingOutstandingBills: patientBillingSummaryQuery.isLoading,
@@ -189,6 +200,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
         timeline: timelinePage,
         visits: visitsPage,
         appointments: appointmentsPage,
+        billing: billingPage,
       },
 
       isSubmittingUpdate: updatePatient.isPending,
@@ -206,6 +218,7 @@ export function usePatientProfileFeature(patientId: string | null, initialTab: P
       setVisitsPage,
       setAppointmentFilters,
       setAppointmentsPage,
+      setBillingPage,
       handleUpdateProfile,
       handleUploadDocument,
       handleDownloadDocument,

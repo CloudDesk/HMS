@@ -328,6 +328,11 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
     <section className={styles.section} aria-label="Dental imaging">
       <header className={styles.imagingPageHeader}>
         <h2><i className="ph ph-image-square" /> Imaging</h2>
+        {input.canEdit && !input.consultationCompleted && input.onCompleteExamination ? (
+          <button type="button" className="doc-btn success" onClick={input.onCompleteExamination}>
+            <i className="ph ph-check-circle" /> Complete Examination
+          </button>
+        ) : null}
         {/* <p>View images taken during this visit and radiology reports for this patient.</p> */}
       </header>
       {/* =========================================================
@@ -590,17 +595,37 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
       </div>
 
       {order.data?.status === 'DRAFT' && (
-        <p>Saved draft. Radiology receives the request after consultation completion and submission.</p>
+        <p className={styles.ordersEmpty} style={{ textAlign: 'left', padding: '0.5rem 0' }}>
+          Saved draft. Click &quot;Send To Imaging&quot; to send request to the radiology department queue.
+        </p>
       )}
-      {input.consultationCompleted && input.canEdit && order.data?.status === 'DRAFT' && (
+      {(input.canEdit || order.data?.status !== 'DRAFT') && Boolean(order.data) && (
         <button
           type="button"
-          disabled={feature.saving}
+          className={order.data?.status !== 'DRAFT' ? 'doc-btn sent-disabled' : 'doc-btn primary'}
+          disabled={feature.saving || order.data?.status !== 'DRAFT' || !input.canEdit || (order.data?.items?.length ?? 0) === 0}
           onClick={() => {
+            if (feature.saving || order.data?.status !== 'DRAFT' || !input.canEdit || (order.data?.items?.length ?? 0) === 0) return;
             void feature.submitRequest();
           }}
+          style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
         >
-          Submit imaging request
+          {feature.saving ? (
+            <>
+              <i className="ph ph-spinner ph-spin" />
+              <span>Sending...</span>
+            </>
+          ) : order.data?.status !== 'DRAFT' ? (
+            <>
+              <i aria-hidden="true" className="ph ph-check-circle" />
+              Sent To Imaging
+            </>
+          ) : (
+            <>
+              <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+              Send To Imaging
+            </>
+          )}
         </button>
       )}
       {feature.saveError && !feature.open && <p role="alert">{feature.saveError}</p>}

@@ -865,7 +865,7 @@ export const opdApi = {
     );
   },
 
-  listPrescriptions(params: Partial<{ status: ApiOpdPrescriptionStatus; limit: number; skip: number; search: string; sortBy: string; sortOrder: 'asc' | 'desc' }> = {}) {
+  listPrescriptions(params: Partial<{ patient_id: string; status: ApiOpdPrescriptionStatus; limit: number; skip: number; search: string; sortBy: string; sortOrder: 'asc' | 'desc' }> = {}) {
     return apiClient.request<{ data: OpdPrescriptionResponse[]; total: number }>(`/opd/prescriptions${toQueryString(params)}`);
   },
 
@@ -1325,6 +1325,8 @@ export type DentalTreatmentQuotationResponse = {
   selected_option_name?: string | null;
   accepted_at?: string | null;
   accepted_by?: string | null;
+  invoice_id?: string | null;
+  invoice_number?: string | null;
   decision_reason?: string | null;
   decision_at?: string | null;
   sent_at?: string | null;

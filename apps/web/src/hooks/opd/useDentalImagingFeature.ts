@@ -30,6 +30,7 @@ export type DentalImagingFeatureInput = {
   canEdit: boolean;
   consultationCompleted: boolean;
   draft: SaveOpdClinicalOrderPayload;
+  onCompleteExamination?: () => void;
 };
 
 export function useDentalImagingFeature(input: DentalImagingFeatureInput) {
@@ -141,7 +142,11 @@ export function useDentalImagingFeature(input: DentalImagingFeatureInput) {
     }
   });
   const submitRequest = async () => {
-    if (!input.consultationCompleted || !input.canEdit || !canView || order.data?.status !== 'DRAFT') return;
+    if (!input.canEdit || !canView || order.data?.status !== 'DRAFT') return;
+    if (!order.data?.items || order.data.items.length === 0) {
+      toast.error('Add at least one imaging study before submitting.');
+      return;
+    }
     try {
       const dentalContext = input.episodeId ? {
         treatment_episode_id: input.episodeId,
