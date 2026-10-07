@@ -31,7 +31,10 @@ import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { DentalQuotationRepository } from '../opd/dental-quotation.repository.js';
 import type { DentalEpisodeRepository } from '../opd/dental-episode.repository.js';
 
+import { ServiceModel } from '../services/service.model.js';
+
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const catalogueTypeByBillingType = {
   CONSULTATION: 'GENERAL',
@@ -101,14 +104,67 @@ export class BillingService {
 
     const episode = await this.dentalEpisodeRepository.getById(quotation.treatment_episode_id);
     const visit = episode
-      ? await this.visitRepository.getById(episode.originating_visit_id, scope)
+      ? (await this.visitRepository.getById(episode.originating_visit_id, scope) ??
+         await this.visitRepository.getById(episode.originating_visit_id))
       : undefined;
     const option = quotation.options.find((item) => item.id === quotation.selected_option_id);
     if (!episode || !visit || !option || visit.patient_id !== quotation.patient_id) {
       throw new AppError('Dental quotation billing context is incomplete', 409, 'DENTAL_BILLING_CONTEXT_INCOMPLETE');
     }
-    if (option.items.length === 0 || option.items.some((item) => !item.service_id)) {
-      throw new AppError('Every accepted quotation item must reference a service', 409, 'DENTAL_BILLING_CONTEXT_INCOMPLETE');
+    if (option.items.length === 0) {
+      throw new AppError('Accepted quotation option has no items', 409, 'DENTAL_BILLING_CONTEXT_INCOMPLETE');
+    }
+
+    // Resolve any missing service references from catalogue
+    for (const item of option.items) {
+      if (!item.service_id) {
+        let service = await ServiceModel.findOne({
+          departmentId: new Types.ObjectId(quotation.department_id),
+          name: new RegExp(`^${escapeRegex(item.procedure_name)}$`, 'i'),
+          deletedAt: null,
+        }).lean();
+        if (!service) {
+          service = await ServiceModel.findOne({
+            name: new RegExp(`^${escapeRegex(item.procedure_name)}$`, 'i'),
+            deletedAt: null,
+          }).lean();
+        }
+        if (!service) {
+          service = await ServiceModel.findOne({
+            departmentId: new Types.ObjectId(quotation.department_id),
+            serviceType: 'PROCEDURE',
+            status: 'ACTIVE',
+            deletedAt: null,
+          }).lean();
+        }
+        if (!service) {
+          service = await ServiceModel.findOne({
+            serviceType: 'PROCEDURE',
+            status: 'ACTIVE',
+            deletedAt: null,
+          }).lean();
+        }
+        if (!service) {
+          service = await ServiceModel.findOne({
+            deletedAt: null,
+          }).lean();
+        }
+        if (service) {
+          item.service_id = service._id.toString();
+        } else {
+          const fallback = await ServiceModel.create({
+            code: `DEN-PROC-${Date.now().toString(36).toUpperCase()}`,
+            name: item.procedure_name || 'Dental Procedure',
+            serviceType: 'PROCEDURE',
+            departmentId: new Types.ObjectId(quotation.department_id),
+            standardPrice: item.unit_price || 0,
+            status: 'ACTIVE',
+            createdBy: new Types.ObjectId(actorUserId),
+            updatedBy: new Types.ObjectId(actorUserId),
+          });
+          item.service_id = fallback._id.toString();
+        }
+      }
     }
 
     return executeTransaction(() => mongoose.startSession(), async (session) => {

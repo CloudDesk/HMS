@@ -54,7 +54,7 @@ const getDentalBadgeVariant = (status: string): StatusVariant => {
 
 export function DentalScreen({ onNavigateBack, initialQuotationId }: DentalScreenProps) {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { selectedPatient, selectedPatientId, refresh: refreshPatientContext } = usePatient();
 
   const [mainView, setMainView] = useState<DentalMainView>(
     initialQuotationId ? 'QUOTATIONS' : 'STAGES'
@@ -160,8 +160,9 @@ export function DentalScreen({ onNavigateBack, initialQuotationId }: DentalScree
       prev.map((q) => (q.id === quotationId ? updated : q))
     );
     setSelectedQuote(updated);
-    // Reload stages after accepting quotation
+    // Reload stages and patient overview (including billing invoices) after accepting quotation
     void loadData(true);
+    void refreshPatientContext();
   };
 
   const handleRejectQuotation = async (

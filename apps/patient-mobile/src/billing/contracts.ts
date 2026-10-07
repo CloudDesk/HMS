@@ -118,6 +118,8 @@ export function getInvoiceStatusLabel(status: string): string {
       return 'Pending Payment';
     case 'CANCELLED':
       return 'Cancelled';
+    case 'DRAFT':
+      return 'Draft';
     default:
       return status || 'Issued';
   }
@@ -136,6 +138,7 @@ export function getInvoiceStatusStyle(status: string): {
     case 'PENDING':
       return { bg: '#FEE2E2', text: '#991B1B', border: '#FECACA' };
     case 'CANCELLED':
+    case 'DRAFT':
       return { bg: '#F1F5F9', text: '#475569', border: '#CBD5E1' };
     default:
       return { bg: '#F0F9FF', text: '#0369A1', border: '#BAE6FD' };

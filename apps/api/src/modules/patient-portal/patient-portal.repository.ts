@@ -966,7 +966,7 @@ export class PatientPortalRepository {
           .sort({ appointmentDate: -1, startTime: -1 })
           .limit(8)
           .lean(),
-        BillingInvoiceModel.find({ patientId: id, deletedAt: null, status: { $ne: 'DRAFT' } })
+        BillingInvoiceModel.find({ patientId: id, deletedAt: null })
           .select('invoiceNumber invoiceDate status totalAmount paidAmount balanceAmount')
           .sort({ invoiceDate: -1 })
           .limit(100)
@@ -1352,7 +1352,6 @@ export class PatientPortalRepository {
       _id: objectId(invoiceId),
       patientId: objectId(patientId),
       deletedAt: null,
-      status: { $ne: 'DRAFT' },
     }).lean();
     if (!invoice) return null;
 

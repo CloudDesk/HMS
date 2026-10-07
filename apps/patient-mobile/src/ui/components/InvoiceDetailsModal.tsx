@@ -291,7 +291,27 @@ export function InvoiceDetailsModal({
               ) : null}
 
               {/* Status Notice / Advisory */}
-              {invoice.balance_amount > 0 ? (
+              {invoice.status?.toUpperCase() === 'CANCELLED' ? (
+                <View style={styles.dueNoticeBanner}>
+                  <Text style={styles.dueNoticeIcon}>🚫</Text>
+                  <View style={styles.dueNoticeContent}>
+                    <Text style={styles.dueNoticeTitle}>Invoice Cancelled</Text>
+                    <Text style={styles.dueNoticeText}>
+                      This invoice has been voided or cancelled.
+                    </Text>
+                  </View>
+                </View>
+              ) : invoice.status?.toUpperCase() === 'DRAFT' ? (
+                <View style={styles.dueNoticeBanner}>
+                  <Text style={styles.dueNoticeIcon}>📝</Text>
+                  <View style={styles.dueNoticeContent}>
+                    <Text style={styles.dueNoticeTitle}>Draft Invoice</Text>
+                    <Text style={styles.dueNoticeText}>
+                      This is a preliminary draft invoice awaiting final billing review and confirmation.
+                    </Text>
+                  </View>
+                </View>
+              ) : invoice.balance_amount > 0 ? (
                 <View style={styles.dueNoticeBanner}>
                   <Text style={styles.dueNoticeIcon}>⚠️</Text>
                   <View style={styles.dueNoticeContent}>

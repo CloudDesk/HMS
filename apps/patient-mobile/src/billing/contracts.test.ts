@@ -156,12 +156,16 @@ describe('Billing Contracts & Schemas', () => {
       expect(getInvoiceStatusLabel('PARTIALLY_PAID')).toBe('Partially Paid');
       expect(getInvoiceStatusLabel('PENDING')).toBe('Pending Payment');
       expect(getInvoiceStatusLabel('CANCELLED')).toBe('Cancelled');
+      expect(getInvoiceStatusLabel('DRAFT')).toBe('Draft');
 
       const paidStyle = getInvoiceStatusStyle('PAID');
       expect(paidStyle.bg).toBe('#DCFCE7');
 
       const pendingStyle = getInvoiceStatusStyle('PENDING');
       expect(pendingStyle.bg).toBe('#FEE2E2');
+
+      const draftStyle = getInvoiceStatusStyle('DRAFT');
+      expect(draftStyle.bg).toBe('#F1F5F9');
     });
   });
 });

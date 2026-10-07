@@ -39,9 +39,12 @@ const getInvoiceBadgeVariant = (status: string): StatusVariant => {
       return 'success';
     case 'PARTIALLY_PAID':
       return 'warning';
+    case 'PENDING':
     case 'UNPAID':
     case 'OVERDUE':
       return 'danger';
+    case 'DRAFT':
+    case 'CANCELLED':
     default:
       return 'neutral';
   }
@@ -104,12 +107,12 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
   );
 
   const loadBillingData = useCallback(
-    async (isRefresh = false) => {
+    async (isRefresh = false, showSpinner = true) => {
       if (!selectedPatientId) return;
 
       if (isRefresh) {
         setIsRefreshing(true);
-      } else {
+      } else if (showSpinner) {
         setIsLoading(true);
       }
       setError(null);
@@ -153,12 +156,14 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
             void handleOpenInvoice(target);
           }
         }
+        // Fetch live billing updates in the background without blocking the UI
+        void loadBillingData(false, false);
         return;
       }
     }
     setInvoices([]);
     if (selectedPatientId) {
-      void loadBillingData(false);
+      void loadBillingData(false, true);
     }
   }, [selectedPatientId, overview, loadBillingData, initialInvoiceId, handleOpenInvoice]);
 
@@ -171,32 +176,32 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
     }
   }, [initialInvoiceId, invoices, handleOpenInvoice]);
 
-  // Calculate totals - CANCELLED invoices are voided/non-payable, matching backend accounting rules
-  const activeInvoices = useMemo(
-    () => invoices.filter((inv) => inv.status?.toUpperCase() !== 'CANCELLED'),
+  // Calculate totals - CANCELLED and DRAFT invoices are excluded from finalized billing totals
+  const finalizedInvoices = useMemo(
+    () => invoices.filter((inv) => !['CANCELLED', 'DRAFT'].includes(inv.status?.toUpperCase())),
     [invoices]
   );
 
   const totalBilled = useMemo(
-    () => activeInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0),
-    [activeInvoices]
+    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0),
+    [finalizedInvoices]
   );
   const totalPaid = useMemo(
-    () => activeInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0),
-    [activeInvoices]
+    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0),
+    [finalizedInvoices]
   );
   const totalOutstanding = useMemo(
-    () => activeInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0),
-    [activeInvoices]
+    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0),
+    [finalizedInvoices]
   );
 
   const outstandingInvoices = useMemo(
-    () => activeInvoices.filter((inv) => inv.balance_amount > 0),
-    [activeInvoices]
+    () => finalizedInvoices.filter((inv) => inv.balance_amount > 0),
+    [finalizedInvoices]
   );
   const settledInvoices = useMemo(
-    () => activeInvoices.filter((inv) => inv.balance_amount === 0 || inv.status?.toUpperCase() === 'PAID'),
-    [activeInvoices]
+    () => finalizedInvoices.filter((inv) => inv.balance_amount === 0 || inv.status?.toUpperCase() === 'PAID'),
+    [finalizedInvoices]
   );
 
   const filteredInvoices = useMemo(() => {
@@ -369,7 +374,7 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
                     <Text
                       style={[
                         styles.amountValue,
-                        inv.status?.toUpperCase() !== 'CANCELLED' && inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
+                        !['CANCELLED', 'DRAFT'].includes(inv.status?.toUpperCase()) && inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
                       ]}
                     >
                       {formatCurrency(inv.status?.toUpperCase() === 'CANCELLED' ? 0 : inv.balance_amount)}
@@ -381,6 +386,8 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
                   <Text style={styles.itemsCount}>
                     {inv.status?.toUpperCase() === 'CANCELLED'
                       ? 'Invoice Cancelled'
+                      : inv.status?.toUpperCase() === 'DRAFT'
+                      ? 'Draft Invoice'
                       : inv.balance_amount > 0
                       ? 'Payment Due'
                       : 'Fully Paid'}

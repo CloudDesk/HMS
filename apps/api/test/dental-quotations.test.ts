@@ -15,6 +15,7 @@ import { DentalTreatmentEpisodeModel } from '../src/modules/opd/dental-episode.m
 import { OpdDentalExaminationModel } from '../src/modules/opd/opd-dental-examination.model.js';
 import { DentalTreatmentStageModel } from '../src/modules/opd/dental-stage.model.js';
 import { ServiceModel } from '../src/modules/services/service.model.js';
+import { BillingInvoiceItemModel, BillingInvoiceModel } from '../src/modules/billing/billing.model.js';
 import { AuditLogModel } from '../src/modules/auth/auth.model.js';
 import { signJwt } from '../src/shared/security/jwt.js';
 import { hashPassword } from '../src/shared/security/hash.js';
@@ -771,6 +772,24 @@ describe('Dental Treatment Quotation Integration Tests (Phase 8A)', () => {
     expect(crownItem).toBeTruthy();
     expect(crownItem?.status).toBe('ACCEPTED');
     expect(crownItem?.estimatedCost).toBe(20000);
+
+    // Verify invoice auto-creation linked to patient, branch, and quotation
+    expect(acceptedQuote.invoice_id).toBeTruthy();
+    expect(acceptedQuote.invoice_number).toMatch(/^INV-/);
+
+    const invoice = await BillingInvoiceModel.findById(acceptedQuote.invoice_id).lean();
+    expect(invoice).toBeTruthy();
+    expect(invoice?.patientId.toString()).toBe(patientId);
+    expect(invoice?.branchId.toString()).toBe(branchId);
+    expect(invoice?.status).toBe('DRAFT');
+    expect(invoice?.subtotal).toBe(35000);
+    expect(invoice?.discountAmount).toBe(1000);
+    expect(invoice?.totalAmount).toBe(34000);
+    expect(invoice?.balanceAmount).toBe(34000);
+
+    const invoiceItems = await BillingInvoiceItemModel.find({ invoiceId: invoice?._id }).lean();
+    expect(invoiceItems.length).toBe(2);
+    expect(invoiceItems[0].originatingOrderId?.toString()).toBe(decisionQuotationId);
   });
 
   it('21. Phase 8C: Acceptance is idempotent when called with the same selected option', async () => {
@@ -786,6 +805,14 @@ describe('Dental Treatment Quotation Integration Tests (Phase 8A)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().data.status).toBe('ACCEPTED');
     expect(res.json().data.selected_option_id).toBe(optionAId);
+
+    // Verify duplicate protection: no duplicate invoice created
+    const invoiceId = res.json().data.invoice_id;
+    const invoicesCount = await BillingInvoiceModel.countDocuments({
+      _id: invoiceId,
+      deletedAt: null,
+    });
+    expect(invoicesCount).toBe(1);
   });
 
   it('22. Phase 8C: Reject quotation with reason (SENT -> REJECTED)', async () => {
@@ -1013,6 +1040,66 @@ describe('Dental Treatment Quotation Integration Tests (Phase 8A)', () => {
     expect(metadata?.episodeId).toBeTruthy();
     expect(metadata?.selectedOptionId).toBeTruthy();
     expect(Array.isArray(metadata?.createdStageIds)).toBe(true);
+  });
+
+  it('30. Phase 8E: Quotation option with custom procedure items (no service_id) automatically creates invoice with catalogue resolution', async () => {
+    // Create quotation on the active episode with custom procedure item
+    const createQuoteRes = await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/episodes/${episodeId}/quotations`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        options: [
+          {
+            name: 'Option Custom: Aesthetic Contouring',
+            items: [
+              {
+                procedure_name: 'Custom Gingival Contouring',
+                unit_price: 8500,
+                quantity: 1,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(createQuoteRes.statusCode).toBe(200);
+    const customQuote = createQuoteRes.json().data;
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/quotations/${customQuote.id}/send`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+    });
+
+    const acceptRes = await app.inject({
+      method: 'POST',
+      url: `/api/opd/dental/quotations/${customQuote.id}/accept`,
+      headers: { authorization: `Bearer ${doctorToken}` },
+      payload: {
+        selected_option_id: customQuote.options[0].id,
+        notes: 'Patient agreed to aesthetic contouring',
+      },
+    });
+
+    expect(acceptRes.statusCode).toBe(200);
+    const acceptedCustom = acceptRes.json().data;
+    expect(acceptedCustom.status).toBe('ACCEPTED');
+    expect(acceptedCustom.invoice_id).toBeTruthy();
+    expect(acceptedCustom.invoice_number).toMatch(/^INV-/);
+
+    const invoice = await BillingInvoiceModel.findById(acceptedCustom.invoice_id).lean();
+    expect(invoice).toBeTruthy();
+    expect(invoice?.patientId.toString()).toBe(patientId);
+    expect(invoice?.branchId.toString()).toBe(branchId);
+    expect(invoice?.status).toBe('DRAFT');
+    expect(invoice?.totalAmount).toBe(8500);
+
+    const items = await BillingInvoiceItemModel.find({ invoiceId: invoice?._id }).lean();
+    expect(items.length).toBe(1);
+    expect(items[0].serviceName).toBe('Custom Gingival Contouring');
+    expect(items[0].lineTotal).toBe(8500);
+    expect(items[0].serviceId).toBeTruthy();
   });
 });
 

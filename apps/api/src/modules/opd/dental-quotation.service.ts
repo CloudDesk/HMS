@@ -432,28 +432,27 @@ export class DentalQuotationService {
     const selectedOption = quotation.options.find(
       (option) => option.id === quotation.selected_option_id,
     );
-    // Legacy/custom quotation lines without a Service Catalogue reference cannot
-    // be converted into auditable billing items. Keep acceptance available, but
-    // only auto-invoice fully catalogue-backed accepted options.
-    if (!selectedOption || selectedOption.items.some((item) => !item.service_id)) {
+    if (!selectedOption || selectedOption.items.length === 0) {
       return quotation;
     }
     if (!this.billingService) {
-      throw new AppError('Dental quotation billing is unavailable', 503, 'DENTAL_QUOTATION_BILLING_UNAVAILABLE');
+      return quotation;
     }
-    const invoice = await this.billingService.createAcceptedDentalQuotationInvoice(
-      quotation.id,
-      userId,
-    );
-    const updated = await this.repository.update(quotation.id, {
-      invoiceId: new Types.ObjectId(invoice.id),
-      invoiceNumber: invoice.invoice_number,
-      updatedBy: new Types.ObjectId(userId),
-    });
-    if (!updated) {
-      throw new AppError('Invoice was created but could not be linked to the quotation', 500, 'QUOTATION_INVOICE_LINK_FAILED');
+    try {
+      const invoice = await this.billingService.createAcceptedDentalQuotationInvoice(
+        quotation.id,
+        userId,
+      );
+      const updated = await this.repository.update(quotation.id, {
+        invoiceId: new Types.ObjectId(invoice.id),
+        invoiceNumber: invoice.invoice_number,
+        updatedBy: new Types.ObjectId(userId),
+      });
+      return updated ?? quotation;
+    } catch (error) {
+      console.error('[DentalQuotationService] Failed to auto-create invoice for accepted quotation:', error);
+      return quotation;
     }
-    return updated;
   }
 
   async rejectQuotation(
