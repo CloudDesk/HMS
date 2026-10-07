@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useDepartmentManagementFeature, type SortColumn, type SortDirection } from '../hooks/departments/useDepartmentManagementFeature';
+import { useDepartmentDeletePreviewFeature, useDepartmentManagementFeature, type SortColumn, type SortDirection } from '../hooks/departments/useDepartmentManagementFeature';
 import { ApiError } from '../api/api-error';
 import { type BranchResponse } from '../api/branches';
 import {
@@ -10,8 +10,8 @@ import {
   type ApiDepartmentStatus,
   type DepartmentResponse,
 } from '../api/departments';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Toast } from '../components/ui/Toast';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
@@ -170,6 +170,110 @@ function DeptsByBranch({
         ))
       )}
     </div>
+  );
+}
+
+function DepartmentDeleteDialog({
+  department,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  department: DepartmentResponse;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
+  const preview = useDepartmentDeletePreviewFeature(department.id, page);
+  const assigned = Boolean(preview.data?.service_meta.total || preview.data?.user_meta.total);
+  const servicePages = preview.data ? Math.ceil(preview.data.service_meta.total / preview.data.service_meta.limit) : 1;
+  const userPages = preview.data ? Math.ceil(preview.data.user_meta.total / preview.data.user_meta.limit) : 1;
+  const pageCount = Math.max(servicePages, userPages);
+
+  const confirmServiceDelete = async () => {
+    if (!serviceToDelete || !preview.canDeleteService) return;
+    try {
+      await preview.deleteService.mutateAsync(serviceToDelete.id);
+      setServiceToDelete(null);
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to delete assigned service', error);
+    }
+  };
+
+  return (
+    <>
+    <Modal
+      open
+      size="large"
+      title="Delete Department"
+      onClose={() => { if (!loading) onCancel(); }}
+      footer={(
+        <>
+          <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">Cancel</button>
+          <button className="btn-danger" disabled={loading || preview.loading || Boolean(preview.error) || assigned} onClick={onConfirm} type="button">
+            {loading ? 'Deleting…' : 'Delete Department'}
+          </button>
+        </>
+      )}
+    >
+      <p className="dialog-message">Delete {department.name}? First delete or reassign its services and reassign its users.</p>
+      {preview.loading && <p>Loading assigned services and users…</p>}
+      {preview.error && <div role="alert">Could not load department assignments. <button className="btn-secondary" onClick={() => void preview.retry()} type="button">Retry</button></div>}
+      {preview.data && (
+        <div className="department-delete-preview">
+          <section className="department-delete-section">
+            <h4>Assigned services ({preview.data.service_meta.total})</h4>
+            {preview.data.services.length === 0 ? <p>No services are assigned.</p> : (
+              <ul className="department-delete-list department-delete-service-list">
+                {preview.data.services.map((service) => (
+                  <li className="department-delete-service-row" key={service.id}>
+                    <div className="department-delete-service-details">
+                      <strong>{service.name}</strong>
+                      <span>{service.code} · {service.type.replaceAll('_', ' ')} · {service.status}</span>
+                    </div>
+                    {preview.canDeleteService && <button className="btn-danger" disabled={preview.deleteService.isPending} onClick={() => setServiceToDelete({ id: service.id, name: service.name })} type="button">Delete service</button>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!preview.canDeleteService && preview.data.service_meta.total > 0 && <p>You do not have permission to delete services. Ask a user with Service Catalogue delete access.</p>}
+          </section>
+          <section className="department-delete-section">
+            <h4>Assigned users ({preview.data.user_meta.total})</h4>
+            {preview.data.users.length === 0 ? <p>No users are assigned.</p> : (
+              <ul className="department-delete-list department-delete-user-list">
+                {preview.data.users.map((user) => <li key={user.id}><strong>{user.name}</strong>{user.employee_code ? ` · ${user.employee_code}` : ''}{user.job_title ? ` · ${user.job_title}` : ''} · {user.status}</li>)}
+              </ul>
+            )}
+          </section>
+          {pageCount > 1 && (
+            <div className="department-delete-pagination">
+              <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
+              <span> Page {page} of {pageCount} </span>
+              <button className="btn-secondary" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            </div>
+          )}
+          {assigned && <p role="status">Reassign these records in Service Catalogue and User Management before deleting this department.</p>}
+          {!assigned && <p>No assigned services or users. This department is ready to delete.</p>}
+        </div>
+      )}
+    </Modal>
+    {serviceToDelete && (
+      <ConfirmDialog
+        open
+        title="Delete Service"
+        message={`Delete ${serviceToDelete.name}? This will soft-delete it so it no longer blocks department deletion.`}
+        confirmLabel="Delete Service"
+        loading={preview.deleteService.isPending}
+        onCancel={() => { if (!preview.deleteService.isPending) setServiceToDelete(null); }}
+        onConfirm={() => void confirmServiceDelete()}
+      />
+    )}
+    </>
   );
 }
 
@@ -886,21 +990,7 @@ export function DepartmentManagementPage() {
       </Modal>
 
       {/* ── Delete Confirm ────────────────────────────────────────────────── */}
-      <ConfirmDialog
-        confirmLabel="Delete Department"
-        loading={submitting}
-        message={
-          deleteTarget
-            ? `Delete ${deleteTarget.name}? This will permanently remove the department.`
-            : ''
-        }
-        onCancel={() => {
-          if (!submitting) setDeleteTarget(null);
-        }}
-        onConfirm={() => void handleDelete()}
-        open={Boolean(deleteTarget)}
-        title="Delete Department"
-      />
+      {deleteTarget && <DepartmentDeleteDialog department={deleteTarget} loading={submitting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void handleDelete()} />}
 
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>

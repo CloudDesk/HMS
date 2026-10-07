@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { BranchRepository } from './branch.repository.js';
 import type { BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
@@ -60,19 +61,56 @@ export class BranchService {
     return this.update(id, { status }, userId, metadata);
   }
 
-  async delete(id: string, userId: string, metadata: BranchRequestMetadata) {
+  async delete(id: string, userId: string, metadata: BranchRequestMetadata, reassignToBranchId?: string) {
     const branch = await this.getById(id);
-    const dependencies = await this.repository.dependencies(id);
-    if (dependencies.departments || dependencies.users) {
-      throw new AppError(
-        'Branch cannot be deleted while departments or users are assigned',
-        409,
-        'BRANCH_HAS_DEPENDENCIES',
-        dependencies,
-      );
+    if (branch.status !== 'INACTIVE') {
+      throw new AppError('Deactivate the branch before deleting it', 409, 'BRANCH_MUST_BE_INACTIVE');
     }
-    await this.repository.softDelete(branch.id, userId);
-    await this.repository.audit('branch.deleted', userId, metadata, { branchId: id, code: branch.code });
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const dependencies = await this.repository.dependencies(id, session);
+      if ((dependencies.departments || dependencies.users || dependencies.doctors) && !reassignToBranchId) {
+        throw new AppError(
+          'Select an active branch to reassign the users and departments before deleting this branch',
+          409,
+          'BRANCH_REASSIGNMENT_REQUIRED',
+          dependencies,
+        );
+      }
+      if (reassignToBranchId) {
+        if (reassignToBranchId === id) {
+          throw new AppError('Choose a different branch for reassignment', 400, 'INVALID_REASSIGNMENT_BRANCH');
+        }
+        const target = await this.repository.getById(reassignToBranchId);
+        if (!target || target.status !== 'ACTIVE') {
+          throw new AppError('Reassignment branch must be active', 400, 'INVALID_REASSIGNMENT_BRANCH');
+        }
+      }
+      const usersReassigned = reassignToBranchId
+        ? await this.repository.reassignUsers(id, reassignToBranchId, userId, session)
+        : 0;
+      const departmentsReassigned = reassignToBranchId
+        ? await this.repository.reassignDepartments(id, reassignToBranchId, userId, session)
+        : 0;
+      const doctorsReassigned = reassignToBranchId
+        ? await this.repository.reassignDoctors(id, reassignToBranchId, userId, session)
+        : 0;
+      const deleted = await this.repository.softDelete(id, userId, session);
+      if (!deleted) throw new AppError('Branch was already deleted or changed; refresh and retry', 409, 'STALE_BRANCH_DELETE');
+      await this.repository.audit('branch.deleted', userId, metadata, {
+        branchId: id,
+        code: branch.code,
+        reassignedToBranchId: reassignToBranchId ?? null,
+        usersReassigned,
+        departmentsReassigned,
+        doctorsReassigned,
+      }, session);
+      return { success: true as const, users_reassigned: usersReassigned, departments_reassigned: departmentsReassigned };
+    });
+  }
+
+  async deletePreview(id: string, page?: number, limit?: number) {
+    await this.getById(id);
+    return this.repository.deletePreview(id, page, limit);
   }
 
   async export(query: BranchListQuery, userId: string, metadata: BranchRequestMetadata) {

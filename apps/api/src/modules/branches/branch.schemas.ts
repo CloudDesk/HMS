@@ -6,6 +6,23 @@ export const branchIdParamsSchema = {
   },
 } as const;
 
+export const deleteBranchBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    reassign_to_branch_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+  },
+} as const;
+
+export const branchDeletePreviewQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    page: { type: 'integer', minimum: 1, default: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+  },
+} as const;
+
 export const listBranchesQuerySchema = {
   type: 'object',
   additionalProperties: false,

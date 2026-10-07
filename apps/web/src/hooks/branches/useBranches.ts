@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const LOOKUP_STALE_TIME = 5 * 60 * 1000;
 import { toast } from 'sonner';
+import { usersKeys } from '../users/useUsers';
+import { departmentsKeys } from '../departments/useDepartments';
+import { doctorKeys } from '../doctors/useDoctors';
 import {
   branchesApi,
   type BranchListParams,
@@ -18,6 +21,7 @@ export const branchesKeys = {
   detail: (id: string) => [...branchesKeys.details(), id] as const,
   summaries: () => [...branchesKeys.all, 'summary'] as const,
   summary: () => [...branchesKeys.summaries()] as const,
+  deletePreview: (id: string, page: number, limit: number) => [...branchesKeys.all, 'delete-preview', id, page, limit] as const,
 };
 
 export function useBranchesList(params: BranchListParams, enabled = true) {
@@ -42,6 +46,14 @@ export function useBranchSummary(enabled = true) {
     queryKey: branchesKeys.summary(),
     queryFn: () => branchesApi.summary(),
     enabled,
+  });
+}
+
+export function useBranchDeletePreview(id: string | null, page: number, enabled = true, limit = 25) {
+  return useQuery({
+    queryKey: id ? branchesKeys.deletePreview(id, page, limit) : [...branchesKeys.all, 'delete-preview'],
+    queryFn: () => branchesApi.deletePreview(id as string, page, limit),
+    enabled: enabled && Boolean(id),
   });
 }
 
@@ -99,11 +111,16 @@ export function useDeleteBranch() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => branchesApi.delete(id),
+    mutationFn: ({ id, reassignToBranchId }: { id: string; reassignToBranchId?: string }) => branchesApi.delete(id, reassignToBranchId),
     onSuccess: async () => {
       toast.success('Branch deleted');
       await queryClient.invalidateQueries({ queryKey: branchesKeys.lists() });
       await queryClient.invalidateQueries({ queryKey: branchesKeys.summaries() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: usersKeys.all }),
+        queryClient.invalidateQueries({ queryKey: departmentsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: doctorKeys.lists() }),
+      ]);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : 'Failed to delete branch');

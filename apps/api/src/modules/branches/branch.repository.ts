@@ -1,6 +1,8 @@
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { BranchModel } from './branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import type { Branch, BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
 import type { IBranch } from './branch.model.js';
@@ -151,29 +153,93 @@ export class BranchRepository {
     return { total, active, inactive, assignedUsers, cities };
   }
 
-  async dependencies(id: string) {
-    const [departments, users] = await Promise.all([
-      DepartmentModel.countDocuments({ branchId: id, deletedAt: null }),
-      UserModel.countDocuments({ branchIds: id, deletedAt: null }),
-    ]);
-    return { departments, users };
+  async dependencies(id: string, session?: ClientSession) {
+    const departmentQuery = DepartmentModel.countDocuments({ $or: [{ branchIds: id }, { branchId: id }], deletedAt: null });
+    const userQuery = UserModel.countDocuments({ branchIds: id, deletedAt: null });
+    const doctorQuery = DoctorModel.countDocuments({ branchId: id, deletedAt: null });
+    if (session) { departmentQuery.session(session); userQuery.session(session); doctorQuery.session(session); }
+    const [departments, users, doctors] = await Promise.all([departmentQuery, userQuery, doctorQuery]);
+    return { departments, users, doctors };
   }
 
-  async softDelete(id: string, actorUserId: string) {
+  async deletePreview(id: string, page = 1, limit = 25) {
+    const offset = (page - 1) * limit;
+    const [users, departments, doctors, totalUsers] = await Promise.all([
+      UserModel.find({ branchIds: id, deletedAt: null }).select('_id fullName username jobTitle status').sort({ fullName: 1 }).skip(offset).limit(limit).lean(),
+      DepartmentModel.countDocuments({ $or: [{ branchIds: id }, { branchId: id }], deletedAt: null }),
+      DoctorModel.countDocuments({ branchId: id, deletedAt: null }),
+      UserModel.countDocuments({ branchIds: id, deletedAt: null }),
+    ]);
+    return {
+      users: users.map((user) => ({ id: String(user._id), name: user.fullName || user.username, job_title: user.jobTitle ?? null, status: user.status })),
+      user_meta: { page, limit, total: totalUsers },
+      departments,
+      doctors,
+    };
+  }
+
+  async session() {
+    return mongoose.startSession();
+  }
+
+  async reassignUsers(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const filter = { branchIds: fromBranchId, deletedAt: null };
+    const count = await UserModel.countDocuments(filter).session(session ?? null);
+    const options = session ? { session } : {};
+    await UserModel.updateMany(
+      filter,
+      { $addToSet: { branchIds: new Types.ObjectId(toBranchId) }, $set: { updatedBy: new Types.ObjectId(actorUserId) } },
+      options,
+    );
+    await UserModel.updateMany(
+      filter,
+      { $pull: { branchIds: new Types.ObjectId(fromBranchId) } },
+      options,
+    );
+    return count;
+  }
+
+  async reassignDepartments(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const filter = { $or: [{ branchIds: fromBranchId }, { branchId: fromBranchId }], deletedAt: null };
+    const count = await DepartmentModel.countDocuments(filter).session(session ?? null);
+    const options = session ? { session } : {};
+    await DepartmentModel.updateMany(
+      filter,
+      { $addToSet: { branchIds: new Types.ObjectId(toBranchId) }, $set: { updatedBy: new Types.ObjectId(actorUserId) } },
+      options,
+    );
+    await DepartmentModel.updateMany(
+      filter,
+      { $pull: { branchIds: new Types.ObjectId(fromBranchId) }, $unset: { branchId: 1 } },
+      options,
+    );
+    return count;
+  }
+
+  async reassignDoctors(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const result = await DoctorModel.updateMany(
+      { branchId: fromBranchId, deletedAt: null },
+      { $set: { branchId: new Types.ObjectId(toBranchId), updatedBy: new Types.ObjectId(actorUserId) } },
+      session ? { session } : {},
+    );
+    return result.modifiedCount;
+  }
+
+  async softDelete(id: string, actorUserId: string, session?: ClientSession) {
     return BranchModel.findOneAndUpdate(
-      { _id: id, deletedAt: null },
+      { _id: id, status: 'INACTIVE', deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
-      { returnDocument: 'after', lean: true },
+      { returnDocument: 'after', lean: true, ...(session ? { session } : {}) },
     );
   }
 
-  async audit(eventType: string, actorUserId: string, metadata: BranchRequestMetadata, details: Record<string, unknown>) {
-    await AuditLogModel.create({
+  async audit(eventType: string, actorUserId: string, metadata: BranchRequestMetadata, details: Record<string, unknown>, session?: ClientSession) {
+    await AuditLogModel.create([{
       eventType,
       actorUserId,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       metadataJson: details,
-    });
+    }], session ? { session } : {});
   }
 }

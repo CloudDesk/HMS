@@ -14,6 +14,15 @@ export const departmentIdParamsSchema = {
   },
 } as const;
 
+export const departmentDeletePreviewQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    page: { type: 'integer', minimum: 1, default: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+  },
+} as const;
+
 export const listDepartmentsQuerySchema = {
   type: 'object',
   additionalProperties: false,

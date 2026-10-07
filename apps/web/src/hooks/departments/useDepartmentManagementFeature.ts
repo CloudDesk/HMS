@@ -9,8 +9,10 @@ import {
   useUpdateDepartment,
   useUpdateDepartmentStatus,
   useDeleteDepartment,
-  useExportDepartments
+  useExportDepartments,
+  useDepartmentDeletePreview,
 } from './useDepartments';
+import { useDeleteService } from '../services/useServices';
 import { useBranchesList } from '../branches/useBranches';
 import { ApiError } from '../../api/api-error';
 
@@ -143,5 +145,26 @@ export function useDepartmentManagementFeature() {
       updateDepartmentStatus,
       deleteDepartment,
     },
+  };
+}
+
+export function useDepartmentDeletePreviewFeature(id: string, page: number) {
+  const { user } = useAuth();
+  const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
+  const canDelete = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Departments', action: 'Delete',
+  });
+  const query = useDepartmentDeletePreview(id, page, canDelete);
+  const deleteService = useDeleteService();
+  const canDeleteService = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Services', action: 'Delete',
+  });
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    error: query.error,
+    retry: query.refetch,
+    deleteService,
+    canDeleteService,
   };
 }

@@ -2166,6 +2166,87 @@ fieldset.form-field {
   padding: 1.25rem 1.75rem;
 }
 
+.department-delete-preview {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.department-delete-section {
+  min-width: 0;
+}
+
+.department-delete-section h4 {
+  margin: 0 0 0.5rem;
+}
+
+.department-delete-list {
+  max-height: min(15rem, 32vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
+  background: #fff;
+}
+
+.department-delete-list > li {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-wrap: anywhere;
+}
+
+.department-delete-list > li:last-child {
+  border-bottom: 0;
+}
+
+.department-delete-service-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.department-delete-service-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.department-delete-service-row > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.department-delete-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.department-delete-pagination > span {
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .department-delete-service-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .department-delete-service-row > button {
+    justify-self: start;
+  }
+}
+
 .service-catalogue-page {
   padding: 1.25rem 1.75rem;
 }

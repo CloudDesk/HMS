@@ -74,6 +74,13 @@ export type DepartmentSummary = {
   branchesCovered: number;
 };
 
+export type DepartmentDeletePreview = {
+  services: Array<{ id: string; code: string; name: string; type: string; status: ApiDepartmentStatus }>;
+  users: Array<{ id: string; employee_code: string | null; name: string; job_title: string | null; status: string }>;
+  service_meta: { page: number; limit: number; total: number };
+  user_meta: { page: number; limit: number; total: number };
+};
+
 const toQueryString = (params: DepartmentListParams) => {
   const searchParams = new URLSearchParams();
 
@@ -98,6 +105,10 @@ export const departmentsApi = {
 
   summary() {
     return apiClient.request<DepartmentSummary>('/departments/summary');
+  },
+
+  deletePreview(id: string, page = 1, limit = 25) {
+    return apiClient.request<DepartmentDeletePreview>(`/departments/${encodeURIComponent(id)}/delete-preview?page=${page}&limit=${limit}`);
   },
 
   export(params: DepartmentListParams = {}) {
