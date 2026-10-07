@@ -133,13 +133,7 @@ export const assertPatientPortalDemoOtpConfiguration = (input: {
 assertPatientPortalDemoOtpConfiguration({
   enabled: patientPortalDemoOtpEnabled,
   otp: patientPortalDemoOtp,
-  production: productionEnvironment,
-});
-
-assertPatientPortalDemoOtpConfiguration({
-  enabled: patientPortalDemoOtpEnabled,
-  otp: patientPortalDemoOtp,
-  production: productionEnvironment,
+  production: appEnvironment === 'prod',
 });
 
 export const resolveAllowedCorsOrigins = (origins: string[]): string[] => {
@@ -369,6 +363,13 @@ export const env = {
     provider: process.env.SMS_GATEWAY_PROVIDER ?? 'MOCK',
     url: process.env.SMS_GATEWAY_URL ?? '',
     apiKey: process.env.SMS_GATEWAY_API_KEY ?? '',
+  },
+  sha: {
+    enabled: parseBoolean(process.env.SHA_INTEGRATION_ENABLED, false),
+    baseUrl: process.env.SHA_API_BASE_URL ?? '',
+    apiKey: process.env.SHA_API_KEY ?? '',
+    facilityCode: process.env.SHA_FACILITY_CODE ?? '',
+    timeoutMs: parseInteger(process.env.SHA_TIMEOUT_MS, 10000),
   },
 } as const;
 

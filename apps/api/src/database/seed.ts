@@ -117,6 +117,11 @@ const permissionDefinitions: PermissionDefinition[] = [
   ...expandPermissions('Billing', {
     Invoices: ['View', 'Create', 'Edit', 'Cancel', 'CollectPayment', 'ViewReceipt'],
   }, 'FINANCE', 'BILLING'),
+  ...expandPermissions('Insurance', {
+    Configuration: ['View', 'Create', 'Edit'],
+    Eligibility: ['Verify', 'View'],
+    Benefits: ['View', 'Manage', 'Verify'],
+  }, 'FINANCE', 'INSURANCE'),
   ...expandPermissions('Reports', { 'Phase 2 Reports': ['View'] }, 'FINANCE', 'REPORTS'),
   ...['View', 'Edit', 'Export'].map((action) => ({
     ...permission('Administration', 'Settings', action, 'SYSTEM', 'ADMINISTRATION'),
@@ -146,6 +151,9 @@ const administratorPermissionCodes = [
   ...['View', 'Create', 'Edit', 'Export', 'Provision Login'].map((action) => code('Doctors', 'Doctor Directory', action)),
   ...['View', 'Edit'].map((action) => code('Doctors', 'Doctor Availability', action)),
   code('Billing', 'Invoices', 'View'),
+  ...['View', 'Create', 'Edit'].map((action) => code('Insurance', 'Configuration', action)),
+  ...['Verify', 'View'].map((action) => code('Insurance', 'Eligibility', action)),
+  ...['View', 'Manage', 'Verify'].map((action) => code('Insurance', 'Benefits', action)),
   code('Reports', 'Phase 2 Reports', 'View'),
 ];
 
