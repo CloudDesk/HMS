@@ -626,6 +626,7 @@ export class UserService {
       patientId: user.patientId,
       branches: assignments.branchesByUserId.get(user.id) ?? [],
       departments: assignments.departmentsByUserId.get(user.id) ?? [],
+      patientRegistrationBranch: assignments.patientRegistrationBranchesByUserId?.get(user.id) ?? null,
       roles: assignments.rolesByUserId.get(user.id) ?? [],
       audit: {
         createdAt: user.createdAt,
