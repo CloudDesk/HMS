@@ -142,7 +142,26 @@ export const appointmentCreatedSchema = z.object({
   id: z.string(),
   appointment_number: z.string(),
   status: z.string(),
-});
+  appointment_date: z.string().optional(),
+  start_time: z.string().optional(),
+  end_time: z.string().optional(),
+  duration_minutes: z.number().optional(),
+  doctor_id: z.string().optional(),
+  doctor_name: z.string().optional(),
+  doctor_specialization: z.string().optional(),
+  department_id: z.string().optional(),
+  utc_datetime: z.string().nullable().optional(),
+  utc_end_time: z.string().nullable().optional(),
+  branch: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      city: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+}).passthrough();
 
 export const appointmentCheckInResultSchema = z.object({
   id: z.string(),

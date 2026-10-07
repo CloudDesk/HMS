@@ -67,13 +67,19 @@ describe('Notifications Contracts & Schemas', () => {
       expect(getNotificationTypeLabel('CALL_NEXT_PATIENT')).toBe('Queue Alert');
       expect(getNotificationTypeLabel('DENTAL_LAB_READY')).toBe('Dental Lab');
       expect(getNotificationTypeLabel('REFERRAL')).toBe('Referral Notice');
+      expect(getNotificationTypeLabel('QUOTATION_AVAILABLE')).toBe('Treatment Quotation');
       expect(getNotificationTypeLabel('GENERAL')).toBe('Hospital Notice');
 
       expect(getNotificationTypeIcon('CALL_NEXT_PATIENT')).toBe('🔔');
       expect(getNotificationTypeIcon('DENTAL_LAB_READY')).toBe('🦷');
+      expect(getNotificationTypeIcon('QUOTATION_AVAILABLE')).toBe('🦷');
     });
 
     it('resolves safe deep link navigation destinations', () => {
+      const quotation = getNotificationDestination('QUOTATION_AVAILABLE');
+      expect(quotation?.tab).toBe('dental');
+      expect(quotation?.label).toBe('View Quotations');
+
       const callNext = getNotificationDestination('CALL_NEXT_PATIENT');
       expect(callNext?.tab).toBe('appointments');
       expect(callNext?.label).toBe('View Appointment');

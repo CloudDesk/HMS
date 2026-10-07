@@ -244,26 +244,8 @@ export function isAppointmentCheckInEligible(
   let startTimeMs: number;
   let endTimeMs: number;
 
-  if (appointment.utc_datetime) {
-    const utcDate = new Date(appointment.utc_datetime);
-    if (!isNaN(utcDate.getTime())) {
-      startTimeMs = utcDate.getTime();
-      endTimeMs = appointment.utc_end_time && !isNaN(new Date(appointment.utc_end_time).getTime())
-        ? new Date(appointment.utc_end_time).getTime()
-        : startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
-    } else {
-      const [startH = 0, startM = 0] = (appointment.start_time || '00:00').split(':').map(Number);
-      const startTimeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0);
-      startTimeMs = startTimeDate.getTime();
-      if (appointment.end_time) {
-        const [endH = 0, endM = 0] = appointment.end_time.split(':').map(Number);
-        endTimeMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM, 0).getTime();
-      } else {
-        endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
-      }
-    }
-  } else {
-    const [startH = 0, startM = 0] = (appointment.start_time || '00:00').split(':').map(Number);
+  if (appointment.start_time) {
+    const [startH = 0, startM = 0] = appointment.start_time.split(':').map(Number);
     const startTimeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0);
     startTimeMs = startTimeDate.getTime();
     if (appointment.end_time) {
@@ -272,6 +254,20 @@ export function isAppointmentCheckInEligible(
     } else {
       endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
     }
+  } else if (appointment.utc_datetime) {
+    const utcDate = new Date(appointment.utc_datetime);
+    if (!isNaN(utcDate.getTime())) {
+      startTimeMs = utcDate.getTime();
+      endTimeMs = appointment.utc_end_time && !isNaN(new Date(appointment.utc_end_time).getTime())
+        ? new Date(appointment.utc_end_time).getTime()
+        : startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
+    } else {
+      startTimeMs = now.getTime();
+      endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
+    }
+  } else {
+    startTimeMs = now.getTime();
+    endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
   }
 
   const leadTimeMs = leadMinutes * 60 * 1000;

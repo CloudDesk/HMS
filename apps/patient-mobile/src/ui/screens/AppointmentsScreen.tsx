@@ -110,7 +110,7 @@ export function AppointmentsScreen() {
     void fetchAppointments();
   };
 
-  const handleRescheduleSuccess = (updatedAppointment?: AppointmentCreated) => {
+  const handleRescheduleSuccess = async (updatedAppointment?: AppointmentCreated) => {
     setReschedulingAppointment(null);
     if (updatedAppointment) {
       setAppointments((prev) =>
@@ -119,14 +119,40 @@ export function AppointmentsScreen() {
             ? {
                 ...item,
                 status: (updatedAppointment.status as PortalAppointment['status']) || item.status,
+                appointment_date: updatedAppointment.appointment_date || item.appointment_date,
+                start_time: updatedAppointment.start_time || item.start_time,
+                end_time: updatedAppointment.end_time || item.end_time,
+                duration_minutes: updatedAppointment.duration_minutes || item.duration_minutes,
+                doctor_id: updatedAppointment.doctor_id || item.doctor_id,
+                doctor_name: updatedAppointment.doctor_name || item.doctor_name,
+                doctor_specialization:
+                  updatedAppointment.doctor_specialization || item.doctor_specialization,
+                branch: updatedAppointment.branch || item.branch,
               }
             : item
         )
       );
+      setViewingAppointment((prev) =>
+        prev && prev.id === updatedAppointment.id
+          ? {
+              ...prev,
+              status: (updatedAppointment.status as PortalAppointment['status']) || prev.status,
+              appointment_date: updatedAppointment.appointment_date || prev.appointment_date,
+              start_time: updatedAppointment.start_time || prev.start_time,
+              end_time: updatedAppointment.end_time || prev.end_time,
+              duration_minutes: updatedAppointment.duration_minutes || prev.duration_minutes,
+              doctor_id: updatedAppointment.doctor_id || prev.doctor_id,
+              doctor_name: updatedAppointment.doctor_name || prev.doctor_name,
+              doctor_specialization:
+                updatedAppointment.doctor_specialization || prev.doctor_specialization,
+              branch: updatedAppointment.branch || prev.branch,
+            }
+          : prev
+      );
     }
     Alert.alert('Appointment Rescheduled', 'Your appointment has been updated successfully.');
     void refreshPatientContext();
-    void fetchAppointments();
+    await fetchAppointments();
   };
 
   const handleCheckIn = useCallback(

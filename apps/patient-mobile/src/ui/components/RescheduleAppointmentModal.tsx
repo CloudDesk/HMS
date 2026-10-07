@@ -159,7 +159,21 @@ export function RescheduleAppointmentModal({
         duration_minutes: duration > 0 ? duration : 15,
       });
 
-      onRescheduled(result);
+      const selectedDoctor = doctors.find((d) => d.id === doctorId);
+
+      onRescheduled({
+        ...result,
+        appointment_date: result.appointment_date || appointmentDate,
+        start_time: result.start_time || selectedSlot.start_time,
+        end_time: result.end_time || selectedSlot.end_time,
+        duration_minutes: result.duration_minutes || (duration > 0 ? duration : 15),
+        doctor_id: result.doctor_id || doctorId,
+        doctor_name: result.doctor_name || selectedDoctor?.display_name || appointment.doctor_name,
+        doctor_specialization:
+          result.doctor_specialization ||
+          selectedDoctor?.specialization ||
+          appointment.doctor_specialization,
+      });
       onClose();
     } catch (err) {
       setErrorObj(err);

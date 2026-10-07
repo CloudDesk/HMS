@@ -6,7 +6,8 @@ export type NotificationType =
   | 'LAB_RESULT'
   | 'IMAGING_REPORT'
   | 'CONSENT_REQUIRED'
-  | 'INVOICE_PENDING';
+  | 'INVOICE_PENDING'
+  | 'QUOTATION_AVAILABLE';
 
 export type Notification = {
   id: string;

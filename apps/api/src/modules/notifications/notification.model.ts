@@ -35,6 +35,7 @@ const notificationSchema = new Schema<NotificationDocumentFields>(
         'IMAGING_REPORT',
         'CONSENT_REQUIRED',
         'INVOICE_PENDING',
+        'QUOTATION_AVAILABLE',
       ],
       required: true,
     },
