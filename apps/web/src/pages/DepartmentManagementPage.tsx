@@ -811,6 +811,8 @@ export function DepartmentManagementPage() {
             </>
           )
         }
+        className="um-user-modal"
+        size="large"
         onClose={closeModal}
         open={Boolean(modalMode)}
         icon="ph-buildings"
@@ -824,168 +826,290 @@ export function DepartmentManagementPage() {
 
         {(modalMode === 'create' || modalMode === 'edit') && (
           <form id="dept-management-form" onSubmit={(e) => void handleSave(e)}>
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Department Code <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(deptForm.formState.errors.code)}
-                  {...deptForm.register('code')}
-                />
-                {deptForm.formState.errors.code ? <small className="field-error">{deptForm.formState.errors.code.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Department Name <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(deptForm.formState.errors.name)}
-                  {...deptForm.register('name')}
-                />
-                {deptForm.formState.errors.name ? <small className="field-error">{deptForm.formState.errors.name.message}</small> : null}
-              </label>
-            </div>
-
-            <div className="form-section-title">Organisation</div>
-            <div className="form-grid-3">
-              <div className="form-field">
-                <span>Branch <span className="required">*</span></span>
-                <BranchMultiSelect
-                  branches={branches}
-                  selectedIds={deptForm.watch('branch_ids')}
-                  onChange={(newIds) => {
-                    deptForm.setValue('branch_ids', newIds, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                  }}
-                  disabled={submitting}
-                />
-
-                {deptForm.formState.errors.branch_ids ? (
-                  <small className="field-error">
-                    {deptForm.formState.errors.branch_ids.message}
-                  </small>
-                ) : null}
-              </div>
-              {modalMode === 'edit' && (
-                <label className="form-field">
-                  <span>Status</span>
-                  <select
-                    disabled={submitting}
-                    {...deptForm.register('status')}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
-                </label>
-              )}
-              <label className="form-field um-checkbox-field">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
-                  <Controller
-                    name="isClinical"
-                    control={deptForm.control}
-                    render={({ field }) => (
-                      <input
-                        type="checkbox"
-                        disabled={submitting}
-                        checked={field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                        style={{ width: 'auto' }}
-                      />
-                    )}
-                  />
-                  <span>Is Clinical Department?</span>
+            {/* Section 1: Basic Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Basic Information</span>
                 </div>
-              </label>
+                <span className="um-card-badge">Identification</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-hash" /> Department Code
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(deptForm.formState.errors.code)}
+                        placeholder="e.g. CARDIO, PEDIATRICS"
+                        {...deptForm.register('code')}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                    {deptForm.formState.errors.code ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.code.message}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-first-aid" /> Department Name
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(deptForm.formState.errors.name)}
+                        placeholder="e.g. Cardiology & Vascular"
+                        {...deptForm.register('name')}
+                      />
+                      <i className="ph ph-first-aid um-input-prefix-icon" />
+                    </div>
+                    {deptForm.formState.errors.name ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.name.message}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="form-section-title">Doctor Module Visibility</div>
-            <p className="dialog-message" style={{ marginTop: 0 }}>
-              Selected modules are hidden only from users with the Doctor role assigned to this department.
-              Existing role permissions and API authorization are unchanged.
-            </p>
-            <div className="um-role-options" aria-label="Modules hidden from department doctors">
-              {departmentModuleOptions.map((module) => {
-                const hiddenModules = deptForm.watch('hiddenModules');
-                const checked = hiddenModules.includes(module.key);
-                return (
-                  <label className="um-role-option" key={module.key}>
-                    <input
-                      checked={checked}
-                      disabled={submitting}
-                      onChange={(event) => {
-                        const next = event.target.checked
-                          ? [...hiddenModules, module.key]
-                          : hiddenModules.filter((key) => key !== module.key);
-                        deptForm.setValue('hiddenModules', next, { shouldDirty: true, shouldValidate: true });
+            {/* Section 2: Organisation & Classification */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-git-branch" />
+                  <span>Organisation &amp; Classification</span>
+                </div>
+                <span className="um-card-badge">Scope &amp; Status</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-map-pin" /> Branch
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <BranchMultiSelect
+                      branches={branches}
+                      selectedIds={deptForm.watch('branch_ids')}
+                      onChange={(newIds) => {
+                        deptForm.setValue('branch_ids', newIds, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
                       }}
-                      type="checkbox"
+                      disabled={submitting}
                     />
-                    <span>Hide {module.label}</span>
+                    {deptForm.formState.errors.branch_ids ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.branch_ids.message}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {modalMode === 'edit' ? (
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text">
+                          <i className="ph ph-toggle-left" /> Status
+                        </span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <select
+                          disabled={submitting}
+                          {...deptForm.register('status')}
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="INACTIVE">Inactive</option>
+                        </select>
+                        <i className="ph ph-toggle-left um-input-prefix-icon" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text">
+                          <i className="ph ph-toggle-left" /> Status
+                        </span>
+                      </label>
+                      <div className="um-default-status-pill" title="New departments are active upon creation">
+                        <div className="um-status-card-dot active" />
+                        <div className="um-default-status-info">
+                          <span className="um-default-status-title">Active</span>
+                          <span className="um-default-status-hint">Default for newly created hospital departments</span>
+                        </div>
+                        <span className="um-default-status-badge">
+                          <i className="ph ph-check" /> Default
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.65rem 0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer' }}>
+                    <Controller
+                      name="isClinical"
+                      control={deptForm.control}
+                      render={({ field }) => (
+                        <input
+                          type="checkbox"
+                          disabled={submitting}
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                          style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                        />
+                      )}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a' }}>Is Clinical Department?</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Designates departments that directly manage clinical patients and examinations</span>
+                    </div>
                   </label>
-                );
-              })}
+                </div>
+              </div>
             </div>
 
-            <div className="form-section-title">Additional Information</div>
-            <div className="form-grid-3">
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea
-                  disabled={submitting}
-                  rows={3}
-                  {...deptForm.register('description')}
-                />
-              </label>
+            {/* Section 3: Doctor Module Visibility */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-eye-slash" />
+                  <span>Doctor Module Visibility</span>
+                </div>
+                <span className="um-card-badge">Custom Scope</span>
+              </div>
+              <div className="um-modal-card-body">
+                <p className="dialog-message" style={{ marginTop: 0, marginBottom: '0.85rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Selected modules are hidden only from users with the Doctor role assigned to this department.
+                  Existing role permissions and API authorization are unchanged.
+                </p>
+                <div className="um-role-options" aria-label="Modules hidden from department doctors">
+                  {departmentModuleOptions.map((module) => {
+                    const hiddenModules = deptForm.watch('hiddenModules');
+                    const checked = hiddenModules.includes(module.key);
+                    return (
+                      <label className="um-role-option" key={module.key}>
+                        <input
+                          checked={checked}
+                          disabled={submitting}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...hiddenModules, module.key]
+                              : hiddenModules.filter((key) => key !== module.key);
+                            deptForm.setValue('hiddenModules', next, { shouldDirty: true, shouldValidate: true });
+                          }}
+                          type="checkbox"
+                        />
+                        <span>Hide {module.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Additional Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-text-align-left" />
+                  <span>Additional Information</span>
+                </div>
+                <span className="um-card-badge">Notes</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-info" /> Description &amp; Notes
+                    </span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    disabled={submitting}
+                    placeholder="Provide overview, clinical scope, or department location notes..."
+                    rows={3}
+                    {...deptForm.register('description')}
+                  />
+                </div>
+              </div>
             </div>
           </form>
         )}
 
         {modalMode === 'view' && activeDept ? (
-          <>
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Department Code</span>
-                <input readOnly value={activeDept.code} />
-              </label>
-              <label className="form-field">
-                <span>Department Name</span>
-                <input readOnly value={activeDept.name} />
-              </label>
-              <label className="form-field">
-                <span>Status</span>
-                <input readOnly value={activeDept.status === 'ACTIVE' ? 'Active' : 'Inactive'} />
-              </label>
-              <label className="form-field">
-                <span>Clinical Department</span>
-                <input readOnly value={activeDept.isClinical ? 'Yes' : 'No'} />
-              </label>
-              <label className="form-field">
-                <span>Branch</span>
-                <input readOnly value={activeDept.branch_ids.map(getBranchName).join(', ')} />
-              </label>
-              <label className="form-field">
-                <span>Created Date</span>
-                <input readOnly value={formatDateTime(activeDept.created_at)} />
-              </label>
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea readOnly rows={3} value={activeDept.description || ''} />
-              </label>
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Modules Hidden from Doctors</span>
+          <div className="um-modal-card">
+            <div className="um-modal-card-header">
+              <div className="um-card-title-wrap">
+                <i className="ph ph-buildings" />
+                <span>Department Details</span>
+              </div>
+              <span className="um-card-badge">Record View</span>
+            </div>
+            <div className="um-modal-card-body">
+              <div className="um-form-row-2">
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Department Code</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-first-aid" /> Department Name</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.name} /><i className="ph ph-first-aid um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-stethoscope" /> Clinical Department</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.isClinical ? 'Yes' : 'No'} /><i className="ph ph-stethoscope um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> Assigned Branch(es)</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.branch_ids.map(getBranchName).join(', ')} /><i className="ph ph-map-pin um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-calendar" /> Created Date</span></label>
+                  <div className="um-input-wrap"><input readOnly value={formatDateTime(activeDept.created_at)} /><i className="ph ph-calendar um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-text-align-left" /> Description</span></label>
+                <textarea className="um-textarea" readOnly rows={3} value={activeDept.description || '—'} />
+              </div>
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-eye-slash" /> Modules Hidden from Doctors</span></label>
                 <textarea
+                  className="um-textarea"
                   readOnly
                   rows={2}
                   value={activeDept.hiddenModules.length > 0
                     ? activeDept.hiddenModules.map((key) => departmentModuleOptions.find((option) => option.key === key)?.label ?? key).join(', ')
-                    : 'None (existing navigation behaviour)'}
+                    : 'None (all default modules accessible)'}
                 />
-              </label>
+              </div>
             </div>
-          </>
+          </div>
         ) : null}
       </Modal>
 

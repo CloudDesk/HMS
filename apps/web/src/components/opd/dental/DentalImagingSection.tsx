@@ -328,21 +328,20 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
     <section className={styles.section} aria-label="Dental imaging">
       <header className={styles.imagingPageHeader}>
         <h2><i className="ph ph-image-square" /> Imaging</h2>
-        <p>View images taken during this visit and radiology reports for this patient.</p>
+        {/* <p>View images taken during this visit and radiology reports for this patient.</p> */}
       </header>
       {/* =========================================================
           1. IMMEDIATE CHAIRSIDE IMAGING (ALL CONSULTATION SCANS)
           ========================================================= */}
       <div className={styles.chairsideContainer} role="region" aria-label="Immediate Chairside Imaging">
         <div className={styles.chairsideHeader}>
-          <div>
+          <div className={styles.chairsideTitleGroup}>
             <h3 className={styles.chairsideTitle}>
-              <i className="ph ph-camera" style={{ color: '#2563eb' }} />
+              <i className="ph ph-camera" />
               Chairside Images
             </h3>
-            <p>Images captured by the dental team during this consultation.</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className={styles.chairsideActionRow}>
             <span className={styles.imageCountBadge}>{allVisitChairsideImages.length} {allVisitChairsideImages.length === 1 ? 'Image' : 'Images'}</span>
             {input.canEdit && !input.consultationCompleted && (
               <>
@@ -393,32 +392,30 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
             {feature.canAdd && (
               <button
                 type="button"
-                className={styles.btnAddAction}
+                className={styles.btnOrderAction}
                 onClick={() => feature.openRequest(selectedToothNumber)}
                 disabled={chairside.isUploading}
-                title="Order formal radiology X-Ray or Scan"
+                title="Order formal radiology X-Ray"
               >
-                + Order X-Ray / Scan
+                <i className="ph ph-plus" /> Order X-Ray
               </button>
             )}
           </div>
         </div>
 
         {allVisitChairsideImages.length > 0 && (
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', margin: '8px 0 12px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Filter:</span>
+          <div className={styles.chairsideFilterRow}>
+            <span className={styles.chairsideFilterLabel}>Filter:</span>
             <button
               type="button"
-              className={chairsideToothFilter === 'ALL' ? styles.orderFilterActive : ''}
-              style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+              className={`${styles.chairsideFilterBtn} ${chairsideToothFilter === 'ALL' ? styles.chairsideFilterBtnActive : ''}`}
               onClick={() => setChairsideToothFilter('ALL')}
             >
               All ({allVisitChairsideImages.length})
             </button>
             <button
               type="button"
-              className={chairsideToothFilter === 'GENERAL' ? styles.orderFilterActive : ''}
-              style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+              className={`${styles.chairsideFilterBtn} ${chairsideToothFilter === 'GENERAL' ? styles.chairsideFilterBtnActive : ''}`}
               onClick={() => setChairsideToothFilter('GENERAL')}
             >
               General / Full Mouth
@@ -427,8 +424,7 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
               <button
                 key={t!}
                 type="button"
-                className={chairsideToothFilter === t ? styles.orderFilterActive : ''}
-                style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
+                className={`${styles.chairsideFilterBtn} ${chairsideToothFilter === t ? styles.chairsideFilterBtnActive : ''}`}
                 onClick={() => setChairsideToothFilter(t!)}
               >
                 Tooth #{t}
@@ -510,7 +506,7 @@ export function DentalImagingSection({ selectedTooth, ...input }: Props) {
         <div className={styles.imagingHeader}>
           <div>
             <h3><i className="ph ph-file-text" /> Formal Imaging Orders</h3>
-            <p>Formal Radiology Department investigations and diagnostic orders.</p>
+            <p className={styles.formalSubtitle}>Formal Radiology Department investigations and diagnostic orders.</p>
           </div>
         </div>
 

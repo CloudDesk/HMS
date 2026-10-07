@@ -313,5 +313,29 @@ describe('AppointmentsApi & Appointments Module Verification', () => {
 
       expect(result).toEqual(rescheduleResponse);
     });
+
+    it('checkInAppointment calls POST /patient-portal/appointments/:id/check-in', async () => {
+      const checkInResponse = {
+        id: 'visit-1',
+        visit_number: 'OPD-0001',
+        queue_token_number: 1,
+        appointment_id: 'apt-1',
+        status: 'CHECKED_IN',
+      };
+
+      const mockSessionManager = {
+        authenticatedRequest: vi.fn().mockResolvedValue(checkInResponse),
+      } as unknown as SessionManager;
+
+      const api = new AppointmentsApi(mockSessionManager);
+      const result = await api.checkInAppointment('apt-1');
+
+      expect(result).toEqual(checkInResponse);
+      expect(mockSessionManager.authenticatedRequest).toHaveBeenCalledWith(
+        '/patient-portal/appointments/apt-1/check-in',
+        expect.anything(),
+        { method: 'POST' }
+      );
+    });
   });
 });

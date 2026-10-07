@@ -23,7 +23,10 @@ export function OtpScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const phone = state.phone ?? '';
-  const isSubmitting = state.status === 'requestingOtp';
+  const isSubmitting =
+    state.status === 'requestingOtp' ||
+    state.status === 'verifyingOtp' ||
+    state.status === 'resendingOtp';
   const displayError = state.message ?? localError;
 
   // Calculate resend cooldown countdown

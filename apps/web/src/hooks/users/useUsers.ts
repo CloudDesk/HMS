@@ -102,3 +102,16 @@ export function useResetPassword() {
     }
   });
 }
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => usersApi.delete(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: usersKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: usersKeys.summaries() });
+    },
+  });
+}
+

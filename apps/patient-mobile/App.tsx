@@ -88,6 +88,8 @@ function NavigationRoot() {
     case 'requestingOtp':
       return <LoginScreen />;
     case 'otpVerification':
+    case 'verifyingOtp':
+    case 'resendingOtp':
       return <OtpScreen />;
     case 'registrationDetails':
     case 'registering':

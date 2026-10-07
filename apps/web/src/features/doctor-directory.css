@@ -73,6 +73,26 @@
   flex: 1 1 260px;
 }
 
+.doctor-page .doc-field.doc-search {
+  flex: 1 1 320px;
+  min-width: 240px;
+}
+
+.doctor-page .doc-field.doc-filter-branch {
+  flex: 0 1 240px;
+  min-width: 180px;
+}
+
+.doctor-page .doc-field.doc-filter-status {
+  flex: 0 1 200px;
+  min-width: 150px;
+}
+
+.doctor-page .doc-reset-btn {
+  height: var(--control-height-standard, 38px);
+  margin-bottom: 1px;
+}
+
 .doctor-page .doc-field.compact {
   min-width: 140px;
 }
@@ -344,6 +364,33 @@
   height: var(--control-height-md, 38px);
   min-height: var(--control-height-md, 38px);
   padding: 0 0.9rem;
+}
+
+/* ==========================================================================
+   Doctor Schedule Filter Toolbar Rebalancing
+   ========================================================================== */
+.hms-schedule-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+}
+
+.hms-schedule-toolbar .schedule-filter-doctor {
+  flex: 1.4 1 240px;
+}
+
+.hms-schedule-toolbar .schedule-filter-type {
+  flex: 1 1 200px;
+}
+
+.hms-schedule-toolbar .schedule-filter-status {
+  flex: 1 1 200px;
+}
+
+.hms-schedule-toolbar .schedule-filter-date {
+  flex: 1 1 180px;
 }
 
 /* ==========================================================================
@@ -1193,8 +1240,228 @@
 }
 
 /* ==========================================================================
-   4. Doctor Onboarding Modal & Account Access
+   4. Doctor Onboarding / Edit Doctor Modal & Account Access
    ========================================================================== */
+.modal-box.doctor-editor-modal {
+  width: min(94vw, 980px);
+  max-height: min(90vh, 840px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+}
+
+.doctor-editor-modal .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1rem 1.5rem;
+}
+
+.doctor-editor-modal .modal-header h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.doctor-editor-modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.doctor-editor-modal .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.doctor-editor-modal .doctor-onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doctor-editor-modal .doctor-onboarding-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 16px 18px;
+}
+
+.doctor-editor-modal .doctor-onboarding-section:last-child {
+  margin-bottom: 0.5rem;
+}
+
+.doctor-editor-modal .doctor-onboarding-section > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.doctor-editor-modal .doctor-onboarding-section > header > span {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 16px;
+}
+
+.doctor-editor-modal .doctor-onboarding-section h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.doctor-editor-modal .doctor-onboarding-section header p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.doctor-editor-modal .form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.doctor-editor-modal .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doctor-editor-modal .form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.doctor-editor-modal .form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.doctor-editor-modal .form-group input,
+.doctor-editor-modal .form-group select,
+.doctor-editor-modal .form-group textarea {
+  height: var(--control-height-standard, 38px);
+  min-height: var(--control-height-standard, 38px);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: var(--line-height-control, 1.2);
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.doctor-editor-modal .form-group input:focus,
+.doctor-editor-modal .form-group select:focus,
+.doctor-editor-modal .form-group textarea:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.doctor-editor-modal .form-group textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 8px 12px;
+  resize: vertical;
+}
+
+.doctor-editor-modal .form-group.locked input {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.doctor-editor-modal .btn-secondary,
+.doctor-editor-modal .btn-primary {
+  min-height: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doctor-editor-modal .btn-secondary {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.doctor-editor-modal .btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.doctor-editor-modal .btn-primary {
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.doctor-editor-modal .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.doctor-editor-modal .btn-secondary:disabled,
+.doctor-editor-modal .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .doctor-editor-modal .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .doctor-onboarding-form {
   display: grid;
   gap: 14px;

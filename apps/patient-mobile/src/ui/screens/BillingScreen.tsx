@@ -149,20 +149,43 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
     [billingApi, selectedPatientId]
   );
 
-  // Calculate totals
-  const totalBilled = invoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0);
-  const totalPaid = invoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0);
-  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0);
+  // Calculate totals - CANCELLED invoices are voided/non-payable, matching backend accounting rules
+  const activeInvoices = useMemo(
+    () => invoices.filter((inv) => inv.status?.toUpperCase() !== 'CANCELLED'),
+    [invoices]
+  );
 
-  const filteredInvoices = invoices.filter((inv) => {
+  const totalBilled = useMemo(
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0),
+    [activeInvoices]
+  );
+  const totalPaid = useMemo(
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0),
+    [activeInvoices]
+  );
+  const totalOutstanding = useMemo(
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0),
+    [activeInvoices]
+  );
+
+  const outstandingInvoices = useMemo(
+    () => activeInvoices.filter((inv) => inv.balance_amount > 0),
+    [activeInvoices]
+  );
+  const settledInvoices = useMemo(
+    () => activeInvoices.filter((inv) => inv.balance_amount === 0 || inv.status?.toUpperCase() === 'PAID'),
+    [activeInvoices]
+  );
+
+  const filteredInvoices = useMemo(() => {
     if (activeFilter === 'outstanding') {
-      return inv.balance_amount > 0;
+      return outstandingInvoices;
     }
     if (activeFilter === 'paid') {
-      return inv.balance_amount === 0 || inv.status === 'PAID';
+      return settledInvoices;
     }
-    return true;
-  });
+    return invoices;
+  }, [activeFilter, invoices, outstandingInvoices, settledInvoices]);
 
   return (
     <View style={styles.screenContainer}>
@@ -238,7 +261,7 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
                 activeFilter === 'outstanding' && styles.tabTextActive,
               ]}
             >
-              Outstanding ({invoices.filter((i) => i.balance_amount > 0).length})
+              Outstanding ({outstandingInvoices.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -247,7 +270,7 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
             activeOpacity={0.7}
           >
             <Text style={[styles.tabText, activeFilter === 'paid' && styles.tabTextActive]}>
-              Settled ({invoices.filter((i) => i.balance_amount === 0 || i.status === 'PAID').length})
+              Settled ({settledInvoices.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -324,17 +347,21 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
                     <Text
                       style={[
                         styles.amountValue,
-                        inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
+                        inv.status?.toUpperCase() !== 'CANCELLED' && inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
                       ]}
                     >
-                      {formatCurrency(inv.balance_amount)}
+                      {formatCurrency(inv.status?.toUpperCase() === 'CANCELLED' ? 0 : inv.balance_amount)}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.cardFooter}>
                   <Text style={styles.itemsCount}>
-                    {inv.balance_amount > 0 ? 'Payment Due' : 'Fully Paid'}
+                    {inv.status?.toUpperCase() === 'CANCELLED'
+                      ? 'Invoice Cancelled'
+                      : inv.balance_amount > 0
+                      ? 'Payment Due'
+                      : 'Fully Paid'}
                   </Text>
                   <Text style={styles.viewDetailsText}>View Statement →</Text>
                 </View>

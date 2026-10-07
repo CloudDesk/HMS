@@ -518,134 +518,294 @@ export function BranchManagementPage() {
               </button>
             </>
           )}
+          className="um-user-modal"
+          size="large"
           icon="ph-buildings"
           open={!!modalMode}
           onClose={closeModal}
           title={modalMode === 'create' ? 'Add New Branch' : modalMode === 'view' ? 'Branch Details' : 'Edit Branch'}
         >
           {modalMode === 'view' && activeBranch ? (
-            <div className="form-grid-3">
-              {[
-                ['Branch Code', activeBranch.code], ['Branch Name', activeBranch.name], ['Short Name', activeBranch.short_name || '-'],
-                ['Email', activeBranch.email || '-'], ['Phone', activeBranch.phone || '-'], ['City', activeBranch.city || '-'],
-                ['Country', activeBranch.country || '-'], ['Status', activeBranch.status === 'ACTIVE' ? 'Active' : 'Inactive'],
-              ].map(([label, value]) => <label className="form-field" key={label}><span>{label}</span><input readOnly value={value} /></label>)}
-              <label className="form-field full-width"><span>Address</span><input readOnly value={activeBranch.address || '-'} /></label>
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Branch Details</span>
+                </div>
+                <span className="um-card-badge">Record View</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-3">
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Branch Code</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-buildings" /> Branch Name</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.name} /><i className="ph ph-buildings um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-tag" /> Short Name</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.short_name || '—'} /><i className="ph ph-tag um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-envelope-simple" /> Email</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.email || '—'} /><i className="ph ph-envelope-simple um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-phone" /> Phone</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.phone || '—'} /><i className="ph ph-phone um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-3" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> City</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.city || '—'} /><i className="ph ph-map-pin um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-globe" /> Country</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.country || '—'} /><i className="ph ph-globe um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> Full Address</span></label>
+                  <textarea className="um-textarea" readOnly rows={2} value={activeBranch.address || '—'} />
+                </div>
+              </div>
             </div>
           ) : (
           <form className="modal-form" id="branch-management-form" onSubmit={(e) => { e.stopPropagation(); void branchForm.handleSubmit(handleSave)(e); }}>
             {formError && (
-              <div className="form-error-banner" role="alert">
+              <div className="form-error-banner" role="alert" style={{ marginBottom: '1rem' }}>
                 <i className="ph ph-warning-circle" aria-hidden="true" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <div className="form-section-title">Branch Information</div>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="branch-code">Branch Code <span className="required" aria-hidden="true">*</span></label>
-                <input
-                  id="branch-code"
-                  disabled={submitting}
-                    {...branchForm.register('code')}
-                />
+            {/* Section 1: Basic Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Branch Information</span>
+                </div>
+                <span className="um-card-badge">Identification</span>
               </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-3">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-code">
+                      <span className="um-field-label-text"><i className="ph ph-hash" /> Branch Code</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-code"
+                        disabled={submitting}
+                        placeholder="e.g. BR-MAIN, BR-NORTH"
+                        {...branchForm.register('code')}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-name">Branch Name <span className="required" aria-hidden="true">*</span></label>
-                <input
-                  id="branch-name"
-                  disabled={submitting}
-                    {...branchForm.register('name')}
-                />
-              </div>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-name">
+                      <span className="um-field-label-text"><i className="ph ph-buildings" /> Branch Name</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-name"
+                        disabled={submitting}
+                        placeholder="e.g. Main Hospital Campus"
+                        {...branchForm.register('name')}
+                      />
+                      <i className="ph ph-buildings um-input-prefix-icon" />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-short-name">Short Name</label>
-                <input
-                  id="branch-short-name"
-                  disabled={submitting}
-                    {...branchForm.register('shortName')}
-                />
-              </div>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-short-name">
+                      <span className="um-field-label-text"><i className="ph ph-tag" /> Short Name</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-short-name"
+                        disabled={submitting}
+                        placeholder="e.g. Main"
+                        {...branchForm.register('shortName')}
+                      />
+                      <i className="ph ph-tag um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-email">Email</label>
-                <input
-                  id="branch-email"
-                  disabled={submitting}
-                    {...branchForm.register('email')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-phone">Phone</label>
-                <input
-                  id="branch-phone"
-                  disabled={submitting}
-                    {...branchForm.register('phone')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-city">City</label>
-                <input
-                  id="branch-city"
-                  disabled={submitting}
-                    {...branchForm.register('city')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-state">State</label>
-                <input
-                  id="branch-state"
-                  disabled={submitting}
-                    {...branchForm.register('state')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-postal-code">Postal Code</label>
-                <input
-                  id="branch-postal-code"
-                  disabled={submitting}
-                    {...branchForm.register('postalCode')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-country">Country</label>
-                <input
-                  id="branch-country"
-                  disabled={submitting}
-                    {...branchForm.register('country')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-status">Status <span className="required" aria-hidden="true">*</span></label>
-                <select
-                  id="branch-status"
-                  disabled={submitting}
-                    {...branchForm.register('status')}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="form-group full-width">
-                <label htmlFor="branch-address">Address</label>
-                <input
-                  id="branch-address"
-                  disabled={submitting}
-                    {...branchForm.register('address')}
-                />
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-status">
+                      <span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select
+                        id="branch-status"
+                        disabled={submitting}
+                        {...branchForm.register('status')}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                      <i className="ph ph-toggle-left um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Section 2: Contact Details */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-phone" />
+                  <span>Contact Information</span>
+                </div>
+                <span className="um-card-badge">Communications</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-email">
+                      <span className="um-field-label-text"><i className="ph ph-envelope-simple" /> Email Address</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-email"
+                        type="email"
+                        disabled={submitting}
+                        placeholder="e.g. contact@hospital.org"
+                        {...branchForm.register('email')}
+                      />
+                      <i className="ph ph-envelope-simple um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-phone">
+                      <span className="um-field-label-text"><i className="ph ph-phone" /> Phone Number</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-phone"
+                        disabled={submitting}
+                        placeholder="e.g. +1 (555) 012-3456"
+                        {...branchForm.register('phone')}
+                      />
+                      <i className="ph ph-phone um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Geographic Location & Address */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-map-pin" />
+                  <span>Location &amp; Address</span>
+                </div>
+                <span className="um-card-badge">Geographic</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-city">
+                      <span className="um-field-label-text"><i className="ph ph-buildings" /> City</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-city"
+                        disabled={submitting}
+                        placeholder="e.g. New York"
+                        {...branchForm.register('city')}
+                      />
+                      <i className="ph ph-buildings um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-state">
+                      <span className="um-field-label-text"><i className="ph ph-map-trifold" /> State / Province</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-state"
+                        disabled={submitting}
+                        placeholder="e.g. NY"
+                        {...branchForm.register('state')}
+                      />
+                      <i className="ph ph-map-trifold um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-postal-code">
+                      <span className="um-field-label-text"><i className="ph ph-envelope" /> Postal Code</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-postal-code"
+                        disabled={submitting}
+                        placeholder="e.g. 10001"
+                        {...branchForm.register('postalCode')}
+                      />
+                      <i className="ph ph-envelope um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-country">
+                      <span className="um-field-label-text"><i className="ph ph-globe" /> Country</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-country"
+                        disabled={submitting}
+                        placeholder="e.g. United States"
+                        {...branchForm.register('country')}
+                      />
+                      <i className="ph ph-globe um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label" htmlFor="branch-address">
+                    <span className="um-field-label-text"><i className="ph ph-map-pin" /> Physical Street Address</span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    id="branch-address"
+                    disabled={submitting}
+                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
+                    rows={2}
+                    {...branchForm.register('address')}
+                  />
+                </div>
+              </div>
+            </div>
           </form>
           )}
         </Modal>

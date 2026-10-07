@@ -213,38 +213,45 @@ export function InvoiceDetailsModal({
                     </Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.receiptRow,
-                      styles.receiptBalanceRow,
-                      invoice.balance_amount > 0
-                        ? styles.receiptBalanceDue
-                        : styles.receiptBalancePaid,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.receiptBalanceLabel,
-                        invoice.balance_amount > 0
-                          ? styles.balanceDueText
-                          : styles.balanceSettledText,
-                      ]}
-                    >
-                      {invoice.balance_amount > 0 ? 'Amount Due' : 'Account Status'}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.receiptBalanceValue,
-                        invoice.balance_amount > 0
-                          ? styles.balanceDueText
-                          : styles.balanceSettledText,
-                      ]}
-                    >
-                      {invoice.balance_amount > 0
-                        ? formatCurrency(invoice.balance_amount)
-                        : 'Paid in Full'}
-                    </Text>
-                  </View>
+                  {(() => {
+                    const isCancelled = invoice.status?.toUpperCase() === 'CANCELLED';
+                    const displayBalance = isCancelled ? 0 : invoice.balance_amount;
+                    const isDue = !isCancelled && displayBalance > 0;
+                    return (
+                      <View
+                        style={[
+                          styles.receiptRow,
+                          styles.receiptBalanceRow,
+                          isDue ? styles.receiptBalanceDue : styles.receiptBalancePaid,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.receiptBalanceLabel,
+                            isDue ? styles.balanceDueText : styles.balanceSettledText,
+                          ]}
+                        >
+                          {isCancelled
+                            ? 'Invoice Status'
+                            : isDue
+                            ? 'Amount Due'
+                            : 'Account Status'}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.receiptBalanceValue,
+                            isDue ? styles.balanceDueText : styles.balanceSettledText,
+                          ]}
+                        >
+                          {isCancelled
+                            ? 'Cancelled'
+                            : isDue
+                            ? formatCurrency(displayBalance)
+                            : 'Paid in Full'}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </View>
 

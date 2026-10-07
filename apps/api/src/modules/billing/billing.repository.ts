@@ -122,7 +122,7 @@ const toInvoice = (
     tax_amount: invoice.taxAmount,
     total_amount: invoice.totalAmount,
     paid_amount: invoice.paidAmount,
-    balance_amount: invoice.balanceAmount,
+    balance_amount: invoice.status === 'CANCELLED' ? 0 : invoice.balanceAmount,
     items,
     created_by: invoice.createdBy?.toString() ?? null,
     updated_by: invoice.updatedBy?.toString() ?? null,
@@ -465,7 +465,7 @@ export class BillingRepository {
         paidAmount: 0,
         deletedAt: null,
       },
-      { $set: { status: 'CANCELLED', updatedBy: objectId(userId) } },
+      { $set: { status: 'CANCELLED', balanceAmount: 0, updatedBy: objectId(userId) } },
       { returnDocument: 'after', lean: true, runValidators: true, session: session ?? undefined },
     ).lean<InvoiceLean>();
     return invoice ? toInvoice(invoice) : null;

@@ -238,6 +238,20 @@ export function OpdVisitPage() {
 
   const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
+  const [justSentToPharmacy, setJustSentToPharmacy] = useState(false);
+
+  useEffect(() => {
+    setJustSentToPharmacy(false);
+  }, [visit?.id]);
+
+  const isSentToPharmacy = useMemo(() => {
+    return (
+      justSentToPharmacy ||
+      prescription?.status === 'SUBMITTED' ||
+      prescription?.status === 'DISPENSED' ||
+      Boolean(prescription?.submitted_at)
+    );
+  }, [justSentToPharmacy, prescription?.status, prescription?.submitted_at]);
 
   // Documents state (Tab 9)
   const [uploadFileType, setUploadFileType] = useState('Consultation Document');
@@ -893,17 +907,34 @@ export function OpdVisitPage() {
 
   const handleNextStep = (nextTab: string) => {
     let resolvedNextTab = nextTab;
-    if (isDental) {
-      if (nextTab === 'Diagnosis') resolvedNextTab = 'Dental Examination';
-      else if (nextTab === 'Lab Orders' || nextTab === 'Imaging Orders') resolvedNextTab = 'Prescription';
-      else if (nextTab === 'Follow-up') resolvedNextTab = 'Follow-up';
+    if (nextTab === 'Diagnosis' || nextTab === 'Diagnosis & Treatment Plan') {
+      resolvedNextTab = 'Diagnosis';
+    } else if (nextTab === 'Prescription') {
+      resolvedNextTab = 'Prescription';
+    } else if (nextTab === 'Imaging' || nextTab === 'Imaging Orders') {
+      resolvedNextTab = 'Imaging Orders';
+    } else if (nextTab === 'Laboratory' || nextTab === 'Lab Orders') {
+      resolvedNextTab = 'Lab Orders';
+    } else if (nextTab === 'Follow-up') {
+      resolvedNextTab = 'Follow-up';
     }
     void saveConsultationDraft();
     setActiveTab(resolvedNextTab);
     if (visit?.id) {
-      const destination = isDental && resolvedNextTab === 'Prescription'
-        ? '/opd/prescription'
-        : '/opd/consultation';
+      let destination = '/opd/consultation';
+      if (isDental) {
+        if (resolvedNextTab === 'Diagnosis') {
+          destination = '/opd/treatment-plan';
+        } else if (resolvedNextTab === 'Prescription') {
+          destination = '/opd/prescription';
+        } else if (resolvedNextTab === 'Imaging Orders') {
+          destination = '/opd/imaging';
+        } else if (resolvedNextTab === 'Lab Orders') {
+          destination = '/opd/laboratory';
+        } else {
+          destination = '/opd/consultation';
+        }
+      }
       navigate(`${destination}?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(resolvedNextTab)}`, { replace: true });
     }
     requestAnimationFrame(() => {
@@ -918,6 +949,8 @@ export function OpdVisitPage() {
 
   const handleSendToPharmacy = async () => {
     if (!visit) return;
+    if (isSentToPharmacy) return;
+    if (updating === 'prescription-submit') return;
     if (prescriptionForm.items.length === 0) {
       showToast('Add at least one medication before sending to pharmacy.', 'error');
       return;
@@ -954,6 +987,7 @@ export function OpdVisitPage() {
         patient_instructions: prescriptionForm.patient_instructions || null,
       };
       await feature.actions.submitPrescription({ visitId: visit.id, payload: prescriptionPayload });
+      setJustSentToPharmacy(true);
       showToast('Prescription sent to pharmacy successfully.');
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
@@ -1604,6 +1638,10 @@ export function OpdVisitPage() {
                     setPrescriptionForm={setPrescriptionForm}
                     showToast={showToast}
                     updating={updating}
+                    prescription={prescription}
+                    patient={patient}
+                    visit={visit}
+                    isSentToPharmacy={isSentToPharmacy}
                   />
                 ) : null}
 

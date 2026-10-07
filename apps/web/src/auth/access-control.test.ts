@@ -212,10 +212,10 @@ describe('staff route access control', () => {
     expect(opdModule).toBeDefined();
     expect(opdModule?.links.map((l) => l.href)).toEqual([
       '/opd/queue',
+      '/opd/treatment-plan',
       '/opd/prescription',
       '/opd/imaging',
       '/opd/laboratory',
-      '/opd/treatment-plan',
     ]);
   });
 });

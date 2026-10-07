@@ -377,7 +377,21 @@ export class PatientService {
 
   async downloadDocumentForPortal(patientId: string, documentId: string) {
     const document = await this.getActiveDocument(patientId, documentId);
-    const storedFile = await this.documentStorage.download(document.storage_key);
+    let storedFile: { data: Buffer; contentType: string | null };
+    try {
+      storedFile = await this.documentStorage.download(document.storage_key);
+    } catch (error) {
+      if (document.document_type === 'CONSENT') {
+        const regenerated = await this.recoverConsentDocument(patientId, document);
+        if (regenerated) {
+          storedFile = regenerated;
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
     return { document, data: storedFile.data, contentType: storedFile.contentType ?? document.mime_type };
   }
 
@@ -573,13 +587,111 @@ export class PatientService {
   async downloadDocument(patientId: string, documentId: string, userId?: string) {
     await this.getById(patientId, userId);
     const document = await this.getActiveDocument(patientId, documentId);
-    const storedFile = await this.documentStorage.download(document.storage_key);
+    let storedFile: { data: Buffer; contentType: string | null };
+    try {
+      storedFile = await this.documentStorage.download(document.storage_key);
+    } catch (error) {
+      if (document.document_type === 'CONSENT') {
+        const regenerated = await this.recoverConsentDocument(patientId, document);
+        if (regenerated) {
+          storedFile = regenerated;
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
 
     return {
       document,
       data: storedFile.data,
       contentType: storedFile.contentType ?? document.mime_type,
     };
+  }
+
+  private async recoverConsentDocument(
+    patientId: string,
+    document: PatientDocument,
+  ): Promise<{ data: Buffer; contentType: string } | null> {
+    try {
+      const patient = await this.repository.getById(patientId);
+      const patientName = patient
+        ? [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')
+        : 'Patient';
+      const patientNumber = patient?.patient_number ?? '';
+
+      let template = null;
+      if (document.consent_template_id) {
+        template = await ConsentTemplateModel.findById(document.consent_template_id).lean();
+      }
+
+      const templateName = template?.name || document.title || 'Consent Form';
+      const templateCode = template?.code || 'CONSENT';
+      const templateVersion = template?.version || document.consent_version || 1;
+      const category = template?.category || document.consent_category || 'GENERAL';
+      const contextType = document.context_type || 'PATIENT';
+      const contextId = document.context_id || patientId;
+
+      const autoFormResponses: Record<string, unknown> = {
+        patient_name: patientName,
+        patient_number: patientNumber,
+        date_of_birth: patient?.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString('en-IN') : '',
+        gender: patient?.gender || '',
+        phone: patient?.phone || '',
+      };
+
+      const signatures: Array<{ signer_type: string; signer_name: string; signature_data: string; signed_at?: string }> = [];
+      if (document.signed_by_name) {
+        signatures.push({
+          signer_type: 'PATIENT',
+          signer_name: document.signed_by_name,
+          signature_data: `Digitally Signed by ${document.signed_by_name}`,
+          signed_at: document.signed_at ? document.signed_at.toISOString() : undefined,
+        });
+      }
+
+      const summaryHtml = generateConsentHtml({
+        patientName,
+        patientNumber,
+        templateName,
+        templateCode,
+        templateVersion,
+        category,
+        contextType,
+        contextId,
+        sections: (template?.formDefinition as any)?.sections,
+        formResponses: autoFormResponses,
+        signatures,
+        declarationAccepted: document.consent_status === 'SIGNED' || document.consent_status === 'VERIFIED',
+        declarationText: (template?.formDefinition as any)?.declaration?.text,
+        signedAt: document.signed_at ? new Date(document.signed_at) : new Date(document.created_at),
+      });
+
+      const fileBuffer = Buffer.from(summaryHtml, 'utf8');
+
+      try {
+        if (document.storage_key) {
+          await this.documentStorage.updatePatientDocument(document.storage_key, fileBuffer, 'text/html');
+        } else {
+          await this.documentStorage.uploadPatientDocument({
+            patientId,
+            data: fileBuffer,
+            mimeType: 'text/html',
+            fileName: document.file_name || `consent-${templateCode}-v${templateVersion}.html`,
+          });
+        }
+      } catch {
+        // Fallback gracefully: return the generated HTML buffer even if disk caching fails
+      }
+
+      return {
+        data: fileBuffer,
+        contentType: 'text/html',
+      };
+    } catch {
+      return null;
+    }
   }
 
   async deleteDocument(patientId: string, documentId: string, userId: string) {

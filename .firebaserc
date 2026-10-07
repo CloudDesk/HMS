@@ -1,6 +1,7 @@
 {
   "projects": {
     "default": "hms-web-c0717",
-    "patient": "hms-patient-web"
+    "patient": "hms-patient-web",
+    "india" : "hms-india"
   }
 }

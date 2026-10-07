@@ -969,7 +969,7 @@ export class PatientPortalRepository {
         BillingInvoiceModel.find({ patientId: id, deletedAt: null, status: { $ne: 'DRAFT' } })
           .select('invoiceNumber invoiceDate status totalAmount paidAmount balanceAmount')
           .sort({ invoiceDate: -1 })
-          .limit(8)
+          .limit(100)
           .lean(),
         LaboratoryResultModel.find({ patientId: id, deletedAt: null, verifiedAt: { $ne: null } })
           .select('resultItems remarks enteredAt verifiedAt')
@@ -1097,7 +1097,7 @@ export class PatientPortalRepository {
         status: item.status,
         total_amount: item.totalAmount,
         paid_amount: item.paidAmount,
-        balance_amount: item.balanceAmount,
+        balance_amount: item.status === 'CANCELLED' ? 0 : item.balanceAmount,
       })),
       laboratory_results: laboratoryResults.map((item) => ({
         id: String(item._id),
@@ -1381,7 +1381,7 @@ export class PatientPortalRepository {
       tax_amount: invoice.taxAmount,
       total_amount: invoice.totalAmount,
       paid_amount: invoice.paidAmount,
-      balance_amount: invoice.balanceAmount,
+      balance_amount: invoice.status === 'CANCELLED' ? 0 : invoice.balanceAmount,
       patient: patient ? {
         id: String(patient._id),
         patient_number: patient.patientNumber,

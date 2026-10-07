@@ -303,9 +303,6 @@ export function DoctorDirectoryPage() {
   const [branchFilter, setBranchFilter] = useState(
     initialParams.get('branch_id') ?? '',
   );
-  const [departmentFilter, setDepartmentFilter] = useState(
-    initialParams.get('department_id') ?? '',
-  );
   const [sortColumn, setSortColumn] = useState<DoctorDirectorySortColumn | null>(
     parseSortColumn(initialParams.get('sortBy')),
   );
@@ -336,7 +333,6 @@ export function DoctorDirectoryPage() {
       search,
       status: statusFilter,
       branchId: branchFilter,
-      departmentId: departmentFilter,
       page: currentPage,
       sortColumn,
       sortDirection,
@@ -344,7 +340,6 @@ export function DoctorDirectoryPage() {
     [
       branchFilter,
       currentPage,
-      departmentFilter,
       search,
       sortColumn,
       sortDirection,
@@ -417,6 +412,7 @@ export function DoctorDirectoryPage() {
       ),
     [directory.departments, form.branchId],
   );
+
   const formError =
     errors.root?.message ??
     errors.firstName?.message ??
@@ -455,18 +451,6 @@ export function DoctorDirectoryPage() {
     reset(emptyForm());
   };
 
-  const handleSort = (column: DoctorDirectorySortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
   const handleSave = handleSubmit(async (values) => {
     try {
       if (editingDoctor) {
@@ -500,7 +484,6 @@ export function DoctorDirectoryPage() {
     setSearch('');
     setStatusFilter('');
     setBranchFilter('');
-    setDepartmentFilter('');
     setSortColumn(null);
     setSortDirection('desc');
     setCurrentPage(1);
@@ -550,14 +533,13 @@ export function DoctorDirectoryPage() {
               value={search}
             />
           </div>
-          <div className="doc-field">
+          <div className="doc-field doc-filter-branch">
             <label htmlFor="doctor-branch-filter">Branch</label>
             <select
               disabled={!directory.canViewBranches}
               id="doctor-branch-filter"
               onChange={(event) => {
                 setBranchFilter(event.target.value);
-                setDepartmentFilter('');
                 setCurrentPage(1);
               }}
               value={branchFilter}
@@ -584,8 +566,8 @@ export function DoctorDirectoryPage() {
               <option value="INACTIVE">Inactive</option>
             </select>
           </div>
-          {(search || statusFilter || branchFilter || departmentFilter || sortColumn) && (
-            <button className="doc-btn" onClick={resetFilters} type="button"><i className="ph ph-x" aria-hidden="true" /> Reset</button>
+          {(search || statusFilter || branchFilter || sortColumn) && (
+            <button className="doc-btn doc-reset-btn" onClick={resetFilters} type="button"><i className="ph ph-x" aria-hidden="true" /> Reset</button>
           )}
         </section>
 
@@ -811,8 +793,41 @@ export function DoctorDirectoryPage() {
         </section>
       </div>
 
-      <Modal open={modalOpen} onClose={() => closeModal()} size="large" title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}>
-        <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSave}>
+      <Modal
+        className="doctor-editor-modal"
+        open={modalOpen}
+        onClose={() => closeModal()}
+        size="large"
+        title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}
+        footer={
+          <>
+            <button
+              className="btn-secondary"
+              disabled={submitting}
+              onClick={() => closeModal()}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-primary"
+              disabled={submitting}
+              form="doctor-editor-form"
+              type="submit"
+            >
+              {submitting ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                editingDoctor ? 'Save Changes' : 'Save Doctor'
+              )}
+            </button>
+          </>
+        }
+      >
+        <form className="doctor-onboarding-form" id="doctor-editor-form" onSubmit={handleSave}>
           <input {...register('mode')} type="hidden" />
           <input {...register('originalStatus')} type="hidden" />
           {formError ? (
@@ -1024,19 +1039,6 @@ export function DoctorDirectoryPage() {
             </>
           )}
 
-          <div className="modal-actions">
-            <button className="secondary-action" disabled={submitting} onClick={() => closeModal()} type="button">Cancel</button>
-            <button className="primary-action" disabled={submitting} type="submit">
-              {submitting ? (
-                <>
-                  <MedicalSpinner size="sm" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                'Save Doctor'
-              )}
-            </button>
-          </div>
         </form>
       </Modal>
     </>

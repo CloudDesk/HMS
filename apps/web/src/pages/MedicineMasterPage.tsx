@@ -254,57 +254,246 @@ export function MedicineMasterPage() {
         </div>
       </div>
 
-      <Modal footer={modalMode === 'view' ? <button className="btn-secondary" onClick={closeModal} type="button">Close</button> : <><button className="btn-secondary" disabled={saveMutation.isPending} onClick={closeModal} type="button">Cancel</button><button className="btn-primary" disabled={saveMutation.isPending} form="medicine-master-form" type="submit">{saveMutation.isPending ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Medicine'}</button></>} icon="ph-pill" onClose={closeModal} open={Boolean(modalMode)} title={modalTitle}>
+      <Modal
+        className="um-user-modal"
+        size="large"
+        footer={modalMode === 'view' ? <button className="btn-secondary" onClick={closeModal} type="button">Close</button> : <><button className="btn-secondary" disabled={saveMutation.isPending} onClick={closeModal} type="button">Cancel</button><button className="btn-primary" disabled={saveMutation.isPending} form="medicine-master-form" type="submit">{saveMutation.isPending ? <><MedicalSpinner size="sm" /><span>Saving...</span></> : 'Save Medicine'}</button></>}
+        icon="ph-pill"
+        onClose={closeModal}
+        open={Boolean(modalMode)}
+        title={modalTitle}
+      >
         {(modalMode === 'create' || modalMode === 'edit') ? (
           <form id="medicine-master-form" onSubmit={(event) => void handleSubmit(handleSave)(event)}>
-            <div className="form-section-title">Medicine Information</div><div className="form-grid-2">
-              <label className="form-field"><span>Medicine Code <span className="required">*</span></span><input {...register('code')} disabled={saveMutation.isPending} />{errors.code ? <small className="field-error">{errors.code.message}</small> : null}</label>
-              <label className="form-field"><span>Medicine Name <span className="required">*</span></span><input {...register('name')} disabled={saveMutation.isPending} />{errors.name ? <small className="field-error">{errors.name.message}</small> : null}</label>
-              <label className="form-field"><span>Generic Name</span><input {...register('generic_name')} disabled={saveMutation.isPending} /></label>
-              <label className="form-field"><span>Strength</span><input {...register('strength')} disabled={saveMutation.isPending} placeholder="e.g. 500" /></label>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: watch('dosage_form_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
-                <label className="form-field">
-                  <span>Dosage Form</span>
-                  <select className={watch('dosage_form_type') ? undefined : 'medicine-form-placeholder'} {...register('dosage_form_type')} disabled={saveMutation.isPending}>
-                    <option value="">Select dosage form</option>
-                    {COMMON_DOSAGE_FORMS.map(df => <option key={df} value={df}>{df}</option>)}
-                    <option value="Other">Other</option>
-                  </select>
-                </label>
-                {watch('dosage_form_type') === 'Other' ? (
-                  <label className="form-field">
-                    <span>Custom Dosage Form <span className="required">*</span></span>
-                    <input {...register('custom_dosage_form')} disabled={saveMutation.isPending} placeholder="Enter dosage form" />
-                    {errors.custom_dosage_form ? <small className="field-error">{errors.custom_dosage_form.message}</small> : null}
-                  </label>
-                ) : null}
+            {/* Section 1: Identification & Formulation */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-pill" />
+                  <span>Medicine Information</span>
+                </div>
+                <span className="um-card-badge">Pharmacy Catalogue</span>
               </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text"><i className="ph ph-hash" /> Medicine Code</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        {...register('code')}
+                        disabled={saveMutation.isPending}
+                        placeholder="e.g. MED-AMOX-500"
+                        aria-invalid={Boolean(errors.code)}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                    {errors.code ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {errors.code.message}</span> : null}
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: watch('unit_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
-                <label className="form-field">
-                  <span>Unit</span>
-                  <select className={watch('unit_type') ? undefined : 'medicine-form-placeholder'} {...register('unit_type')} disabled={saveMutation.isPending}>
-                    <option value="">Select unit</option>
-                    {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                    <option value="Other">Other</option>
-                  </select>
-                </label>
-                {watch('unit_type') === 'Other' ? (
-                  <label className="form-field">
-                    <span>Custom Unit <span className="required">*</span></span>
-                    <input {...register('custom_unit')} disabled={saveMutation.isPending} placeholder="Enter custom unit" />
-                    {errors.custom_unit ? <small className="field-error">{errors.custom_unit.message}</small> : null}
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text"><i className="ph ph-pill" /> Medicine Name</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        {...register('name')}
+                        disabled={saveMutation.isPending}
+                        placeholder="e.g. Amoxicillin Trihydrate"
+                        aria-invalid={Boolean(errors.name)}
+                      />
+                      <i className="ph ph-pill um-input-prefix-icon" />
+                    </div>
+                    {errors.name ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {errors.name.message}</span> : null}
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text"><i className="ph ph-flask" /> Generic Name</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        {...register('generic_name')}
+                        disabled={saveMutation.isPending}
+                        placeholder="e.g. Amoxicillin"
+                      />
+                      <i className="ph ph-flask um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text"><i className="ph ph-scales" /> Strength</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        {...register('strength')}
+                        disabled={saveMutation.isPending}
+                        placeholder="e.g. 500mg, 10mg/ml"
+                      />
+                      <i className="ph ph-scales um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-shapes" /> Dosage Form
+                        {watch('dosage_form_type') === 'Other' ? <span className="um-required-star">*</span> : null}
+                      </span>
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: watch('dosage_form_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                      <div className="um-input-wrap">
+                        <select className={watch('dosage_form_type') ? undefined : 'medicine-form-placeholder'} {...register('dosage_form_type')} disabled={saveMutation.isPending}>
+                          <option value="">Select dosage form</option>
+                          {COMMON_DOSAGE_FORMS.map(df => <option key={df} value={df}>{df}</option>)}
+                          <option value="Other">Other</option>
+                        </select>
+                        <i className="ph ph-shapes um-input-prefix-icon" />
+                      </div>
+                      {watch('dosage_form_type') === 'Other' ? (
+                        <div className="um-input-wrap">
+                          <input {...register('custom_dosage_form')} disabled={saveMutation.isPending} placeholder="Custom dosage form" />
+                          <i className="ph ph-pencil-simple um-input-prefix-icon" />
+                        </div>
+                      ) : null}
+                    </div>
+                    {errors.custom_dosage_form ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {errors.custom_dosage_form.message}</span> : null}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-package" /> Dispensing Unit
+                        {watch('unit_type') === 'Other' ? <span className="um-required-star">*</span> : null}
+                      </span>
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: watch('unit_type') === 'Other' ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+                      <div className="um-input-wrap">
+                        <select className={watch('unit_type') ? undefined : 'medicine-form-placeholder'} {...register('unit_type')} disabled={saveMutation.isPending}>
+                          <option value="">Select unit</option>
+                          {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                          <option value="Other">Other</option>
+                        </select>
+                        <i className="ph ph-package um-input-prefix-icon" />
+                      </div>
+                      {watch('unit_type') === 'Other' ? (
+                        <div className="um-input-wrap">
+                          <input {...register('custom_unit')} disabled={saveMutation.isPending} placeholder="Custom unit" />
+                          <i className="ph ph-pencil-simple um-input-prefix-icon" />
+                        </div>
+                      ) : null}
+                    </div>
+                    {errors.custom_unit ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {errors.custom_unit.message}</span> : null}
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label">
+                    <span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span>
                   </label>
-                ) : null}
+                  <div className="um-input-wrap">
+                    <select {...register('status')} disabled={saveMutation.isPending}>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                    <i className="ph ph-toggle-left um-input-prefix-icon" />
+                  </div>
+                </div>
               </div>
+            </div>
 
-              <label className="form-field"><span>Status</span><select {...register('status')} disabled={saveMutation.isPending}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea {...register('description')} disabled={saveMutation.isPending} rows={3} /></label>
+            {/* Section 2: Clinical Description */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-text-align-left" />
+                  <span>Clinical Notes &amp; Description</span>
+                </div>
+                <span className="um-card-badge">Pharmacy Guidance</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label">
+                    <span className="um-field-label-text"><i className="ph ph-info" /> Description</span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    placeholder="Enter instructions, indications, adverse warnings, or storage requirements..."
+                    {...register('description')}
+                    disabled={saveMutation.isPending}
+                    rows={3}
+                  />
+                </div>
+              </div>
             </div>
           </form>
         ) : null}
-        {modalMode === 'view' && activeMedicine ? <div className="form-grid-2"><label className="form-field"><span>Code</span><input readOnly value={activeMedicine.code} /></label><label className="form-field"><span>Name</span><input readOnly value={activeMedicine.name} /></label><label className="form-field"><span>Generic Name</span><input readOnly value={activeMedicine.generic_name ?? ''} /></label><label className="form-field"><span>Strength</span><input readOnly value={activeMedicine.strength ?? ''} /></label><label className="form-field"><span>Dosage Form</span><input readOnly value={activeMedicine.dosage_form ?? ''} /></label><label className="form-field"><span>Unit</span><input readOnly value={activeMedicine.unit ?? ''} /></label><label className="form-field"><span>Status</span><input readOnly value={activeMedicine.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label><label className="form-field"><span>Created</span><input readOnly value={formatDate(activeMedicine.created_at)} /></label><label className="form-field" style={{ gridColumn: '1 / -1' }}><span>Description</span><textarea readOnly rows={3} value={activeMedicine.description ?? ''} /></label></div> : null}
+
+        {modalMode === 'view' && activeMedicine ? (
+          <div className="um-modal-card">
+            <div className="um-modal-card-header">
+              <div className="um-card-title-wrap">
+                <i className="ph ph-pill" />
+                <span>Medicine Details</span>
+              </div>
+              <span className="um-card-badge">Record View</span>
+            </div>
+            <div className="um-modal-card-body">
+              <div className="um-form-row-2">
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Code</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-pill" /> Medicine Name</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.name} /><i className="ph ph-pill um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-flask" /> Generic Name</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.generic_name ?? '—'} /><i className="ph ph-flask um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-scales" /> Strength</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.strength ?? '—'} /><i className="ph ph-scales um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-shapes" /> Dosage Form</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.dosage_form ?? '—'} /><i className="ph ph-shapes um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-package" /> Unit</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.unit ?? '—'} /><i className="ph ph-package um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeMedicine.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-calendar" /> Created</span></label>
+                  <div className="um-input-wrap"><input readOnly value={formatDate(activeMedicine.created_at)} /><i className="ph ph-calendar um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-text-align-left" /> Description</span></label>
+                <textarea className="um-textarea" readOnly rows={3} value={activeMedicine.description ?? '—'} />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       <ConfirmDialog confirmLabel="Delete Medicine" loading={deleteMutation.isPending} message={deleteTarget ? `Delete ${deleteTarget.name}? Historical audit records will be retained.` : ''} onCancel={() => setDeleteTarget(null)} onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) }); }} open={Boolean(deleteTarget)} title="Delete Medicine" />

@@ -12,6 +12,7 @@ const testState = vi.hoisted(() => {
 
   return {
     calls,
+    pathname: '/opd/consultation',
     search: '?id=visit-1&tab=Dental Examination',
     visit: {
       id: 'visit-1',
@@ -39,7 +40,7 @@ const testState = vi.hoisted(() => {
 
 vi.mock('../../routing/navigation', () => ({
   navigate: testState.navigate,
-  useAppLocation: () => ({ pathname: '/opd/consultation', search: testState.search }),
+  useAppLocation: () => ({ pathname: testState.pathname, search: testState.search }),
 }));
 
 vi.mock('./useOpd', () => ({
@@ -101,6 +102,7 @@ vi.mock('./useOpdWorkspace', () => ({
     documents: [],
     visitLoading: false,
     visitError: testState.visitError,
+    canViewConsultation: true,
     isUpdating: false,
     refetchVisit: vi.fn(),
     mutations: {
@@ -135,6 +137,7 @@ describe('useOpdVisitFeature', () => {
 
   beforeEach(async () => {
     testState.calls.length = 0;
+    testState.pathname = '/opd/consultation';
     testState.visitError = null;
     testState.navigate.mockReset();
     testState.visit = {
@@ -179,6 +182,20 @@ describe('useOpdVisitFeature', () => {
 
   it('does not query Dental billing state for a non-Dental visit', () => {
     expect(testState.dentalBillingEnabled.at(-1)).toBe(false);
+  });
+
+  it('opens the treatment-plan route with the selected visit and dental billing context', async () => {
+    testState.pathname = '/opd/treatment-plan';
+    testState.visit = { ...testState.visit, department_id: 'dept-dental', doctor_specialization: 'Dentistry' };
+    testState.departments = [{ id: 'dept-dental', code: 'DENTAL', name: 'Dental' }];
+
+    await act(async () => root.render(<Harness />));
+
+    expect(feature?.state.activeTab).toBe('Diagnosis');
+    expect(feature?.state.activeVisitId).toBe('visit-1');
+    expect(feature?.state.patient?.id).toBe('patient-1');
+    expect(testState.dentalBillingEnabled.at(-1)).toBe(true);
+    expect(testState.navigate).not.toHaveBeenCalled();
   });
 
   it('preserves draft payloads and workflow order', async () => {

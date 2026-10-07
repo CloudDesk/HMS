@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { SessionManager } from '../auth/session-manager';
 import {
+  appointmentCheckInResultSchema,
   appointmentCreatedSchema,
   bookAppointmentInputSchema,
   portalAppointmentsResponseSchema,
@@ -10,6 +11,7 @@ import {
   publicDoctorSlotsSchema,
   rescheduleAppointmentInputSchema,
   rescheduleEligibilitySchema,
+  type AppointmentCheckInResult,
   type AppointmentCreated,
   type BookAppointmentInput,
   type PortalAppointmentsResponse,
@@ -84,6 +86,14 @@ export class AppointmentsApi {
       '/patient-portal/appointments',
       appointmentCreatedSchema,
       { method: 'POST', body: payload }
+    );
+  }
+
+  async checkInAppointment(appointmentId: string): Promise<AppointmentCheckInResult> {
+    return this.sessionManager.authenticatedRequest(
+      `/patient-portal/appointments/${appointmentId}/check-in`,
+      appointmentCheckInResultSchema,
+      { method: 'POST' }
     );
   }
 

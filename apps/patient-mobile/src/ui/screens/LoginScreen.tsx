@@ -28,7 +28,26 @@ export function LoginScreen() {
 
   const isRegisterMode = state.authMode === 'register';
   const isSubmitting = state.status === 'requestingOtp';
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
   const displayError = state.message ?? localError;
+
+  // Calculate cooldown countdown for rate limiting / resend
+  useEffect(() => {
+    const calculateRemaining = () => {
+      if (!state.resendAt) return 0;
+      const remainingMs = state.resendAt - Date.now();
+      return Math.max(0, Math.ceil(remainingMs / 1000));
+    };
+
+    setSecondsRemaining(calculateRemaining());
+    const interval = setInterval(() => {
+      const remaining = calculateRemaining();
+      setSecondsRemaining(remaining);
+      if (remaining <= 0) clearInterval(interval);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [state.resendAt]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -64,6 +83,7 @@ export function LoginScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting || secondsRemaining > 0) return;
     Keyboard.dismiss();
     setLocalError(null);
     clearError();
@@ -178,13 +198,17 @@ export function LoginScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.button, isSubmitting && styles.buttonDisabled]}
+              style={[styles.button, (isSubmitting || secondsRemaining > 0) && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || secondsRemaining > 0}
               activeOpacity={0.85}
             >
               {isSubmitting ? (
                 <ActivityIndicator color={colors.text.inverse} size="small" />
+              ) : secondsRemaining > 0 ? (
+                <Text style={styles.buttonText}>
+                  Please wait {secondsRemaining}s
+                </Text>
               ) : (
                 <Text style={styles.buttonText}>
                   {isRegisterMode ? 'Verify Mobile & Continue' : 'Continue to Sign In'}

@@ -16,57 +16,96 @@ export function DentalLabSection(input: DentalLabFeatureInput) {
   const dentalLabServices = rawServices.filter(isDentalLabService);
 
   return (
-    <section className={styles.imagingPanel} aria-label="Dental laboratory">
-      <div className={styles.imagingHeader}>
-        <div>
-          <h3>Dental laboratory investigations</h3>
-          <p>Laboratory tests ordered for this visit.</p>
+    <section className={styles.labContainer} aria-label="Dental laboratory">
+      <div className={styles.labHeader}>
+        <div className={styles.labTitleGroup}>
+          <h3 className={styles.labTitle}>
+            <i className="ph ph-flask" /> Dental Laboratory Investigations
+          </h3>
         </div>
-        <div className={styles.imagingActions}>
-          <button type="button" disabled={order.isFetching || feature.saving} onClick={() => { void order.refetch(); }}>
-            Refresh status
+        <div className={styles.labActionRow}>
+          <button
+            type="button"
+            className={styles.btnRefreshAction}
+            disabled={order.isFetching || feature.saving}
+            onClick={() => {
+              void order.refetch();
+            }}
+            title="Refresh laboratory requests"
+          >
+            <i className={`ph ph-arrows-clockwise ${order.isFetching ? styles.spinIcon : ''}`} /> Refresh
           </button>
           {feature.canAdd && (
-            <button type="button" className={styles.btnAddAction} onClick={() => feature.openRequest()}>
+            <button
+              type="button"
+              className={styles.btnAddLabAction}
+              onClick={() => feature.openRequest()}
+              disabled={feature.saving}
+              title="Add laboratory investigation"
+            >
               + Add Lab Investigation
             </button>
           )}
         </div>
       </div>
-      {order.isLoading && <p role="status">Loading laboratory requests…</p>}
+      {order.isLoading && <p role="status" style={{ color: '#64748b', fontSize: '0.8125rem' }}>Loading laboratory requests…</p>}
       {order.isError && (
-        <p role="alert">
-          {getOpdErrorMessage(order.error)} <button type="button" onClick={() => { void order.refetch(); }}>Retry</button>
+        <p role="alert" style={{ color: '#dc2626', fontSize: '0.8125rem' }}>
+          {getOpdErrorMessage(order.error)}{' '}
+          <button type="button" className={styles.tableAction} onClick={() => { void order.refetch(); }}>
+            Retry
+          </button>
         </p>
       )}
-      {order.isSuccess && items.length === 0 && <p>No laboratory requests for this visit.</p>}
-      <ul className={styles.imagingList}>
-        {items.map((item, idx) => (
-          <li key={item.id ?? `${item.service_id}-${idx}`}>
-            <strong>{item.investigation_name}</strong>
-            <span>{item.category || 'Laboratory'}</span>
-            <span className={styles.contextBadge}>{order.data?.status.replaceAll('_', ' ')}</span>
-          </li>
-        ))}
-      </ul>
+      {order.isSuccess && items.length === 0 && (
+        <div className={styles.labEmpty}>
+          <i className="ph ph-flask" />
+          No laboratory requests for this visit.
+        </div>
+      )}
+      {items.length > 0 && (
+        <ul className={styles.labList}>
+          {items.map((item, idx) => (
+            <li key={item.id ?? `${item.service_id}-${idx}`} className={styles.labListItem}>
+              <strong>{item.investigation_name}</strong>
+              <span className={styles.labItemCategory}>{item.category || 'Laboratory'}</span>
+              <span className={styles.contextBadge}>{order.data?.status.replaceAll('_', ' ')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {order.data?.status === 'DRAFT' && (
-        <p>Saved draft. Laboratory receives the request after consultation completion and submission.</p>
+        <p className={styles.labDraftNote}>Saved draft. Laboratory receives the request after consultation completion and submission.</p>
       )}
       {input.consultationCompleted && input.canEdit && order.data?.status === 'DRAFT' && (
-        <button type="button" disabled={feature.saving} onClick={() => { void feature.submitRequest(); }}>
+        <button
+          type="button"
+          className={styles.btnSubmitLab}
+          disabled={feature.saving}
+          onClick={() => {
+            void feature.submitRequest();
+          }}
+        >
           Submit laboratory request
         </button>
       )}
-      {feature.saveError && !feature.open && <p role="alert">{feature.saveError}</p>}
+      {feature.saveError && !feature.open && <p role="alert" style={{ color: '#dc2626', fontSize: '0.8125rem' }}>{feature.saveError}</p>}
       {feature.resultAvailable && (
-        <button type="button" onClick={() => feature.setResultOpen(!feature.resultOpen)}>
+        <button
+          type="button"
+          className={styles.btnViewResults}
+          onClick={() => feature.setResultOpen(!feature.resultOpen)}
+        >
+          <i className={feature.resultOpen ? 'ph ph-eye-slash' : 'ph ph-eye'} />
           {feature.resultOpen ? 'Hide laboratory results' : 'View laboratory results'}
         </button>
       )}
       {feature.resultOpen && feature.resultAvailable && (
         <div className={styles.imagingReport} aria-label="Laboratory result">
-          <h4>Visit laboratory results</h4>
-          <p>Results entered for the visit laboratory order.</p>
+          <h4 style={{ margin: '0 0 0.5rem', color: '#0f172a', fontSize: '0.9rem', fontWeight: 600 }}>Visit Laboratory Results</h4>
+          <p style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.8125rem' }}>
+            {result.data?.verified_at ? 'Verified results' : 'Results entered — awaiting verification'}
+          </p>
           {result.isLoading && <p role="status">Loading laboratory results…</p>}
           {result.isError && (
             <p role="alert">
@@ -76,36 +115,37 @@ export function DentalLabSection(input: DentalLabFeatureInput) {
           )}
           {result.data && (
             <>
-              <p>{result.data.verified_at ? 'Verified results' : 'Results entered — awaiting verification'}</p>
               {result.data.remarks && (
-                <>
-                  <h4>Remarks</h4>
-                  <p>{result.data.remarks}</p>
-                </>
+                <div style={{ margin: '0.5rem 0', padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                  <strong style={{ fontSize: '0.8125rem', color: '#475569' }}>Remarks:</strong>{' '}
+                  <span style={{ fontSize: '0.8125rem', color: '#0f172a' }}>{result.data.remarks}</span>
+                </div>
               )}
               {result.data.result_items && result.data.result_items.length > 0 && (
-                <table style={{ width: '100%', marginTop: '8px', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '6px' }}>Test / Parameter</th>
-                      <th style={{ padding: '6px' }}>Value</th>
-                      <th style={{ padding: '6px' }}>Unit</th>
-                      <th style={{ padding: '6px' }}>Reference Range</th>
-                      <th style={{ padding: '6px' }}>Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.data.result_items.map((res, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px' }}>{res.service_name}</td>
-                        <td style={{ padding: '6px', fontWeight: 600 }}>{res.value}</td>
-                        <td style={{ padding: '6px' }}>{res.unit || '-'}</td>
-                        <td style={{ padding: '6px' }}>{res.reference_range || '-'}</td>
-                        <td style={{ padding: '6px' }}>{res.comments || '-'}</td>
+                <div className={styles.ordersTableWrap}>
+                  <table className={styles.ordersTable}>
+                    <thead>
+                      <tr>
+                        <th>Test / Parameter</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Reference Range</th>
+                        <th>Comments</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {result.data.result_items.map((res, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{res.service_name}</strong></td>
+                          <td style={{ fontWeight: 600 }}>{res.value}</td>
+                          <td>{res.unit || '—'}</td>
+                          <td>{res.reference_range || '—'}</td>
+                          <td>{res.comments || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </>
           )}

@@ -35,7 +35,7 @@ const GENDER_OPTIONS: Array<{ label: string; value: 'MALE' | 'FEMALE' | 'OTHER' 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export function RegisterScreen() {
-  const { state, registerPatient, cancelRegistration, getPublicBranches, clearError } = useAuth();
+  const { state, registerPatient, cancelRegistration, setAuthMode, getPublicBranches, clearError } = useAuth();
   const { scrollRef, onInputFocus, ensureVisible, onScroll } = useFocusedInputScroll();
 
   const [fullName, setFullName] = useState('');
@@ -54,7 +54,10 @@ export function RegisterScreen() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const isSubmitting = state.status === 'registering';
-  const displayError = state.message ?? localError;
+  const isSessionExpired = !state.registrationToken;
+  const displayError =
+    state.message ??
+    (isSessionExpired ? 'The registration session is invalid or has expired. Please verify your mobile number again.' : localError);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +82,7 @@ export function RegisterScreen() {
   }, [getPublicBranches]);
 
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isSessionExpired) return;
     Keyboard.dismiss();
     setLocalError(null);
     clearError();
@@ -353,19 +356,32 @@ export function RegisterScreen() {
             />
           </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            activeOpacity={0.85}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={colors.text.inverse} size="small" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Create Account & Sign In</Text>
-            )}
-          </TouchableOpacity>
+          {/* Submit / Re-verify Button */}
+          {isSessionExpired ? (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                cancelRegistration();
+                setAuthMode('register');
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Verify Mobile Number Again</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.text.inverse} size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Create Account & Sign In</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           {/* Cancel Button */}
           <TouchableOpacity

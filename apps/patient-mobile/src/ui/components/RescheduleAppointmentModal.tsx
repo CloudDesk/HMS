@@ -1,19 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { friendlyError } from '../../api/errors';
 import { useAuth } from '../AuthContext';
 import { AppointmentsApi } from '../../appointments/appointments-api';
 import type {
+  AppointmentCreated,
   PortalAppointment,
   PublicDoctor,
   PublicDoctorSlots,
@@ -33,7 +35,7 @@ import { colors, radius, shadows, spacing, typography } from '../theme';
 interface RescheduleAppointmentModalProps {
   appointment: PortalAppointment | null;
   onClose: () => void;
-  onRescheduled: () => void;
+  onRescheduled: (updatedAppointment?: AppointmentCreated) => void;
 }
 
 const minutesBetween = (start: string, end: string) => {
@@ -47,6 +49,7 @@ export function RescheduleAppointmentModal({
   onClose,
   onRescheduled,
 }: RescheduleAppointmentModalProps) {
+  const insets = useSafeAreaInsets();
   const { manager } = useAuth();
   const appointmentsApi = useMemo(() => new AppointmentsApi(manager), [manager]);
 
@@ -156,19 +159,8 @@ export function RescheduleAppointmentModal({
         duration_minutes: duration > 0 ? duration : 15,
       });
 
-      Alert.alert(
-        'Appointment Rescheduled',
-        `Your visit has been rescheduled to ${appointmentDate} at ${selectedSlot.start_time} (${result.appointment_number}).`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              onRescheduled();
-              onClose();
-            },
-          },
-        ]
-      );
+      onRescheduled(result);
+      onClose();
     } catch (err) {
       setErrorObj(err);
       setErrorMessage(friendlyError(err));
@@ -186,198 +178,233 @@ export function RescheduleAppointmentModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.card}>
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.headerTitle}>Reschedule Appointment</Text>
-                  <Text style={styles.subNumber}>#{appointment.appointment_number}</Text>
-                </View>
-                <TouchableOpacity onPress={onClose} disabled={isSubmitting} style={styles.closeBtn}>
-                  <Text style={styles.closeBtnText}>✕</Text>
-                </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backdropTouchable}
+            activeOpacity={1}
+            onPress={onClose}
+            disabled={isSubmitting}
+          />
+          <View
+            style={[
+              styles.card,
+              {
+                paddingBottom: Math.max(insets.bottom, spacing.md),
+              },
+            ]}
+          >
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.headerTitle}>Reschedule Appointment</Text>
+                <Text style={styles.subNumber}>#{appointment.appointment_number}</Text>
               </View>
-
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
+              <TouchableOpacity
+                onPress={onClose}
+                disabled={isSubmitting}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close reschedule modal"
               >
-                {isCheckingEligibility ? (
-                  <View style={styles.centerLoading}>
-                    <ActivityIndicator size="small" color="#0284C7" />
-                    <Text style={styles.loadingText}>Checking reschedule eligibility…</Text>
-                  </View>
-                ) : eligibility && !eligibility.eligible ? (
-                  <View style={styles.ineligibleBox}>
-                    <Text style={styles.ineligibleTitle}>Rescheduling Not Available</Text>
-                    <Text style={styles.ineligibleReason}>
-                      {eligibility.reason ??
-                        `Appointments must be rescheduled at least ${eligibility.minimum_notice_hours} hours in advance.`}
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
+              {isCheckingEligibility ? (
+                <View style={styles.centerLoading}>
+                  <ActivityIndicator size="small" color="#0284C7" />
+                  <Text style={styles.loadingText}>Checking reschedule eligibility…</Text>
+                </View>
+              ) : eligibility && !eligibility.eligible ? (
+                <View style={styles.ineligibleBox}>
+                  <Text style={styles.ineligibleTitle}>Rescheduling Not Available</Text>
+                  <Text style={styles.ineligibleReason}>
+                    {eligibility.reason ??
+                      `Appointments must be rescheduled at least ${eligibility.minimum_notice_hours} hours in advance.`}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {errorObj || errorMessage ? (
+                    <ErrorDiagnosticView
+                      error={errorObj ?? errorMessage}
+                      onDismiss={() => {
+                        setErrorMessage(null);
+                        setErrorObj(null);
+                      }}
+                    />
+                  ) : null}
+
+                  {/* Current info banner */}
+                  <View style={styles.currentBox}>
+                    <Text style={styles.currentLabel}>Current Scheduled Time:</Text>
+                    <Text style={styles.currentValue}>
+                      {formatAppointmentDate(appointment.appointment_date)} · {appointment.start_time}–{appointment.end_time}
                     </Text>
+                    <Text style={styles.currentDoctor}>{appointment.doctor_name}</Text>
                   </View>
-                ) : (
-                  <>
-                    {errorObj || errorMessage ? (
-                      <ErrorDiagnosticView
-                        error={errorObj ?? errorMessage}
-                        onDismiss={() => {
-                          setErrorMessage(null);
-                          setErrorObj(null);
-                        }}
-                      />
-                    ) : null}
 
-                    {/* Current info banner */}
-                    <View style={styles.currentBox}>
-                      <Text style={styles.currentLabel}>Current Scheduled Time:</Text>
-                      <Text style={styles.currentValue}>
-                        {formatAppointmentDate(appointment.appointment_date)} · {appointment.start_time}–{appointment.end_time}
-                      </Text>
-                      <Text style={styles.currentDoctor}>{appointment.doctor_name}</Text>
-                    </View>
-
-                    {/* Doctor selection (if alternate doctor allowed) */}
-                    {doctors.length > 1 ? (
-                      <View style={styles.formGroup}>
-                        <Text style={styles.label}>Doctor</Text>
-                        <View style={styles.chipSelector}>
-                          {doctors.map((doc) => (
-                            <TouchableOpacity
-                              key={doc.id}
+                  {/* Doctor selection (if alternate doctor allowed) */}
+                  {doctors.length > 1 ? (
+                    <View style={styles.formGroup}>
+                      <Text style={styles.label}>Doctor</Text>
+                      <View style={styles.chipSelector}>
+                        {doctors.map((doc) => (
+                          <TouchableOpacity
+                            key={doc.id}
+                            style={[
+                              styles.selectorChip,
+                              doctorId === doc.id && styles.selectorChipActive,
+                            ]}
+                            onPress={() => setDoctorId(doc.id)}
+                            disabled={isSubmitting}
+                          >
+                            <Text
                               style={[
-                                styles.selectorChip,
-                                doctorId === doc.id && styles.selectorChipActive,
+                                styles.selectorChipText,
+                                doctorId === doc.id && styles.selectorChipTextActive,
                               ]}
-                              onPress={() => setDoctorId(doc.id)}
-                              disabled={isSubmitting}
+                            >
+                              {doc.display_name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* New Date via AppointmentDatePicker */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>New Appointment Date</Text>
+                    <AppointmentDatePicker
+                      value={appointmentDate}
+                      onChange={(date) => setAppointmentDate(date)}
+                      minDate={todayStr}
+                      disabled={isSubmitting}
+                    />
+                  </View>
+
+                  {/* New Slots */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Choose New Time Slot</Text>
+                    {isLoadingSlots ? (
+                      <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                    ) : slotData && slotData.slots.length > 0 ? (
+                      <View style={styles.slotGrid}>
+                        {slotData.slots.map((slot) => {
+                          const status = getSlotStatusLabel(slot, appointmentDate);
+                          const isSelected = selectedSlot?.start_time === slot.start_time;
+
+                          return (
+                            <TouchableOpacity
+                              key={slot.start_time}
+                              style={[
+                                styles.slotBtn,
+                                !status.isSelectable && styles.slotBtnUnavailable,
+                                isSelected && styles.slotBtnSelected,
+                              ]}
+                              onPress={() => {
+                                if (status.isSelectable) {
+                                  setSelectedSlot(slot);
+                                  setErrorMessage(null);
+                                }
+                              }}
+                              disabled={!status.isSelectable || isSubmitting}
+                              activeOpacity={0.7}
                             >
                               <Text
                                 style={[
-                                  styles.selectorChipText,
-                                  doctorId === doc.id && styles.selectorChipTextActive,
+                                  styles.slotText,
+                                  !status.isSelectable && styles.slotTextUnavailable,
+                                  isSelected && styles.slotTextSelected,
                                 ]}
                               >
-                                {doc.display_name}
+                                {slot.start_time}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.slotSubText,
+                                  !status.isSelectable && styles.slotSubTextUnavailable,
+                                  isSelected && styles.slotSubTextSelected,
+                                ]}
+                              >
+                                {status.label}
                               </Text>
                             </TouchableOpacity>
-                          ))}
-                        </View>
+                          );
+                        })}
                       </View>
-                    ) : null}
-
-                    {/* New Date via AppointmentDatePicker */}
-                    <View style={styles.formGroup}>
-                      <Text style={styles.label}>New Appointment Date</Text>
-                      <AppointmentDatePicker
-                        value={appointmentDate}
-                        onChange={(date) => setAppointmentDate(date)}
-                        minDate={todayStr}
-                        disabled={isSubmitting}
-                      />
-                    </View>
-
-                    {/* New Slots */}
-                    <View style={styles.formGroup}>
-                      <Text style={styles.label}>Choose New Time Slot</Text>
-                      {isLoadingSlots ? (
-                        <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
-                      ) : slotData && slotData.slots.length > 0 ? (
-                        <View style={styles.slotGrid}>
-                          {slotData.slots.map((slot) => {
-                            const status = getSlotStatusLabel(slot, appointmentDate);
-                            const isSelected = selectedSlot?.start_time === slot.start_time;
-
-                            return (
-                              <TouchableOpacity
-                                key={slot.start_time}
-                                style={[
-                                  styles.slotBtn,
-                                  !status.isSelectable && styles.slotBtnUnavailable,
-                                  isSelected && styles.slotBtnSelected,
-                                ]}
-                                onPress={() => {
-                                  if (status.isSelectable) {
-                                    setSelectedSlot(slot);
-                                    setErrorMessage(null);
-                                  }
-                                }}
-                                disabled={!status.isSelectable || isSubmitting}
-                                activeOpacity={0.7}
-                              >
-                                <Text
-                                  style={[
-                                    styles.slotText,
-                                    !status.isSelectable && styles.slotTextUnavailable,
-                                    isSelected && styles.slotTextSelected,
-                                  ]}
-                                >
-                                  {slot.start_time}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.slotSubText,
-                                    !status.isSelectable && styles.slotSubTextUnavailable,
-                                    isSelected && styles.slotSubTextSelected,
-                                  ]}
-                                >
-                                  {status.label}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      ) : (
-                        <Text style={styles.emptyHint}>
-                          {slotData?.unavailable_reason ?? 'No open slots on this date. Try another date.'}
-                        </Text>
-                      )}
-                    </View>
-                  </>
-                )}
-              </ScrollView>
-
-              {eligibility?.eligible ? (
-                <View style={styles.footer}>
-                  <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={onClose}
-                    disabled={isSubmitting}
-                  >
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
-                    onPress={handleSubmit}
-                    disabled={isSubmitting}
-                    activeOpacity={0.8}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
-                      <Text style={styles.confirmBtnText}>Confirm Reschedule</Text>
+                      <Text style={styles.emptyHint}>
+                        {slotData?.unavailable_reason ?? 'No open slots on this date. Try another date.'}
+                      </Text>
                     )}
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          </TouchableWithoutFeedback>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            {eligibility?.eligible ? (
+              <View
+                style={[
+                  styles.footer,
+                  { paddingBottom: Math.max(insets.bottom, spacing.xs) },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={onClose}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmBtn, isSubmitting && styles.confirmBtnDisabled]}
+                  onPress={handleSubmit}
+                  disabled={isSubmitting}
+                  activeOpacity={0.8}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.confirmBtnText}>Confirm Reschedule</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
+  },
+  backdropTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   card: {
     backgroundColor: colors.neutral.surface,
@@ -385,14 +412,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     maxHeight: '90%',
     paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
     ...shadows.modal,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,

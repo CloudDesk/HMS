@@ -163,3 +163,145 @@ export function getSlotStatusLabel(
   }
   return { label: 'Open', isSelectable: true, isExpired: false };
 }
+
+export type CheckInEligibilityResult = {
+  eligible: boolean;
+  canCheckIn: boolean;
+  reason: string | null;
+  windowState:
+    | 'before_window'
+    | 'within_window'
+    | 'after_window'
+    | 'not_today'
+    | 'ineligible_status';
+};
+
+export function isAppointmentCheckInEligible(
+  appointment: {
+    status?: string | null;
+    appointment_date?: string | Date | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    utc_datetime?: string | null;
+    utc_end_time?: string | null;
+    duration_minutes?: number | null;
+  },
+  now: Date = new Date(),
+  leadMinutes = 60
+): CheckInEligibilityResult {
+  const status = (appointment.status ?? '').toUpperCase();
+
+  if (status === 'CHECKED_IN') {
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: 'You have already checked in for this appointment.',
+      windowState: 'ineligible_status',
+    };
+  }
+
+  if (!['SCHEDULED', 'CONFIRMED'].includes(status)) {
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: status
+        ? `Appointments with status ${status.toLowerCase().replace(/_/g, ' ')} cannot be checked in.`
+        : 'Appointment is not eligible for check-in.',
+      windowState: 'ineligible_status',
+    };
+  }
+
+  const rawDate = appointment.appointment_date;
+  if (!rawDate) {
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: 'Appointment date is missing.',
+      windowState: 'ineligible_status',
+    };
+  }
+
+  const dateMatch = String(rawDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const aptDateStr = dateMatch
+    ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+    : typeof rawDate === 'string'
+      ? rawDate.slice(0, 10)
+      : '';
+  const todayStr = formatToDateString(now);
+
+  if (!aptDateStr || aptDateStr !== todayStr) {
+    const isPast = aptDateStr && aptDateStr < todayStr;
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: isPast
+        ? 'The appointment date has already passed.'
+        : 'Check-in is only available on the day of your appointment.',
+      windowState: 'not_today',
+    };
+  }
+
+  let startTimeMs: number;
+  let endTimeMs: number;
+
+  if (appointment.utc_datetime) {
+    const utcDate = new Date(appointment.utc_datetime);
+    if (!isNaN(utcDate.getTime())) {
+      startTimeMs = utcDate.getTime();
+      endTimeMs = appointment.utc_end_time && !isNaN(new Date(appointment.utc_end_time).getTime())
+        ? new Date(appointment.utc_end_time).getTime()
+        : startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
+    } else {
+      const [startH = 0, startM = 0] = (appointment.start_time || '00:00').split(':').map(Number);
+      const startTimeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0);
+      startTimeMs = startTimeDate.getTime();
+      if (appointment.end_time) {
+        const [endH = 0, endM = 0] = appointment.end_time.split(':').map(Number);
+        endTimeMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM, 0).getTime();
+      } else {
+        endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
+      }
+    }
+  } else {
+    const [startH = 0, startM = 0] = (appointment.start_time || '00:00').split(':').map(Number);
+    const startTimeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startH, startM, 0);
+    startTimeMs = startTimeDate.getTime();
+    if (appointment.end_time) {
+      const [endH = 0, endM = 0] = appointment.end_time.split(':').map(Number);
+      endTimeMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endH, endM, 0).getTime();
+    } else {
+      endTimeMs = startTimeMs + (appointment.duration_minutes || 15) * 60 * 1000;
+    }
+  }
+
+  const leadTimeMs = leadMinutes * 60 * 1000;
+  const windowOpenMs = startTimeMs - leadTimeMs;
+  const windowCloseMs = endTimeMs;
+  const currentTimeMs = now.getTime();
+
+  if (currentTimeMs < windowOpenMs) {
+    const timeFormatted = appointment.start_time || 'scheduled time';
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: `Check-in opens ${leadMinutes} minutes before your appointment (${timeFormatted}).`,
+      windowState: 'before_window',
+    };
+  }
+
+  if (currentTimeMs > windowCloseMs) {
+    return {
+      eligible: false,
+      canCheckIn: false,
+      reason: 'The check-in window for this appointment has closed.',
+      windowState: 'after_window',
+    };
+  }
+
+  return {
+    eligible: true,
+    canCheckIn: true,
+    reason: null,
+    windowState: 'within_window',
+  };
+}

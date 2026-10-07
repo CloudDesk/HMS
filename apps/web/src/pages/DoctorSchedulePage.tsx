@@ -16,7 +16,7 @@ import {
   startOfMonth,
   endOfMonth,
 } from './appointment-utils';
-import { statusTone, toDisplayDate, visitTypeText } from './doctor-workflow-utils';
+import { statusTone, visitTypeText } from './doctor-workflow-utils';
 import { useFirstDayOfWeek } from '../hooks/settings/useSettings';
 import { patientInitials } from './opd-utils';
 
@@ -97,20 +97,6 @@ const buildWeekDays = (selectedDate: string, firstDayOfWeek: 'Monday' | 'Sunday'
   });
 };
 
-const buildMonthDays = (selectedDate: string) => {
-  const start = startOfMonth(selectedDate);
-  const end = endOfMonth(selectedDate);
-  const days: string[] = [];
-  const cursor = new Date(start);
-
-  while (cursor <= end) {
-    days.push(toInputDate(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return days;
-};
-
 type CalendarMonthCell = {
   date: string;
   dayNum: number;
@@ -158,9 +144,6 @@ const buildFullMonthGrid = (selectedDate: string): CalendarMonthCell[] => {
 const formatScheduleDay = (value: string) =>
   new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', weekday: 'short' }).format(parseScheduleDate(value));
 
-const formatScheduleMonthDay = (value: string) =>
-  new Intl.DateTimeFormat('en', { day: 'numeric', weekday: 'short' }).format(parseScheduleDate(value));
-
 const scheduleEventClass = (appointment: AppointmentResponse) => {
   if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') return 'cancelled';
   if (appointment.visit_type === 'FOLLOW_UP') return 'follow-up';
@@ -183,33 +166,9 @@ const formatDentalContext = (appointment: AppointmentResponse): string | null =>
   return parts.join(' • ');
 };
 
-const getRelativeDateLabel = (dateStr: string, view: DoctorScheduleViewMode, firstDayOfWeek: 'Monday' | 'Sunday') => {
-  if (view === 'month') {
-    return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseScheduleDate(dateStr));
-  }
-  if (view === 'week') {
-    const start = startOfWeek(dateStr, firstDayOfWeek);
-    const end = endOfWeek(dateStr, firstDayOfWeek);
-    const startStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(start);
-    const endStr = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(end);
-    return `${startStr} - ${endStr}`;
-  }
-
-  const selected = parseScheduleDate(dateStr);
-  const today = parseScheduleDate(todayInputValue());
-  const diffTime = selected.getTime() - today.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays === 1) return 'Tomorrow';
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(selected);
-};
-
 export function DoctorSchedulePage() {
   const { search } = useAppLocation();
   const initialParams = new URLSearchParams(search);
-  const departmentFilter = initialParams.get('department_id') ?? '';
   const [visitTypeFilter, setVisitTypeFilter] = useState<ApiAppointmentVisitType | ''>(() =>
     parseVisitType(initialParams.get('visit_type')),
   );
@@ -228,10 +187,8 @@ export function DoctorSchedulePage() {
 
   const scheduleRange = useMemo(() => buildScheduleRange(viewMode, scheduleDate, firstDayOfWeek), [scheduleDate, viewMode, firstDayOfWeek]);
   const weekDays = useMemo(() => buildWeekDays(scheduleDate, firstDayOfWeek), [scheduleDate, firstDayOfWeek]);
-  const monthDays = useMemo(() => buildMonthDays(scheduleDate), [scheduleDate]);
   const schedule = useDoctorSchedule({
     initialDoctorId: initialParams.get('doctor_id') ?? '',
-    departmentId: departmentFilter,
     visitType: visitTypeFilter,
     status: statusFilter,
     scheduleDate,
@@ -339,8 +296,8 @@ export function DoctorSchedulePage() {
           </div>
 
           {/* Filter Toolbar */}
-          <section className="doc-toolbar" style={{ marginTop: 0 }}>
-            <div className="doc-field grow">
+          <section className="doc-toolbar hms-schedule-toolbar" style={{ marginTop: 0 }}>
+            <div className="doc-field schedule-filter-doctor">
               <label htmlFor="schedule-doctor">Doctor</label>
               <select disabled={schedule.isDoctor} id="schedule-doctor" onChange={(event) => schedule.setSelectedDoctorId(event.target.value)} value={schedule.selectedDoctorId}>
                 {schedule.doctors.map((doctor) => (
@@ -350,7 +307,7 @@ export function DoctorSchedulePage() {
                 ))}
               </select>
             </div>
-            <div className="doc-field">
+            <div className="doc-field schedule-filter-type">
               <label htmlFor="schedule-type">Appointment Type</label>
               <select
                 id="schedule-type"
@@ -358,14 +315,16 @@ export function DoctorSchedulePage() {
                 value={visitTypeFilter}
               >
                 <option value="">All Types</option>
-                {Object.entries(appointmentVisitTypeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
+                {Object.entries(appointmentVisitTypeLabels)
+                  .filter(([value]) => value !== 'EMERGENCY')
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
               </select>
             </div>
-            <div className="doc-field">
+            <div className="doc-field schedule-filter-status">
               <label htmlFor="schedule-status">Status</label>
               <select
                 id="schedule-status"
@@ -373,14 +332,16 @@ export function DoctorSchedulePage() {
                 value={statusFilter}
               >
                 <option value="">All Statuses</option>
-                {Object.entries(appointmentStatusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
+                {Object.entries(appointmentStatusLabels)
+                  .filter(([value]) => value !== 'EMERGENCY')
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
               </select>
             </div>
-            <div className="doc-field">
+            <div className="doc-field schedule-filter-date">
               <label htmlFor="schedule-date">Date</label>
               <input id="schedule-date" onChange={(event) => setScheduleDate(event.target.value)} type="date" value={scheduleDate} />
             </div>

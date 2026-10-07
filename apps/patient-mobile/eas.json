@@ -14,13 +14,13 @@
       },
       "env": {
         "EXPO_PUBLIC_HMS_ENV": "production",
-        "EXPO_PUBLIC_HMS_API_URL": "https://hms-api-atok.onrender.com/api"
+        "EXPO_PUBLIC_HMS_API_URL": "https://hms-india.onrender.com/api"
       }
     },
     "production": {
       "env": {
         "EXPO_PUBLIC_HMS_ENV": "production",
-        "EXPO_PUBLIC_HMS_API_URL": "https://hms-api-atok.onrender.com/api"
+        "EXPO_PUBLIC_HMS_API_URL": "https://hms-india.onrender.com/api"
       }
     },
     "kenya-preview": {

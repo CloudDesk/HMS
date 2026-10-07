@@ -5740,3 +5740,167 @@
   color: #334155;
   font-weight: 600;
 }
+
+/* Treatment Quotations (Pricing) Table */
+.quotationsTableContainer {
+  width: 100%;
+  overflow: visible;
+}
+
+.quotationsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.quotationsTable th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.775rem;
+  padding: 8px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.quotationsTable td {
+  padding: 8px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.quotationsTable tr:hover {
+  background: #fafafa;
+}
+
+.colQuoteNumber {
+  width: 18%;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.colQuoteDate {
+  width: 13%;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.colQuoteDoctor {
+  width: 22%;
+  color: #334155;
+  word-break: normal;
+  line-height: 1.35;
+}
+
+.colQuoteTotal {
+  width: 19%;
+  text-align: left;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.colQuoteStatus {
+  width: 14%;
+  text-align: center;
+}
+
+.colQuoteAction {
+  width: 14%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.quoteActionGroup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Icon-only action buttons */
+.btnIconAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btnIconAction:hover {
+  background: #f1f5f9;
+  color: #0284c7;
+  border-color: #93c5fd;
+}
+
+.btnIconAction:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.btnIconActionDecide {
+  color: #2563eb;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.btnIconActionDecide:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.btnIconActionPdf {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fffafa;
+}
+
+.btnIconActionPdf:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.btnIconActionSend {
+  color: #4338ca;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.btnIconActionSend:hover {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #a5b4fc;
+}
+
+.btnIconAction:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
