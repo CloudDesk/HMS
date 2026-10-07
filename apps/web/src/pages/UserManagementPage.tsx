@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -203,10 +203,12 @@ const PasswordInput = React.forwardRef<HTMLInputElement, {
   ...props
 }, ref) => {
   return (
-    <div className="password-input">
+    <div className={`um-password-input-wrap ${invalid ? 'has-error' : ''}`}>
+      <i className="ph ph-lock um-password-prefix-icon" aria-hidden="true" />
       <input
         aria-invalid={invalid}
         autoComplete={autoComplete}
+        className="um-password-native-input"
         required
         type={visible ? 'text' : 'password'}
         ref={ref}
@@ -214,8 +216,9 @@ const PasswordInput = React.forwardRef<HTMLInputElement, {
       />
       <button
         aria-label={visible ? 'Hide password' : 'Show password'}
-        className="password-input__toggle"
+        className="um-password-toggle-btn"
         onClick={onToggle}
+        tabIndex={-1}
         title={visible ? 'Hide password' : 'Show password'}
         type="button"
       >
@@ -224,6 +227,33 @@ const PasswordInput = React.forwardRef<HTMLInputElement, {
     </div>
   );
 });
+
+function InteractivePasswordPolicy({ password, policy }: { password: string; policy: AuthPasswordPolicy | null }) {
+  const minLength = policy?.minLength ?? 8;
+  const checks = [
+    { label: `${minLength}+ Characters`, valid: password.length >= minLength },
+    { label: 'Uppercase Letter (A-Z)', valid: /[A-Z]/.test(password) },
+    { label: 'Lowercase Letter (a-z)', valid: /[a-z]/.test(password) },
+    { label: 'Number (0-9)', valid: /[0-9]/.test(password) },
+  ];
+
+  return (
+    <div className="um-password-policy-card">
+      <div className="um-policy-header">
+        <i className="ph ph-shield-check" />
+        <span>Password Requirements</span>
+      </div>
+      <div className="um-policy-tags">
+        {checks.map((check, idx) => (
+          <span key={idx} className={`um-policy-tag ${check.valid ? 'valid' : ''}`}>
+            <i className={`ph ${check.valid ? 'ph-check-circle-fill' : 'ph-circle'}`} />
+            {check.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function PasswordPolicyNote({ policy }: { policy: AuthPasswordPolicy | null }) {
   if (!policy) return null;
@@ -326,7 +356,7 @@ export function UserManagementPage() {
   const { state, data, status, rbac, actions, mutations } = feature;
   const { query, roleFilter, departmentFilter, branchFilter, statusFilter, sortColumn, sortDirection, currentPage, pageSize } = state;
   const { setQuery, setRoleFilter, setDepartmentFilter, setBranchFilter, setStatusFilter, setCurrentPage, setPageSize } = state;
-  const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, assignmentOptionsLoaded, passwordPolicy } = data;
+  const { users: pageUsers, meta, summary, roleOptions, branchOptions, departmentOptions, departmentFilterOptions, assignmentOptionsLoaded, passwordPolicy } = data;
   const { isFetching: loading, loadError, forbidden, isMutating: submitting } = status;
   const { canCreate, canEdit, canDelete, canChangePassword, canResetPassword } = rbac;
   const { handleSort, resetFilters, locationSearch } = actions;
@@ -365,6 +395,8 @@ export function UserManagementPage() {
   const watchedBranchId = userForm.watch('branchId');
   const watchedDepartmentId = userForm.watch('departmentId');
   const watchedEmail = userForm.watch('email');
+  const watchedPassword = userForm.watch('password') || '';
+  const watchedStatus = userForm.watch('status') || 'Active';
   const isEditingSuperAdmin = modalMode === 'edit' &&
     Boolean(activeUser?.source.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const activeSuperAdminRoleId = activeUser?.source.roles.find((role) => role.code === 'SUPER_ADMIN')?.id;
@@ -627,6 +659,11 @@ export function UserManagementPage() {
         showToast('User created successfully.');
       } else if (modalMode === 'edit' && activeUser) {
         await mutations.updateUser.mutateAsync({ id: activeUser.apiId, payload });
+        const targetApiStatus = payload.status;
+        const currentApiStatus = activeUser.status.toLowerCase();
+        if (targetApiStatus && targetApiStatus !== currentApiStatus) {
+          await mutations.updateStatus.mutateAsync({ id: activeUser.apiId, status: targetApiStatus });
+        }
         showToast('User updated successfully.');
       } else if (modalMode === 'assign-role' && activeUser) {
         await mutations.updateUser.mutateAsync({ id: activeUser.apiId, payload });
@@ -670,16 +707,37 @@ export function UserManagementPage() {
   };
 
 
-  const executeDelete = () => {
-    if (!deleteTarget) return;
-    showToast(`${deleteTarget.fullName} has been deleted.`);
-    setDeleteTarget(null);
+  const executeDelete = async () => {
+    if (!deleteTarget || submitting) return;
+    if (deleteTarget.status !== 'Inactive') {
+      showToast('Active users cannot be deleted. Please set user status to Inactive first.', 'error');
+      setDeleteTarget(null);
+      return;
+    }
+    try {
+      await mutations.deleteUser.mutateAsync(deleteTarget.apiId);
+      showToast(`${deleteTarget.fullName} has been deleted.`);
+      setDeleteTarget(null);
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (!canDelete || submitting || selectedIds.size === 0) return;
-    showToast(`Deleted ${selectedIds.size} users.`);
-    setSelectedIds(new Set());
+    const selectedUsers = pageUsers.filter((u) => selectedIds.has(u.apiId));
+    const nonInactiveUsers = selectedUsers.filter((u) => u.status !== 'Inactive');
+    if (nonInactiveUsers.length > 0) {
+      showToast(`Cannot delete active users (${nonInactiveUsers.length}). Please set status to Inactive first.`, 'error');
+      return;
+    }
+    try {
+      await Promise.all(Array.from(selectedIds).map((id) => mutations.deleteUser.mutateAsync(id)));
+      showToast(`Deleted ${selectedIds.size} users.`);
+      setSelectedIds(new Set());
+    } catch (error) {
+      showToast(getErrorMessage(error), 'error');
+    }
   };
 
   const togglePasswordVisibility = (field: PasswordFieldKey) => {
@@ -698,15 +756,60 @@ export function UserManagementPage() {
           meta.total
         } users`;
 
-  const modalTitle = (() => {
-    if (modalMode === 'create') return 'Add New User';
-    if (modalMode === 'edit') return activeUser ? `Edit ${activeUser.fullName}` : 'Edit User';
-    if (modalMode === 'view') return activeUser ? `${activeUser.fullName} Profile` : 'User Profile';
-    if (modalMode === 'assign-role') return activeUser ? `Assign Role - ${activeUser.fullName}` : 'Assign Role';
-    if (modalMode === 'change-password') return activeUser ? `Change Password - ${activeUser.fullName}` : 'Change Password';
-    if (modalMode === 'reset-password') return activeUser ? `Reset Password - ${activeUser.fullName}` : 'Reset Password';
-    return 'User Management';
-  })();
+  const renderModalHeader = () => {
+    let icon = 'ph-user-plus';
+    let title = 'Add New User';
+    let subtitle = 'Provision employee credentials, contact details, and department roles.';
+    const modeClass = modalMode === 'create' ? 'create' : modalMode === 'edit' ? 'edit' : modalMode === 'view' ? 'view' : 'security';
+
+    if (modalMode === 'edit') {
+      icon = 'ph-user-gear';
+      title = activeUser ? `Edit User — ${activeUser.fullName}` : 'Edit Staff User';
+      subtitle = activeUser ? `${activeUser.role} • ${activeUser.department} • ${activeUser.branch}` : 'Update staff details and access configuration.';
+    } else if (modalMode === 'view') {
+      icon = 'ph-identification-card';
+      title = activeUser ? activeUser.fullName : 'Staff Profile';
+      subtitle = activeUser ? `${activeUser.role} • ${activeUser.department} (${activeUser.branch})` : 'Employee Directory Profile';
+    } else if (modalMode === 'assign-role') {
+      icon = 'ph-shield-check';
+      title = activeUser ? `Assign Role — ${activeUser.fullName}` : 'Assign Role';
+      subtitle = 'Configure administrative and clinical role permissions.';
+    } else if (modalMode === 'change-password' || modalMode === 'reset-password') {
+      icon = 'ph-lock-key';
+      title = modalMode === 'reset-password' ? 'Reset User Password' : 'Change Password';
+      subtitle = activeUser ? `Update security access credentials for ${activeUser.fullName}` : 'Update security access credentials.';
+    }
+
+    const initials = activeUser?.fullName
+      ? activeUser.fullName.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+      : 'NU';
+
+    return (
+      <div className="um-modal-header-custom">
+        <div className="um-modal-header-left">
+          <div className={`um-modal-header-icon-box ${modeClass}`}>
+            {activeUser && (modalMode === 'edit' || modalMode === 'view') ? (
+              <span className="um-modal-avatar-initials">{initials}</span>
+            ) : (
+              <i className={`ph ${icon}`} />
+            )}
+          </div>
+          <div className="um-modal-header-text">
+            <div className="um-modal-header-top-line">
+              <h3 className="um-modal-heading">{title}</h3>
+              {activeUser && (modalMode === 'edit' || modalMode === 'view') ? (
+                <span className={`um-status-badge-inline um-status-badge--${activeUser.status.toLowerCase()}`}>
+                  <span className="um-status-dot" />
+                  {activeUser.status}
+                </span>
+              ) : null}
+            </div>
+            <p className="um-modal-subheading">{subtitle}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -842,10 +945,8 @@ export function UserManagementPage() {
                   value={departmentFilter}
                 >
                   <option value="">All Departments</option>
-                  {departmentOptions
-                    .filter((department) => !branchFilter || department.branch_ids.includes(branchFilter))
-                    .map((department) => (
-                      <option key={department.id} value={department.id}>
+                  {departmentFilterOptions.map((department) => (
+                      <option key={department.key} value={department.value}>
                         {department.name}
                       </option>
                   ))}
@@ -854,6 +955,7 @@ export function UserManagementPage() {
                   className="um-filter"
                   onChange={(event) => {
                     setBranchFilter(event.target.value);
+                    setDepartmentFilter('');
                     setCurrentPage(1);
                   }}
                   value={branchFilter}
@@ -1042,8 +1144,15 @@ export function UserManagementPage() {
                                 </button> : null} */}
                                 {canDelete ? <button
                                   className="action-icon-btn danger"
-                                  onClick={() => setDeleteTarget(user)}
-                                  title="Delete"
+                                  disabled={user.status !== 'Inactive' || submitting}
+                                  onClick={() => {
+                                    if (user.status !== 'Inactive') {
+                                      showToast('Active users cannot be deleted. Please set status to Inactive first.', 'error');
+                                      return;
+                                    }
+                                    setDeleteTarget(user);
+                                  }}
+                                  title={user.status !== 'Inactive' ? 'Active user cannot be deleted. Deactivate user first.' : 'Delete'}
                                   type="button"
                                 >
                                   <i className="ph ph-trash" aria-hidden="true" />
@@ -1115,267 +1224,618 @@ export function UserManagementPage() {
         </div>
 
       <Modal
+        className="um-user-modal"
+        size="large"
         footer={
           modalMode === 'view' ? (
-            <button className="btn-secondary" onClick={closeModal} type="button">
-              Close
-            </button>
+            <div className="um-modal-footer">
+              <span className="um-modal-footer-hint">
+                <i className="ph ph-info" /> Read-only staff directory record
+              </span>
+              <button className="um-modal-btn-cancel" onClick={closeModal} type="button">
+                Close
+              </button>
+            </div>
           ) : (
-            <>
-              <button className="btn-secondary" disabled={submitting} onClick={closeModal} type="button">
-                Cancel
-              </button>
-              <button className="btn-primary" disabled={submitting} form="user-management-modal-form" type="submit">
-                {submitting ? (
-                  <>
-                    <MedicalSpinner size="sm" />
-                    <span>Saving...</span>
-                  </>
-                ) : modalMode === 'reset-password' ? (
-                  'Reset Password'
-                ) : modalMode === 'change-password' ? (
-                  'Change Password'
-                ) : modalMode === 'assign-role' ? (
-                  'Assign Role'
-                ) : (
-                  'Save User'
-                )}
-              </button>
-            </>
+            <div className="um-modal-footer">
+              <span className="um-modal-footer-hint">
+                <i className="ph ph-info" /> Fields marked with <span className="um-required-star">*</span> are mandatory
+              </span>
+              <div className="um-modal-footer-actions">
+                <button className="um-modal-btn-cancel" disabled={submitting} onClick={closeModal} type="button">
+                  Cancel
+                </button>
+                <button className="um-modal-btn-submit" disabled={submitting} form="user-management-modal-form" type="submit">
+                  {submitting ? (
+                    <>
+                      <MedicalSpinner size="sm" />
+                      <span>Saving...</span>
+                    </>
+                  ) : modalMode === 'reset-password' ? (
+                    <>
+                      <i className="ph ph-lock-key" />
+                      <span>Reset Password</span>
+                    </>
+                  ) : modalMode === 'change-password' ? (
+                    <>
+                      <i className="ph ph-keyhole" />
+                      <span>Change Password</span>
+                    </>
+                  ) : modalMode === 'assign-role' ? (
+                    <>
+                      <i className="ph ph-shield-check" />
+                      <span>Assign Role</span>
+                    </>
+                  ) : modalMode === 'edit' ? (
+                    <>
+                      <i className="ph ph-check" />
+                      <span>Save Changes</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ph ph-user-plus" />
+                      <span>Create User</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           )
         }
         onClose={closeModal}
         open={Boolean(modalMode)}
-        icon="ph-user-plus"
-        title={modalTitle}
+        title={renderModalHeader()}
       >
         {formError ? (
-          <div className="auth-alert auth-alert--error" role="alert">
+          <div className="auth-alert auth-alert--error" role="alert" style={{ marginBottom: '1rem' }}>
+            <i className="ph ph-warning-circle" style={{ marginRight: 6 }} />
             {formError}
           </div>
         ) : null}
 
         {modalMode === 'create' || modalMode === 'edit' || modalMode === 'assign-role' ? (
           <form className="user-management-edit-form" id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void userForm.handleSubmit(handleSaveUser)(event); }}>
-            {modalMode !== 'assign-role' ? <>
-            <div className="form-section-title">Personal Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>
-                  Employee ID
-                  {/* <span className="form-field-badge">Auto-generated</span> */}
-                </span>
-                <input
-                  aria-invalid={Boolean(userForm.formState.errors.employeeCode)}
-                  placeholder="Auto-generated from Dept & Role"
-                  readOnly
-                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
-                  tabIndex={-1}
-                  {...userForm.register('employeeCode')}
-                />
-                {userForm.formState.errors.employeeCode ? <small className="field-error">{userForm.formState.errors.employeeCode.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Full Name <span className="required">*</span></span>
-                <input  {...userForm.register('fullName')} />
-                {userForm.formState.errors.fullName ? <small className="field-error">{userForm.formState.errors.fullName.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>
-                  Username
-                  {/* <span className="form-field-badge">Auto-filled</span> */}
-                </span>
-                <input
-                  aria-invalid={Boolean(userForm.formState.errors.username)}
-                  placeholder="Auto-filled from email"
-                  readOnly
-                  style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'not-allowed' }}
-                  tabIndex={-1}
-                  {...userForm.register('username')}
-                />
-                {userForm.formState.errors.username ? <small className="field-error">{userForm.formState.errors.username.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Email <span className="required">*</span></span>
-                <input
-                  aria-invalid={Boolean(userForm.formState.errors.email)}
-                  type="email"
-                  {...userForm.register('email')}
-                />
-                {userForm.formState.errors.email ? <small className="field-error">{userForm.formState.errors.email.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Phone</span>
-                <input {...userForm.register('phone')} />
-              </label>
-            </div>
-            <div className="form-section-title">Role &amp; Assignment</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Branch <span className="required">*</span></span>
-                <select  {...userForm.register('branchId')}>
-                  <option value="">Select branch</option>
-                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-                </select>
-                {userForm.formState.errors.branchId ? <small className="field-error">{userForm.formState.errors.branchId.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Department <span className="required">*</span></span>
-                <select
-                  aria-invalid={Boolean(userForm.formState.errors.departmentId)}
-                  disabled={!watchedBranchId}
-                  {...userForm.register('departmentId')}
-                >
-                  <option value="">
-                    {!watchedBranchId
-                      ? 'Select a branch first'
-                      : availableDepartmentsForBranch.length === 0
-                      ? 'No departments available'
-                      : 'Select department'}
-                  </option>
-                  {availableDepartmentsForBranch.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-                {userForm.formState.errors.departmentId ? <small className="field-error">{userForm.formState.errors.departmentId.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Role <span className="required">*</span></span>
-                <select
-                  aria-invalid={Boolean(userForm.formState.errors.roleId)}
-                  disabled={!watchedDepartmentId}
-                  {...userForm.register('roleId')}
-                >
-                  <option value="">
-                    {!watchedDepartmentId
-                      ? 'Select a department first'
-                      : 'Select role'}
-                  </option>
-                  {(isEditingSuperAdmin ? roleOptions : availableRolesForDepartment).map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-                {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Status <span className="required">*</span></span>
-                <select {...userForm.register('status')}>
-                  {statuses.map((status) => <option key={status}>{status}</option>)}
-                </select>
-              </label>
-              {modalMode === 'create' ? <>
-                <label className="form-field">
-                  <span>Password <span className="required">*</span></span>
-                  <PasswordInput
-                    autoComplete="new-password"
-                    invalid={Boolean(userForm.formState.errors.password)}
-                    {...userForm.register('password')}
-                      onToggle={() => togglePasswordVisibility('create')}
+            {modalMode !== 'assign-role' ? (
+              <>
+                {/* Section 1: Personal Information */}
+                <div className="um-modal-card">
+                  <div className="um-modal-card-header">
+                    <div className="um-card-title-wrap">
+                      <i className="ph ph-identification-card" />
+                      <span>Staff Personal Information</span>
+                    </div>
+                    <span className="um-card-badge">Basic Identity</span>
+                  </div>
+                  <div className="um-modal-card-body">
+                    {/* Identity Chips (Employee ID & Username) */}
+                    <div className="um-identity-strip">
+                      <div className="um-identity-chip">
+                        <div className="um-identity-chip-icon">
+                          <i className="ph ph-hash" />
+                        </div>
+                        <div className="um-identity-chip-info">
+                          <span className="um-identity-chip-title">Employee ID</span>
+                          <span className="um-identity-chip-value">
+                            {userForm.watch('employeeCode') || activeUser?.source.employeeCode || 'Auto-generated upon save'}
+                          </span>
+                        </div>
+                        <span className="um-identity-chip-pill">Auto</span>
+                      </div>
 
-                    visible={visiblePasswordFields.has('create')}
-                  />
-                  {userForm.formState.errors.password ? <small className="field-error">{userForm.formState.errors.password.message}</small> : null}
-                </label>
-                <label className="form-field">
-                  <span>Confirm Password <span className="required">*</span></span>
-                  <PasswordInput
-                    autoComplete="new-password"
-                    invalid={Boolean(userForm.formState.errors.confirmPassword)}
-                    {...userForm.register('confirmPassword')}
-                      onToggle={() => togglePasswordVisibility('confirm')}
+                      <div className="um-identity-chip">
+                        <div className="um-identity-chip-icon">
+                          <i className="ph ph-at" />
+                        </div>
+                        <div className="um-identity-chip-info">
+                          <span className="um-identity-chip-title">Username</span>
+                          <span className="um-identity-chip-value">
+                            {watchedEmail ? (watchedEmail.includes('@') ? watchedEmail.split('@')[0] : watchedEmail) : (activeUser?.username || 'Auto-synced from email')}
+                          </span>
+                        </div>
+                        <span className="um-identity-chip-pill">Synced</span>
+                      </div>
+                    </div>
 
-                    visible={visiblePasswordFields.has('confirm')}
-                  />
-                  {userForm.formState.errors.confirmPassword ? <small className="field-error">{userForm.formState.errors.confirmPassword.message}</small> : null}
-                </label>
-                <PasswordPolicyNote policy={passwordPolicy} />
-              </> : null}
-            </div>
-            </> : <>
-              <div className="form-section-title">Role Assignment</div>
-              <div className="form-grid-3">
-              <label className="form-field">
-                <span>Role <span className="required">*</span></span>
-                <select  {...userForm.register('roleId')}>
-                  <option value="">Select role</option>
-                  {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                </select>
-                {userForm.formState.errors.roleId ? <small className="field-error">{userForm.formState.errors.roleId.message}</small> : null}
-              </label>
+                    {/* Hidden inputs to keep values registered in react-hook-form */}
+                    <input type="hidden" {...userForm.register('employeeCode')} />
+                    <input type="hidden" {...userForm.register('username')} />
+
+                    {/* Row 1: Full Name & Email */}
+                    <div className="um-form-row-2">
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-user" /> Full Name
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <input
+                            aria-invalid={Boolean(userForm.formState.errors.fullName)}
+                            placeholder="e.g. Dr. Arthur Conan"
+                            {...userForm.register('fullName')}
+                          />
+                          <i className="ph ph-user um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.fullName ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.fullName.message}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-envelope-simple" /> Email Address
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <input
+                            aria-invalid={Boolean(userForm.formState.errors.email)}
+                            placeholder="e.g. arthur.conan@hospital.org"
+                            type="email"
+                            {...userForm.register('email')}
+                          />
+                          <i className="ph ph-envelope-simple um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.email ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.email.message}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Phone & Job Title */}
+                    <div className="um-form-row-2">
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-phone" /> Contact Phone
+                          </span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <input
+                            placeholder="+1 (555) 000-0000"
+                            {...userForm.register('phone')}
+                          />
+                          <i className="ph ph-phone um-input-prefix-icon" />
+                        </div>
+                      </div>
+
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-briefcase" /> Designation / Job Title
+                          </span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <input
+                            placeholder="e.g. Senior Consultant / Staff Nurse"
+                            {...userForm.register('jobTitle')}
+                          />
+                          <i className="ph ph-briefcase um-input-prefix-icon" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Hospital Placement & Role Assignment */}
+                <div className="um-modal-card">
+                  <div className="um-modal-card-header">
+                    <div className="um-card-title-wrap">
+                      <i className="ph ph-buildings" />
+                      <span>Role &amp; Assignment</span>
+                    </div>
+                    <span className="um-card-badge">Access &amp; Scope</span>
+                  </div>
+                  <div className="um-modal-card-body">
+                    {/* Row 1: Branch, Department, Role */}
+                    <div className="um-form-row-3">
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-map-pin" /> Branch
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <select {...userForm.register('branchId')}>
+                            <option value="">Select branch</option>
+                            {branchOptions.map((branch) => (
+                              <option key={branch.id} value={branch.id}>{branch.name}</option>
+                            ))}
+                          </select>
+                          <i className="ph ph-map-pin um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.branchId ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.branchId.message}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-tree-structure" /> Department
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <select
+                            aria-invalid={Boolean(userForm.formState.errors.departmentId)}
+                            disabled={!watchedBranchId}
+                            {...userForm.register('departmentId')}
+                          >
+                            <option value="">
+                              {!watchedBranchId
+                                ? 'Select branch first'
+                                : availableDepartmentsForBranch.length === 0
+                                ? 'No departments available'
+                                : 'Select department'}
+                            </option>
+                            {availableDepartmentsForBranch.map((department) => (
+                              <option key={department.id} value={department.id}>
+                                {department.name}
+                              </option>
+                            ))}
+                          </select>
+                          <i className="ph ph-tree-structure um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.departmentId ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.departmentId.message}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="um-field">
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-shield-check" /> Role
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <select
+                            aria-invalid={Boolean(userForm.formState.errors.roleId)}
+                            disabled={!watchedDepartmentId}
+                            {...userForm.register('roleId')}
+                          >
+                            <option value="">
+                              {!watchedDepartmentId
+                                ? 'Select department first'
+                                : 'Select role'}
+                            </option>
+                            {(isEditingSuperAdmin ? roleOptions : availableRolesForDepartment).map((role) => (
+                              <option key={role.id} value={role.id}>
+                                {role.name}
+                              </option>
+                            ))}
+                          </select>
+                          <i className="ph ph-shield-check um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.roleId ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.roleId.message}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Status Field (Single Active pill for Create, 3-option Dropdown for Edit) */}
+                    {modalMode === 'create' ? (
+                      <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-toggle-left" /> Account Access Status
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-default-status-pill" title="New accounts are provisioned with Active status by default">
+                          <div className="um-status-card-dot active" />
+                          <div className="um-default-status-info">
+                            <span className="um-default-status-title">Active</span>
+                            <span className="um-default-status-hint">Default for new staff accounts • Full platform access enabled</span>
+                          </div>
+                          <span className="um-default-status-badge">
+                            <i className="ph ph-check" /> Default
+                          </span>
+                        </div>
+                        <input type="hidden" {...userForm.register('status')} />
+                      </div>
+                    ) : (
+                      <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                        <label className="um-field-label">
+                          <span className="um-field-label-text">
+                            <i className="ph ph-toggle-left" /> Account Access Status
+                          </span>
+                          <span className="um-required-star">*</span>
+                        </label>
+                        <div className="um-input-wrap">
+                          <select
+                            aria-invalid={Boolean(userForm.formState.errors.status)}
+                            {...userForm.register('status')}
+                          >
+                            {statuses.map((statusOption) => (
+                              <option key={statusOption} value={statusOption}>
+                                {statusOption} {statusOption === 'Active' ? '— Full platform access' : statusOption === 'Inactive' ? '— Access suspended' : '— Security lockout'}
+                              </option>
+                            ))}
+                          </select>
+                          <i className="ph ph-toggle-left um-input-prefix-icon" />
+                        </div>
+                        {userForm.formState.errors.status ? (
+                          <span className="um-field-error">
+                            <i className="ph ph-warning-circle" /> {userForm.formState.errors.status.message}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 3: Security & Credentials (for Create Mode) */}
+                {modalMode === 'create' ? (
+                  <div className="um-modal-card">
+                    <div className="um-modal-card-header">
+                      <div className="um-card-title-wrap">
+                        <i className="ph ph-lock-key" />
+                        <span>Security Credentials</span>
+                      </div>
+                      <span className="um-card-badge">Password Setup</span>
+                    </div>
+                    <div className="um-modal-card-body">
+                      <div className="um-form-row-2">
+                        <div className="um-field">
+                          <label className="um-field-label">
+                            <span className="um-field-label-text">
+                              <i className="ph ph-lock" /> Password
+                            </span>
+                            <span className="um-required-star">*</span>
+                          </label>
+                          <PasswordInput
+                            autoComplete="new-password"
+                            invalid={Boolean(userForm.formState.errors.password)}
+                            placeholder="Enter secure password"
+                            {...userForm.register('password')}
+                            onToggle={() => togglePasswordVisibility('create')}
+                            visible={visiblePasswordFields.has('create')}
+                          />
+                          {userForm.formState.errors.password ? (
+                            <span className="um-field-error">
+                              <i className="ph ph-warning-circle" /> {userForm.formState.errors.password.message}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="um-field">
+                          <label className="um-field-label">
+                            <span className="um-field-label-text">
+                              <i className="ph ph-lock" /> Confirm Password
+                            </span>
+                            <span className="um-required-star">*</span>
+                          </label>
+                          <PasswordInput
+                            autoComplete="new-password"
+                            invalid={Boolean(userForm.formState.errors.confirmPassword)}
+                            placeholder="Re-enter password"
+                            {...userForm.register('confirmPassword')}
+                            onToggle={() => togglePasswordVisibility('confirm')}
+                            visible={visiblePasswordFields.has('confirm')}
+                          />
+                          {userForm.formState.errors.confirmPassword ? (
+                            <span className="um-field-error">
+                              <i className="ph ph-warning-circle" /> {userForm.formState.errors.confirmPassword.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <InteractivePasswordPolicy password={watchedPassword} policy={passwordPolicy} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="um-security-callout">
+                    <i className="ph ph-shield-check" />
+                    <div>
+                      <strong>Password Credentials Protected:</strong> Password credentials are encrypted. To update or reset this user's password, use the <em>Reset Password</em> action from the table menu.
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="um-modal-card">
+                <div className="um-modal-card-header">
+                  <div className="um-card-title-wrap">
+                    <i className="ph ph-shield-check" />
+                    <span>Role Assignment</span>
+                  </div>
+                  <span className="um-card-badge">Role Only</span>
+                </div>
+                <div className="um-modal-card-body">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-shield-check" /> Assign Role
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select {...userForm.register('roleId')}>
+                        <option value="">Select role</option>
+                        {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                      </select>
+                      <i className="ph ph-shield-check um-input-prefix-icon" />
+                    </div>
+                    {userForm.formState.errors.roleId ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {userForm.formState.errors.roleId.message}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-            </>}
+            )}
           </form>
         ) : null}
 
         {modalMode === 'change-password' || modalMode === 'reset-password' ? (
           <form id="user-management-modal-form" onSubmit={(event) => { event.stopPropagation(); void passwordForm.handleSubmit(handlePasswordSubmit)(event); }}>
-            <div className="form-section-title">Password Action</div>
-            <div className="form-grid-3">
-              {modalMode === 'change-password' ? (
-                <label className="form-field">
-                  <span>Current Password <span className="required">*</span></span>
-                  <PasswordInput
-                    autoComplete="current-password"
-                    invalid={Boolean(passwordForm.formState.errors.currentPassword)}
-                    {...passwordForm.register('currentPassword')}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-lock-key" />
+                  <span>{modalMode === 'change-password' ? 'Change Password' : 'Reset Password'}</span>
+                </div>
+                <span className="um-card-badge">Security Action</span>
+              </div>
+              <div className="um-modal-card-body">
+                {modalMode === 'change-password' ? (
+                  <div className="um-field" style={{ marginBottom: '1rem' }}>
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-key" /> Current Password
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <PasswordInput
+                      autoComplete="current-password"
+                      invalid={Boolean(passwordForm.formState.errors.currentPassword)}
+                      placeholder="Enter current password"
+                      {...passwordForm.register('currentPassword')}
                       onToggle={() => togglePasswordVisibility('current')}
+                      visible={visiblePasswordFields.has('current')}
+                    />
+                    {passwordForm.formState.errors.currentPassword ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {passwordForm.formState.errors.currentPassword.message}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
 
-                    visible={visiblePasswordFields.has('current')}
+                <div className="um-field">
+                  <label className="um-field-label">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-lock" /> New Password
+                    </span>
+                    <span className="um-required-star">*</span>
+                  </label>
+                  <PasswordInput
+                    autoComplete="new-password"
+                    invalid={Boolean(passwordForm.formState.errors.newPassword)}
+                    placeholder="Enter new password"
+                    {...passwordForm.register('newPassword')}
+                    onToggle={() => togglePasswordVisibility('new')}
+                    visible={visiblePasswordFields.has('new')}
                   />
-                  {passwordForm.formState.errors.currentPassword ? <small className="field-error">{passwordForm.formState.errors.currentPassword?.message}</small> : null}
-                </label>
-              ) : null}
-              <label className="form-field">
-                <span>New Password <span className="required">*</span></span>
-                <PasswordInput
-                  autoComplete="new-password"
-                  invalid={Boolean(passwordForm.formState.errors.newPassword)}
-                  {...passwordForm.register('newPassword')}
-                      onToggle={() => togglePasswordVisibility('new')}
+                  {passwordForm.formState.errors.newPassword ? (
+                    <span className="um-field-error">
+                      <i className="ph ph-warning-circle" /> {passwordForm.formState.errors.newPassword.message}
+                    </span>
+                  ) : null}
+                </div>
 
-                  visible={visiblePasswordFields.has('new')}
-                />
-                {passwordForm.formState.errors.newPassword ? <small className="field-error">{passwordForm.formState.errors.newPassword?.message}</small> : null}
-              </label>
-              <PasswordPolicyNote policy={passwordPolicy} />
+                <InteractivePasswordPolicy password={passwordForm.watch('newPassword') || ''} policy={passwordPolicy} />
+              </div>
             </div>
           </form>
         ) : null}
 
         {modalMode === 'view' && activeUser ? (
-          <>
-            <div className="form-section-title">User Profile</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Full Name</span>
-                <input readOnly value={activeUser.fullName} />
-              </label>
-              <label className="form-field">
-                <span>Username</span>
-                <input readOnly value={activeUser.username} />
-              </label>
-              <label className="form-field">
-                <span>Status</span>
-                <input readOnly value={activeUser.status} />
-              </label>
-              <label className="form-field">
-                <span>Email</span>
-                <input readOnly value={activeUser.email} />
-              </label>
-              <label className="form-field">
-                <span>Branch</span>
-                <input readOnly value={activeUser.branch} />
-              </label>
-              <label className="form-field">
-                <span>Department</span>
-                <input readOnly value={activeUser.department} />
-              </label>
+          <div className="um-view-profile-container">
+            {/* Hero Card */}
+            <div className="um-view-profile-hero">
+              <div className="um-view-avatar">
+                {activeUser.fullName.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
+              </div>
+              <div className="um-view-hero-text">
+                <h4>{activeUser.fullName}</h4>
+                <div className="um-view-hero-badges">
+                  <span className="um-view-role-badge">
+                    <i className="ph ph-shield-check" style={{ marginRight: 4 }} />
+                    {activeUser.role}
+                  </span>
+                  <span className={`um-status-badge-inline um-status-badge--${activeUser.status.toLowerCase()}`}>
+                    <span className="um-status-dot" />
+                    {activeUser.status}
+                  </span>
+                </div>
+              </div>
             </div>
-          </>
+
+            {/* Information Grid */}
+            <div className="um-view-grid">
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-hash" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Employee ID</span>
+                  <span className="um-view-item-value">{activeUser.source.employeeCode || 'Not Assigned'}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-at" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Username</span>
+                  <span className="um-view-item-value">{activeUser.username}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-envelope-simple" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Email Address</span>
+                  <span className="um-view-item-value">{activeUser.email || 'None'}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-phone" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Contact Phone</span>
+                  <span className="um-view-item-value">{activeUser.phone || 'None'}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-map-pin" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Branch</span>
+                  <span className="um-view-item-value">{activeUser.branch}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-tree-structure" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Department</span>
+                  <span className="um-view-item-value">{activeUser.department}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-clock" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Last Login</span>
+                  <span className="um-view-item-value">{activeUser.lastLogin}</span>
+                </div>
+              </div>
+
+              <div className="um-view-item">
+                <div className="um-view-item-icon"><i className="ph ph-briefcase" /></div>
+                <div className="um-view-item-content">
+                  <span className="um-view-item-label">Job Title</span>
+                  <span className="um-view-item-value">{activeUser.source.jobTitle || activeUser.role}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
 
       </Modal>
@@ -1383,9 +1843,9 @@ export function UserManagementPage() {
       <ConfirmDialog
         confirmLabel="Delete User"
         loading={submitting}
-        message={deleteTarget ? `Delete ${deleteTarget.fullName}? This will remove the user from active user lists.` : ''}
+        message={deleteTarget ? `Are you sure you want to delete inactive user "${deleteTarget.fullName}"? This action cannot be undone.` : ''}
         onCancel={() => setDeleteTarget(null)}
-        onConfirm={() => executeDelete()}
+        onConfirm={() => void executeDelete()}
         open={Boolean(deleteTarget)}
         title="Delete User"
       />

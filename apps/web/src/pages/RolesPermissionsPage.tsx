@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 import { type PermissionResponse } from '../api/permissions';
 import { type UserResponse } from '../api/users';
-import { type ApiRoleStatus, type ApiRoleType } from '../api/roles';
+import { type ApiRoleStatus, type ApiRoleType, type RoleResponse, type RoleAssignedUser } from '../api/roles';
 import { useAuth } from '../auth/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
@@ -140,6 +140,8 @@ export function RolesPermissionsPage() {
   });
 
   const [formError, setFormError] = useState('');
+  const [targetRole, setTargetRole] = useState<RoleResponse | null>(null);
+  const [openFromList, setOpenFromList] = useState(false);
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(() => new Set());
   const [permSearch, setPermSearch] = useState('');
   const [assignedPermissionIds, setAssignedPermissionIds] = useState<Set<string>>(() => new Set());
@@ -184,9 +186,7 @@ export function RolesPermissionsPage() {
   }, [selectedRoleId]);
 
   useEffect(() => {
-    if (roles.length > 0 && (!selectedRoleId || !roles.find((r) => r.id === selectedRoleId))) {
-      setSelectedRoleId(roles[0]?.id ?? null);
-    } else if (roles.length === 0 && selectedRoleId) {
+    if (selectedRoleId && roles.length > 0 && !roles.find((r) => r.id === selectedRoleId)) {
       setSelectedRoleId(null);
     }
   }, [roles, selectedRoleId, setSelectedRoleId]);
@@ -214,10 +214,53 @@ export function RolesPermissionsPage() {
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [dirty]);
 
+  const handleBackToList = () => {
+    if (dirty && !window.confirm('You have unsaved permission changes. Discard unsaved changes and return to the roles list?')) {
+      return;
+    }
+    setSelectedRoleId(null);
+  };
+
   const selectRole = (roleId: string) => {
     if (dirty && !window.confirm('Discard unsaved permission changes and open another role?')) return;
     setSelectedRoleId(roleId);
   };
+
+  const filteredRoles = useMemo(() => {
+    return roles.filter((role) => {
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const match =
+          role.name.toLowerCase().includes(q) ||
+          role.code.toLowerCase().includes(q) ||
+          (role.description?.toLowerCase().includes(q) ?? false);
+        if (!match) return false;
+      }
+      if (typeFilter && role.type !== typeFilter) return false;
+      if (statusFilter && role.status !== statusFilter) return false;
+      return true;
+    });
+  }, [roles, search, typeFilter, statusFilter]);
+
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, typeFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRoles.length / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedRoles = useMemo(() => {
+    const startIndex = (safePage - 1) * pageSize;
+    return filteredRoles.slice(startIndex, startIndex + pageSize);
+  }, [filteredRoles, safePage, pageSize]);
+
+  const showingLabel =
+    filteredRoles.length === 0
+      ? 'No roles to display'
+      : `Showing ${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filteredRoles.length)} of ${filteredRoles.length} roles`;
 
   const refreshWithConfirmation = () => {
     if (dirty && !window.confirm('Discard unsaved permission changes and refresh from the server?')) return;
@@ -301,38 +344,61 @@ export function RolesPermissionsPage() {
   const closeModal = () => {
     if (isMutating) return;
     setModalMode(null);
+    setTargetRole(null);
     setFormError('');
+    if (openFromList) {
+      setOpenFromList(false);
+      setSelectedRoleId(null);
+    }
   };
 
-  const openRoleModal = (mode: Extract<ModalMode, 'create' | 'edit' | 'clone'>) => {
+  const openRoleModal = (mode: Extract<ModalMode, 'create' | 'edit' | 'clone'>, role?: RoleResponse | null) => {
+    const r = role ?? selectedRole;
+    setTargetRole(role ?? null);
     setModalMode(mode);
     setFormError('');
     setActionsMenuOpen(false);
     roleForm.reset({
-      color: selectedRole?.color ?? '#2563eb',
-      description: mode === 'create' ? '' : (selectedRole?.description ?? ''),
+      color: r?.color ?? '#2563eb',
+      description: mode === 'create' ? '' : (r?.description ?? ''),
       name:
-        mode === 'clone' && selectedRole
-          ? `${selectedRole.name} Copy`
+        mode === 'clone' && r
+          ? `${r.name} Copy`
           : mode === 'edit'
-          ? (selectedRole?.name ?? '')
+          ? (r?.name ?? '')
           : '',
-      status: mode === 'create' ? 'active' : (selectedRole?.status ?? 'active'),
-      type: mode === 'edit' ? (selectedRole?.type ?? 'custom') : 'custom',
+      status: mode === 'create' ? 'active' : (r?.status ?? 'active'),
+      type: mode === 'edit' ? (r?.type ?? 'custom') : 'custom',
     });
   };
 
-  const openAuditModal = () => {
-    if (!selectedRole) return;
+  const openAuditModal = (role?: RoleResponse | null) => {
+    const r = role ?? selectedRole;
+    if (!r) return;
+    if (role && !selectedRoleId) {
+      setOpenFromList(true);
+      setSelectedRoleId(role.id);
+    }
+    setTargetRole(role ?? null);
     setModalMode('audit');
     setFormError('');
     setActionsMenuOpen(false);
   };
 
-  const openStatusModal = () => {
-    if (!selectedRole) return;
+  const openStatusModal = (role?: RoleResponse | null) => {
+    const r = role ?? selectedRole;
+    if (!r) return;
+    setTargetRole(role ?? null);
     setFormError('');
     setModalMode('status');
+    setActionsMenuOpen(false);
+  };
+
+  const openDeleteModal = (role?: RoleResponse | null) => {
+    const r = role ?? selectedRole;
+    if (!r) return;
+    setTargetRole(role ?? null);
+    setModalMode('delete');
     setActionsMenuOpen(false);
   };
 
@@ -341,8 +407,14 @@ export function RolesPermissionsPage() {
       openRoleModal('create');
   }, [locationSearch]);
 
-  const openUserModal = (mode: Extract<ModalMode, 'assign-user' | 'remove-user'>) => {
-    if (!selectedRole) return;
+  const openUserModal = (mode: Extract<ModalMode, 'assign-user' | 'remove-user'>, role?: RoleResponse | null) => {
+    const r = role ?? selectedRole;
+    if (!r) return;
+    if (role && !selectedRoleId) {
+      setOpenFromList(true);
+      setSelectedRoleId(role.id);
+    }
+    setTargetRole(role ?? null);
     setModalMode(mode);
     setFormError('');
     setActionsMenuOpen(false);
@@ -384,10 +456,12 @@ export function RolesPermissionsPage() {
           },
         },
       );
-    } else if (modalMode === 'edit' && selectedRole) {
+    } else if (modalMode === 'edit' && (targetRole ?? selectedRole)) {
+      const currentRole = targetRole ?? selectedRole;
+      if (!currentRole) return;
       mutations.updateRole.mutate(
         {
-          id: selectedRole.id,
+          id: currentRole.id,
           payload: {
             color: values.color ?? null,
             description: values.description?.trim() || null,
@@ -401,29 +475,36 @@ export function RolesPermissionsPage() {
 
   const onSubmitUser = userForm.handleSubmit((values) => {
     setFormError('');
-    if (!selectedRole) return;
+    const currentRole = targetRole ?? selectedRole;
+    if (!currentRole) return;
     if (modalMode === 'assign-user') {
-      mutations.assignUser.mutate({ id: selectedRole.id, userId: values.userId }, { onSuccess: closeModal });
+      mutations.assignUser.mutate({ id: currentRole.id, userId: values.userId }, { onSuccess: closeModal });
     } else if (modalMode === 'remove-user') {
-      mutations.removeUser.mutate({ id: selectedRole.id, userId: values.userId }, { onSuccess: closeModal });
+      mutations.removeUser.mutate({ id: currentRole.id, userId: values.userId }, { onSuccess: closeModal });
     }
   });
 
   const handleModalAction = () => {
     if (!modalMode || modalMode === 'audit') return;
     setFormError('');
-    if (modalMode !== 'create' && modalMode !== 'clone' && !selectedRole) {
+    const currentRole = targetRole ?? selectedRole;
+    if (modalMode !== 'create' && modalMode !== 'clone' && !currentRole) {
       setFormError('Select a role first.');
       return;
     }
-    if (modalMode === 'status' && selectedRole) {
+    if (modalMode === 'status' && currentRole) {
       mutations.updateRoleStatus.mutate(
-        { id: selectedRole.id, status: selectedRole.status === 'active' ? 'inactive' : 'active' },
+        { id: currentRole.id, status: currentRole.status === 'active' ? 'inactive' : 'active' },
         { onSuccess: closeModal },
       );
-    } else if (modalMode === 'delete' && selectedRole) {
-      mutations.deleteRole.mutate(selectedRole.id, {
-        onSuccess: () => { setSelectedRoleId(null); closeModal(); },
+    } else if (modalMode === 'delete' && currentRole) {
+      mutations.deleteRole.mutate(currentRole.id, {
+        onSuccess: () => {
+          if (selectedRoleId === currentRole.id) {
+            setSelectedRoleId(null);
+          }
+          closeModal();
+        },
       });
     }
   };
@@ -455,11 +536,12 @@ export function RolesPermissionsPage() {
     modalMode === 'audit' ? 'Audit History' :
     'Roles & Permissions';
 
+  const activeRole = targetRole ?? selectedRole;
   const userOptions =
-    usersList.filter((u: UserResponse) => !(selectedRole?.users ?? []).some((su) => su.id === u.id)) ?? [];
+    usersList.filter((u: UserResponse) => !(activeRole?.users ?? []).some((su: RoleAssignedUser) => su.id === u.id)) ?? [];
   const auditItems = roleAuditLogs;
   const submitting = isMutating;
-  const isSystemRole = selectedRole?.type === 'system';
+  const isSystemRole = activeRole?.type === 'system';
 
   return (
     <>
@@ -506,12 +588,323 @@ export function RolesPermissionsPage() {
           </button>
         </div>
 
-        {/* ── Full-Width Single Workspace Layout ── */}
-        <div className="rp-workspace-full card">
-          {/* ── Role Selector & Header Bar ── */}
-          <div className="rp-role-header">
-            <div className="rp-role-header-row">
-              {/* Role Dropdown Trigger & Popover */}
+        {/* ── Master List or Detail Matrix View ── */}
+        {!selectedRoleId ? (
+          <div className="um-table-section rp-table-card card">
+            {/* Toolbar */}
+            <div className="um-toolbar">
+              <div className="um-toolbar-row1">
+                <div className="um-search">
+                  <i className="ph ph-magnifying-glass" aria-hidden="true" />
+                  <input
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search by role name, code, description..."
+                    type="search"
+                    value={search}
+                  />
+                </div>
+                <button
+                  className="um-add-btn"
+                  disabled={forbidden || !canCreateRole}
+                  onClick={() => openRoleModal('create')}
+                  type="button"
+                >
+                  <i className="ph ph-plus" aria-hidden="true" /> Create Role
+                </button>
+                <button
+                  className="btn-secondary admin-table-action"
+                  disabled={rolesLoading}
+                  onClick={refreshWithConfirmation}
+                  type="button"
+                >
+                  <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Refresh
+                </button>
+              </div>
+
+              <div className="um-toolbar-row2">
+                <span className="filter-label">Filter by:</span>
+                <select
+                  aria-label="Role type filter"
+                  className="um-filter"
+                  onChange={(e) => setTypeFilter(e.target.value as ApiRoleType | '')}
+                  value={typeFilter}
+                >
+                  <option value="">All Types</option>
+                  <option value="system">System</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <select
+                  aria-label="Role status filter"
+                  className="um-filter"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setStatusFilter(isApiRoleStatus(v) ? v : '');
+                  }}
+                  value={statusFilter}
+                >
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <button
+                  className="um-clear-btn"
+                  onClick={() => {
+                    setSearch('');
+                    setTypeFilter('');
+                    setStatusFilter('');
+                  }}
+                  type="button"
+                >
+                  <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Role</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Users Assigned</th>
+                    <th scope="col">Created Date</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rolesLoading ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '2.5rem 1rem' }}>
+                        <MedicalLoader
+                          text="Loading roles..."
+                          subtext="Retrieving hospital role definitions"
+                        />
+                      </td>
+                    </tr>
+                  ) : loadError ? (
+                    <tr>
+                      <td className="um-state-cell" colSpan={6}>
+                        <i className="ph ph-warning" aria-hidden="true" />
+                        {loadError}
+                        <button
+                          className="btn-secondary admin-table-action"
+                          onClick={() => void refreshRolesAndPermissions()}
+                          style={{ marginLeft: '1rem' }}
+                          type="button"
+                        >
+                          Retry
+                        </button>
+                      </td>
+                    </tr>
+                  ) : filteredRoles.length === 0 ? (
+                    <tr>
+                      <td className="um-state-cell" colSpan={6}>
+                        <i className="ph ph-shield-check" aria-hidden="true" />
+                        No roles found matching your search or filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedRoles.map((role) => (
+                      <tr
+                        key={role.id}
+                        onClick={() => selectRole(role.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td>
+                          <div className="user-cell">
+                            <div
+                              className="rp-role-avatar"
+                              style={{ background: role.color ?? fallbackRoleColor(role.name) }}
+                            >
+                              {roleInitials(role.name)}
+                            </div>
+                            <div className="user-cell-info">
+                              <span className="user-cell-name" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                {role.name}
+                                {role.type === 'system' && (
+                                  <i className="ph ph-lock-simple" style={{ color: '#9333ea', fontSize: '0.85rem' }} title="System role" />
+                                )}
+                              </span>
+                              <span className="emp-id" style={{ fontSize: '0.72rem' }}>{role.code}</span>
+                              {role.description ? (
+                                <span className="muted-cell" style={{ fontSize: '0.75rem', marginTop: '2px' }}>
+                                  {role.description}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`rp-role-badge ${role.type === 'system' ? 'badge-system' : 'badge-custom'}`}>
+                            {role.type === 'system' ? <><i className="ph ph-lock-simple" aria-hidden="true" /> System</> : 'Custom'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`rp-role-badge ${role.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>
+                            {roleStatusLabel(role.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="emp-id" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#475569' }}>
+                            <i className="ph ph-users" />
+                            {role.userCount} {role.userCount === 1 ? 'user' : 'users'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="muted-cell" style={{ fontSize: '0.8rem' }}>
+                            {formatRegionalDateTime(role.createdAt, timezone)}
+                          </span>
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <div className="action-icons" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <button
+                              className="btn-secondary admin-table-action"
+                              onClick={() => selectRole(role.id)}
+                              style={{ height: '30px', padding: '0 0.65rem', fontSize: '0.78rem', gap: '0.35rem' }}
+                              title="Open and manage permissions matrix"
+                              type="button"
+                            >
+                              <i className="ph ph-shield-check" style={{ color: '#2563eb' }} />
+                              <span>Manage Permissions</span>
+                            </button>
+                            <button
+                              aria-label={`Edit ${role.name}`}
+                              className="action-icon-btn"
+                              disabled={forbidden || !canEditRole || role.type === 'system'}
+                              onClick={() => openRoleModal('edit', role)}
+                              title={role.type === 'system' ? 'System roles cannot be edited' : 'Edit role'}
+                              type="button"
+                            >
+                              <i className="ph ph-pencil" aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={role.status === 'active' ? `Deactivate ${role.name}` : `Activate ${role.name}`}
+                              className="action-icon-btn"
+                              disabled={forbidden || !canEditRole || role.type === 'system'}
+                              onClick={() => openStatusModal(role)}
+                              title={role.type === 'system' ? 'System roles cannot be deactivated' : role.status === 'active' ? 'Deactivate role' : 'Activate role'}
+                              type="button"
+                            >
+                              <i className={`ph ${role.status === 'active' ? 'ph-toggle-right' : 'ph-toggle-left'}`} aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={`Assign user to ${role.name}`}
+                              className="action-icon-btn"
+                              disabled={forbidden || !canAssignUser || role.status !== 'active'}
+                              onClick={() => void openUserModal('assign-user', role)}
+                              title={role.status !== 'active' ? 'Cannot assign users to inactive roles' : 'Assign user'}
+                              type="button"
+                            >
+                              <i className="ph ph-user-plus" aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={`Clone ${role.name}`}
+                              className="action-icon-btn"
+                              disabled={forbidden || !canCreateRole}
+                              onClick={() => openRoleModal('clone', role)}
+                              title="Clone role"
+                              type="button"
+                            >
+                              <i className="ph ph-copy" aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={`Audit history for ${role.name}`}
+                              className="action-icon-btn"
+                              onClick={() => void openAuditModal(role)}
+                              title="Audit history"
+                              type="button"
+                            >
+                              <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
+                            </button>
+                            <button
+                              aria-label={`Delete ${role.name}`}
+                              className="action-icon-btn danger"
+                              disabled={role.type === 'system' || forbidden || !canDeleteRole}
+                              onClick={() => openDeleteModal(role)}
+                              title={role.type === 'system' ? 'System roles cannot be deleted' : 'Delete role'}
+                              type="button"
+                            >
+                              <i className="ph ph-trash" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="um-pagination">
+              <div className="um-showing">{showingLabel}</div>
+              <div className="um-page-size">
+                <span>Rows:</span>
+                <select
+                  aria-label="Rows per page"
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  value={pageSize}
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+              <div className="um-page-controls">
+                <button
+                  aria-label="Previous page"
+                  className="pg-btn"
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  type="button"
+                >
+                  <i className="ph ph-caret-left" aria-hidden="true" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    aria-label={`Page ${page}`}
+                    className={`pg-btn${page === safePage ? ' active' : ''}`}
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    type="button"
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  aria-label="Next page"
+                  className="pg-btn"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  type="button"
+                >
+                  <i className="ph ph-caret-right" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rp-workspace-full card">
+            {/* ── Role Selector & Header Bar ── */}
+            <div className="rp-role-header">
+              <div className="rp-role-header-row">
+                {/* Back to Roles Button */}
+                <button
+                  className="rp-back-btn"
+                  onClick={handleBackToList}
+                  title="Back to roles list"
+                  type="button"
+                >
+                  <i className="ph ph-arrow-left" aria-hidden="true" />
+                  <span>Back to Roles</span>
+                </button>
+
+                {/* Role Dropdown Trigger & Popover */}
               <div className="rp-role-select-wrap" ref={roleDropdownRef}>
                 <button
                   className="rp-role-select-btn"
@@ -673,7 +1066,7 @@ export function RolesPermissionsPage() {
                       <button
                         className="rp-actions-menu-item"
                         disabled={forbidden || !canEditRole || isSystemRole}
-                        onClick={openStatusModal}
+                        onClick={() => openStatusModal()}
                         role="menuitem"
                         type="button"
                       >
@@ -947,6 +1340,7 @@ export function RolesPermissionsPage() {
             ) : null}
           </div>
         </div>
+        )}
       </div>
 
       {/* ── Modals (all logic unchanged) ── */}
@@ -984,6 +1378,8 @@ export function RolesPermissionsPage() {
             </>
           ) : undefined
         }
+        className="um-user-modal"
+        size="large"
         onClose={closeModal}
         open={Boolean(modalMode)}
         icon="ph-shield-check"
@@ -993,36 +1389,98 @@ export function RolesPermissionsPage() {
 
         {(modalMode === 'create' || modalMode === 'clone' || modalMode === 'edit') && (
           <form id="role-form" onSubmit={onSubmitRole}>
-            <div className="form-section-title">Role Information</div>
-            <div className="form-grid-3">
-              <div className="form-field">
-                <label htmlFor="role-name">Role Name <span className="required">*</span></label>
-                <input id="role-name" {...roleForm.register('name')} />
-                {roleForm.formState.errors.name && (
-                  <span className="field-error">{roleForm.formState.errors.name.message}</span>
-                )}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-shield-check" />
+                  <span>Role Information</span>
+                </div>
+                <span className="um-card-badge">Access &amp; Definition</span>
               </div>
-              <div className="form-field">
-                <label htmlFor="role-color">Display Color</label>
-                <input id="role-color" type="color" {...roleForm.register('color')} />
-              </div>
-              <div className="form-field">
-                <label htmlFor="role-type">Role Type</label>
-                <select disabled id="role-type" {...roleForm.register('type')}>
-                  <option value="custom">Custom</option>
-                  <option value="system">System</option>
-                </select>
-              </div>
-              <div className="form-field">
-                <label htmlFor="role-status">Status</label>
-                <select id="role-status" {...roleForm.register('status')}>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-              <div className="form-field full-width">
-                <label htmlFor="role-description">Description</label>
-                <textarea id="role-description" {...roleForm.register('description')} />
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="role-name">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-tag" /> Role Name
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="role-name"
+                        aria-invalid={Boolean(roleForm.formState.errors.name)}
+                        placeholder="e.g. Clinical Coordinator"
+                        {...roleForm.register('name')}
+                      />
+                      <i className="ph ph-tag um-input-prefix-icon" />
+                    </div>
+                    {roleForm.formState.errors.name && (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {roleForm.formState.errors.name.message}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="role-color">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-palette" /> Display Color
+                      </span>
+                    </label>
+                    <div className="um-color-picker-wrap">
+                      <input id="role-color" type="color" {...roleForm.register('color')} />
+                      <span className="um-color-hex-label">{roleForm.watch('color') || '#2563eb'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="role-type">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-lock-key" /> Role Type
+                      </span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select disabled id="role-type" {...roleForm.register('type')}>
+                        <option value="custom">Custom</option>
+                        <option value="system">System</option>
+                      </select>
+                      <i className="ph ph-lock-key um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="role-status">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-toggle-left" /> Status
+                      </span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select id="role-status" {...roleForm.register('status')}>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                      <i className="ph ph-toggle-left um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label" htmlFor="role-description">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-text-align-left" /> Description
+                    </span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    id="role-description"
+                    placeholder="Provide a concise description of responsibilities and permissions for this role..."
+                    rows={3}
+                    {...roleForm.register('description')}
+                  />
+                </div>
               </div>
             </div>
           </form>
@@ -1030,48 +1488,90 @@ export function RolesPermissionsPage() {
 
         {modalMode === 'status' && (
           <p>
-            Change <strong>{selectedRole?.name}</strong> to{' '}
-            <strong>{roleStatusLabel(selectedRole?.status === 'active' ? 'inactive' : 'active')}</strong>?
+            Change <strong>{activeRole?.name}</strong> to{' '}
+            <strong>{roleStatusLabel(activeRole?.status === 'active' ? 'inactive' : 'active')}</strong>?
             Inactive roles no longer grant access.
           </p>
         )}
 
         {modalMode === 'assign-user' && (
           <form id="user-form" onSubmit={onSubmitUser}>
-            <div className="form-field">
-              <label htmlFor="assign-role-user">User</label>
-              <select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}>
-                <option value="">{isFetching ? 'Loading users...' : 'Select user'}</option>
-                {userOptions.map((user) => (
-                  <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>
-                ))}
-              </select>
-              {userForm.formState.errors.userId && (
-                <span className="field-error">{userForm.formState.errors.userId.message}</span>
-              )}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-user-plus" />
+                  <span>Assign User to Role</span>
+                </div>
+                <span className="um-card-badge">Staff Selection</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label" htmlFor="assign-role-user">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-user" /> Select User
+                    </span>
+                    <span className="um-required-star">*</span>
+                  </label>
+                  <div className="um-input-wrap">
+                    <select disabled={submitting} id="assign-role-user" {...userForm.register('userId')}>
+                      <option value="">{isFetching ? 'Loading users...' : 'Select user'}</option>
+                      {userOptions.map((user) => (
+                        <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>
+                      ))}
+                    </select>
+                    <i className="ph ph-user um-input-prefix-icon" />
+                  </div>
+                  {userForm.formState.errors.userId && (
+                    <span className="um-field-error">
+                      <i className="ph ph-warning-circle" /> {userForm.formState.errors.userId.message}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </form>
         )}
 
         {modalMode === 'remove-user' && (
           <form id="user-form" onSubmit={onSubmitUser}>
-            <div className="form-field">
-              <label htmlFor="remove-role-user">User</label>
-              <select id="remove-role-user" {...userForm.register('userId')}>
-                <option value="">Select user</option>
-                {(selectedRole?.users ?? []).map((user) => (
-                  <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>
-                ))}
-              </select>
-              {userForm.formState.errors.userId && (
-                <span className="field-error">{userForm.formState.errors.userId.message}</span>
-              )}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-user-minus" />
+                  <span>Remove User from Role</span>
+                </div>
+                <span className="um-card-badge">Staff Assignment</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label" htmlFor="remove-role-user">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-user" /> Select Assigned User
+                    </span>
+                    <span className="um-required-star">*</span>
+                  </label>
+                  <div className="um-input-wrap">
+                    <select id="remove-role-user" {...userForm.register('userId')}>
+                      <option value="">Select user</option>
+                      {(activeRole?.users ?? []).map((user: RoleAssignedUser) => (
+                        <option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>
+                      ))}
+                    </select>
+                    <i className="ph ph-user um-input-prefix-icon" />
+                  </div>
+                  {userForm.formState.errors.userId && (
+                    <span className="um-field-error">
+                      <i className="ph ph-warning-circle" /> {userForm.formState.errors.userId.message}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </form>
         )}
 
         {modalMode === 'delete' && (
-          <p>Delete {selectedRole?.name}? The backend will enforce status and assignment restrictions.</p>
+          <p>Delete {activeRole?.name}? The backend will enforce status and assignment restrictions.</p>
         )}
 
         {modalMode === 'audit' && (

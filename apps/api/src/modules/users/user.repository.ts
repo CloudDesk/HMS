@@ -70,6 +70,13 @@ const mapUser = (user: UserDoc): UserRecord => ({
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+export const buildDepartmentAssignmentFilter = (value?: string) => {
+  if (!value) return undefined;
+  const ids = [...new Set(value.split(',').map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return undefined;
+  return ids.length === 1 ? ids[0] : { $in: ids };
+};
+
 export class UserRepository {
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
@@ -184,7 +191,7 @@ export class UserRepository {
       filter.branchIds = query.branchId;
     }
     if (query.departmentId) {
-      filter.departmentIds = query.departmentId;
+      filter.departmentIds = buildDepartmentAssignmentFilter(query.departmentId);
     }
     if (query.roleId) {
       filter.roleIds = query.roleId;

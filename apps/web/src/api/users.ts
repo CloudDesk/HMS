@@ -139,7 +139,7 @@ export const usersApi = {
   },
 
   update(id: string, payload: SaveUserPayload) {
-    const body: Omit<SaveUserPayload, 'password' | 'status'> = {
+    const body: Omit<SaveUserPayload, 'password'> = {
       address: payload.address,
       branches: payload.branches,
       departments: payload.departments,
@@ -152,6 +152,7 @@ export const usersApi = {
       phone: payload.phone,
       profilePhotoUrl: payload.profilePhotoUrl,
       roleIds: payload.roleIds,
+      status: payload.status,
       username: payload.username,
     };
 

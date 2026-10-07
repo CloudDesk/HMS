@@ -779,6 +779,8 @@ export function ServiceCataloguePage() {
             </>
           )
         }
+        className="um-user-modal"
+        size="large"
         onClose={closeModal}
         open={Boolean(modalMode)}
         icon="ph-first-aid-kit"
@@ -791,309 +793,510 @@ export function ServiceCataloguePage() {
         {(modalMode === 'create' || modalMode === 'edit') && (
           <form id="svc-management-form" onSubmit={(e) => void handleSave(e)}>
             {departments.length === 0 ? (
-              <div className="admin-dependency-notice" role="alert">
+              <div className="admin-dependency-notice" role="alert" style={{ marginBottom: '1rem' }}>
                 <i className="ph ph-info" aria-hidden="true" />
                 <span>Create an active branch and department before saving a service.</span>
               </div>
             ) : null}
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Service Code <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(svcForm.formState.errors.code)}
-                  {...svcForm.register('code')}
-                />
-                {svcForm.formState.errors.code ? <small className="field-error">{svcForm.formState.errors.code.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Service Name <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(svcForm.formState.errors.name)}
-                  {...svcForm.register('name')}
-                />
-                {svcForm.formState.errors.name ? <small className="field-error">{svcForm.formState.errors.name.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Category</span>
-                <input
-                  disabled={submitting}
-                  list="category-options-list"
-                  placeholder={
-                    svcForm.watch('service_type') === 'LAB_TEST'
-                      ? 'e.g. Hematology, Biochemistry'
-                      : svcForm.watch('service_type') === 'IMAGING_SERVICE'
-                        ? 'e.g. X-Ray, CT Scan, MRI'
-                        : 'e.g. Diagnostics'
-                  }
-                  {...svcForm.register('category')}
-                />
-                <datalist id="category-options-list">
-                  {svcForm.watch('service_type') === 'LAB_TEST' ? (
-                    <>
-                      <option value="Hematology" />
-                      <option value="Biochemistry" />
-                      <option value="Microbiology" />
-                      <option value="Immunology" />
-                      <option value="Clinical Pathology" />
-                      <option value="Serology" />
-                      <option value="Urinalysis" />
-                      <option value="Molecular Diagnostics" />
-                    </>
-                  ) : svcForm.watch('service_type') === 'IMAGING_SERVICE' ? (
-                    <>
-                      <option value="X-Ray" />
-                      <option value="Ultrasound" />
-                      <option value="CT Scan" />
-                      <option value="MRI" />
-                      <option value="Mammography" />
-                      <option value="ECG" />
-                      <option value="Echo" />
-                      <option value="Fluoroscopy" />
-                      <option value="DEXA Scan" />
-                    </>
-                  ) : (
-                    <>
-                      <option value="Consultation" />
-                      <option value="Diagnostics" />
-                      <option value="Emergency" />
-                      <option value="Procedure" />
-                      <option value="General" />
-                    </>
-                  )}
-                </datalist>
-              </label>
-              <label className="form-field">
-                <span>Service Type <span className="required">*</span></span>
-                <select
-                  disabled={submitting}
-                  {...svcForm.register('service_type')}
-                >
-                  {Object.entries(serviceTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              {svcForm.watch('service_type') === 'LAB_TEST' ? (
-                <label className="form-field">
-                  <span>Sample / Specimen Type</span>
-                  <select disabled={submitting} {...svcForm.register('sample_type')}>
-                    <option value="">Select Sample Type</option>
-                    <option value="Blood">Blood</option>
-                    <option value="Serum">Serum</option>
-                    <option value="Plasma">Plasma</option>
-                    <option value="Urine">Urine</option>
-                    <option value="Stool">Stool</option>
-                    <option value="Sputum">Sputum</option>
-                    <option value="Throat Swab">Throat Swab</option>
-                    <option value="CSF (Cerebrospinal Fluid)">CSF (Cerebrospinal Fluid)</option>
-                    <option value="Tissue / Biopsy">Tissue / Biopsy</option>
-                    <option value="Synovial Fluid">Synovial Fluid</option>
-                  </select>
-                </label>
-              ) : null}
-            </div>
 
-            <div className="form-section-title">Organisation</div>
-            <div className="form-grid-3">
-              <div className="form-field">
-                <span>Branch</span>
-                <BranchMultiSelect
-                  branches={branches}
-                  disabled={submitting}
-                  onChange={(newIds) => {
-                    setModalBranchIds(newIds);
-                    if (newIds.length > 0) {
-                      const currentDeptId = svcForm.getValues('department_id');
-                      const currentDept = departments.find((d) => d.id === currentDeptId);
-                      if (currentDept && !newIds.some((bId) => currentDept.branch_ids.includes(bId))) {
-                        svcForm.setValue('department_id', '');
-                      }
-                    }
-                  }}
-                  selectedIds={modalBranchIds}
-                />
+            {/* Section 1: Service Identification & Type */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-first-aid-kit" />
+                  <span>Basic Information</span>
+                </div>
+                <span className="um-card-badge">Catalog Identification</span>
               </div>
-              <label className="form-field">
-                <span>Department <span className="required">*</span></span>
-                <select
-                  disabled={submitting}
-                  aria-invalid={Boolean(svcForm.formState.errors.department_id)}
-                  className={svcForm.watch('department_id') ? undefined : 'svc-form-placeholder'}
-                  {...svcForm.register('department_id')}
-                >
-                  <option value="">Select Department</option>
-                  {formDepartmentOptions.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-                {svcForm.formState.errors.department_id ? <small className="field-error">{svcForm.formState.errors.department_id.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Status</span>
-                <select
-                  disabled={submitting}
-                  {...svcForm.register('status')}
-                >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                </select>
-              </label>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-hash" /> Service Code
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(svcForm.formState.errors.code)}
+                        placeholder="e.g. LAB-CBC, DENT-EXT"
+                        {...svcForm.register('code')}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                    {svcForm.formState.errors.code ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {svcForm.formState.errors.code.message}</span> : null}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-first-aid" /> Service Name
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(svcForm.formState.errors.name)}
+                        placeholder="e.g. Complete Blood Count"
+                        {...svcForm.register('name')}
+                      />
+                      <i className="ph ph-first-aid um-input-prefix-icon" />
+                    </div>
+                    {svcForm.formState.errors.name ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {svcForm.formState.errors.name.message}</span> : null}
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-tag" /> Category
+                      </span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        list="category-options-list"
+                        placeholder={
+                          svcForm.watch('service_type') === 'LAB_TEST'
+                            ? 'e.g. Hematology, Biochemistry'
+                            : svcForm.watch('service_type') === 'IMAGING_SERVICE'
+                              ? 'e.g. X-Ray, CT Scan, MRI'
+                              : 'e.g. Diagnostics'
+                        }
+                        {...svcForm.register('category')}
+                      />
+                      <i className="ph ph-tag um-input-prefix-icon" />
+                    </div>
+                    <datalist id="category-options-list">
+                      {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                        <>
+                          <option value="Hematology" />
+                          <option value="Biochemistry" />
+                          <option value="Microbiology" />
+                          <option value="Immunology" />
+                          <option value="Clinical Pathology" />
+                          <option value="Serology" />
+                          <option value="Urinalysis" />
+                          <option value="Molecular Diagnostics" />
+                        </>
+                      ) : svcForm.watch('service_type') === 'IMAGING_SERVICE' ? (
+                        <>
+                          <option value="X-Ray" />
+                          <option value="Ultrasound" />
+                          <option value="CT Scan" />
+                          <option value="MRI" />
+                          <option value="Mammography" />
+                          <option value="ECG" />
+                          <option value="Echo" />
+                          <option value="Fluoroscopy" />
+                          <option value="DEXA Scan" />
+                        </>
+                      ) : (
+                        <>
+                          <option value="Consultation" />
+                          <option value="Diagnostics" />
+                          <option value="Emergency" />
+                          <option value="Procedure" />
+                          <option value="General" />
+                        </>
+                      )}
+                    </datalist>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-stethoscope" /> Service Type
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select
+                        disabled={submitting}
+                        {...svcForm.register('service_type')}
+                      >
+                        {Object.entries(serviceTypeLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                      <i className="ph ph-stethoscope um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                {svcForm.watch('service_type') === 'LAB_TEST' ? (
+                  <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-flask" /> Sample / Specimen Type
+                      </span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select disabled={submitting} {...svcForm.register('sample_type')}>
+                        <option value="">Select Sample Type</option>
+                        <option value="Blood">Blood</option>
+                        <option value="Serum">Serum</option>
+                        <option value="Plasma">Plasma</option>
+                        <option value="Urine">Urine</option>
+                        <option value="Stool">Stool</option>
+                        <option value="Sputum">Sputum</option>
+                        <option value="Throat Swab">Throat Swab</option>
+                        <option value="CSF (Cerebrospinal Fluid)">CSF (Cerebrospinal Fluid)</option>
+                        <option value="Tissue / Biopsy">Tissue / Biopsy</option>
+                        <option value="Synovial Fluid">Synovial Fluid</option>
+                      </select>
+                      <i className="ph ph-flask um-input-prefix-icon" />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            <div className="form-section-title">Pricing</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Standard Price <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  min="0"
-                  placeholder="0.00"
-                  step="0.01"
-                  type="number"
-                  aria-invalid={Boolean(svcForm.formState.errors.standard_price)}
-                  {...svcForm.register('standard_price')}
-                />
-                {svcForm.formState.errors.standard_price ? <small className="field-error">{svcForm.formState.errors.standard_price.message}</small> : null}
-              </label>
+            {/* Section 2: Organisation & Assignment */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Organisation &amp; Status</span>
+                </div>
+                <span className="um-card-badge">Routing &amp; Availability</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-3">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-map-pin" /> Branch
+                      </span>
+                    </label>
+                    <BranchMultiSelect
+                      branches={branches}
+                      disabled={submitting}
+                      onChange={(newIds) => {
+                        setModalBranchIds(newIds);
+                        if (newIds.length > 0) {
+                          const currentDeptId = svcForm.getValues('department_id');
+                          const currentDept = departments.find((d) => d.id === currentDeptId);
+                          if (currentDept && !newIds.some((bId) => currentDept.branch_ids.includes(bId))) {
+                            svcForm.setValue('department_id', '');
+                          }
+                        }
+                      }}
+                      selectedIds={modalBranchIds}
+                    />
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-tree-structure" /> Department
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select
+                        disabled={submitting}
+                        aria-invalid={Boolean(svcForm.formState.errors.department_id)}
+                        className={svcForm.watch('department_id') ? undefined : 'svc-form-placeholder'}
+                        {...svcForm.register('department_id')}
+                      >
+                        <option value="">Select Department</option>
+                        {formDepartmentOptions.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                      <i className="ph ph-tree-structure um-input-prefix-icon" />
+                    </div>
+                    {svcForm.formState.errors.department_id ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {svcForm.formState.errors.department_id.message}</span> : null}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-toggle-left" /> Status
+                      </span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select
+                        disabled={submitting}
+                        {...svcForm.register('status')}
+                      >
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                      </select>
+                      <i className="ph ph-toggle-left um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
+            {/* Section 3: Pricing */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-currency-dollar" />
+                  <span>Pricing</span>
+                </div>
+                <span className="um-card-badge">Financial</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-currency-dollar" /> Standard Price ($)
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        min="0"
+                        placeholder="0.00"
+                        step="0.01"
+                        type="number"
+                        aria-invalid={Boolean(svcForm.formState.errors.standard_price)}
+                        {...svcForm.register('standard_price')}
+                      />
+                      <i className="ph ph-currency-dollar um-input-prefix-icon" />
+                    </div>
+                    {svcForm.formState.errors.standard_price ? <span className="um-field-error"><i className="ph ph-warning-circle" /> {svcForm.formState.errors.standard_price.message}</span> : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Procedure Rules (if PROCEDURE) */}
             {svcForm.watch('service_type') === 'PROCEDURE' ? (
-              <>
-                <div className="form-section-title">Procedure Booking Rules & Requirements</div>
-                <div className="form-grid-3" style={{ marginBottom: '0.85rem' }}>
-                  <label className="form-field">
-                    <span>Default Duration (minutes) <span className="required">*</span></span>
-                    <input type="number" min="5" max="720" placeholder="e.g. 60" {...svcForm.register('default_duration_minutes')} />
-                  </label>
-                  <label className="form-field">
-                    <span>Overlapping Booking Capacity <span className="required">*</span></span>
-                    <input type="number" min="1" max="100" placeholder="e.g. 1" {...svcForm.register('booking_capacity')} />
-                  </label>
-                  <label className="form-field">
-                    <span>Minimum Advance Deposit ($)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      disabled={!svcForm.watch('requires_advance_deposit')}
-                      {...svcForm.register('minimum_advance_deposit_amount')}
-                    />
-                  </label>
+              <div className="um-modal-card">
+                <div className="um-modal-card-header">
+                  <div className="um-card-title-wrap">
+                    <i className="ph ph-calendar-check" />
+                    <span>Procedure Booking Rules &amp; Requirements</span>
+                  </div>
+                  <span className="um-card-badge">Clinical Scheduling</span>
                 </div>
+                <div className="um-modal-card-body">
+                  <div className="um-form-row-3" style={{ marginBottom: '0.85rem' }}>
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text"><i className="ph ph-clock" /> Default Duration (min)</span>
+                        <span className="um-required-star">*</span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <input type="number" min="5" max="720" placeholder="e.g. 60" {...svcForm.register('default_duration_minutes')} />
+                        <i className="ph ph-clock um-input-prefix-icon" />
+                      </div>
+                    </div>
 
-                {/* Styled Requirement Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
-                    <input
-                      type="checkbox"
-                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
-                      {...svcForm.register('requires_bed')}
-                    />
-                    <span>Requires Bed Hold</span>
-                  </label>
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text"><i className="ph ph-users" /> Booking Capacity</span>
+                        <span className="um-required-star">*</span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <input type="number" min="1" max="100" placeholder="e.g. 1" {...svcForm.register('booking_capacity')} />
+                        <i className="ph ph-users um-input-prefix-icon" />
+                      </div>
+                    </div>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
-                    <input
-                      type="checkbox"
-                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
-                      {...svcForm.register('requires_consent')}
-                    />
-                    <span>Requires Signed Consent</span>
-                  </label>
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text"><i className="ph ph-credit-card" /> Advance Deposit ($)</span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          disabled={!svcForm.watch('requires_advance_deposit')}
+                          {...svcForm.register('minimum_advance_deposit_amount')}
+                        />
+                        <i className="ph ph-credit-card um-input-prefix-icon" />
+                      </div>
+                    </div>
+                  </div>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
-                    <input
-                      type="checkbox"
-                      style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
-                      {...svcForm.register('requires_advance_deposit')}
-                    />
-                    <span>Requires Advance Deposit</span>
-                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                        {...svcForm.register('requires_bed')}
+                      />
+                      <span>Requires Bed Hold</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                        {...svcForm.register('requires_consent')}
+                      />
+                      <span>Requires Signed Consent</span>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, color: '#334155' }}>
+                      <input
+                        type="checkbox"
+                        style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                        {...svcForm.register('requires_advance_deposit')}
+                      />
+                      <span>Requires Advance Deposit</span>
+                    </label>
+                  </div>
+
+                  <div className="um-form-row-2">
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text"><i className="ph ph-video" /> Video Reference URL</span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <input
+                          type="url"
+                          disabled={submitting}
+                          placeholder="https://www.youtube.com/watch?v=… or video link"
+                          aria-invalid={Boolean(svcForm.formState.errors.reference_video_url)}
+                          {...svcForm.register('reference_video_url')}
+                        />
+                        <i className="ph ph-video um-input-prefix-icon" />
+                      </div>
+                      {svcForm.formState.errors.reference_video_url ? (
+                        <span className="um-field-error"><i className="ph ph-warning-circle" /> {svcForm.formState.errors.reference_video_url.message}</span>
+                      ) : (
+                        <small style={{ color: '#64748b', fontSize: '0.72rem' }}>Displayed in treatment planning views.</small>
+                      )}
+                    </div>
+
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text"><i className="ph ph-text-t" /> Reference Title</span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <input
+                          type="text"
+                          disabled={submitting}
+                          maxLength={200}
+                          placeholder="e.g. Composite restoration overview"
+                          {...svcForm.register('reference_video_title')}
+                        />
+                        <i className="ph ph-text-t um-input-prefix-icon" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="form-section-title">Procedure Reference Video</div>
-                <div className="form-grid-3" style={{ marginBottom: '0.85rem' }}>
-                  <label className="form-field" style={{ gridColumn: 'span 2' }}>
-                    <span>Video Reference URL</span>
-                    <input
-                      type="url"
-                      disabled={submitting}
-                      placeholder="https://www.youtube.com/watch?v=… or a direct video URL"
-                      aria-invalid={Boolean(svcForm.formState.errors.reference_video_url)}
-                      {...svcForm.register('reference_video_url')}
-                    />
-                    {svcForm.formState.errors.reference_video_url ? (
-                      <small className="field-error">{svcForm.formState.errors.reference_video_url.message}</small>
-                    ) : (
-                      <small style={{ color: '#64748b' }}>Displayed automatically beside this procedure in the dental treatment plan.</small>
-                    )}
-                  </label>
-                  <label className="form-field">
-                    <span>Reference Title</span>
-                    <input
-                      type="text"
-                      disabled={submitting}
-                      maxLength={200}
-                      placeholder="e.g. Composite restoration overview"
-                      {...svcForm.register('reference_video_title')}
-                    />
-                  </label>
-                </div>
-              </>
+              </div>
             ) : null}
 
-            <div className="form-section-title">Additional Information</div>
-            <div className="form-grid-3">
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea
-                  disabled={submitting}
-                  rows={3}
-                  {...svcForm.register('description')}
-                />
-              </label>
+            {/* Section 5: Additional Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-text-align-left" />
+                  <span>Additional Information</span>
+                </div>
+                <span className="um-card-badge">Clinical Scope</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-info" /> Description &amp; Clinical Notes
+                    </span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    disabled={submitting}
+                    placeholder="Enter procedure details, preparation requirements, or catalog notes..."
+                    rows={3}
+                    {...svcForm.register('description')}
+                  />
+                </div>
+              </div>
             </div>
           </form>
         )}
 
         {modalMode === 'view' && activeSvc ? (
-          <>
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field"><span>Service Code</span><input readOnly value={activeSvc.code} /></label>
-              <label className="form-field"><span>Service Name</span><input readOnly value={activeSvc.name} /></label>
-              <label className="form-field"><span>Service Type</span><input readOnly value={serviceTypeLabels[activeSvc.service_type]} /></label>
-              <label className="form-field"><span>Category</span><input readOnly value={activeSvc.category ?? ''} /></label>
-              {activeSvc.service_type === 'LAB_TEST' ? (
-                <label className="form-field"><span>Sample Type</span><input readOnly value={activeSvc.sample_type ?? '—'} /></label>
-              ) : null}
-              <label className="form-field"><span>Department</span><input readOnly value={getDeptName(activeSvc.department_id)} /></label>
-              <label className="form-field"><span>Branch</span><input readOnly value={getBranchForDept(activeSvc.department_id)} /></label>
-              <label className="form-field"><span>Status</span><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /></label>
-              <label className="form-field"><span>Standard Price</span><input readOnly value={formatPrice(activeSvc.standard_price)} /></label>
-              <label className="form-field"><span>Created</span><input readOnly value={formatDate(activeSvc.created_at)} /></label>
-              {activeSvc.service_type === 'PROCEDURE' ? (
-                <>
-                  <label className="form-field" style={{ gridColumn: 'span 2' }}>
-                    <span>Video Reference URL</span>
-                    <input readOnly value={activeSvc.reference_video_url ?? '—'} />
-                  </label>
-                  <label className="form-field">
-                    <span>Reference Title</span>
-                    <input readOnly value={activeSvc.reference_video_title ?? '—'} />
-                  </label>
-                </>
-              ) : null}
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea readOnly rows={3} value={activeSvc.description ?? ''} />
-              </label>
+          <div className="um-modal-card">
+            <div className="um-modal-card-header">
+              <div className="um-card-title-wrap">
+                <i className="ph ph-first-aid-kit" />
+                <span>Service Information</span>
+              </div>
+              <span className="um-card-badge">Record View</span>
             </div>
-          </>
+            <div className="um-modal-card-body">
+              <div className="um-form-row-2">
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Service Code</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeSvc.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-first-aid" /> Service Name</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeSvc.name} /><i className="ph ph-first-aid um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-stethoscope" /> Service Type</span></label>
+                  <div className="um-input-wrap"><input readOnly value={serviceTypeLabels[activeSvc.service_type]} /><i className="ph ph-stethoscope um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-tag" /> Category</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeSvc.category ?? '—'} /><i className="ph ph-tag um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              {activeSvc.service_type === 'LAB_TEST' ? (
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-flask" /> Sample Type</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeSvc.sample_type ?? '—'} /><i className="ph ph-flask um-input-prefix-icon" /></div>
+                </div>
+              ) : null}
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-tree-structure" /> Department</span></label>
+                  <div className="um-input-wrap"><input readOnly value={getDeptName(activeSvc.department_id)} /><i className="ph ph-tree-structure um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> Branch</span></label>
+                  <div className="um-input-wrap"><input readOnly value={getBranchForDept(activeSvc.department_id)} /><i className="ph ph-map-pin um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeSvc.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-currency-dollar" /> Standard Price</span></label>
+                  <div className="um-input-wrap"><input readOnly value={formatPrice(activeSvc.standard_price)} /><i className="ph ph-currency-dollar um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              {activeSvc.service_type === 'PROCEDURE' ? (
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-video" /> Video Reference URL</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeSvc.reference_video_url ?? '—'} /><i className="ph ph-video um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-text-t" /> Reference Title</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeSvc.reference_video_title ?? '—'} /><i className="ph ph-text-t um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+              ) : null}
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-text-align-left" /> Description</span></label>
+                <textarea className="um-textarea" readOnly rows={3} value={activeSvc.description ?? '—'} />
+              </div>
+            </div>
+          </div>
         ) : null}
       </Modal>
 
