@@ -7,6 +7,7 @@ import {
   changeUserPasswordBodySchema,
   createUserBodySchema,
   listUsersQuerySchema,
+  reassignDepartmentUsersBodySchema,
   resetUserPasswordBodySchema,
   updateUserBodySchema,
   updateUserStatusBodySchema,
@@ -100,6 +101,19 @@ export const registerUserRoutes = async (app: FastifyInstance, services: Service
       return reply.header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', 'attachment; filename="hms-users.csv"').send(stream);
     },
+  );
+
+  app.post<{ Body: { user_ids: string[]; from_department_id: string; to_department_id: string } }>(
+    '/api/users/reassign-department',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Users', 'Edit'),
+      schema: { body: reassignDepartmentUsersBodySchema },
+    },
+    async (request) => ok(await services.users.reassignDepartmentUsers(
+      request.body,
+      request.user!.id,
+      metadataFromRequest(request),
+    )),
   );
 
   app.get<{ Params: UserIdParams }>(

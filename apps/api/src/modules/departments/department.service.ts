@@ -87,6 +87,11 @@ export class DepartmentService {
     await this.repository.audit('department.deleted', userId, metadata, { departmentId: id, code: department.code });
   }
 
+  async deletePreview(id: string, page?: number, limit?: number) {
+    await this.getById(id);
+    return this.repository.deletePreview(id, page, limit);
+  }
+
   async export(query: DepartmentListQuery, userId: string, metadata: DepartmentRequestMetadata) {
     await this.repository.audit('department.exported', userId, metadata, { filters: query });
     const repository = this.repository;

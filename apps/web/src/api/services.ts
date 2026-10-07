@@ -134,4 +134,11 @@ export const servicesApi = {
       method: 'DELETE',
     });
   },
+
+  bulkDelete(payload: { department_id: string; service_ids: string[] }) {
+    return apiClient.request<{ success: true; deleted: number }>('/services/bulk-delete', {
+      body: payload,
+      method: 'POST',
+    });
+  },
 };

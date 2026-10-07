@@ -19,6 +19,23 @@ export const userIdParamsSchema = {
   },
 } as const;
 
+export const reassignDepartmentUsersBodySchema = {
+  type: 'object',
+  required: ['from_department_id', 'to_department_id', 'user_ids'],
+  additionalProperties: false,
+  properties: {
+    from_department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    to_department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    user_ids: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      items: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    },
+  },
+} as const;
+
 export const listUsersQuerySchema = {
   type: 'object',
   additionalProperties: false,

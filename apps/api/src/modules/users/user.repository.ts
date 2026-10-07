@@ -1,4 +1,4 @@
-import type { ClientSession } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { UserModel } from './user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -78,6 +78,10 @@ export const buildDepartmentAssignmentFilter = (value?: string) => {
 };
 
 export class UserRepository {
+  async session() {
+    return mongoose.startSession();
+  }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds')
@@ -379,6 +383,31 @@ export class UserRepository {
       },
       session ? { session } : undefined,
     );
+  }
+
+  async reassignDepartmentMemberships(
+    userIds: string[],
+    fromDepartmentId: string,
+    toDepartmentId: string,
+    actorUserId: string,
+    session?: ClientSession,
+  ) {
+    const filter = { _id: { $in: userIds }, departmentIds: fromDepartmentId, deletedAt: null };
+    const matched = await UserModel.countDocuments(filter).session(session ?? null);
+    if (matched !== userIds.length) return matched;
+
+    const options = session ? { session } : {};
+    await UserModel.updateMany(
+      filter,
+      { $addToSet: { departmentIds: new Types.ObjectId(toDepartmentId) }, $set: { updatedBy: new Types.ObjectId(actorUserId) } },
+      options,
+    );
+    await UserModel.updateMany(
+      filter,
+      { $pull: { departmentIds: new Types.ObjectId(fromDepartmentId) } },
+      options,
+    );
+    return matched;
   }
 
   async getAssignments(userIds: string[]) {

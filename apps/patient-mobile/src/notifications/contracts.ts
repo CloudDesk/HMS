@@ -10,6 +10,7 @@ export const notificationTypeSchema = z.enum([
   'IMAGING_REPORT',
   'CONSENT_REQUIRED',
   'INVOICE_PENDING',
+  'QUOTATION_AVAILABLE',
 ]).or(z.string());
 
 export const portalNotificationSchema = z.object({
@@ -71,6 +72,8 @@ export function formatNotificationTime(dateString: string): string {
 
 export function getNotificationTypeLabel(type: string): string {
   switch (type?.toUpperCase()) {
+    case 'QUOTATION_AVAILABLE':
+      return 'Treatment Quotation';
     case 'CALL_NEXT_PATIENT':
       return 'Queue Alert';
     case 'DENTAL_LAB_READY':
@@ -93,6 +96,8 @@ export function getNotificationTypeLabel(type: string): string {
 
 export function getNotificationTypeIcon(type: string): string {
   switch (type?.toUpperCase()) {
+    case 'QUOTATION_AVAILABLE':
+      return '🦷';
     case 'CALL_NEXT_PATIENT':
       return '🔔';
     case 'DENTAL_LAB_READY':
@@ -118,6 +123,8 @@ export function getNotificationDestination(type: string): {
   label: string;
 } | null {
   switch (type?.toUpperCase()) {
+    case 'QUOTATION_AVAILABLE':
+      return { tab: 'dental', label: 'View Quotations' };
     case 'CALL_NEXT_PATIENT':
       return { tab: 'appointments', label: 'View Appointment' };
     case 'DENTAL_LAB_READY':

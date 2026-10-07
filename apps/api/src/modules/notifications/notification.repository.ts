@@ -10,6 +10,7 @@ import { LaboratoryResultModel } from '../laboratory/laboratory-result.model.js'
 import { ImagingReportModel } from '../imaging/imaging-report.model.js';
 import { BillingInvoiceModel } from '../billing/billing.model.js';
 import { PatientDocumentModel } from '../patients/patient.model.js';
+import { DentalTreatmentQuotationModel } from '../opd/dental-quotation.model.js';
 
 type NotificationLean = NotificationDocumentFields & { _id: Types.ObjectId };
 
@@ -136,8 +137,18 @@ export class NotificationRepository {
       status: 'VERIFIED',
     }).select('patientId').lean();
 
-    if (!grants.length) return;
-    const patientIds = grants.map((g) => g.patientId);
+    const user = await UserModel.findById(userId).select('patientId').lean();
+
+    const patientIdSet = new Set<string>();
+    for (const g of grants) {
+      if (g.patientId) patientIdSet.add(g.patientId.toString());
+    }
+    if (user?.patientId) {
+      patientIdSet.add(user.patientId.toString());
+    }
+
+    if (!patientIdSet.size) return;
+    const patientIds = Array.from(patientIdSet).map((id) => new Types.ObjectId(id));
 
     // 1. Check verified lab results
     const labResults = await LaboratoryResultModel.find({
@@ -250,6 +261,34 @@ export class NotificationRepository {
           message: `${doc.title} requires your review and signature.`,
           relatedEntityId: doc._id,
           createdAt: doc.createdAt ?? new Date(),
+          isRead: false,
+        }]);
+      }
+    }
+
+    // 5. Check dental treatment quotations pending decision (status: 'SENT')
+    const quotations = await DentalTreatmentQuotationModel.find({
+      patientId: { $in: patientIds },
+      deletedAt: null,
+      status: 'SENT',
+    }).select('_id patientId quotationNumber total currency sentAt createdAt').limit(20).lean();
+
+    for (const q of quotations) {
+      const exists = await NotificationModel.exists({
+        recipientUserId: new Types.ObjectId(userId),
+        relatedEntityId: q._id,
+        type: 'QUOTATION_AVAILABLE',
+      });
+      if (!exists) {
+        await NotificationModel.create([{
+          recipientRole: 'PATIENT',
+          recipientUserId: new Types.ObjectId(userId),
+          patientId: q.patientId,
+          type: 'QUOTATION_AVAILABLE',
+          title: 'Dental Quotation Available',
+          message: `Dental Treatment Quotation ${q.quotationNumber} is ready for your review and decision.`,
+          relatedEntityId: q._id,
+          createdAt: q.sentAt ?? q.createdAt ?? new Date(),
           isRead: false,
         }]);
       }

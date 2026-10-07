@@ -116,4 +116,40 @@ describe('isAppointmentCheckInEligible', () => {
     );
     expect(confirmed.canCheckIn).toBe(true);
   });
+
+  it('re-evaluates check-in eligibility when an appointment is rescheduled', () => {
+    const currentTime = new Date('2026-10-15T13:30:00');
+    // Initially eligible at 14:00 (within 60m window at 13:30)
+    const initial = isAppointmentCheckInEligible(baseAppointment, currentTime, 60);
+    expect(initial.canCheckIn).toBe(true);
+
+    // Rescheduled to later today at 16:00 (150 minutes away, outside 60m window)
+    const rescheduledLater = isAppointmentCheckInEligible(
+      {
+        ...baseAppointment,
+        start_time: '16:00',
+        end_time: '16:30',
+        status: 'SCHEDULED',
+      },
+      currentTime,
+      60
+    );
+    expect(rescheduledLater.canCheckIn).toBe(false);
+    expect(rescheduledLater.windowState).toBe('before_window');
+
+    // Rescheduled to tomorrow at 14:00
+    const rescheduledTomorrow = isAppointmentCheckInEligible(
+      {
+        ...baseAppointment,
+        appointment_date: '2026-10-16',
+        start_time: '14:00',
+        end_time: '14:30',
+        status: 'SCHEDULED',
+      },
+      currentTime,
+      60
+    );
+    expect(rescheduledTomorrow.canCheckIn).toBe(false);
+    expect(rescheduledTomorrow.windowState).toBe('not_today');
+  });
 });

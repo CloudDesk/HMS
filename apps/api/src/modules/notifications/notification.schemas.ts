@@ -22,6 +22,7 @@ export const createNotificationBodySchema = {
         'IMAGING_REPORT',
         'CONSENT_REQUIRED',
         'INVOICE_PENDING',
+        'QUOTATION_AVAILABLE',
       ],
     },
     related_entity_id: { type: ['string', 'null'], pattern: objectIdPattern },

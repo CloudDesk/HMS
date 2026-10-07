@@ -9,6 +9,8 @@ import { UserModel } from '../users/user.model.js';
 import { SequenceService } from '../../shared/sequence/sequence.service.js';
 import { PatientAccessGrantModel } from '../patient-portal/patient-access-grant.model.js';
 import type { BillingService } from '../billing/billing.service.js';
+import { NotificationModel } from '../notifications/notification.model.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 const isObjectId = (value: string | null | undefined) =>
   Boolean(value && Types.ObjectId.isValid(value));
@@ -46,6 +48,7 @@ export class DentalQuotationService {
     private readonly sequenceService: SequenceService,
     private readonly stageRepository?: DentalStageRepository,
     private readonly billingService?: BillingService,
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async createDraftQuotation(
@@ -280,6 +283,49 @@ export class DentalQuotationService {
       },
       userId,
     );
+
+    if (this.notificationService) {
+      try {
+        const grants = await PatientAccessGrantModel.find({
+          patientId: new Types.ObjectId(updated.patient_id),
+          status: 'VERIFIED',
+        }).select('userId').lean();
+
+        const userDocs = await UserModel.find({
+          patientId: new Types.ObjectId(updated.patient_id),
+          deletedAt: null,
+        }).select('_id').lean();
+
+        const targetUserIds = new Set<string>();
+        for (const g of grants) {
+          if (g.userId) targetUserIds.add(g.userId.toString());
+        }
+        for (const u of userDocs) {
+          if (u._id) targetUserIds.add(u._id.toString());
+        }
+
+        for (const recipientUserId of targetUserIds) {
+          const exists = await NotificationModel.exists({
+            recipientUserId: new Types.ObjectId(recipientUserId),
+            relatedEntityId: new Types.ObjectId(updated.id),
+            type: 'QUOTATION_AVAILABLE',
+          });
+          if (!exists) {
+            await this.notificationService.createNotification({
+              recipient_role: 'PATIENT',
+              recipient_user_id: recipientUserId,
+              patient_id: updated.patient_id,
+              type: 'QUOTATION_AVAILABLE',
+              title: 'Dental Quotation Available',
+              message: `Dental Treatment Quotation ${updated.quotation_number} is ready for your review and decision.`,
+              related_entity_id: updated.id,
+            });
+          }
+        }
+      } catch {
+        // Notification creation failure should not fail quotation send
+      }
+    }
 
     return updated;
   }

@@ -6,6 +6,22 @@ export const serviceIdParamsSchema = {
   },
 } as const;
 
+export const bulkDeleteServicesBodySchema = {
+  type: 'object',
+  required: ['department_id', 'service_ids'],
+  additionalProperties: false,
+  properties: {
+    department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    service_ids: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      items: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    },
+  },
+} as const;
+
 export const listServicesQuerySchema = {
   type: 'object',
   additionalProperties: false,

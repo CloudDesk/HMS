@@ -242,6 +242,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     sequenceService,
     dentalStageRepository,
     billingService,
+    notificationService,
   );
   const opdVisitService = new OpdVisitService(
     opdVisitRepository,

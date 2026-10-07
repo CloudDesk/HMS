@@ -101,6 +101,12 @@ export type UserSummary = {
   addedThisMonth: number;
 };
 
+export type ReassignDepartmentUsersPayload = {
+  user_ids: string[];
+  from_department_id: string;
+  to_department_id: string;
+};
+
 const toQueryString = (params: UserListParams) => {
   const searchParams = new URLSearchParams();
 
@@ -166,6 +172,13 @@ export const usersApi = {
     return apiClient.request<UserResponse>(`/users/${encodeURIComponent(id)}/status`, {
       body: { status },
       method: 'PATCH',
+    });
+  },
+
+  reassignDepartment(payload: ReassignDepartmentUsersPayload) {
+    return apiClient.request<{ success: true; reassigned: number }>('/users/reassign-department', {
+      body: payload,
+      method: 'POST',
     });
   },
 

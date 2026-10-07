@@ -9,7 +9,6 @@ import {
   type SaveBranchPayload,
   type UpdateBranchPayload,
 } from '../api/branches';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
@@ -17,7 +16,7 @@ import { BranchWardBedConfiguration } from '../components/branches/BranchWardBed
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 
-import { useBranchManagementFeature, type SortColumn } from '../hooks/branches/useBranchManagementFeature';
+import { useBranchDeleteFeature, useBranchManagementFeature, type SortColumn } from '../hooks/branches/useBranchManagementFeature';
 
 type ModalMode = 'create' | 'edit' | 'view';
 
@@ -36,6 +35,75 @@ const branchSchema = z.object({
   status: z.enum(['active', 'inactive', 'archived'])
 });
 type BranchFormData = z.infer<typeof branchSchema>;
+
+function BranchDeleteDialog({
+  branch,
+  loading,
+  canDelete,
+  onCancel,
+  onConfirm,
+}: {
+  branch: BranchResponse;
+  loading: boolean;
+  canDelete: boolean;
+  onCancel: () => void;
+  onConfirm: (reassignToBranchId?: string) => void;
+}) {
+  const [usersPage, setUsersPage] = useState(1);
+  const [reassignToBranchId, setReassignToBranchId] = useState('');
+  const { previewQuery, activeBranchesQuery, hasAssignments } = useBranchDeleteFeature(branch.id, usersPage, canDelete);
+  const activeBranches = activeBranchesQuery.data?.data ?? [];
+  const hasOtherActiveBranch = activeBranches.some((candidate) => candidate.id !== branch.id);
+
+  return (
+    <Modal
+      open
+      size="large"
+      title="Delete Branch"
+      onClose={() => { if (!loading) onCancel(); }}
+      footer={(
+        <>
+          <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">Cancel</button>
+          <button
+            className="btn-danger"
+            disabled={loading || previewQuery.isLoading || Boolean(previewQuery.error) || branch.status !== 'INACTIVE' || (hasAssignments && (!reassignToBranchId || activeBranchesQuery.isLoading || Boolean(activeBranchesQuery.error) || !hasOtherActiveBranch))}
+            onClick={() => onConfirm(reassignToBranchId || undefined)}
+            type="button"
+          >{loading ? 'Deleting…' : 'Delete Branch'}</button>
+        </>
+      )}
+    >
+      <p className="dialog-message">Delete {branch.name}? Assigned users, doctors, and departments will be reassigned to the selected active branch.</p>
+      {branch.status !== 'INACTIVE' && <p role="alert">Deactivate this branch before deleting it.</p>}
+      {previewQuery.isLoading && <p>Loading branch assignments…</p>}
+      {previewQuery.error && <div role="alert">Could not load assigned users. <button className="btn-secondary" onClick={() => void previewQuery.refetch()} type="button">Retry</button></div>}
+      {previewQuery.data && (
+        <>
+          <h4>Assigned users ({previewQuery.data.user_meta.total})</h4>
+          {previewQuery.data.user_meta.total === 0 ? <p>No users are assigned to this branch.</p> : (
+            <ul className="branch-delete-users">
+              {previewQuery.data.users.map((user) => <li key={user.id}><strong>{user.name}</strong>{user.job_title ? ` · ${user.job_title}` : ''}<span> ({user.status})</span></li>)}
+            </ul>
+          )}
+          {previewQuery.data.user_meta.total > previewQuery.data.user_meta.limit && <div><button className="btn-secondary" disabled={usersPage <= 1} onClick={() => setUsersPage((page) => page - 1)} type="button">Previous users</button><span> Page {previewQuery.data.user_meta.page} of {Math.ceil(previewQuery.data.user_meta.total / previewQuery.data.user_meta.limit)} </span><button className="btn-secondary" disabled={previewQuery.data.user_meta.page >= Math.ceil(previewQuery.data.user_meta.total / previewQuery.data.user_meta.limit)} onClick={() => setUsersPage((page) => page + 1)} type="button">Next users</button></div>}
+          {previewQuery.data.departments > 0 && <p>{previewQuery.data.departments} department(s) will also be reassigned, preserving their service and user links.</p>}
+          {previewQuery.data.doctors > 0 && <p>{previewQuery.data.doctors} doctor record(s) will also be reassigned.</p>}
+          {hasAssignments && (
+            <div className="form-group">
+              <label htmlFor="branch-delete-reassign">Reassign to <span className="required" aria-hidden="true">*</span></label>
+              <select id="branch-delete-reassign" value={reassignToBranchId} onChange={(event) => setReassignToBranchId(event.target.value)} disabled={loading || activeBranchesQuery.isLoading}>
+                <option value="">Select an active branch</option>
+                {activeBranches.filter((candidate) => candidate.id !== branch.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} ({candidate.code})</option>)}
+              </select>
+              {activeBranchesQuery.error && <p role="alert">Could not load active branches. <button className="btn-secondary" onClick={() => void activeBranchesQuery.refetch()} type="button">Retry</button></p>}
+              {!activeBranchesQuery.isLoading && !activeBranchesQuery.error && !hasOtherActiveBranch && <p role="alert">No other active branch is available for reassignment.</p>}
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
 
 
 
@@ -165,10 +233,10 @@ export function BranchManagementPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (reassignToBranchId?: string) => {
     if (!deleteTarget) return;
     try {
-      await mutations.deleteBranch.mutateAsync(deleteTarget.id);
+      await mutations.deleteBranch.mutateAsync({ id: deleteTarget.id, reassignToBranchId: reassignToBranchId || undefined });
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
       if (branches.length === 1 && currentPage > 1) {
@@ -744,16 +812,12 @@ export function BranchManagementPage() {
       )}
 
       {deleteTarget && (
-        <ConfirmDialog
-          open={!!deleteTarget}
+        <BranchDeleteDialog
+          branch={deleteTarget}
           loading={submitting}
-          confirmLabel="Delete Branch"
-          message={`Are you sure you want to delete ${deleteTarget.name}? This action cannot be undone.`}
-          onCancel={() => {
-            if (!submitting) setDeleteTarget(null);
-          }}
-          onConfirm={handleDelete}
-          title="Delete Branch"
+          canDelete={canDelete}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(reassignToBranchId) => void handleDelete(reassignToBranchId)}
         />
       )}
 

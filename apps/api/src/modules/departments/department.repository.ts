@@ -172,6 +172,24 @@ export class DepartmentRepository {
     return { services, users };
   }
 
+  async deletePreview(id: string, page = 1, limit = 25) {
+    const offset = (page - 1) * limit;
+    const [services, users, serviceCount, userCount] = await Promise.all([
+      ServiceModel.find({ departmentId: id, deletedAt: null })
+        .select('_id code name serviceType status').sort({ name: 1 }).skip(offset).limit(limit).lean(),
+      UserModel.find({ departmentIds: id, deletedAt: null })
+        .select('_id employeeCode fullName username jobTitle status').sort({ fullName: 1 }).skip(offset).limit(limit).lean(),
+      ServiceModel.countDocuments({ departmentId: id, deletedAt: null }),
+      UserModel.countDocuments({ departmentIds: id, deletedAt: null }),
+    ]);
+    return {
+      services: services.map((service) => ({ id: String(service._id), code: service.code, name: service.name, type: service.serviceType, status: service.status })),
+      users: users.map((user) => ({ id: String(user._id), employee_code: user.employeeCode ?? null, name: user.fullName || user.username, job_title: user.jobTitle ?? null, status: user.status })),
+      service_meta: { page, limit, total: serviceCount },
+      user_meta: { page, limit, total: userCount },
+    };
+  }
+
   async softDelete(id: string, actorUserId: string) {
     return DepartmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null },

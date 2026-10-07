@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -21,6 +21,8 @@ export function OtpScreen() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
   const inputRef = useRef<TextInput>(null);
+  const isVerifyingRef = useRef(false);
+  const autoSubmittedOtpRef = useRef<string | null>(null);
 
   const phone = state.phone ?? '';
   const isSubmitting =
@@ -47,18 +49,42 @@ export function OtpScreen() {
     return () => clearInterval(interval);
   }, [state.resendAt]);
 
-  const handleVerify = async () => {
-    setLocalError(null);
-    const cleaned = otp.trim();
-    if (cleaned.length !== 4 || !/^\d{4}$/.test(cleaned)) {
-      setLocalError('Please enter the 4-digit verification code.');
-      return;
+  const handleVerify = useCallback(
+    async (codeToVerify?: string) => {
+      if (isSubmitting || isVerifyingRef.current) return;
+      const targetOtp = typeof codeToVerify === 'string' ? codeToVerify : otp;
+      const cleaned = targetOtp.trim().replace(/\D/g, '');
+      if (cleaned.length !== 4 || !/^\d{4}$/.test(cleaned)) {
+        setLocalError('Please enter the 4-digit verification code.');
+        return;
+      }
+      isVerifyingRef.current = true;
+      setLocalError(null);
+      try {
+        await verifyOtp(cleaned);
+      } finally {
+        isVerifyingRef.current = false;
+      }
+    },
+    [isSubmitting, otp, verifyOtp]
+  );
+
+  // Automatically trigger verification as soon as the 4th valid digit is entered
+  useEffect(() => {
+    const cleaned = otp.trim().replace(/\D/g, '');
+    if (cleaned.length === 4 && /^\d{4}$/.test(cleaned)) {
+      if (!isSubmitting && !isVerifyingRef.current && autoSubmittedOtpRef.current !== cleaned) {
+        autoSubmittedOtpRef.current = cleaned;
+        void handleVerify(cleaned);
+      }
+    } else {
+      autoSubmittedOtpRef.current = null;
     }
-    await verifyOtp(cleaned);
-  };
+  }, [otp, isSubmitting, handleVerify]);
 
   const handleResend = async () => {
-    if (secondsRemaining > 0 || isSubmitting || !phone) return;
+    if (secondsRemaining > 0 || isSubmitting || isVerifyingRef.current || !phone) return;
+    autoSubmittedOtpRef.current = null;
     setLocalError(null);
     setOtp('');
     await requestOtp(phone);
@@ -128,20 +154,23 @@ export function OtpScreen() {
             autoFocus
             value={otp}
             onChangeText={(text) => {
-              const numeric = text.replace(/\D/g, '');
+              const numeric = text.replace(/\D/g, '').slice(0, 4);
               setOtp(numeric);
               if (localError) setLocalError(null);
             }}
-            editable={!isSubmitting}
+            editable={!isSubmitting && !isVerifyingRef.current}
           />
 
           <TouchableOpacity
-            style={[styles.primaryButton, (isSubmitting || otp.length < 4) && styles.buttonDisabled]}
-            onPress={handleVerify}
-            disabled={isSubmitting || otp.length < 4}
+            style={[
+              styles.primaryButton,
+              (isSubmitting || isVerifyingRef.current || otp.length < 4) && styles.buttonDisabled,
+            ]}
+            onPress={() => void handleVerify()}
+            disabled={isSubmitting || isVerifyingRef.current || otp.length < 4}
             activeOpacity={0.85}
           >
-            {isSubmitting ? (
+            {isSubmitting || isVerifyingRef.current ? (
               <ActivityIndicator color={colors.text.inverse} size="small" />
             ) : (
               <Text style={styles.primaryButtonText}>

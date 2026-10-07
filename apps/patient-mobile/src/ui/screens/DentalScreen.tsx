@@ -88,6 +88,9 @@ export function DentalScreen({ onNavigateBack }: DentalScreenProps) {
         ]);
         setQuotations(quotesRes);
         setStages(stagesRes);
+        if (stagesRes.length === 0 && quotesRes.length > 0) {
+          setMainView('QUOTATIONS');
+        }
       } catch (err: unknown) {
         const msg =
           err instanceof Error

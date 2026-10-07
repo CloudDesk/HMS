@@ -93,11 +93,11 @@ export function LoginScreen() {
       return;
     }
     const digitsOnly = cleaned.replace(/\D/g, '');
-    if (digitsOnly.length < 7) {
-      setLocalError('Enter a valid mobile number (at least 7 digits).');
+    if (digitsOnly.length !== 10) {
+      setLocalError('Enter a valid 10-digit mobile number.');
       return;
     }
-    await requestOtp(cleaned, isRegisterMode ? 'register' : 'login');
+    await requestOtp(digitsOnly, isRegisterMode ? 'register' : 'login');
   };
 
   return (
@@ -177,16 +177,18 @@ export function LoginScreen() {
                 </View>
                 <TextInput
                   ref={inputRef}
-                  style={styles.input}
+                  style={[styles.input, displayError ? styles.inputError : undefined]}
                   placeholder="9876543210"
                   placeholderTextColor={colors.text.muted}
-                  keyboardType="phone-pad"
+                  keyboardType="number-pad"
+                  maxLength={10}
                   autoCapitalize="none"
                   autoCorrect={false}
                   value={phone}
                   onFocus={handleInputFocus}
                   onChangeText={(text) => {
-                    setPhone(text);
+                    const digitsOnly = text.replace(/\D/g, '').slice(0, 10);
+                    setPhone(digitsOnly);
                     if (localError) setLocalError(null);
                     if (state.message || state.errorDetails) clearError();
                   }}
@@ -353,6 +355,9 @@ const styles = StyleSheet.create({
     fontSize: typography.size.base,
     color: colors.text.primary,
     fontWeight: typography.weight.medium,
+  },
+  inputError: {
+    borderColor: colors.status.danger,
   },
   button: {
     backgroundColor: colors.brand.primary,

@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
 import { assertPasswordPolicy, getEffectivePasswordPolicy } from '../../shared/security/password-policy.js';
 import { createCsvStream } from '../../shared/http/csv.js';
@@ -385,6 +386,55 @@ export class UserService {
 
     await this.audit('user.updated', actorUserId, id, metadata);
     return this.getById(id, actorUserId);
+  }
+
+  async reassignDepartmentUsers(
+    input: { user_ids: string[]; from_department_id: string; to_department_id: string },
+    actorUserId: string,
+    metadata: RequestMetadata,
+  ) {
+    const { user_ids: userIds, from_department_id: fromDepartmentId, to_department_id: toDepartmentId } = input;
+    if (userIds.length === 0 || userIds.length > 100 || new Set(userIds).size !== userIds.length) {
+      throw new AppError('Select between 1 and 100 unique users', 400, 'INVALID_USER_SELECTION');
+    }
+    if (fromDepartmentId === toDepartmentId) {
+      throw new AppError('Choose a different department for reassignment', 400, 'INVALID_DEPARTMENT_REASSIGNMENT');
+    }
+
+    await Promise.all(userIds.map(async (id) => {
+      await this.assertCanManageUser(actorUserId, id);
+      const user = await this.getById(id, actorUserId);
+      if (!user.departments.some((department) => department.id === fromDepartmentId)) {
+        throw new AppError('A selected user is no longer assigned to this department. Refresh and try again.', 409, 'STALE_USER_ASSIGNMENTS');
+      }
+      const departments = user.departments.filter((department) => department.id !== fromDepartmentId);
+      if (!departments.some((department) => department.id === toDepartmentId)) {
+        departments.push({ id: toDepartmentId, name: null, isPrimary: false });
+      }
+      await this.validateReferences(user.branches, departments, user.roleIds);
+    }));
+
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const reassigned = await this.repository.reassignDepartmentMemberships(
+        userIds,
+        fromDepartmentId,
+        toDepartmentId,
+        actorUserId,
+        session,
+      );
+      if (reassigned !== userIds.length) {
+        throw new AppError('A selected user assignment changed. Refresh and try again.', 409, 'STALE_USER_ASSIGNMENTS');
+      }
+      await Promise.all(userIds.map((subjectUserId) => this.audit(
+        'user.department_reassigned',
+        actorUserId,
+        subjectUserId,
+        metadata,
+        { fromDepartmentId, toDepartmentId },
+        session,
+      )));
+      return { success: true as const, reassigned: userIds.length };
+    });
   }
 
   async updateProfile(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
