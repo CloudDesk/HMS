@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import { usePatient } from '../../portal/PatientContext';
 import { NotificationsApi } from '../../notifications/notifications-api';
 import {
   formatNotificationTime,
+  getNotificationDestination,
   getNotificationTypeIcon,
   getNotificationTypeLabel,
   type PortalNotification,
@@ -28,7 +30,14 @@ type FilterMode = 'ALL' | 'UNREAD';
 
 interface NotificationsScreenProps {
   onNavigateBack?: () => void;
-  onNavigateTab?: (tab: MainTab) => void;
+  onNavigateTab?: (
+    tab: MainTab,
+    options?: {
+      entityId?: string | null;
+      patientId?: string | null;
+      initialQuotationId?: string | null;
+    }
+  ) => void;
 }
 
 export function NotificationsScreen({
@@ -36,7 +45,7 @@ export function NotificationsScreen({
   onNavigateTab,
 }: NotificationsScreenProps) {
   const { manager } = useAuth();
-  const { selectedPatient, selectedPatientId } = usePatient();
+  const { context, selectedPatient, selectedPatientId, switchPatient } = usePatient();
 
   const [activeFilter, setActiveFilter] = useState<FilterMode>('ALL');
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
@@ -49,6 +58,7 @@ export function NotificationsScreen({
     null
   );
 
+  const isNavigatingRef = useRef<boolean>(false);
   const api = useMemo(() => new NotificationsApi(manager), [manager]);
 
   const loadNotifications = useCallback(
@@ -93,16 +103,63 @@ export function NotificationsScreen({
   }, [selectedPatientId, loadNotifications]);
 
   const handleOpenNotification = async (item: PortalNotification) => {
-    setSelectedNotif(item);
+    // 1. Mark as read immediately (async, does not block navigation)
     if (!item.is_read) {
-      try {
-        const updated = await api.markAsRead(item.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === item.id ? updated : n))
+      api.markAsRead(item.id)
+        .then((updated) => {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? updated : n))
+          );
+        })
+        .catch(() => {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n))
+          );
+        });
+    }
+
+    const destination = getNotificationDestination(item.type);
+
+    // If no navigation destination exists, open the detail modal to view full message
+    if (!destination || !onNavigateTab) {
+      setSelectedNotif(item);
+      return;
+    }
+
+    if (isNavigatingRef.current) return;
+
+    // 2. Patient Context Safety:
+    // If notification specifies a patient_id different from current profile:
+    if (item.patient_id && item.patient_id !== selectedPatientId) {
+      const isAuthorized = context?.patients.some((p) => p.id === item.patient_id);
+      if (!isAuthorized) {
+        Alert.alert(
+          'Access Restricted',
+          'This notification belongs to a patient profile you do not have permission to view.'
         );
-      } catch {
-        // Optimistic fallback
+        return;
       }
+      try {
+        await switchPatient(item.patient_id);
+      } catch {
+        Alert.alert('Error', 'Unable to switch to the required patient profile.');
+        return;
+      }
+    }
+
+    // 3. Trigger deep-link navigation
+    isNavigatingRef.current = true;
+    try {
+      onNavigateTab(destination.tab, {
+        entityId: item.related_entity_id,
+        patientId: item.patient_id,
+        initialQuotationId:
+          item.type === 'QUOTATION_AVAILABLE' ? item.related_entity_id : undefined,
+      });
+    } finally {
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
     }
   };
 
@@ -269,7 +326,15 @@ export function NotificationsScreen({
         notification={selectedNotif}
         visible={Boolean(selectedNotif)}
         onClose={() => setSelectedNotif(null)}
-        onNavigateTab={onNavigateTab}
+        onNavigateTab={(tab, options) => {
+          const current = selectedNotif;
+          setSelectedNotif(null);
+          if (current) {
+            void handleOpenNotification(current);
+          } else if (onNavigateTab) {
+            onNavigateTab(tab, options);
+          }
+        }}
       />
     </View>
   );

@@ -29,9 +29,10 @@ type ConsentFilterTab = 'ALL' | 'PENDING' | 'SIGNED';
 
 interface ConsentsScreenProps {
   onNavigateBack?: () => void;
+  initialConsentId?: string | null;
 }
 
-export function ConsentsScreen({ onNavigateBack }: ConsentsScreenProps) {
+export function ConsentsScreen({ onNavigateBack, initialConsentId }: ConsentsScreenProps) {
   const { manager } = useAuth();
   const { context, selectedPatient, selectedPatientId } = usePatient();
 
@@ -64,6 +65,12 @@ export function ConsentsScreen({ onNavigateBack }: ConsentsScreenProps) {
       try {
         const result = await api.listConsents(selectedPatientId);
         setConsents(result);
+        if (initialConsentId) {
+          const target = result.find((c) => c.id === initialConsentId);
+          if (target) {
+            setSelectedConsent(target);
+          }
+        }
       } catch (err: unknown) {
         const msg =
           err instanceof Error
@@ -75,7 +82,7 @@ export function ConsentsScreen({ onNavigateBack }: ConsentsScreenProps) {
         setIsRefreshing(false);
       }
     },
-    [api, selectedPatientId]
+    [api, selectedPatientId, initialConsentId]
   );
 
   // Patient context isolation: clear state immediately upon switching patient
@@ -84,6 +91,15 @@ export function ConsentsScreen({ onNavigateBack }: ConsentsScreenProps) {
     setSelectedConsent(null);
     void loadConsents(false);
   }, [loadConsents]);
+
+  useEffect(() => {
+    if (initialConsentId && consents.length > 0) {
+      const target = consents.find((c) => c.id === initialConsentId);
+      if (target) {
+        setSelectedConsent(target);
+      }
+    }
+  }, [initialConsentId, consents]);
 
   const handleUploadSignature = async (
     consentId: string,

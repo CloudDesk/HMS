@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatNotificationTime,
   getNotificationDestination,
+  getNotificationTarget,
   getNotificationTypeIcon,
   getNotificationTypeLabel,
   portalNotificationSchema,
@@ -94,5 +95,68 @@ describe('Notifications Contracts & Schemas', () => {
       const general = getNotificationDestination('GENERAL');
       expect(general).toBeNull();
     });
+
+    it('resolves exact notification target with entity ID and patient context', () => {
+      const target = getNotificationTarget({
+        id: 'notif-100',
+        title: 'Dental Quotation Available',
+        message: 'Dental Treatment Quotation DTQ-00001 is ready for your review.',
+        type: 'QUOTATION_AVAILABLE',
+        recipient_role: 'PATIENT',
+        recipient_user_id: 'user-001',
+        recipient_branch_id: null,
+        patient_id: 'pat-001',
+        related_entity_id: 'quote-001',
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+
+      expect(target).toEqual({
+        tab: 'dental',
+        entityId: 'quote-001',
+        patientId: 'pat-001',
+        label: 'View Quotations',
+      });
+
+      // Fallback when entity/patient is missing
+      const fallbackTarget = getNotificationTarget({
+        id: 'notif-101',
+        title: 'Appointment Notice',
+        message: 'Your token is called',
+        type: 'CALL_NEXT_PATIENT',
+        recipient_role: 'PATIENT',
+        recipient_user_id: 'user-001',
+        recipient_branch_id: null,
+        patient_id: null,
+        related_entity_id: null,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+
+      expect(fallbackTarget).toEqual({
+        tab: 'appointments',
+        entityId: null,
+        patientId: null,
+        label: 'View Appointment',
+      });
+
+      // Null target for general notice
+      const nullTarget = getNotificationTarget({
+        id: 'notif-102',
+        title: 'Notice',
+        message: 'Holiday hours notice',
+        type: 'GENERAL',
+        recipient_role: 'PATIENT',
+        recipient_user_id: 'user-001',
+        recipient_branch_id: null,
+        patient_id: null,
+        related_entity_id: null,
+        is_read: true,
+        created_at: new Date().toISOString(),
+      });
+
+      expect(nullTarget).toBeNull();
+    });
   });
 });
+

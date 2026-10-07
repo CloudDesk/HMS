@@ -143,3 +143,24 @@ export function getNotificationDestination(type: string): {
       return null;
   }
 }
+
+export interface NotificationTarget {
+  tab: MainTab;
+  entityId: string | null;
+  patientId: string | null;
+  label: string;
+}
+
+export function getNotificationTarget(notification: PortalNotification): NotificationTarget | null {
+  const destination = getNotificationDestination(notification.type);
+  if (!destination) return null;
+
+  return {
+    tab: destination.tab,
+    entityId: notification.related_entity_id ?? null,
+    patientId: notification.patient_id ?? null,
+    label: destination.label,
+  };
+}
+
+

@@ -30,6 +30,7 @@ type FilterTab = 'all' | 'outstanding' | 'paid';
 
 interface BillingScreenProps {
   onNavigateBack?: () => void;
+  initialInvoiceId?: string | null;
 }
 
 const getInvoiceBadgeVariant = (status: string): StatusVariant => {
@@ -46,7 +47,7 @@ const getInvoiceBadgeVariant = (status: string): StatusVariant => {
   }
 };
 
-export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
+export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScreenProps) {
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId, overview } = usePatient();
 
@@ -75,53 +76,6 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
 
   const billingApi = useMemo(() => new BillingApi(manager), [manager]);
 
-  const loadBillingData = useCallback(
-    async (isRefresh = false) => {
-      if (!selectedPatientId) return;
-
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      try {
-        const result = await billingApi.getBillingOverview(selectedPatientId);
-        setInvoices(result.invoices);
-      } catch (err: unknown) {
-        const msg =
-          err instanceof Error
-            ? err.message
-            : 'Unable to load hospital invoices. Please retry.';
-        setError(msg);
-      } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [billingApi, selectedPatientId]
-  );
-
-  useEffect(() => {
-    setSelectedInvoiceSummary(null);
-    setInvoiceDetails(null);
-    setModalError(null);
-    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId) {
-      const parsedInvoices = portalInvoiceSummaryItemSchema.array().safeParse(overview.invoices);
-      if (parsedInvoices.success) {
-        setInvoices(parsedInvoices.data);
-        setIsLoading(false);
-        setError(null);
-        return;
-      }
-    }
-    setInvoices([]);
-    if (selectedPatientId) {
-      void loadBillingData(false);
-    }
-  }, [selectedPatientId, overview, loadBillingData]);
-
   const handleOpenInvoice = useCallback(
     async (invoice: PortalInvoiceSummaryItem) => {
       if (!selectedPatientId) return;
@@ -148,6 +102,74 @@ export function BillingScreen({ onNavigateBack }: BillingScreenProps) {
     },
     [billingApi, selectedPatientId]
   );
+
+  const loadBillingData = useCallback(
+    async (isRefresh = false) => {
+      if (!selectedPatientId) return;
+
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      try {
+        const result = await billingApi.getBillingOverview(selectedPatientId);
+        setInvoices(result.invoices);
+        if (initialInvoiceId) {
+          const target = result.invoices.find((i) => i.id === initialInvoiceId);
+          if (target) {
+            void handleOpenInvoice(target);
+          }
+        }
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : 'Unable to load hospital invoices. Please retry.';
+        setError(msg);
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [billingApi, selectedPatientId, initialInvoiceId, handleOpenInvoice]
+  );
+
+  useEffect(() => {
+    setSelectedInvoiceSummary(null);
+    setInvoiceDetails(null);
+    setModalError(null);
+    if (overview && selectedPatientId && overview.patient?.id === selectedPatientId) {
+      const parsedInvoices = portalInvoiceSummaryItemSchema.array().safeParse(overview.invoices);
+      if (parsedInvoices.success) {
+        setInvoices(parsedInvoices.data);
+        setIsLoading(false);
+        setError(null);
+        if (initialInvoiceId) {
+          const target = parsedInvoices.data.find((i) => i.id === initialInvoiceId);
+          if (target) {
+            void handleOpenInvoice(target);
+          }
+        }
+        return;
+      }
+    }
+    setInvoices([]);
+    if (selectedPatientId) {
+      void loadBillingData(false);
+    }
+  }, [selectedPatientId, overview, loadBillingData, initialInvoiceId, handleOpenInvoice]);
+
+  useEffect(() => {
+    if (initialInvoiceId && invoices.length > 0) {
+      const target = invoices.find((i) => i.id === initialInvoiceId);
+      if (target) {
+        void handleOpenInvoice(target);
+      }
+    }
+  }, [initialInvoiceId, invoices, handleOpenInvoice]);
 
   // Calculate totals - CANCELLED invoices are voided/non-payable, matching backend accounting rules
   const activeInvoices = useMemo(

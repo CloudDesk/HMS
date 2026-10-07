@@ -21,7 +21,14 @@ interface NotificationDetailsModalProps {
   visible: boolean;
   onClose: () => void;
   notification: PortalNotification | null;
-  onNavigateTab?: (tab: MainTab) => void;
+  onNavigateTab?: (
+    tab: MainTab,
+    options?: {
+      entityId?: string | null;
+      patientId?: string | null;
+      initialQuotationId?: string | null;
+    }
+  ) => void;
 }
 
 export function NotificationDetailsModal({
@@ -37,9 +44,16 @@ export function NotificationDetailsModal({
   const destination = getNotificationDestination(notification.type);
 
   const handleAction = () => {
-    if (destination && onNavigateTab) {
+    if (destination && onNavigateTab && notification) {
       onClose();
-      onNavigateTab(destination.tab);
+      onNavigateTab(destination.tab, {
+        entityId: notification.related_entity_id,
+        patientId: notification.patient_id,
+        initialQuotationId:
+          notification.type === 'QUOTATION_AVAILABLE'
+            ? notification.related_entity_id
+            : undefined,
+      });
     }
   };
 

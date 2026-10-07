@@ -29,38 +29,73 @@ import { ErrorScreen } from './src/ui/screens/ErrorScreen';
 import { BottomNavBar, type MainTab } from './src/ui/components/BottomNavBar';
 import { colors } from './src/ui/theme';
 
+export interface NavigationOptions {
+  entityId?: string | null;
+  patientId?: string | null;
+  initialQuotationId?: string | null;
+}
+
 function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState<MainTab>('home');
+  const [navOptions, setNavOptions] = useState<NavigationOptions | null>(null);
+
+  const handleNavigateTab = (tab: MainTab, options?: NavigationOptions) => {
+    setActiveTab(tab);
+    setNavOptions(options ?? null);
+  };
 
   const renderScreen = () => {
     switch (activeTab) {
       case 'home':
-        return <HomeScreen onNavigateTab={setActiveTab} />;
+        return <HomeScreen onNavigateTab={handleNavigateTab} />;
       case 'appointments':
-        return <AppointmentsScreen />;
+        return (
+          <AppointmentsScreen
+            initialAppointmentId={activeTab === 'appointments' ? navOptions?.entityId : undefined}
+          />
+        );
       case 'records':
         return <RecordsScreen />;
       case 'prescriptions':
         return <PrescriptionsScreen />;
       case 'billing':
-        return <BillingScreen onNavigateBack={() => setActiveTab('home')} />;
+        return (
+          <BillingScreen
+            onNavigateBack={() => handleNavigateTab('home')}
+            initialInvoiceId={activeTab === 'billing' ? navOptions?.entityId : undefined}
+          />
+        );
       case 'documents':
-        return <DocumentsScreen onNavigateBack={() => setActiveTab('home')} />;
+        return <DocumentsScreen onNavigateBack={() => handleNavigateTab('home')} />;
       case 'dental':
-        return <DentalScreen onNavigateBack={() => setActiveTab('home')} />;
+        return (
+          <DentalScreen
+            onNavigateBack={() => handleNavigateTab('home')}
+            initialQuotationId={
+              activeTab === 'dental'
+                ? (navOptions?.initialQuotationId ?? navOptions?.entityId)
+                : undefined
+            }
+          />
+        );
       case 'consents':
-        return <ConsentsScreen onNavigateBack={() => setActiveTab('home')} />;
+        return (
+          <ConsentsScreen
+            onNavigateBack={() => handleNavigateTab('home')}
+            initialConsentId={activeTab === 'consents' ? navOptions?.entityId : undefined}
+          />
+        );
       case 'notifications':
         return (
           <NotificationsScreen
-            onNavigateBack={() => setActiveTab('home')}
-            onNavigateTab={setActiveTab}
+            onNavigateBack={() => handleNavigateTab('home')}
+            onNavigateTab={handleNavigateTab}
           />
         );
       case 'profile':
-        return <ProfileScreen onNavigateTab={setActiveTab} />;
+        return <ProfileScreen onNavigateTab={handleNavigateTab} />;
       default:
-        return <HomeScreen onNavigateTab={setActiveTab} />;
+        return <HomeScreen onNavigateTab={handleNavigateTab} />;
     }
   };
 
@@ -68,7 +103,10 @@ function AuthenticatedApp() {
     <PatientProvider>
       <View style={styles.authenticatedContainer}>
         <View style={styles.tabContent}>{renderScreen()}</View>
-        <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNavBar
+          activeTab={activeTab}
+          onTabChange={(tab) => handleNavigateTab(tab)}
+        />
       </View>
     </PatientProvider>
   );

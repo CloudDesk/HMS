@@ -33,6 +33,7 @@ type DentalFilterTab = 'ALL' | 'PENDING' | 'ACCEPTED';
 
 interface DentalScreenProps {
   onNavigateBack?: () => void;
+  initialQuotationId?: string | null;
 }
 
 const getDentalBadgeVariant = (status: string): StatusVariant => {
@@ -51,11 +52,13 @@ const getDentalBadgeVariant = (status: string): StatusVariant => {
   }
 };
 
-export function DentalScreen({ onNavigateBack }: DentalScreenProps) {
+export function DentalScreen({ onNavigateBack, initialQuotationId }: DentalScreenProps) {
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId } = usePatient();
 
-  const [mainView, setMainView] = useState<DentalMainView>('STAGES');
+  const [mainView, setMainView] = useState<DentalMainView>(
+    initialQuotationId ? 'QUOTATIONS' : 'STAGES'
+  );
   const [activeFilter, setActiveFilter] = useState<DentalFilterTab>('ALL');
 
   const [quotations, setQuotations] = useState<DentalQuotation[]>([]);
@@ -88,7 +91,20 @@ export function DentalScreen({ onNavigateBack }: DentalScreenProps) {
         ]);
         setQuotations(quotesRes);
         setStages(stagesRes);
-        if (stagesRes.length === 0 && quotesRes.length > 0) {
+        if (initialQuotationId) {
+          setMainView('QUOTATIONS');
+          const target = quotesRes.find((q) => q.id === initialQuotationId);
+          if (target) {
+            setSelectedQuote(target);
+          } else {
+            api
+              .getQuotation(initialQuotationId)
+              .then((q) => {
+                if (q) setSelectedQuote(q);
+              })
+              .catch(() => {});
+          }
+        } else if (stagesRes.length === 0 && quotesRes.length > 0) {
           setMainView('QUOTATIONS');
         }
       } catch (err: unknown) {
@@ -102,7 +118,7 @@ export function DentalScreen({ onNavigateBack }: DentalScreenProps) {
         setIsRefreshing(false);
       }
     },
-    [api, selectedPatientId]
+    [api, selectedPatientId, initialQuotationId]
   );
 
   useEffect(() => {
@@ -113,6 +129,23 @@ export function DentalScreen({ onNavigateBack }: DentalScreenProps) {
       void loadData(false);
     }
   }, [selectedPatientId, loadData]);
+
+  useEffect(() => {
+    if (initialQuotationId && quotations.length > 0) {
+      setMainView('QUOTATIONS');
+      const target = quotations.find((q) => q.id === initialQuotationId);
+      if (target) {
+        setSelectedQuote(target);
+      } else {
+        api
+          .getQuotation(initialQuotationId)
+          .then((q) => {
+            if (q) setSelectedQuote(q);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [initialQuotationId, quotations, api]);
 
   const handleAcceptQuotation = async (
     quotationId: string,

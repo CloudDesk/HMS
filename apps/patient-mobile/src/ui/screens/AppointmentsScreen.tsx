@@ -49,7 +49,11 @@ const getStatusVariant = (status: string): StatusVariant => {
   }
 };
 
-export function AppointmentsScreen() {
+interface AppointmentsScreenProps {
+  initialAppointmentId?: string | null;
+}
+
+export function AppointmentsScreen({ initialAppointmentId }: AppointmentsScreenProps = {}) {
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId, refresh: refreshPatientContext } = usePatient();
 
@@ -88,6 +92,12 @@ export function AppointmentsScreen() {
           limit: 50,
         });
         setAppointments(response.data);
+        if (initialAppointmentId) {
+          const target = response.data.find((a) => a.id === initialAppointmentId);
+          if (target) {
+            setViewingAppointment(target);
+          }
+        }
       } catch (err: unknown) {
         setErrorObj(err);
         setError(friendlyError(err));
@@ -96,12 +106,21 @@ export function AppointmentsScreen() {
         setIsRefreshing(false);
       }
     },
-    [api, selectedPatientId, scope]
+    [api, selectedPatientId, scope, initialAppointmentId]
   );
 
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
+
+  useEffect(() => {
+    if (initialAppointmentId && appointments.length > 0) {
+      const target = appointments.find((a) => a.id === initialAppointmentId);
+      if (target) {
+        setViewingAppointment(target);
+      }
+    }
+  }, [initialAppointmentId, appointments]);
 
   const handleBookingSuccess = () => {
     setIsBookingOpen(false);
