@@ -1,5 +1,5 @@
 import { ServiceModel } from './service.model.js';
-import { Types, type ClientSession } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
 import type {
   Service,
@@ -93,6 +93,10 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export class ServiceRepository {
+  async session() {
+    return mongoose.startSession();
+  }
+
   async getActiveBillingServices(ids: string[]) {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
@@ -287,18 +291,40 @@ const byType: Record<Service['service_type'], number> = {
     );
   }
 
+  async findForBulkDelete(ids: string[], departmentId: string, session?: ClientSession) {
+    const query = ServiceModel.find({ _id: { $in: ids }, departmentId, deletedAt: null })
+      .select('_id code serviceType').lean();
+    if (session) query.session(session);
+    const services = await query;
+    return services.map((service) => ({
+      id: String(service._id),
+      code: service.code,
+      serviceType: service.serviceType ?? 'GENERAL',
+    }));
+  }
+
+  async bulkSoftDelete(ids: string[], departmentId: string, actorUserId: string, session?: ClientSession) {
+    const result = await ServiceModel.updateMany(
+      { _id: { $in: ids }, departmentId, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      session ? { session } : {},
+    );
+    return result.modifiedCount;
+  }
+
   async audit(
     eventType: string,
     actorUserId: string,
     metadata: ServiceRequestMetadata,
     details: Record<string, unknown>,
+    session?: ClientSession,
   ) {
-    await AuditLogModel.create({
+    await AuditLogModel.create([{
       eventType,
       actorUserId,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       metadataJson: details,
-    });
+    }], session ? { session } : {});
   }
 }

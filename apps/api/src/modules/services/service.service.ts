@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { DepartmentRepository } from '../departments/department.repository.js';
 import type { ServiceRepository } from './service.repository.js';
@@ -88,6 +89,30 @@ export class ServiceCatalogueService {
       serviceId: id,
       code: service.code,
       serviceType: service.service_type,
+    });
+  }
+
+  async bulkDelete(ids: string[], departmentId: string, userId: string, metadata: ServiceRequestMetadata) {
+    if (ids.length === 0 || ids.length > 100 || new Set(ids).size !== ids.length) {
+      throw new AppError('Select between 1 and 100 unique services', 400, 'INVALID_BULK_SERVICE_SELECTION');
+    }
+
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const services = await this.repository.findForBulkDelete(ids, departmentId, session);
+      if (services.length !== ids.length) {
+        throw new AppError('Some selected services changed. Refresh the assignment list and try again.', 409, 'STALE_SERVICE_ASSIGNMENTS');
+      }
+      const deleted = await this.repository.bulkSoftDelete(ids, departmentId, userId, session);
+      if (deleted !== ids.length) {
+        throw new AppError('Some selected services changed. Refresh the assignment list and try again.', 409, 'STALE_SERVICE_ASSIGNMENTS');
+      }
+      await Promise.all(services.map((service) => this.repository.audit('service.deleted', userId, metadata, {
+        serviceId: service.id,
+        code: service.code,
+        serviceType: service.serviceType,
+        source: 'department_delete_dialog',
+      }, session)));
+      return { success: true as const, deleted: services.length };
     });
   }
 

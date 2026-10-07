@@ -34,6 +34,13 @@ const departmentSchema = z.object({
 });
 type DepartmentFormData = z.infer<typeof departmentSchema>;
 
+const toggleSelection = (current: Set<string>, ids: string[]) => {
+  const next = new Set(current);
+  const select = !ids.every((id) => current.has(id));
+  ids.forEach((id) => select ? next.add(id) : next.delete(id));
+  return next;
+};
+
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
     if (error.status === 400) return error.message || 'Validation error. Please check your inputs.';
@@ -186,21 +193,68 @@ function DepartmentDeleteDialog({
 }) {
   const [page, setPage] = useState(1);
   const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [targetDepartmentId, setTargetDepartmentId] = useState('');
+  const [showBulkServiceConfirmation, setShowBulkServiceConfirmation] = useState(false);
   const preview = useDepartmentDeletePreviewFeature(department.id, page);
   const assigned = Boolean(preview.data?.service_meta.total || preview.data?.user_meta.total);
+  const deleteDepartmentDisabled = loading || preview.loading || Boolean(preview.error) || assigned;
   const servicePages = preview.data ? Math.ceil(preview.data.service_meta.total / preview.data.service_meta.limit) : 1;
   const userPages = preview.data ? Math.ceil(preview.data.user_meta.total / preview.data.user_meta.limit) : 1;
   const pageCount = Math.max(servicePages, userPages);
+  const pageServices = preview.data?.services ?? [];
+  const pageUsers = preview.data?.users ?? [];
+  const allPageServicesSelected = pageServices.length > 0 && pageServices.every((service) => selectedServiceIds.has(service.id));
+  const allPageUsersSelected = pageUsers.length > 0 && pageUsers.every((user) => selectedUserIds.has(user.id));
 
   const confirmServiceDelete = async () => {
     if (!serviceToDelete || !preview.canDeleteService) return;
     try {
       await preview.deleteService.mutateAsync(serviceToDelete.id);
       setServiceToDelete(null);
+      setSelectedServiceIds((selected) => {
+        const next = new Set(selected);
+        next.delete(serviceToDelete.id);
+        return next;
+      });
       setPage(1);
       await preview.retry();
     } catch (error) {
       console.error('Failed to delete assigned service', error);
+    }
+  };
+
+  const deleteSelectedServices = async () => {
+    if (!preview.canDeleteService || selectedServiceIds.size === 0 || selectedServiceIds.size > 100) return;
+    try {
+      await preview.bulkDeleteServices.mutateAsync({
+        department_id: department.id,
+        service_ids: [...selectedServiceIds],
+      });
+      setShowBulkServiceConfirmation(false);
+      setSelectedServiceIds(new Set());
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to delete selected services', error);
+    }
+  };
+
+  const reassignSelectedUsers = async () => {
+    if (!preview.canReassignUsers || !targetDepartmentId || selectedUserIds.size === 0 || selectedUserIds.size > 100) return;
+    try {
+      await preview.reassignUsers.mutateAsync({
+        from_department_id: department.id,
+        to_department_id: targetDepartmentId,
+        user_ids: [...selectedUserIds],
+      });
+      setSelectedUserIds(new Set());
+      setTargetDepartmentId('');
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to reassign selected users', error);
     }
   };
 
@@ -214,13 +268,19 @@ function DepartmentDeleteDialog({
       footer={(
         <>
           <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">Cancel</button>
-          <button className="btn-danger" disabled={loading || preview.loading || Boolean(preview.error) || assigned} onClick={onConfirm} type="button">
+          <button
+            className="btn-danger department-delete-confirm-button"
+            disabled={deleteDepartmentDisabled}
+            onClick={() => { if (!deleteDepartmentDisabled) onConfirm(); }}
+            title={assigned ? 'Delete assigned services and reassign assigned users before deleting this department.' : undefined}
+            type="button"
+          >
             {loading ? 'Deleting…' : 'Delete Department'}
           </button>
         </>
       )}
     >
-      <p className="dialog-message">Delete {department.name}? First delete or reassign its services and reassign its users.</p>
+      <p className="dialog-message">Delete {department.name}? Delete its assigned services and reassign its users before deleting the department.</p>
       {preview.loading && <p>Loading assigned services and users…</p>}
       {preview.error && <div role="alert">Could not load department assignments. <button className="btn-secondary" onClick={() => void preview.retry()} type="button">Retry</button></div>}
       {preview.data && (
@@ -228,9 +288,28 @@ function DepartmentDeleteDialog({
           <section className="department-delete-section">
             <h4>Assigned services ({preview.data.service_meta.total})</h4>
             {preview.data.services.length === 0 ? <p>No services are assigned.</p> : (
+              <>
+              <div className="department-delete-bulk-toolbar">
+                <label className="department-delete-select-all">
+                  <input
+                    checked={allPageServicesSelected}
+                    onChange={() => setSelectedServiceIds((current) => toggleSelection(current, pageServices.map((service) => service.id)))}
+                    type="checkbox"
+                  />
+                Select all services on this page
+                </label>
+                {preview.canDeleteService && <button className="btn-danger" disabled={selectedServiceIds.size === 0 || selectedServiceIds.size > 100 || preview.bulkDeleteServices.isPending} onClick={() => setShowBulkServiceConfirmation(true)} type="button">Delete selected ({selectedServiceIds.size})</button>}
+              </div>
+              {selectedServiceIds.size > 100 && <p role="status">Bulk deletion supports up to 100 services at a time. Deselect services to continue.</p>}
               <ul className="department-delete-list department-delete-service-list">
                 {preview.data.services.map((service) => (
                   <li className="department-delete-service-row" key={service.id}>
+                    <input
+                      aria-label={`Select ${service.name}`}
+                      checked={selectedServiceIds.has(service.id)}
+                      onChange={() => setSelectedServiceIds((current) => toggleSelection(current, [service.id]))}
+                      type="checkbox"
+                    />
                     <div className="department-delete-service-details">
                       <strong>{service.name}</strong>
                       <span>{service.code} · {service.type.replaceAll('_', ' ')} · {service.status}</span>
@@ -239,15 +318,45 @@ function DepartmentDeleteDialog({
                   </li>
                 ))}
               </ul>
+              </>
             )}
             {!preview.canDeleteService && preview.data.service_meta.total > 0 && <p>You do not have permission to delete services. Ask a user with Service Catalogue delete access.</p>}
           </section>
           <section className="department-delete-section">
             <h4>Assigned users ({preview.data.user_meta.total})</h4>
             {preview.data.users.length === 0 ? <p>No users are assigned.</p> : (
+              <>
+              <div className="department-delete-bulk-toolbar">
+                <label className="department-delete-select-all">
+                  <input
+                    checked={allPageUsersSelected}
+                    onChange={() => setSelectedUserIds((current) => toggleSelection(current, pageUsers.map((user) => user.id)))}
+                    type="checkbox"
+                  />
+                  Select all users on this page
+                </label>
+                {preview.canReassignUsers && (
+                  <div className="department-delete-user-actions">
+                    <select aria-label="Reassign selected users to department" disabled={preview.targetDepartmentsLoading || preview.reassignUsers.isPending} onChange={(event) => setTargetDepartmentId(event.target.value)} value={targetDepartmentId}>
+                      <option value="">Select target department</option>
+                      {preview.targetDepartments.filter((target) => target.id !== department.id).map((target) => <option key={target.id} value={target.id}>{target.name} ({target.code})</option>)}
+                    </select>
+                    <button className="btn-primary" disabled={selectedUserIds.size === 0 || selectedUserIds.size > 100 || !targetDepartmentId || preview.reassignUsers.isPending || preview.targetDepartmentsLoading || Boolean(preview.targetDepartmentsError)} onClick={() => void reassignSelectedUsers()} type="button">Reassign selected ({selectedUserIds.size})</button>
+                  </div>
+                )}
+              </div>
+              {preview.targetDepartmentsError && preview.canReassignUsers && <p role="alert">Could not load target departments. <button className="btn-secondary" onClick={() => void preview.retryTargetDepartments()} type="button">Retry</button></p>}
+              {!preview.canReassignUsers && <p>Use User Management with user edit access to reassign these accounts.</p>}
               <ul className="department-delete-list department-delete-user-list">
-                {preview.data.users.map((user) => <li key={user.id}><strong>{user.name}</strong>{user.employee_code ? ` · ${user.employee_code}` : ''}{user.job_title ? ` · ${user.job_title}` : ''} · {user.status}</li>)}
+                {preview.data.users.map((user) => (
+                  <li className="department-delete-user-row" key={user.id}>
+                    <input aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={() => setSelectedUserIds((current) => toggleSelection(current, [user.id]))} type="checkbox" />
+                    <span><strong>{user.name}</strong>{user.employee_code ? ` · ${user.employee_code}` : ''}{user.job_title ? ` · ${user.job_title}` : ''} · {user.status}</span>
+                  </li>
+                ))}
               </ul>
+              {selectedUserIds.size > 100 && <p role="status">Bulk reassignment supports up to 100 users at a time. Deselect users to continue.</p>}
+              </>
             )}
           </section>
           {pageCount > 1 && (
@@ -257,7 +366,7 @@ function DepartmentDeleteDialog({
               <button className="btn-secondary" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
             </div>
           )}
-          {assigned && <p role="status">Reassign these records in Service Catalogue and User Management before deleting this department.</p>}
+          {assigned && <p role="status">Delete the assigned services and reassign the assigned users above to enable department deletion.</p>}
           {!assigned && <p>No assigned services or users. This department is ready to delete.</p>}
         </div>
       )}
@@ -271,6 +380,17 @@ function DepartmentDeleteDialog({
         loading={preview.deleteService.isPending}
         onCancel={() => { if (!preview.deleteService.isPending) setServiceToDelete(null); }}
         onConfirm={() => void confirmServiceDelete()}
+      />
+    )}
+    {showBulkServiceConfirmation && (
+      <ConfirmDialog
+        open
+        title="Delete Selected Services"
+        message={`Delete ${selectedServiceIds.size} selected service${selectedServiceIds.size === 1 ? '' : 's'}? They will be soft-deleted and removed from this department's assignments.`}
+        confirmLabel={`Delete ${selectedServiceIds.size} service${selectedServiceIds.size === 1 ? '' : 's'}`}
+        loading={preview.bulkDeleteServices.isPending}
+        onCancel={() => { if (!preview.bulkDeleteServices.isPending) setShowBulkServiceConfirmation(false); }}
+        onConfirm={() => void deleteSelectedServices()}
       />
     )}
     </>

@@ -12,7 +12,8 @@ import {
   useExportDepartments,
   useDepartmentDeletePreview,
 } from './useDepartments';
-import { useDeleteService } from '../services/useServices';
+import { useBulkDeleteServices, useDeleteService } from '../services/useServices';
+import { useReassignDepartmentUsers } from '../users/useUsers';
 import { useBranchesList } from '../branches/useBranches';
 import { ApiError } from '../../api/api-error';
 
@@ -148,23 +149,42 @@ export function useDepartmentManagementFeature() {
   };
 }
 
-export function useDepartmentDeletePreviewFeature(id: string, page: number) {
+export function useDepartmentDeletePreviewFeature(id: string, page: number, limit = 100) {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const canDelete = isSuperAdmin || hasPermission(user?.permissions ?? [], {
     module: 'Administration', screen: 'Departments', action: 'Delete',
   });
-  const query = useDepartmentDeletePreview(id, page, canDelete);
+  const query = useDepartmentDeletePreview(id, page, canDelete, limit);
   const deleteService = useDeleteService();
+  const bulkDeleteServices = useBulkDeleteServices();
+  const reassignUsers = useReassignDepartmentUsers();
   const canDeleteService = isSuperAdmin || hasPermission(user?.permissions ?? [], {
     module: 'Administration', screen: 'Services', action: 'Delete',
   });
+  const canReassignUsers = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Users', action: 'Edit',
+  });
+  const canViewDepartments = isSuperAdmin || hasPermission(user?.permissions ?? [], {
+    module: 'Administration', screen: 'Departments', action: 'View',
+  });
+  const targetDepartmentsQuery = useDepartmentsList(
+    { status: 'ACTIVE', page: 1, limit: 100, sortBy: 'name', sortOrder: 'asc' },
+    canReassignUsers && canViewDepartments && Boolean(query.data?.user_meta.total),
+  );
   return {
     data: query.data,
     loading: query.isLoading,
     error: query.error,
     retry: query.refetch,
     deleteService,
+    bulkDeleteServices,
     canDeleteService,
+    reassignUsers,
+    canReassignUsers: canReassignUsers && canViewDepartments,
+    targetDepartments: targetDepartmentsQuery.data?.data ?? [],
+    targetDepartmentsLoading: targetDepartmentsQuery.isLoading,
+    targetDepartmentsError: targetDepartmentsQuery.error,
+    retryTargetDepartments: targetDepartmentsQuery.refetch,
   };
 }
