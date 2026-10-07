@@ -11,10 +11,7 @@ import type {
 } from '../../../api/opd';
 import { opdApi } from '../../../api/opd';
 import type { ServiceResponse } from '../../../api/services';
-import type {
-  BillingInvoiceStatus,
-  DentalTreatmentBillingState,
-} from '../../../api/billing';
+import type { DentalTreatmentBillingState } from '../../../api/billing';
 import { useCurrencyFormatter, useSettings } from '../../../api/useSettings';
 import {
   opdKeys,
@@ -170,8 +167,12 @@ interface DentalTreatmentPlanSectionProps {
   episodeNumber?: string | number | null;
   /** Primary tooth number for quotation modal header context */
   primaryToothNumber?: number | null;
+  /** Visit ID */
+  visitId?: string | null;
   /** Patient dental treatment episodes */
   episodes?: DentalTreatmentEpisodeResponse[];
+  /** Async callback to auto-create or ensure an active dental episode */
+  onEnsureEpisode?: () => Promise<string | null>;
 }
 
 export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProps> = ({
@@ -183,19 +184,13 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
   episodeId = null,
   departmentId = null,
   departmentServices = [],
-  billingStates = [],
-  billingStateLoading = false,
-  billingStateError = '',
-  canCreateInvoice = false,
-  billingBlockedByUnsavedChanges = false,
-  billingTreatmentItemPending = null,
-  onCreateInvoice,
-  onOpenInvoice,
   onStartEpisode,
   patientName = null,
   episodeNumber = null,
   primaryToothNumber = null,
   episodes: episodesProp = [],
+  onEnsureEpisode,
+  onOpenInvoice,
 }) => {
   const formatCurrency = useCurrencyFormatter();
   const settings = useSettings();
@@ -295,25 +290,41 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     [patientEpisodes, episodesProp, episodeId, episodeNumber, primaryToothNumber],
   );
 
+  const [localEpisodeId, setLocalEpisodeId] = useState<string | null>(null);
+  const [isEnsuringEpisode, setIsEnsuringEpisode] = useState(false);
+
   const effectiveEpisodeId = useMemo(() => {
     if (episodeId) return episodeId;
+    if (localEpisodeId) return localEpisodeId;
     const all = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
     const active = all.find((e) => e.status === 'ACTIVE');
     if (active) return active.id;
     return all[0]?.id ?? null;
-  }, [episodeId, episodesProp, patientEpisodes]);
+  }, [episodeId, localEpisodeId, episodesProp, patientEpisodes]);
+
+  const activeEpisodeId = episodeId || effectiveEpisodeId || localEpisodeId;
+
+  const effectiveEpisode = useMemo(() => {
+    const all = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
+    if (episodeId) return all.find((e) => e.id === episodeId) ?? null;
+    if (localEpisodeId) return all.find((e) => e.id === localEpisodeId) ?? null;
+    return all.find((e) => e.status === 'ACTIVE') ?? all[0] ?? null;
+  }, [episodeId, localEpisodeId, episodesProp, patientEpisodes]);
+
+  const displayEpisodeNumber = episodeNumber || effectiveEpisode?.episode_number;
 
   // Aggregate episode IDs to query stages and lab orders across all patient episodes
   const episodeIdsToQuery = useMemo(() => {
     const ids = new Set<string>();
     if (episodeId) ids.add(episodeId);
     if (effectiveEpisodeId) ids.add(effectiveEpisodeId);
+    if (localEpisodeId) ids.add(localEpisodeId);
     const all = episodesProp && episodesProp.length > 0 ? episodesProp : patientEpisodes;
     for (const ep of all) {
       if (ep.id) ids.add(ep.id);
     }
     return Array.from(ids);
-  }, [episodeId, effectiveEpisodeId, episodesProp, patientEpisodes]);
+  }, [episodeId, effectiveEpisodeId, localEpisodeId, episodesProp, patientEpisodes]);
 
   // Lab Order modal state
   const [labOrderCreateStage, setLabOrderCreateStage] = useState<DentalTreatmentStageResponse | null>(null);
@@ -423,7 +434,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
   const [quoteOptions, setQuoteOptions] = useState<OptionDraft[]>([]);
 
-  const { data: episodeQuotations = [], isLoading: quotationsLoading } = useEpisodeDentalQuotations(episodeId);
+  const { data: episodeQuotations = [], isLoading: quotationsLoading } = useEpisodeDentalQuotations(activeEpisodeId ?? undefined);
   const createQuotationMutation = useCreateDentalQuotation();
   const sendQuotationMutation = useSendDentalQuotation();
   const acceptQuotationMutation = useAcceptDentalQuotation();
@@ -502,7 +513,24 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     [items],
   );
 
-  const handleOpenQuotationModal = () => {
+  const handleOpenQuotationModal = async () => {
+    let currentEpisodeId = episodeId || effectiveEpisodeId || localEpisodeId;
+
+    if (!currentEpisodeId && onEnsureEpisode) {
+      try {
+        setIsEnsuringEpisode(true);
+        const ensuredId = await onEnsureEpisode();
+        if (ensuredId) {
+          currentEpisodeId = ensuredId;
+          setLocalEpisodeId(ensuredId);
+        }
+      } catch (err) {
+        console.error('Failed to auto-ensure episode:', err);
+      } finally {
+        setIsEnsuringEpisode(false);
+      }
+    }
+
     const itemsToQuote = proposedItems.length > 0 ? proposedItems : items;
     const defaultOptionItems: OptionDraftItem[] = itemsToQuote.map((it, idx) => {
       const matchedSvc = departmentServices.find(
@@ -706,8 +734,19 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     });
   };
 
-  const handleOpenAddStage = (itemId: string, toothNum?: number | string | null) => {
-    const targetEpisode = getEpisodeForItem(toothNum);
+  const handleOpenAddStage = async (itemId: string, toothNum?: number | string | null) => {
+    let targetEpisode = getEpisodeForItem(toothNum);
+    if (!targetEpisode && onEnsureEpisode) {
+      try {
+        const ensuredId = await onEnsureEpisode();
+        if (ensuredId) {
+          setLocalEpisodeId(ensuredId);
+          targetEpisode = getEpisodeForItem(toothNum);
+        }
+      } catch (err) {
+        console.error('Failed to auto-ensure episode for stage:', err);
+      }
+    }
     if (!targetEpisode) {
       if (onStartEpisode) {
         onStartEpisode(parseToothNumber(toothNum));
@@ -739,7 +778,18 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     toothNum?: number | string | null,
     serviceId?: string | null,
   ) => {
-    const targetEpisode = getEpisodeForItem(toothNum);
+    let targetEpisode = getEpisodeForItem(toothNum);
+    if (!targetEpisode && onEnsureEpisode) {
+      try {
+        const ensuredId = await onEnsureEpisode();
+        if (ensuredId) {
+          setLocalEpisodeId(ensuredId);
+          targetEpisode = getEpisodeForItem(toothNum);
+        }
+      } catch (err) {
+        console.error('Failed to auto-ensure episode for save stage:', err);
+      }
+    }
     if (!targetEpisode) {
       if (onStartEpisode) {
         onStartEpisode(parseToothNumber(toothNum));
@@ -861,19 +911,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
       .reduce((acc, it) => acc + (it.estimated_cost ?? 0), 0);
   }, [items]);
 
-  const billingStateByTreatmentItem = useMemo(
-    () => new Map(billingStates.map((state) => [state.treatment_item_id, state])),
-    [billingStates],
-  );
-
-  const billingLabel = (status: BillingInvoiceStatus) => {
-    if (status === 'DRAFT') return 'Invoice draft';
-    if (status === 'PENDING') return 'Invoice pending';
-    if (status === 'PARTIALLY_PAID') return 'Partially paid';
-    if (status === 'PAID') return 'Paid';
-    return 'Invoice cancelled';
-  };
-
   const getStatusBadgeStyle = (status: string | undefined) => {
     switch (status) {
       case 'ACCEPTED':
@@ -986,12 +1023,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
       {isExpanded && (
         <div className={styles.cardContent}>
-          {billingStateError ? (
-            <div className={styles.billingError} role="alert">
-              <i className="ph ph-warning-circle" /> {billingStateError}
-            </div>
-          ) : null}
-
           {/* Episode initiation prompt in treatment planning context */}
           {!effectiveEpisodeId && onStartEpisode && !disabled && (
             <div
@@ -1333,13 +1364,11 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     <th style={{ width: '110px' }}>Est. Cost</th>
                     <th style={{ width: '140px' }}>Status</th>
                     <th>Clinical Notes</th>
-                    <th style={{ minWidth: '170px' }}>Billing</th>
                     {!disabled && <th style={{ width: '80px', textAlign: 'center' }}>Action</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, idx) => {
-                    const billingState = item.id ? billingStateByTreatmentItem.get(item.id) : undefined;
                     const catalogueService = (
                       item.service_id
                         ? departmentServices.find((service) => service.id === item.service_id)
@@ -1352,8 +1381,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     const isAcceptedOrActive = item.status === 'ACCEPTED' || item.status === 'IN_PROGRESS' || item.status === 'COMPLETED';
                     const isProposed = item.status === 'PROPOSED' || !item.status;
                     const isInactive = item.status === 'DECLINED' || item.status === 'CANCELLED';
-                    const isStatusBillable = item.status !== 'DECLINED' && item.status !== 'CANCELLED' && item.status !== 'PROPOSED';
-                    const isBillingThisItem = billingTreatmentItemPending === item.id;
 
                     const itemStages = (item.id ? stagesByPlanItem.get(item.id) : undefined) ?? [];
                     const isStagesExpanded = Boolean(item.id && expandedStageRows.has(item.id));
@@ -1515,63 +1542,9 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                             </span>
                           </td>
                           <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{item.notes ?? '—'}</td>
-                          <td>
-                            {billingState ? (
-                              <div className={styles.billingCell}>
-                                <span
-                                  className={`${styles.billingBadge} ${
-                                    billingState.invoice_status === 'PAID'
-                                      ? styles.billingBadgePaid
-                                      : billingState.invoice_status === 'CANCELLED'
-                                      ? styles.billingBadgeCancelled
-                                      : styles.billingBadgePending
-                                  }`}
-                                >
-                                  {billingLabel(billingState.invoice_status)}
-                                </span>
-                                <button
-                                  type="button"
-                                  className={styles.billingLink}
-                                  onClick={() => onOpenInvoice?.(billingState.invoice_id)}
-                                >
-                                  {billingState.invoice_number}
-                                </button>
-                                <small>{formatCurrency(billingState.unit_price)}</small>
-                              </div>
-                            ) : isProposed ? (
-                              <span className={styles.billingMuted}>Awaiting acceptance</span>
-                            ) : isInactive ? (
-                              <span className={styles.billingMuted}>Not billable</span>
-                            ) : billingStateLoading ? (
-                              <span className={styles.billingMuted}>Checking billing…</span>
-                            ) : !item.service_id ? (
-                              <span className={styles.billingMuted}>Clinical plan only</span>
-                            ) : !isStatusBillable ? (
-                              <span className={styles.billingMuted}>Not billable</span>
-                            ) : billingBlockedByUnsavedChanges || !isPersisted ? (
-                              <span className={styles.billingMuted}>Save before billing</span>
-                            ) : canCreateInvoice && onCreateInvoice ? (
-                              <button
-                                type="button"
-                                className={styles.btnBilling}
-                                disabled={Boolean(billingTreatmentItemPending)}
-                                onClick={() => {
-                                  if (!item.id) return;
-                                  void onCreateInvoice(item.id).catch(() => undefined);
-                                }}
-                              >
-                                <i className="ph ph-receipt" />
-                                {isBillingThisItem ? 'Creating…' : 'Create Invoice'}
-                              </button>
-                            ) : (
-                              <span className={styles.billingMuted}>Not billed</span>
-                            )}
-                          </td>
                           {!disabled && (
                             <td style={{ textAlign: 'center' }}>
-                              {billingState ? (
-                                <span className={styles.billingMuted}>Invoice linked</span>
-                              ) : item.status === 'PROPOSED' ? (
+                              {item.status === 'PROPOSED' ? (
                                 <button
                                   type="button"
                                   className={styles.btnSecondary}
@@ -1591,7 +1564,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                         {/* Nested Multi-Doctor Stages Drawer */}
                         {isStagesExpanded && item.id && isAcceptedOrActive && (
                             <tr>
-                              <td colSpan={disabled ? 6 : 7} style={{ padding: 0 }}>
+                              <td colSpan={disabled ? 5 : 6} style={{ padding: 0 }}>
                                 <div className={styles.stagesDrawer}>
                                   <div className={styles.stagesHeader}>
                                     <div className={styles.stagesHeaderTitle}>
@@ -2257,49 +2230,56 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
     </div>
 
     {/* Treatment Quotations (Pricing) Card */}
-    {episodeId && (
-      <div className={styles.card} style={{ marginTop: '16px' }}>
-        <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <i className="ph ph-receipt" style={{ color: '#0284c7', fontSize: '1.2rem' }} />
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>
-              Treatment Quotations (Pricing)
-            </h4>
-            <span
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                padding: '2px 8px',
-                borderRadius: '12px',
-                background: episodeQuotations.length > 0 ? '#e0f2fe' : '#f1f5f9',
-                color: episodeQuotations.length > 0 ? '#0369a1' : '#64748b',
-              }}
-            >
-              {episodeQuotations.length} {episodeQuotations.length === 1 ? 'quote' : 'quotes'}
-            </span>
-          </div>
-          {!disabled && (
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
-                fontSize: '0.8rem',
-                borderColor: '#0284c7',
-                color: '#0284c7',
-                background: '#f0f9ff',
-              }}
-              disabled={items.length === 0}
-              onClick={handleOpenQuotationModal}
-              title={items.length === 0 ? 'Add treatment plan items before generating quotation' : 'Generate new draft quotation'}
-            >
-              <i className="ph ph-plus-circle" /> Generate Quotation
-            </button>
-          )}
+    <div className={styles.card} style={{ marginTop: '16px' }}>
+      <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="ph ph-receipt" style={{ color: '#0284c7', fontSize: '1.2rem' }} />
+          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>
+            Treatment Quotations (Pricing)
+          </h4>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              background: episodeQuotations.length > 0 ? '#e0f2fe' : '#f1f5f9',
+              color: episodeQuotations.length > 0 ? '#0369a1' : '#64748b',
+            }}
+          >
+            {episodeQuotations.length} {episodeQuotations.length === 1 ? 'quote' : 'quotes'}
+          </span>
         </div>
+        {!disabled && (
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 12px',
+              fontSize: '0.8rem',
+              borderColor: '#0284c7',
+              color: '#0284c7',
+              background: '#f0f9ff',
+            }}
+            disabled={items.length === 0 || isEnsuringEpisode}
+            onClick={handleOpenQuotationModal}
+            title={items.length === 0 ? 'Add treatment plan items before generating quotation' : 'Generate new draft quotation'}
+          >
+            {isEnsuringEpisode ? (
+              <>
+                <i className="ph ph-spinner ph-spin" /> Preparing…
+              </>
+            ) : (
+              <>
+                <i className="ph ph-plus-circle" /> Generate Quotation
+              </>
+            )}
+          </button>
+        )}
+      </div>
 
         <div className={styles.cardBody} style={{ padding: '12px 16px' }}>
           {quotationsLoading ? (
@@ -2326,9 +2306,18 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                     type="button"
                     className={styles.btnPrimary}
                     style={{ fontSize: '0.78rem', padding: '4px 12px' }}
+                    disabled={isEnsuringEpisode}
                     onClick={handleOpenQuotationModal}
                   >
-                    <i className="ph ph-plus" /> Generate First Quotation
+                    {isEnsuringEpisode ? (
+                      <>
+                        <i className="ph ph-spinner ph-spin" /> Preparing…
+                      </>
+                    ) : (
+                      <>
+                        <i className="ph ph-plus" /> Generate First Quotation
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -2455,7 +2444,6 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
           )}
         </div>
       </div>
-    )}
 
     {/* Generate Quotation Modal */}
     {showQuotationModal && (
@@ -2467,16 +2455,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               <h3 className={styles.quotationModalTitle}>
                 <i className="ph ph-receipt" style={{ color: '#0284c7' }} /> Generate Treatment Quotation
               </h3>
-              {(patientName || episodeNumber || quotationTeeth.length > 0) && (
+              {(patientName || displayEpisodeNumber || quotationTeeth.length > 0) && (
                 <div className={styles.quotationContextBadges}>
                   {patientName && (
                     <span className={styles.quotationContextBadge} title="Patient">
                       <i className="ph ph-user" /> {patientName}
                     </span>
                   )}
-                  {episodeNumber && (
+                  {displayEpisodeNumber && (
                     <span className={styles.quotationContextBadge} title="Treatment Episode">
-                      <i className="ph ph-hash" /> Episode #{episodeNumber}
+                      <i className="ph ph-hash" /> Episode #{displayEpisodeNumber}
                     </span>
                   )}
                   {quotationTeeth.length > 0 && (
@@ -2891,9 +2879,22 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               <button
                 type="button"
                 className={styles.btnPrimary}
-                disabled={createQuotationMutation.isPending || quoteOptions.length === 0}
-                onClick={() => {
-                  if (!episodeId) return;
+                disabled={createQuotationMutation.isPending || quoteOptions.length === 0 || isEnsuringEpisode}
+                onClick={async () => {
+                  let targetEpisodeId = episodeId || effectiveEpisodeId || localEpisodeId;
+                  if (!targetEpisodeId && onEnsureEpisode) {
+                    setIsEnsuringEpisode(true);
+                    try {
+                      targetEpisodeId = await onEnsureEpisode();
+                      if (targetEpisodeId) setLocalEpisodeId(targetEpisodeId);
+                    } catch (err) {
+                      console.error('Failed to auto-ensure episode:', err);
+                    } finally {
+                      setIsEnsuringEpisode(false);
+                    }
+                  }
+                  if (!targetEpisodeId) return;
+
                   const formattedOptions = quoteOptions.map((opt) => ({
                     name: opt.name.trim() || 'Option',
                     description: opt.description.trim() || undefined,
@@ -2911,7 +2912,7 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
 
                   createQuotationMutation.mutate(
                     {
-                      episodeId,
+                      episodeId: targetEpisodeId,
                       payload: {
                         notes: quoteNotes.trim() || undefined,
                         valid_until: quoteValidUntil || undefined,
@@ -2950,16 +2951,16 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
               <p className={styles.quotationModalSubtitle}>
                 Dental Treatment Quotation
               </p>
-              {(patientName || episodeNumber || primaryToothNumber) && (
+              {(patientName || displayEpisodeNumber || primaryToothNumber) && (
                 <div className={styles.quotationContextBadges}>
                   {patientName && (
                     <span className={styles.quotationContextBadge} title="Patient">
                       <i className="ph ph-user" /> {patientName}
                     </span>
                   )}
-                  {episodeNumber && (
+                  {displayEpisodeNumber && (
                     <span className={styles.quotationContextBadge} title="Treatment Episode">
-                      <i className="ph ph-hash" /> Episode #{episodeNumber}
+                      <i className="ph ph-hash" /> Episode #{displayEpisodeNumber}
                     </span>
                   )}
                   {primaryToothNumber && (
@@ -3016,6 +3017,17 @@ export const DentalTreatmentPlanSection: React.FC<DentalTreatmentPlanSectionProp
                 <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: '6px', fontWeight: 600 }}>
                   <i className="ph ph-arrow-clockwise" /> Procedures synchronized with active Treatment Plan.
                 </div>
+                {selectedQuotation.invoice_id && onOpenInvoice ? (
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    style={{ marginTop: '10px', background: '#fff' }}
+                    onClick={() => onOpenInvoice(selectedQuotation.invoice_id!)}
+                  >
+                    <i className="ph ph-receipt" /> Show Invoice
+                    {selectedQuotation.invoice_number ? ` (${selectedQuotation.invoice_number})` : ''}
+                  </button>
+                ) : null}
               </div>
             )}
 

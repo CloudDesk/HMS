@@ -116,6 +116,7 @@ describe('OpdDentalExaminationTab Component', () => {
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    window.history.replaceState(null, '', '/opd/consultation?id=visit-1');
     api.getDentalExamination.mockReset();
     api.saveDentalExaminationDraft.mockReset();
     api.completeDentalExamination.mockReset();
@@ -164,6 +165,9 @@ describe('OpdDentalExaminationTab Component', () => {
     expect(container.querySelector('[aria-label="Draft In-Progress"]')).toBeTruthy();
     expect(container.textContent).toContain('Examination');
     expect(container.textContent).toContain('Hypertension');
+    expect(container.textContent).not.toContain('Complete Examination');
+    expect(container.textContent).not.toContain('Order Imaging (X-Ray)');
+    expect(container.textContent).not.toContain('Next: Prescription');
   });
 
   it('uses section sub-tabs without unmounting the dental examination panels', async () => {
@@ -299,13 +303,24 @@ describe('OpdDentalExaminationTab Component', () => {
     );
   });
 
-  it('opens confirmation modal and completes examination', async () => {
+  it('opens confirmation from the odontogram, submits pending orders, and completes examination', async () => {
+    const onBeforeComplete = vi.fn().mockResolvedValue(undefined);
     await act(async () => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} />
+          <OpdDentalExaminationTab
+            visitId="visit-1"
+            canEdit={true}
+            onBeforeComplete={onBeforeComplete}
+          />
         </QueryClientProvider>,
       );
+    });
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Next: Odontogram'))
+        ?.click();
     });
 
     const completeButton = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -330,7 +345,11 @@ describe('OpdDentalExaminationTab Component', () => {
       confirmButton?.click();
     });
 
+    expect(onBeforeComplete).toHaveBeenCalledTimes(1);
     expect(api.completeDentalExamination).toHaveBeenCalledTimes(1);
+    expect(onBeforeComplete.mock.invocationCallOrder[0]).toBeLessThan(
+      api.completeDentalExamination.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('renders locked banner and disables actions when examination is COMPLETED', async () => {
@@ -834,6 +853,42 @@ describe('OpdDentalExaminationTab Component', () => {
     const controls = container.querySelectorAll<HTMLButtonElement>('[data-fdi]');
     expect(controls).toHaveLength(32);
     expect(container.textContent).not.toContain('✓ Auto');
+  });
+
+  it('provides direct quick-actions to Prescription and Imaging Orders from the odontogram only', async () => {
+    const nextStepMock = vi.fn();
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <OpdDentalExaminationTab visitId="visit-1" canEdit={true} onNextStep={nextStepMock} />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="direct-next-prescription-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="direct-order-imaging-btn"]')).toBeNull();
+
+    await act(async () => {
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Next: Odontogram'))
+        ?.click();
+    });
+
+    const prescriptionBtn = container.querySelector<HTMLButtonElement>('[data-testid="direct-next-prescription-btn"]');
+    const imagingBtn = container.querySelector<HTMLButtonElement>('[data-testid="direct-order-imaging-btn"]');
+
+    expect(prescriptionBtn).toBeTruthy();
+    expect(imagingBtn).toBeTruthy();
+
+    await act(async () => {
+      prescriptionBtn?.click();
+    });
+    expect(nextStepMock).toHaveBeenCalledWith('Prescription');
+
+    await act(async () => {
+      imagingBtn?.click();
+    });
+    expect(nextStepMock).toHaveBeenCalledWith('Imaging Orders');
   });
 });
 

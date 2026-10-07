@@ -51,21 +51,16 @@ export class OpdClinicalOrderService {
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId, orderType);
     this.ensureOpenVisit(visit, true);
-    const consultation = await this.getConsultation(visitId);
+    let consultation = await this.consultationRepository.getByVisit(visitId);
+    if (!consultation) {
+      consultation = await this.getOrCreateConsultation(visit, userId);
+    }
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
     if (current && current.status !== 'DRAFT') {
       return current;
     }
     this.assertVersion(current, data);
-
-    if (consultation.status !== 'COMPLETED') {
-      throw new AppError(
-        'Complete the consultation before submitting clinical orders',
-        400,
-        'CONSULTATION_NOT_COMPLETED',
-      );
-    }
 
     if (data.items.length === 0) {
       throw new AppError('Add at least one investigation before submitting', 400, 'INVESTIGATION_REQUIRED');

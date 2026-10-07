@@ -198,13 +198,17 @@ export class OpdPrescriptionRepository {
     params: import('./opd-prescription.types.js').ListPrescriptionsParams,
     branchIds?: string[],
   ): Promise<{ data: OpdPrescription[]; total: number }> {
-    const { status, limit = 50, skip = 0, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
+    const { patient_id, status, limit = 50, skip = 0, search, sortBy = 'createdAt', sortOrder = 'desc' } = params;
     const filter: Record<string, unknown> = { deletedAt: null };
+
+    if (patient_id) {
+      filter.patientId = objectId(patient_id);
+    }
 
     if (status) {
       filter.status = status;
-    } else {
-      filter.status = { $ne: 'DRAFT' }; // by default, don't show drafts in queue
+    } else if (!patient_id) {
+      filter.status = { $ne: 'DRAFT' }; // by default in queue, don't show drafts
     }
 
     if (search) {

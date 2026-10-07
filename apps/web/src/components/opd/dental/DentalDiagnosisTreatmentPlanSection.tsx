@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Icd10Diagnosis } from '../../../data/icd10-diagnoses';
 import type {
   DentalTreatmentPlanItem,
@@ -34,6 +34,7 @@ export interface DentalDiagnosisTreatmentPlanSectionProps {
   onAssessmentChange?: (val: string) => void;
   onSaveDiagnosis?: () => Promise<void>;
   onNextStep?: (tab: string) => void;
+  onCompleteExamination?: () => void;
   showToast?: (message: string, tone?: 'success' | 'error') => void;
   billingStates?: DentalTreatmentBillingState[];
   billingStateLoading?: boolean;
@@ -57,6 +58,7 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
   onAssessmentChange,
   onSaveDiagnosis,
   onNextStep,
+  onCompleteExamination,
   showToast,
   billingStates = [],
   billingStateLoading = false,
@@ -69,8 +71,10 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
   const { data: dentalExam, isLoading, isError, error, refetch } = useOpdDentalExamination(visitId);
   const saveDraftMutation = useSaveOpdDentalExaminationDraft({ notifyOnError: false, notifyOnSuccess: false });
 
-  const isCompleted = dentalExam?.status === 'COMPLETED' || consultation?.status === 'COMPLETED';
-  const isReadOnly = !canEdit || isCompleted;
+  // Completing the oral examination locks charting, not the downstream diagnosis,
+  // treatment-planning, and quotation workflow. Only the completed consultation
+  // (or missing edit permission) makes this section read-only.
+  const isReadOnly = !canEdit || consultation?.status === 'COMPLETED';
   const isSaving = saveDraftMutation.isPending;
 
   const [treatmentPlanItems, setTreatmentPlanItems] = useState<DentalTreatmentPlanItem[]>([]);
@@ -114,9 +118,15 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
     }
   }, [dentalExam]);
 
-  const buildPayload = (): SaveOpdDentalExaminationPayload => ({
+  const activeEpisodeId =
+    dentalExam?.episode_id ??
+    episodes.find((e) => e.status === 'ACTIVE')?.id ??
+    episodes[0]?.id ??
+    null;
+
+  const buildPayload = (overrideEpisodeId?: string | null): SaveOpdDentalExaminationPayload => ({
     expected_updated_at: loadedVersion.current,
-    episode_id: dentalExam?.episode_id ?? episodes[0]?.id ?? null,
+    episode_id: overrideEpisodeId !== undefined ? overrideEpisodeId : activeEpisodeId,
     dental_history: dentalExam?.dental_history ?? null,
     soft_tissue: dentalExam?.soft_tissue ?? null,
     teeth: teeth.map((t) => ({
@@ -143,6 +153,60 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
     })),
   });
 
+  const handleEnsureEpisode = useCallback(async (): Promise<string | null> => {
+    const existingId =
+      dentalExam?.episode_id ||
+      episodes.find((e) => e.status === 'ACTIVE')?.id ||
+      episodes[0]?.id;
+    if (existingId) return existingId;
+
+    if (!patientId || !visitId) return null;
+
+    try {
+      const primaryTooth = treatmentPlanItems[0]?.tooth_number ?? null;
+      const toothDx = primaryTooth ? diagnoses.find((d) => d.tooth_number === primaryTooth) : null;
+      const generalDx = diagnoses.find((d) => !d.tooth_number) || diagnoses[0];
+      const initialDxName =
+        toothDx?.name ||
+        generalDx?.name ||
+        treatmentPlanItems[0]?.procedure_name ||
+        consultation?.chief_complaint ||
+        'Dental Treatment Plan';
+
+      const newEp = await createEpisodeMutation.mutateAsync({
+        patient_id: patientId,
+        originating_visit_id: visitId,
+        primary_tooth_number: Number.isFinite(primaryTooth) ? primaryTooth : null,
+        diagnosis_name: initialDxName,
+        notes: 'Auto-created episode for treatment plan & quotation',
+      });
+
+      try {
+        const payload = buildPayload(newEp.id);
+        const saved = await saveDraftMutation.mutateAsync({ visitId, payload });
+        loadedVersion.current = saved.updated_at;
+      } catch {
+        // Non-blocking if draft update fails
+      }
+
+      return newEp.id;
+    } catch (err) {
+      showToast?.(getOpdErrorMessage(err), 'error');
+      return null;
+    }
+  }, [
+    dentalExam?.episode_id,
+    episodes,
+    patientId,
+    visitId,
+    treatmentPlanItems,
+    diagnoses,
+    consultation?.chief_complaint,
+    createEpisodeMutation,
+    saveDraftMutation,
+    showToast,
+  ]);
+
   const handleTreatmentPlanChange = (items: DentalTreatmentPlanItem[]) => {
     setTreatmentPlanItems(items);
     setIsDirty(true);
@@ -150,7 +214,11 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
 
   const handleSaveDraft = async () => {
     try {
-      const payload = buildPayload();
+      let currentEpisodeId = activeEpisodeId;
+      if (!currentEpisodeId && treatmentPlanItems.length > 0 && patientId && visitId) {
+        currentEpisodeId = (await handleEnsureEpisode()) ?? null;
+      }
+      const payload = buildPayload(currentEpisodeId);
       await onSaveDiagnosis?.();
       const saved = await saveDraftMutation.mutateAsync({ visitId, payload });
       loadedVersion.current = saved.updated_at;
@@ -494,17 +562,19 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
         onCreateInvoice={onCreateInvoice}
         onOpenInvoice={onOpenInvoice}
         patientId={patientId}
+        visitId={visitId}
         episodes={episodes}
-        episodeId={dentalExam?.episode_id ?? episodes[0]?.id}
+        episodeId={activeEpisodeId}
         departmentId={dentalExam?.department_id ?? null}
         onStartEpisode={openCreateEpisodeModal}
+        onEnsureEpisode={handleEnsureEpisode}
         patientName={
           patient
             ? [patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_number
             : undefined
         }
-        episodeNumber={episodes[0]?.episode_number}
-        primaryToothNumber={episodes[0]?.primary_tooth_number}
+        episodeNumber={episodes.find((e) => e.id === activeEpisodeId)?.episode_number ?? episodes[0]?.episode_number}
+        primaryToothNumber={episodes.find((e) => e.id === activeEpisodeId)?.primary_tooth_number ?? episodes[0]?.primary_tooth_number}
       />
 
       {/* 3. Action Strip at Bottom of Page */}
@@ -535,6 +605,17 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
         </div>
 
         <div className={styles.stickyActions}>
+          {!isReadOnly && onCompleteExamination ? (
+            <button
+              type="button"
+              className={styles.btnComplete}
+              onClick={onCompleteExamination}
+              disabled={isSaving}
+            >
+              <i className="ph ph-check-circle" />
+              Complete Examination
+            </button>
+          ) : null}
           {!isReadOnly && (
             <button
               type="button"
@@ -546,6 +627,32 @@ export const DentalDiagnosisTreatmentPlanSection: React.FC<DentalDiagnosisTreatm
               {isSaving ? 'Saving...' : 'Save Draft'}
             </button>
           )}
+
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: '#0284c7',
+              color: '#0284c7',
+              background: '#f0f9ff',
+            }}
+            onClick={async () => {
+              if (isDirty && !isReadOnly) {
+                const saved = await handleSaveDraft();
+                if (!saved) return;
+              }
+              onNextStep?.('Imaging Orders');
+            }}
+            disabled={isSaving}
+            title="Order dental imaging / X-rays (IOPA, Bitewing, OPG, CBCT)"
+            data-testid="direct-order-imaging-btn"
+          >
+            <i className="ph ph-camera" />
+            Order Imaging (X-Ray)
+          </button>
 
           <button
             type="button"

@@ -1891,7 +1891,8 @@
 }
 
 
-.appointment-page .hms-cal-banner {
+.appointment-page .hms-cal-banner,
+.doctor-page .hms-cal-banner {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1904,7 +1905,8 @@
   position: relative;
 }
 
-.appointment-page .hms-cal-banner-nav-btn {
+.appointment-page .hms-cal-banner-nav-btn,
+.doctor-page .hms-cal-banner-nav-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1921,16 +1923,19 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.appointment-page .hms-cal-banner-nav-btn:hover {
+.appointment-page .hms-cal-banner-nav-btn:hover,
+.doctor-page .hms-cal-banner-nav-btn:hover {
   background: rgba(255, 255, 255, 0.35);
   transform: scale(1.06);
 }
 
-.appointment-page .hms-cal-banner-nav-btn:active {
+.appointment-page .hms-cal-banner-nav-btn:active,
+.doctor-page .hms-cal-banner-nav-btn:active {
   transform: scale(0.96);
 }
 
-.appointment-page .hms-cal-banner-title {
+.appointment-page .hms-cal-banner-title,
+.doctor-page .hms-cal-banner-title {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 800;
@@ -1951,7 +1956,10 @@
   .appointment-booking-page .hms-stepper-line { display: none; }
   .appointment-booking-page .hms-search-box-wrap { flex-wrap: wrap; }
   .appointment-booking-page .hms-search-input-container { flex-basis: 100%; }
-  .appointment-page .hms-cal-banner { gap: 0.5rem; }
-  .appointment-page .hms-cal-banner-title { min-width: 0; }
-  .appointment-page .hms-cal-banner-nav-btn { flex-shrink: 0; }
+  .appointment-page .hms-cal-banner,
+  .doctor-page .hms-cal-banner { gap: 0.5rem; }
+  .appointment-page .hms-cal-banner-title,
+  .doctor-page .hms-cal-banner-title { min-width: 0; }
+  .appointment-page .hms-cal-banner-nav-btn,
+  .doctor-page .hms-cal-banner-nav-btn { flex-shrink: 0; }
 }

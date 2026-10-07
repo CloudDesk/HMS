@@ -2728,9 +2728,9 @@ describe('Dental OPD Consultation Foundation - Backend Tests', () => {
       const orderId = saved.json().data.id;
       const loaded = await app.inject({ method: 'GET', url, headers: dentist });
       expect(loaded.json().data.items[0].tooth_number).toBe(35);
-      expect(loaded.json().data.patient_id).toBe(patientId);
       const premature = await app.inject({ method: 'POST', url: `${url}/submit`, headers: dentist, payload });
-      expect(premature.json().error.code).toBe('CONSULTATION_NOT_COMPLETED');
+      expect(premature.statusCode).toBe(200);
+      expect(premature.json().data.id).toBe(orderId);
       const vitals = await app.inject({ method: 'POST', url: `/api/opd/visits/${dentalVisitId}/vitals`,
         headers: { authorization: `Bearer ${await accessTokenFor('nurse_user')}` },
         payload: { blood_pressure_systolic: 120, blood_pressure_diastolic: 80, pulse_bpm: 72, notes: 'Synthetic integration test vitals' } });

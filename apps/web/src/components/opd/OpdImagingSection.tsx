@@ -1,6 +1,7 @@
 import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
 import { getToothName, isDentalImagingService } from '../../pages/dental-utils';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 import dentalStyles from './dental/DentalClinicalOrders.module.css';
 
 export type ImagingOrderItem = {
@@ -31,6 +32,9 @@ export type OpdImagingSectionProps = {
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
   isDental?: boolean;
+  handleSendToImaging?: () => void;
+  isSentToImaging?: boolean;
+  updating?: string;
 };
 
 export function OpdImagingSection({
@@ -53,6 +57,9 @@ export function OpdImagingSection({
   handleNextStep,
   canEdit,
   isDental = false,
+  handleSendToImaging,
+  isSentToImaging = false,
+  updating = '',
 }: OpdImagingSectionProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -362,6 +369,34 @@ export function OpdImagingSection({
             <i aria-hidden="true" className="ph ph-printer" />
             Print Imaging Order
           </button>
+          {handleSendToImaging && (canEdit || isSentToImaging) && (
+            <button
+              className={isSentToImaging ? 'doc-btn sent-disabled' : 'doc-btn primary'}
+              disabled={updating === 'imaging-submit' || isSentToImaging || !canEdit}
+              onClick={() => {
+                if (updating === 'imaging-submit' || isSentToImaging || !canEdit) return;
+                void handleSendToImaging();
+              }}
+              type="button"
+            >
+              {updating === 'imaging-submit' ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Sending...</span>
+                </>
+              ) : isSentToImaging ? (
+                <>
+                  <i aria-hidden="true" className="ph ph-check-circle" />
+                  Sent To Imaging
+                </>
+              ) : (
+                <>
+                  <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                  Send To Imaging
+                </>
+              )}
+            </button>
+          )}
           <button
             className="doc-btn primary"
             onClick={() => handleNextStep('Follow-up')}

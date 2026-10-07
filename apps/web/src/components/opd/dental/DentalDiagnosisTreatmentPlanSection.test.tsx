@@ -47,6 +47,8 @@ const mockExam: OpdDentalExaminationResponse = {
   updated_at: '2026-09-29T10:00:00Z',
 };
 
+let currentMockExam = mockExam;
+
 const mockDepartmentServices: ServiceResponse[] = [
   {
     id: 'svc-composite-123',
@@ -76,7 +78,7 @@ vi.mock('../../../hooks/opd/useOpd', async (importOriginal) => {
   return {
     ...actual,
     useOpdDentalExamination: () => ({
-      data: mockExam,
+      data: currentMockExam,
       isLoading: false,
       isError: false,
       error: null,
@@ -111,6 +113,7 @@ vi.mock('../../../hooks/opd/useOpd', async (importOriginal) => {
 
 vi.mock('../../../api/useSettings', () => ({
   useCurrencyFormatter: () => (val: number) => `KES ${val.toFixed(2)}`,
+  useSettings: () => null,
 }));
 
 describe('DentalDiagnosisTreatmentPlanSection Component', () => {
@@ -119,6 +122,7 @@ describe('DentalDiagnosisTreatmentPlanSection Component', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
+    currentMockExam = mockExam;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -203,6 +207,8 @@ describe('DentalDiagnosisTreatmentPlanSection Component', () => {
     // The DentalTreatmentPlanSection is embedded
     expect(container.textContent).toContain('Dental Treatment Plan');
     expect(container.textContent).toContain('+ Add Treatment');
+    expect(container.textContent).not.toContain('Create Invoice');
+    expect(Array.from(container.querySelectorAll('th')).some((cell) => cell.textContent === 'Billing')).toBe(false);
 
     // Click + Add Treatment to reveal procedure choosing form
     const addTreatmentBtn = Array.from(container.querySelectorAll('button')).find((b) =>
@@ -217,6 +223,26 @@ describe('DentalDiagnosisTreatmentPlanSection Component', () => {
     expect(container.textContent).toContain('Add Dental Treatment Procedure');
     expect(Array.from(container.querySelectorAll('label')).some((label) => label.textContent === 'Service')).toBe(true);
     expect(container.textContent).toContain('Composite Restoration - Posterior (KES 250.00)');
+  });
+
+  it('keeps treatment and quotation actions editable after dental examination completion', async () => {
+    currentMockExam = { ...mockExam, status: 'COMPLETED' };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <DentalDiagnosisTreatmentPlanSection
+            visitId="visit-1"
+            canEdit={true}
+            departmentServices={mockDepartmentServices}
+            diagnoses={[]}
+          />
+        </QueryClientProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain('+ Add Treatment');
+    expect(container.textContent).toContain('Generate Quotation');
   });
 
   it('allows removing diagnosis directly from the compact table row', async () => {

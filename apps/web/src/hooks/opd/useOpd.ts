@@ -128,6 +128,17 @@ export function useOpdPrescription(visitId: string | null, enabled = true) {
   });
 }
 
+export function useOpdPrescriptionsList(
+  params: Parameters<typeof opdApi.listPrescriptions>[0] = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...opdKeys.prescriptions(), params],
+    queryFn: () => opdApi.listPrescriptions(params),
+    enabled,
+  });
+}
+
 export function useOpdFollowUp(visitId: string | null, enabled = true) {
   return useQuery({
     queryKey: visitId ? opdKeys.followUp(visitId) : opdKeys.followUps(),

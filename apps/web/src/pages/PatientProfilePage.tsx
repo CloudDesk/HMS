@@ -86,6 +86,7 @@ export function PatientProfilePage() {
     loadingDetails,
     loadingHistory,
     detailsError,
+    prescriptions,
     formatMoney,
     isSubmittingUpdate: submitting,
     isSubmittingUpload: submittingUpload,
@@ -103,7 +104,6 @@ export function PatientProfilePage() {
   const loading = loadingDetails || (loadingHistory && activeTab === 'Medical History');
   const loadError = detailsError?.message || '';
 
-  const prescriptions: OpdPrescriptionResponse[] = [];
   const [viewingPrescription, setViewingPrescription] = useState<OpdPrescriptionResponse | null>(null);
   const [viewingLabOrder, setViewingLabOrder] = useState<DiagnosticOrder | null>(null);
   const [viewingImagingOrder, setViewingImagingOrder] = useState<DiagnosticOrder | null>(null);

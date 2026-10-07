@@ -18,6 +18,7 @@ import { seedDatabase } from '../src/database/seed.js';
 import { signJwt } from '../src/shared/security/jwt.js';
 import { hashPassword } from '../src/shared/security/hash.js';
 import { env } from '../src/config/env.js';
+import { BillingInvoiceModel } from '../src/modules/billing/billing.model.js';
 
 describe('HMS Dental Flow – Quotation Send to Patient & Patient Portal Sync Tests', () => {
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
@@ -46,7 +47,6 @@ describe('HMS Dental Flow – Quotation Send to Patient & Patient Portal Sync Te
   const planItemCrownId = createObjectId();
   const planItemBridgeId = createObjectId();
   const planItemWisdomId = createObjectId();
-  const planItemScalingId = createObjectId();
   const planItemUnrelatedId = createObjectId();
 
   beforeAll(async () => {
@@ -496,6 +496,24 @@ describe('HMS Dental Flow – Quotation Send to Patient & Patient Portal Sync Te
   });
 
   it('7. Patient accepts Option A via Patient Portal -> persists ACCEPTED and syncs treatment plan', async () => {
+    // Mobile/patient accounts may rely solely on their verified patient grant
+    // and have no staff branch assignment. Catalogue references make this
+    // quotation eligible for automatic invoicing.
+    await UserModel.updateOne(
+      { _id: new Types.ObjectId(patientAUserId) },
+      { $set: { branchIds: [] } },
+    );
+    await DentalTreatmentQuotationModel.updateOne(
+      { _id: new Types.ObjectId(quotationId) },
+      {
+        $set: {
+          'options.0.items.0.serviceId': new Types.ObjectId(),
+          'options.0.items.1.serviceId': new Types.ObjectId(),
+          'options.0.items.2.serviceId': new Types.ObjectId(),
+        },
+      },
+    );
+
     const acceptRes = await app.inject({
       method: 'POST',
       url: `/api/opd/dental/quotations/${quotationId}/accept`,
@@ -511,11 +529,15 @@ describe('HMS Dental Flow – Quotation Send to Patient & Patient Portal Sync Te
     expect(body.data.selected_option_id).toBe(optionAId);
     expect(body.data.selected_option_name).toBe('Option A – Recommended');
     expect(body.data.accepted_at).toBeTruthy();
+    expect(body.data.invoice_id).toBeTruthy();
+    expect(body.data.invoice_number).toMatch(/^INV-/);
 
     // Verify database document
     const doc = await DentalTreatmentQuotationModel.findById(quotationId).lean();
     expect(doc?.status).toBe('ACCEPTED');
     expect(doc?.selectedOptionId?.toString()).toBe(optionAId);
+    expect(doc?.invoiceId?.toString()).toBe(body.data.invoice_id);
+    expect(await BillingInvoiceModel.countDocuments({ _id: doc?.invoiceId })).toBe(1);
 
     // Verify Treatment Plan items synchronized in examination
     const exam = await OpdDentalExaminationModel.findOne({ visitId: new Types.ObjectId(visitId) }).lean();

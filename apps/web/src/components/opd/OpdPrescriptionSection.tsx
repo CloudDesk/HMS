@@ -53,6 +53,7 @@ export type OpdPrescriptionSectionProps = {
   patient?: PatientResponse | null;
   visit?: OpdVisitResponse | null;
   isSentToPharmacy?: boolean;
+  onCompleteExamination?: () => void;
 };
 
 export function OpdPrescriptionSection({
@@ -73,6 +74,7 @@ export function OpdPrescriptionSection({
   patient,
   visit,
   isSentToPharmacy = false,
+  onCompleteExamination,
 }: OpdPrescriptionSectionProps) {
   const displayMedicines = useMemo(() => {
     if (!isDental) return masterMedicines;
@@ -475,6 +477,12 @@ export function OpdPrescriptionSection({
           Auto-save enabled
         </span>
         <div>
+          {isDental && canEdit && onCompleteExamination ? (
+            <button className="doc-btn success" onClick={onCompleteExamination} type="button">
+              <i className="ph ph-check-circle" aria-hidden="true" />
+              Complete Examination
+            </button>
+          ) : null}
           {canEdit && (
             <button className="doc-btn" onClick={saveConsultationDraft} type="button">
               <i className="ph ph-floppy-disk" aria-hidden="true" />

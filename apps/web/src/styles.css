@@ -7204,7 +7204,9 @@ textarea.has-error {
   min-height: 40px !important;
 }
 
-/* Disabled / Sent To Pharmacy button state in OPD Sticky Actions */
+/* Disabled / Sent To Pharmacy / Sent To Laboratory / Sent To Imaging button states */
+.doc-btn.sent-disabled,
+.doc-btn.sent-disabled:disabled,
 .opd-sticky-actions .doc-btn:disabled,
 .opd-sticky-actions .doc-btn.sent-disabled,
 .opd-sticky-actions .doc-btn.sent-disabled:disabled {
@@ -7217,6 +7219,8 @@ textarea.has-error {
   transform: none !important;
 }
 
+.doc-btn.sent-disabled i,
+.doc-btn.sent-disabled:disabled i,
 .opd-sticky-actions .doc-btn:disabled i,
 .opd-sticky-actions .doc-btn.sent-disabled i,
 .opd-sticky-actions .doc-btn.sent-disabled:disabled i {

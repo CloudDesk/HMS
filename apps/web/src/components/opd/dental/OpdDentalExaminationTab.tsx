@@ -48,6 +48,8 @@ interface OpdDentalExaminationTabProps {
   onAssessmentChange?: (val: string) => void;
   onNextStep?: (tab: string) => void;
   onCompletedChange?: (completed: boolean) => void;
+  onBeforeComplete?: () => Promise<void>;
+  onCompleteRequestReady?: (request: (() => void) | null) => void;
   onSaveDiagnosis?: () => Promise<void>;
   billingStates?: DentalTreatmentBillingState[];
   billingStateLoading?: boolean;
@@ -90,6 +92,8 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   onAssessmentChange,
   onNextStep,
   onCompletedChange,
+  onBeforeComplete,
+  onCompleteRequestReady,
   onSaveDiagnosis,
   billingStates = [],
   billingStateLoading = false,
@@ -111,6 +115,12 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
   const isReadOnly = !canEdit || isCompleted;
   const isSaving = saveDraftMutation.isPending || completeMutation.isPending;
   const controlsDisabled = isReadOnly || isSaving;
+
+  useEffect(() => {
+    if (!onCompleteRequestReady) return;
+    onCompleteRequestReady(() => setConfirmCompleteOpen(true));
+    return () => onCompleteRequestReady(null);
+  }, [onCompleteRequestReady]);
 
   const effectiveDob = patientDateOfBirth ?? patient?.date_of_birth ?? null;
   const patientAge = useMemo(() => getPatientAgeInYears(effectiveDob), [effectiveDob]);
@@ -457,10 +467,30 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
     }
   };
 
+  const handleNavigateToStep = async (step: 'Diagnosis' | 'Prescription' | 'Imaging Orders' | 'Lab Orders') => {
+    if (isSaving) return;
+    if (isDirty && !isReadOnly) {
+      const saved = await handleSaveDraft();
+      if (!saved) return;
+    }
+    if (onNextStep) {
+      onNextStep(step);
+    } else if (visitId) {
+      const routeMap: Record<string, string> = {
+        'Diagnosis': `/opd/treatment-plan?id=${encodeURIComponent(visitId)}&tab=Diagnosis`,
+        'Prescription': `/opd/prescription?id=${encodeURIComponent(visitId)}&tab=Prescription`,
+        'Imaging Orders': `/opd/imaging?id=${encodeURIComponent(visitId)}&tab=Imaging+Orders`,
+        'Lab Orders': `/opd/laboratory?id=${encodeURIComponent(visitId)}&tab=Lab+Orders`,
+      };
+      navigate(routeMap[step] || `/opd/consultation?id=${encodeURIComponent(visitId)}`, { replace: true });
+    }
+  };
+
   const handleConfirmComplete = async () => {
     try {
       const payload = buildPayload();
       await onSaveDiagnosis?.();
+      await onBeforeComplete?.();
       const saved = await completeMutation.mutateAsync({ visitId, payload });
       acceptSavedRecord(saved);
       dirtyRef.current = false;
@@ -835,17 +865,62 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
                 {saveDraftMutation.isPending ? 'Saving...' : 'Save Draft'}
               </button>
 
-              <button
-                type="button"
-                className={styles.btnComplete}
-                onClick={() => setConfirmCompleteOpen(true)}
-                disabled={isSaving}
-              >
-                <i className="ph ph-check-circle" />
-                Complete Examination
-              </button>
+              {activeSubTab === 'odontogram' ? (
+                <button
+                  type="button"
+                  className={styles.btnComplete}
+                  onClick={() => setConfirmCompleteOpen(true)}
+                  disabled={isSaving}
+                >
+                  <i className="ph ph-check-circle" />
+                  Complete Examination
+                </button>
+              ) : null}
             </>
           )}
+
+          {/* Quick Direct Actions: Skip treatment plan when only medication or imaging is needed */}
+          {activeSubTab === 'odontogram' ? <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: '#0284c7',
+              color: '#0284c7',
+              background: '#f0f9ff',
+            }}
+            onClick={() => void handleNavigateToStep('Imaging Orders')}
+            disabled={isSaving}
+            title="Order dental imaging / X-rays (IOPA, Bitewing, OPG, CBCT)"
+            data-testid="direct-order-imaging-btn"
+          >
+            <i className="ph ph-camera" />
+            Order Imaging (X-Ray)
+          </button> : null}
+
+          {activeSubTab === 'odontogram' ? <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: '#16a34a',
+              color: '#15803d',
+              background: '#f0fdf4',
+              fontWeight: 600,
+            }}
+            onClick={() => void handleNavigateToStep('Prescription')}
+            disabled={isSaving}
+            title="Skip treatment plan and write prescription directly (e.g. analgesics / antibiotics)"
+            data-testid="direct-next-prescription-btn"
+          >
+            <i className="ph ph-pill" />
+            Next: Prescription
+            <i className="ph ph-arrow-right" />
+          </button> : null}
 
           {dentalExaminationNextStep[activeSubTab] ? (
             <button
@@ -861,17 +936,7 @@ export const OpdDentalExaminationTab: React.FC<OpdDentalExaminationTabProps> = (
             <button
               type="button"
               className={styles.btnPrimary}
-              onClick={async () => {
-                if (isDirty && !isReadOnly) {
-                  const saved = await handleSaveDraft();
-                  if (!saved) return;
-                }
-                if (onNextStep) {
-                  onNextStep('Diagnosis');
-                } else if (visitId) {
-                  navigate(`/opd/treatment-plan?id=${encodeURIComponent(visitId)}&tab=Diagnosis`, { replace: true });
-                }
-              }}
+              onClick={() => void handleNavigateToStep('Diagnosis')}
               disabled={isSaving}
             >
               Next: Diagnosis & Treatment Plan
