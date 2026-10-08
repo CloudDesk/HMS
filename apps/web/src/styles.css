@@ -151,7 +151,7 @@ a {
 
 .auth-glass-container {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-end;
   width: 100%;
   max-width: 100%;
