@@ -5,6 +5,7 @@ import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { BillingInvoiceModel, BillingInvoiceItemModel } from '../billing/billing.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { PatientModel } from '../patients/patient.model.js';
+import { BranchModel } from '../branches/branch.model.js';
 import { InsuranceMemberModel, InsurancePolicyModel } from './insurance.model.js';
 import { InsuranceAuthorizationModel } from './insurance-authorization.model.js';
 import { ShaServiceMappingModel } from './insurance-integration.model.js';
@@ -16,6 +17,7 @@ export class InsuranceIntegrationRepository {
   encounter(id: string) { return OpdVisitModel.findOne({ _id: id, deletedAt: null }).select('patientId branchId departmentId doctorId appointmentId visitDate').lean(); }
   patient(id: string) { return PatientModel.exists({ _id: id, deletedAt: null }); }
   patientRecord(id: string) { return PatientModel.findOne({ _id: id, deletedAt: null }).select('_id identifiers').lean(); }
+  branchRecord(id: string) { return BranchModel.findOne({ _id: id, deletedAt: null }).select('_id identifiers').lean(); }
 
   async references(encounterId: string, patientId: string, branchId: string) {
     const invoices = await BillingInvoiceModel.find({ visitId: encounterId, patientId, branchId, sourceType: 'OPD', deletedAt: null, status: { $ne: 'CANCELLED' } }).select('_id').limit(101).lean();

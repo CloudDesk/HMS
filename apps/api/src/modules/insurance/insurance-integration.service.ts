@@ -5,6 +5,7 @@ import type { InsuranceService } from './insurance.service.js';
 import { shaMappingSchema, type ShaMappingInput } from './insurance-integration.schemas.js';
 import type { RequestMetadata } from './insurance.types.js';
 import { evaluatePatientIdentifierReadiness } from '../patients/patient-identifier.utils.js';
+import { evaluateFacilityIdentifierReadiness } from '../branches/branch-identifier.utils.js';
 
 
 export class InsuranceIntegrationService {
@@ -25,12 +26,14 @@ export class InsuranceIntegrationService {
     const refs = await this.repository.references(id, patientId, branchId);
     if (refs.invoices.length > 100 || refs.items.length > 1000 || refs.orders.length > 100) throw new AppError('Encounter context exceeds supported size', 422, 'ENCOUNTER_CONTEXT_TOO_LARGE');
     const ids = [...new Set([...refs.items.map(row => row.serviceId.toString()), ...refs.orders.flatMap(row => row.items.map(item => item.serviceId.toString()))])];
-    const [services, members, patientRecord] = await Promise.all([
+    const [services, members, patientRecord, branchRecord] = await Promise.all([
       this.repository.services(ids),
       this.repository.members(patientId, date),
       this.repository.patientRecord(patientId),
+      this.repository.branchRecord(branchId),
     ]);
     const patientIdentifierReadiness = evaluatePatientIdentifierReadiness(patientRecord?.identifiers);
+    const facilityIdentifierReadiness = evaluateFacilityIdentifierReadiness(branchRecord?.identifiers);
     const structuredDiagnoses = refs.consultation?.diagnoses ?? [];
     const icd11Diagnoses = structuredDiagnoses.filter(d => {
       const sys = (d.codingSystem ?? '').toUpperCase().trim();
@@ -56,6 +59,7 @@ export class InsuranceIntegrationService {
         requiredForFutureClaims: true,
       },
       patientIdentifierReadiness,
+      facilityIdentifierReadiness,
       insurance: { memberId: members.length === 1 ? members[0]?._id.toString() : null, selectionRequired: members.length > 1, coverageVerified: false },
     };
   }

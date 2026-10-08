@@ -1,7 +1,14 @@
 import { AppError } from '../../shared/errors/app-error.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { BranchRepository } from './branch.repository.js';
-import type { BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
+import type {
+  BranchListQuery,
+  BranchRequestMetadata,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+  AddBranchIdentifierDTO,
+  UpdateBranchIdentifierDTO,
+} from './branch.types.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9\s().-]{7,20}$/;
@@ -58,6 +65,27 @@ export class BranchService {
 
   updateStatus(id: string, status: 'ACTIVE' | 'INACTIVE', userId: string, metadata: BranchRequestMetadata) {
     return this.update(id, { status }, userId, metadata);
+  }
+
+  async getIdentifiers(id: string) {
+    await this.getById(id);
+    return this.repository.getIdentifiers(id);
+  }
+
+  async addIdentifier(id: string, data: AddBranchIdentifierDTO, userId: string, metadata: BranchRequestMetadata) {
+    await this.getById(id);
+    return this.repository.addIdentifier(id, data, userId, metadata);
+  }
+
+  async updateIdentifierStatus(
+    id: string,
+    identifierId: string,
+    data: UpdateBranchIdentifierDTO,
+    userId: string,
+    metadata: BranchRequestMetadata,
+  ) {
+    await this.getById(id);
+    return this.repository.updateIdentifierStatus(id, identifierId, data, userId, metadata);
   }
 
   async delete(id: string, userId: string, metadata: BranchRequestMetadata) {

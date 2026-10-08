@@ -371,6 +371,15 @@ export const env = {
     facilityCode: process.env.SHA_FACILITY_CODE ?? '',
     timeoutMs: parseInteger(process.env.SHA_TIMEOUT_MS, 10000),
     patientIdentifierSystem: process.env.SHA_PATIENT_IDENTIFIER_SYSTEM ?? '',
+    facilityIdentifierSystem: process.env.SHA_FACILITY_IDENTIFIER_SYSTEM ?? process.env.DHA_FACILITY_IDENTIFIER_SYSTEM ?? '',
+  },
+  dha: {
+    enabled: parseBoolean(process.env.DHA_INTEGRATION_ENABLED, false),
+    baseUrl: process.env.DHA_BASE_URL ?? '',
+    tokenUrl: process.env.DHA_TOKEN_URL ?? '',
+    clientId: process.env.DHA_CLIENT_ID ?? '',
+    clientSecret: process.env.DHA_CLIENT_SECRET ?? '',
+    timeoutMs: parseInteger(process.env.DHA_TIMEOUT_MS, 10000),
   },
 } as const;
 

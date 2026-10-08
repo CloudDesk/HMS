@@ -48,3 +48,45 @@ export type BranchRequestMetadata = {
   ipAddress?: string;
   userAgent?: string;
 };
+
+export type BranchIdentifierStatus = 'ACTIVE' | 'INACTIVE' | 'REVOKED';
+
+export type BranchIdentifier = {
+  id: string;
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status: BranchIdentifierStatus;
+  effective_from: string | null;
+  effective_to: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+};
+
+export type AddBranchIdentifierDTO = {
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status?: BranchIdentifierStatus;
+  effective_from?: string | null;
+  effective_to?: string | null;
+};
+
+export type UpdateBranchIdentifierDTO = {
+  status: BranchIdentifierStatus;
+  effective_to?: string | null;
+};
+
+export type ShaFacilityIdentifierReadinessStatus =
+  | 'SHA_FACILITY_IDENTIFIER_SYSTEM_UNCONFIGURED'
+  | 'SHA_FACILITY_IDENTIFIER_AVAILABLE'
+  | 'SHA_FACILITY_IDENTIFIER_NOT_AVAILABLE';
+
+export type ShaFacilityIdentifierReadiness = {
+  status: ShaFacilityIdentifierReadinessStatus;
+  identifierSystemConfigured: boolean;
+  identifierAvailable: boolean;
+  identifierSystem: string | null;
+  identifierType: string | null;
+};
+

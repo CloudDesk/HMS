@@ -14,6 +14,7 @@ import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
 
 import { PatientModel } from '../patients/patient.model.js';
+import { BranchModel } from '../branches/branch.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { BillingInvoiceModel, BillingInvoiceItemModel } from '../billing/billing.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
@@ -157,6 +158,71 @@ describe('Insurance Phase 6 encounter integration', () => {
       expect(JSON.stringify(result)).not.toContain(sensitiveUpi);
     } finally {
       process.env.SHA_PATIENT_IDENTIFIER_SYSTEM = originalSystem;
+      await PatientModel.deleteOne({ _id: testPatientId });
+      await OpdVisitModel.deleteOne({ _id: testEncounterId });
+    }
+  });
+
+  it('returns facilityIdentifierReadiness: SHA_FACILITY_IDENTIFIER_AVAILABLE when branch has active SHA facility identifier', async () => {
+    const originalSystem = process.env.SHA_FACILITY_IDENTIFIER_SYSTEM;
+    process.env.SHA_FACILITY_IDENTIFIER_SYSTEM = 'SHA';
+
+    const testBranchId = new Types.ObjectId();
+    const testPatientId = new Types.ObjectId();
+    const testEncounterId = new Types.ObjectId();
+    const sensitiveFacilityCode = 'SECRET-FAC-CODE-999';
+
+    await BranchModel.collection.insertOne({
+      _id: testBranchId,
+      code: 'TEST-B-01',
+      name: 'Test Branch 01',
+      status: 'ACTIVE',
+      identifiers: [
+        {
+          _id: new Types.ObjectId(),
+          identifierType: 'SHA_FACILITY_ID',
+          value: sensitiveFacilityCode,
+          issuingAuthority: 'SHA',
+          status: 'ACTIVE',
+        },
+      ],
+      deletedAt: null,
+    });
+
+    await PatientModel.collection.insertOne({
+      _id: testPatientId,
+      patientNumber: 'TEST-P-FAC',
+      lastName: 'FacilityPatient',
+      dateOfBirth: new Date('1990-01-01'),
+      gender: 'OTHER',
+      identifiers: [],
+      deletedAt: null,
+    });
+
+    await OpdVisitModel.collection.insertOne({
+      _id: testEncounterId,
+      patientId: testPatientId,
+      branchId: testBranchId,
+      doctorId: new Types.ObjectId(),
+      departmentId: new Types.ObjectId(),
+      visitDate: new Date('2026-10-08'),
+      visitNumber: 'OPD-FAC-TEST-1',
+      patientName: 'Facility Patient',
+      deletedAt: null,
+    });
+
+    try {
+      const result = await integration.context(testEncounterId.toString(), 'OPD', actor);
+      expect(result.facilityIdentifierReadiness.status).toBe('SHA_FACILITY_IDENTIFIER_AVAILABLE');
+      expect(result.facilityIdentifierReadiness.identifierSystemConfigured).toBe(true);
+      expect(result.facilityIdentifierReadiness.identifierAvailable).toBe(true);
+      expect(result.facilityIdentifierReadiness.identifierType).toBe('SHA_FACILITY_ID');
+      expect(result.facilityIdentifierReadiness.identifierSystem).toBe('SHA');
+      // Zero credential/identifier leakage: raw facility code must NOT be present in context
+      expect(JSON.stringify(result)).not.toContain(sensitiveFacilityCode);
+    } finally {
+      process.env.SHA_FACILITY_IDENTIFIER_SYSTEM = originalSystem;
+      await BranchModel.deleteOne({ _id: testBranchId });
       await PatientModel.deleteOne({ _id: testPatientId });
       await OpdVisitModel.deleteOne({ _id: testEncounterId });
     }
