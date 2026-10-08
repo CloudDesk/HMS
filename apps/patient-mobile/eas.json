@@ -5,10 +5,20 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "env": {
+          "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
+        }
+      }
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "env": {
+          "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
+        }
+      },
       "android": {
         "buildType": "apk"
       },
@@ -18,6 +28,11 @@
       }
     },
     "production": {
+      "ios": {
+        "env": {
+          "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
+        }
+      },
       "env": {
         "EXPO_PUBLIC_HMS_ENV": "production",
         "EXPO_PUBLIC_HMS_API_URL": "https://hms-india.onrender.com/api"
