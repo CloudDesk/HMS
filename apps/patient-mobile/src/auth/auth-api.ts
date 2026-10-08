@@ -8,6 +8,7 @@ import {
   phoneSchema,
   portalLoginResponseSchema,
   sessionResponseSchema,
+  splitRegistrationFullName,
   verifyOtpResponseSchema,
   type CompleteProfileResponse,
   type NativeSession,
@@ -52,7 +53,7 @@ export class AuthApi {
     platform: 'android' | 'ios';
     appVersion: string;
     selfProfile?: {
-      firstName: string;
+      firstName: string | null;
       lastName: string;
       dateOfBirth: string;
       gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
@@ -123,9 +124,7 @@ export class AuthApi {
     };
   }
   async completeProfile(accessToken: string, input: RegistrationFormValues): Promise<CompleteProfileResponse> {
-    const names = input.fullName.trim().split(/\s+/);
-    const firstName = names[0] || input.fullName.trim();
-    const lastName = names.slice(1).join(' ') || '.';
+    const { firstName, lastName } = splitRegistrationFullName(input.fullName);
     return this.transport.request(
       '/patient-portal/profile',
       completeProfileResponseSchema,

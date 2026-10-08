@@ -213,6 +213,14 @@ describe('patient OTP challenge security', () => {
     expect(challenge?.verifiedAt).toBeInstanceOf(Date);
   });
 
+  it('allows a fresh OTP immediately after a successful sign-in challenge is consumed', async () => {
+    await service.request(phone, metadata);
+    await service.verifyAndConsume(phone, extractOtp(sms.lastMessage), metadata);
+
+    await expect(service.request(phone, metadata)).resolves.toMatchObject({ success: true });
+    expect(await OtpChallengeModel.countDocuments({ phone: normalizedPhone })).toBe(2);
+  });
+
   it('rejects an incorrect OTP and increments attempts', async () => {
     await createChallenge();
 

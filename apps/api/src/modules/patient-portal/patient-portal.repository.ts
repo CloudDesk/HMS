@@ -692,7 +692,7 @@ export class PatientPortalRepository {
   async createPortalPatient(
     input: {
       userId: string;
-      firstName: string;
+      firstName: string | null;
       lastName: string;
       dateOfBirth: string;
       gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
@@ -716,7 +716,9 @@ export class PatientPortalRepository {
 
     const duplicateFilter: Record<string, unknown> = {
       deletedAt: null,
-      firstName: new RegExp(`^${escapeRegex(input.firstName)}$`, 'i'),
+      firstName: input.firstName
+        ? new RegExp(`^${escapeRegex(input.firstName)}$`, 'i')
+        : { $in: [null, ''] },
       lastName: new RegExp(`^${escapeRegex(input.lastName)}$`, 'i'),
       dateOfBirth: new Date(input.dateOfBirth),
     };
@@ -734,7 +736,7 @@ export class PatientPortalRepository {
       [
         {
           patientNumber,
-          firstName: input.firstName.trim(),
+          firstName: input.firstName?.trim() || null,
           lastName: input.lastName.trim(),
           dateOfBirth: new Date(input.dateOfBirth),
           gender: input.gender,
@@ -773,7 +775,7 @@ export class PatientPortalRepository {
             patientId: patient._id,
             eventType: 'REGISTRATION',
             title: input.relationship === 'SELF' ? 'Patient self-registration completed' : 'Dependent registered by guardian',
-            description: `${input.firstName.trim()} ${input.lastName.trim()} was registered through the patient portal.`,
+            description: `${[input.firstName?.trim(), input.lastName.trim()].filter(Boolean).join(' ')} was registered through the patient portal.`,
             occurredAt: new Date(),
             createdBy: objectId(input.userId),
           },
@@ -805,7 +807,7 @@ export class PatientPortalRepository {
   async linkExistingSelfPatient(
     input: {
       userId: string;
-      firstName: string;
+      firstName: string | null;
       lastName: string;
       dateOfBirth: string;
       email?: string | null;
@@ -822,7 +824,9 @@ export class PatientPortalRepository {
     const findQuery = PatientModel.find({
       status: 'ACTIVE',
       deletedAt: null,
-      firstName: new RegExp(`^${escapeRegex(input.firstName)}$`, 'i'),
+      firstName: input.firstName
+        ? new RegExp(`^${escapeRegex(input.firstName)}$`, 'i')
+        : { $in: [null, ''] },
       lastName: new RegExp(`^${escapeRegex(input.lastName)}$`, 'i'),
       dateOfBirth: new Date(input.dateOfBirth),
       $or: contactMatches,
@@ -881,7 +885,7 @@ export class PatientPortalRepository {
   }
 
   async updatePortalPatient(userId: string, patientId: string, input: {
-    firstName: string;
+    firstName: string | null;
     middleName?: string | null;
     lastName: string;
     dateOfBirth: string;
@@ -896,7 +900,7 @@ export class PatientPortalRepository {
     const patient = await PatientModel.findOneAndUpdate(
       { _id: objectId(patientId), status: 'ACTIVE', deletedAt: null },
       { $set: {
-        firstName: input.firstName.trim(),
+        firstName: input.firstName?.trim() || null,
         middleName: input.middleName?.trim() || null,
         lastName: input.lastName.trim(),
         dateOfBirth: new Date(input.dateOfBirth),

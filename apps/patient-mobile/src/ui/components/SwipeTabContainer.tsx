@@ -6,6 +6,7 @@ import {
   StyleSheet,
   View,
   type GestureResponderEvent,
+  type LayoutChangeEvent,
   type PanResponderGestureState,
 } from 'react-native';
 import type { MainTab } from './BottomNavBar';
@@ -17,6 +18,18 @@ export const MAIN_SWIPE_TABS: MainTab[] = [
   'prescriptions',
   'profile',
 ];
+
+export const shouldStartMainTabSwipe = (
+  activeIndex: number,
+  dx: number,
+  dy: number,
+) => {
+  const isHorizontal = Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 10;
+  if (!isHorizontal) return false;
+  if (activeIndex === 0 && dx > 0) return false;
+  if (activeIndex === MAIN_SWIPE_TABS.length - 1 && dx < 0) return false;
+  return activeIndex >= 0 && activeIndex < MAIN_SWIPE_TABS.length;
+};
 
 interface SwipeTabContainerProps {
   activeTab: MainTab;
@@ -55,7 +68,7 @@ export function SwipeTabContainer({
     };
   }, [activeIndex, isMainTab, screenWidth, onTabChange]);
 
-  const handleLayout = (e: any) => {
+  const handleLayout = (e: LayoutChangeEvent) => {
     const width = e.nativeEvent?.layout?.width;
     if (width && width > 0 && width !== screenWidth) {
       setScreenWidth(width);
@@ -72,18 +85,16 @@ export function SwipeTabContainer({
         const { isMainTab, activeIndex } = stateRef.current;
         if (!isMainTab) return false;
 
-        const { dx, dy } = gestureState;
-        // Horizontal intent: dx must dominate dy significantly and exceed initial slop
-        const isHorizontal = Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 10;
-        if (!isHorizontal) return false;
-
-        // Boundary checks:
-        // If on first tab (Home), cannot swipe right (dx > 0)
-        if (activeIndex === 0 && dx > 0) return false;
-        // If on last tab (Profile), cannot swipe left (dx < 0)
-        if (activeIndex === MAIN_SWIPE_TABS.length - 1 && dx < 0) return false;
-
-        return true;
+        return shouldStartMainTabSwipe(activeIndex, gestureState.dx, gestureState.dy);
+      },
+      // Main screens contain ScrollViews. Capture a clearly horizontal gesture
+      // before a child scroll view claims it so the swipe works across the screen.
+      onMoveShouldSetPanResponderCapture: (
+        _evt: GestureResponderEvent,
+        gestureState: PanResponderGestureState
+      ) => {
+        const { isMainTab, activeIndex } = stateRef.current;
+        return isMainTab && shouldStartMainTabSwipe(activeIndex, gestureState.dx, gestureState.dy);
       },
       onPanResponderGrant: () => {
         translateX.stopAnimation();
@@ -166,6 +177,7 @@ export function SwipeTabContainer({
           setDragDirection(null);
         });
       },
+      onPanResponderTerminationRequest: () => false,
     })
   ).current;
 

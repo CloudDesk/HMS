@@ -21,6 +21,7 @@ describe('Executive Dashboard Aggregation Suite', () => {
 
   const superAdminUserId = new Types.ObjectId();
   const branch1UserId = new Types.ObjectId();
+  const appointment1Id = new Types.ObjectId();
 
   const now = new Date();
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 10, 0, 0));
@@ -73,7 +74,7 @@ describe('Executive Dashboard Aggregation Suite', () => {
 
     // Seed Today's Appointments (2 in Branch 1, 1 cancelled, 1 in Branch 2)
     await AppointmentModel.create([
-      { appointmentNumber: 'APP001', patientId: new Types.ObjectId(), patientNumber: 'P001', patientName: 'John Doe', doctorId: new Types.ObjectId(), doctorName: 'Dr. House', doctorSpecialization: 'Diagnostic', branchId: branch1Id, departmentId: new Types.ObjectId(), appointmentDate: todayUtc, durationMinutes: 30, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'SCHEDULED' },
+      { _id: appointment1Id, appointmentNumber: 'APP001', patientId: new Types.ObjectId(), patientNumber: 'P001', patientName: 'John Doe', doctorId: new Types.ObjectId(), doctorName: 'Dr. House', doctorSpecialization: 'Diagnostic', branchId: branch1Id, departmentId: new Types.ObjectId(), appointmentDate: todayUtc, durationMinutes: 30, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'SCHEDULED' },
       { appointmentNumber: 'APP002', patientId: new Types.ObjectId(), patientNumber: 'P002', patientName: 'Jane Smith', doctorId: new Types.ObjectId(), doctorName: 'Dr. Wilson', doctorSpecialization: 'Oncology', branchId: branch1Id, departmentId: new Types.ObjectId(), appointmentDate: todayUtc, durationMinutes: 30, visitType: 'FOLLOW_UP', priority: 'ROUTINE', status: 'CONFIRMED' },
       { appointmentNumber: 'APP003', patientId: new Types.ObjectId(), patientNumber: 'P001', patientName: 'John Doe', doctorId: new Types.ObjectId(), doctorName: 'Dr. House', doctorSpecialization: 'Diagnostic', branchId: branch1Id, departmentId: new Types.ObjectId(), appointmentDate: todayUtc, durationMinutes: 30, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'CANCELLED' },
       { appointmentNumber: 'APP004', patientId: new Types.ObjectId(), patientNumber: 'P003', patientName: 'Alice Wong', doctorId: new Types.ObjectId(), doctorName: 'Dr. B2', doctorSpecialization: 'General', branchId: branch2Id, departmentId: new Types.ObjectId(), appointmentDate: todayUtc, durationMinutes: 30, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'SCHEDULED' },
@@ -81,7 +82,7 @@ describe('Executive Dashboard Aggregation Suite', () => {
 
     // Seed OPD Visits (2 today in Branch 1: 1 checked-in, 1 completed; 1 in Branch 2)
     await OpdVisitModel.create([
-      { visitNumber: 'OPD001', patientId: new Types.ObjectId(), patientNumber: 'P001', patientName: 'John Doe', doctorId: new Types.ObjectId(), doctorName: 'Dr. House', doctorSpecialization: 'Diagnostic', branchId: branch1Id, departmentId: new Types.ObjectId(), visitDate: todayUtc, checkInTime: todayUtc, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'CHECKED_IN' },
+      { visitNumber: 'OPD001', appointmentId: appointment1Id, patientId: new Types.ObjectId(), patientNumber: 'P001', patientName: 'John Doe', doctorId: new Types.ObjectId(), doctorName: 'Dr. House', doctorSpecialization: 'Diagnostic', branchId: branch1Id, departmentId: new Types.ObjectId(), visitDate: todayUtc, checkInTime: todayUtc, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'CHECKED_IN' },
       { visitNumber: 'OPD002', patientId: new Types.ObjectId(), patientNumber: 'P002', patientName: 'Jane Smith', doctorId: new Types.ObjectId(), doctorName: 'Dr. Wilson', doctorSpecialization: 'Oncology', branchId: branch1Id, departmentId: new Types.ObjectId(), visitDate: todayUtc, checkInTime: todayUtc, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'COMPLETED' },
       { visitNumber: 'OPD003', patientId: new Types.ObjectId(), patientNumber: 'P003', patientName: 'Alice Wong', doctorId: new Types.ObjectId(), doctorName: 'Dr. B2', doctorSpecialization: 'General', branchId: branch2Id, departmentId: new Types.ObjectId(), visitDate: todayUtc, checkInTime: todayUtc, visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'CHECKED_IN' },
     ]);
@@ -163,6 +164,35 @@ describe('Executive Dashboard Aggregation Suite', () => {
 
     const yearOverview = await repo.getExecutiveOverview(superAdminUserId.toString(), undefined, true, 'year');
     expect(yearOverview.trend.length).toBe(12);
+  });
+
+  it('16. Returns a live selected-day schedule without duplicating converted appointments', async () => {
+    const overview = await repo.getExecutiveOverview(
+      superAdminUserId.toString(),
+      undefined,
+      false,
+      'week',
+      todayUtc.toISOString().slice(0, 10),
+    );
+
+    expect(overview.scheduleItems).toHaveLength(5);
+    expect(overview.scheduleItems.filter((item) => item.source === 'VISIT')).toHaveLength(3);
+    expect(overview.scheduleItems.some((item) => item.appointment_id === appointment1Id.toString() && item.source === 'APPOINTMENT')).toBe(false);
+    expect(overview.operationalMetrics.patientsWaiting).toBe(2);
+  });
+
+  it('17. Returns an empty schedule for a day without appointments or visits', async () => {
+    const noActivityDate = new Date(todayUtc);
+    noActivityDate.setUTCDate(noActivityDate.getUTCDate() + 14);
+    const overview = await repo.getExecutiveOverview(
+      superAdminUserId.toString(),
+      branch1Id.toString(),
+      false,
+      'week',
+      noActivityDate.toISOString().slice(0, 10),
+    );
+
+    expect(overview.scheduleItems).toEqual([]);
   });
 });
 

@@ -79,7 +79,9 @@ export class PatientOtpService {
     const normalizedPhone = normalizePatientOtpIdentity(phone);
     const now = this.now();
     const latest = await this.repository.findLatest(normalizedPhone);
-    if (latest && latest.resendAvailableAt.getTime() > now.getTime()) {
+    // A consumed challenge proved control of the phone number. Its resend cooldown
+    // must not prevent a fresh sign-in after logout or on another device.
+    if (latest && !latest.verifiedAt && latest.resendAvailableAt.getTime() > now.getTime()) {
       const keyHash = this.keyHash(normalizedPhone);
       await this.auditRateLimitOnce('otp-resend', keyHash, metadata, this.resendCooldownSeconds(), now);
       throw new AppError('Too many authentication requests. Try again later.', 429, 'AUTH_RATE_LIMITED');
@@ -124,6 +126,7 @@ export class PatientOtpService {
       this.maxVerificationAttempts(),
     );
     if (!consumed) throw this.invalidOtp();
+    await this.rateLimits.reset('otp-resend', this.keyHash(normalizedPhone));
     return this.verification(normalizedPhone, consumed.id);
   }
 

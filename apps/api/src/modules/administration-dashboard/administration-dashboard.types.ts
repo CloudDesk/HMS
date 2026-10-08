@@ -56,6 +56,16 @@ export type ExecutiveDashboardOverview = {
     check_in_time: string;
     status: string;
   }>;
+  scheduleItems: Array<{
+    id: string;
+    source: 'APPOINTMENT' | 'VISIT';
+    patient_name: string;
+    doctor_name: string;
+    scheduled_at: string;
+    status: string;
+    appointment_id: string | null;
+    visit_id: string | null;
+  }>;
   operationalMetrics: {
     patientsWaiting: number;
     patientsInConsultation: number;
@@ -65,4 +75,6 @@ export type ExecutiveDashboardOverview = {
 
 export type ExecutiveDashboardQuery = {
   branch_id?: string;
+  range?: 'week' | 'month' | 'year';
+  schedule_date?: string;
 };

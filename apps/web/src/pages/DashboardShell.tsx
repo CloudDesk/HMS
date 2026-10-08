@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useDashboardOverviewFeature } from '../hooks/dashboard/useDashboardOverviewFeature';
 import { useAuth } from '../auth/useAuth';
 import {
@@ -50,31 +50,6 @@ const withSuspense = (label: string, component: ReactNode) => (
 
 import { useBranchesList } from '../hooks/branches/useBranches';
 
-type StatCardProps = {
-  icon: string;
-  label: string;
-  note: string;
-  tone: 'blue' | 'green' | 'orange' | 'purple' | 'red';
-  value: string | number;
-};
-
-function StatCard({ icon, label, note, tone, value }: StatCardProps) {
-  return (
-    <div className="stat-card" style={{ minWidth: 0, padding: '1rem', display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
-      <div className={`stat-icon ${tone}`} style={{ flexShrink: 0 }}>
-        <i className={`ph ${icon}`} aria-hidden="true" style={{ fontSize: '1.5rem' }} />
-      </div>
-      <div className="stat-info" style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        <p style={{ margin: 0, fontSize: '0.825rem', fontWeight: 600, color: '#64748b', whiteSpace: 'normal', lineHeight: 1.2 }}>{label}</p>
-        <h3 style={{ margin: '0.2rem 0', fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </h3>
-        <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{note}</span>
-      </div>
-    </div>
-  );
-}
-
 function getSplinePath(pts: { x: number; y: number }[]): string {
   if (pts.length === 0) return '';
   const first = pts[0];
@@ -97,22 +72,36 @@ function getSplinePath(pts: { x: number; y: number }[]): string {
   return path;
 }
 
+const toLocalDateKey = (date: Date) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, '0'),
+  String(date.getDate()).padStart(2, '0'),
+].join('-');
+
+const handleKeyboardActivation = (event: KeyboardEvent<HTMLElement>, action: () => void) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    action();
+  }
+};
+
 function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => void }) {
   const { user } = useAuth();
   const formatCurrency = useCurrencyFormatter();
   const firstName = user?.fullName?.split(' ')[0] ?? user?.username ?? 'Doctor';
   const [chartRange, setChartRange] = useState<'week' | 'month' | 'year'>('week');
-  const { data, isLoading: loading, isError, isFetching, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature(chartRange);
+  const now = useMemo(() => new Date(), []);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [weekOffset, setWeekOffset] = useState(0);
+  const scheduleDate = useMemo(() => toLocalDateKey(selectedDate), [selectedDate]);
+  const { data, isLoading: loading, isError, isFetching, hasData, refresh, selectedBranchId, setSelectedBranchId } = useDashboardOverviewFeature(chartRange, scheduleDate);
   const { data: branchesData } = useBranchesList({ limit: 100 });
 
   const accessibleBranches = branchesData?.data || [];
   const loadError = isError ? 'Executive dashboard metrics could not be updated.' : '';
+  const unavailable = isError && !hasData;
 
   // Calendar week days strip with reactive navigation
-  const now = useMemo(() => new Date(), []);
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [weekOffset, setWeekOffset] = useState(0);
-
   const monday = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + weekOffset * 7);
@@ -204,19 +193,11 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
     ? Math.min(100, Math.round(((data.financialSummary.collectedFunds ?? 0) / data.financialSummary.totalBilledAmount) * 100))
     : (completed + activeFlowTotal > 0 ? Math.min(100, Math.round((completed / (completed + activeFlowTotal)) * 100)) : 0);
 
-  // Filter live visits for the selected day in timeline
-  const dayVisits = useMemo(() => {
-    if (!data.recentVisits || data.recentVisits.length === 0) return [];
-    return data.recentVisits.filter((v) => {
-      if (!v.check_in_time) return false;
-      const vDate = new Date(v.check_in_time);
-      return (
-        vDate.getFullYear() === selectedDate.getFullYear() &&
-        vDate.getMonth() === selectedDate.getMonth() &&
-        vDate.getDate() === selectedDate.getDate()
-      );
-    });
-  }, [data.recentVisits, selectedDate]);
+  const scheduleItems = data.scheduleItems ?? [];
+  const canViewReports = hasPermission(
+    user?.permissions ?? [],
+    { module: 'Reports', screen: 'Phase 2 Reports', action: 'View' },
+  );
 
   return (
     <div className="hms-dash-wrapper">
@@ -276,6 +257,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
         <div
           className="hms-dash-kpi-card hero"
           onClick={() => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'))}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => (onSelectTab ? onSelectTab('appointments') : navigate('/appointments')))}
           role="button"
           tabIndex={0}
           title="Open Appointments workspace"
@@ -288,7 +270,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
           </div>
           <div className="hms-kpi-bottom">
             <div className="hms-kpi-value">
-              {loading || !data ? '—' : (data.kpis?.todayAppointments ?? 0).toLocaleString()}
+              {loading || unavailable ? '—' : (data.kpis?.todayAppointments ?? 0).toLocaleString()}
             </div>
             <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <i className="ph ph-calendar-check" /> Today's bookings
@@ -300,6 +282,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
         <div
           className="hms-dash-kpi-card"
           onClick={() => (onSelectTab ? onSelectTab('doctors') : navigate('/doctors'))}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => (onSelectTab ? onSelectTab('doctors') : navigate('/doctors')))}
           role="button"
           tabIndex={0}
           title="Open Doctors directory"
@@ -312,10 +295,10 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
           </div>
           <div className="hms-kpi-bottom">
             <div className="hms-kpi-value">
-              {loading || !data ? '—' : (data.kpis?.activeDoctors ?? 0).toLocaleString()}
+              {loading || unavailable ? '—' : (data.kpis?.activeDoctors ?? 0).toLocaleString()}
             </div>
             <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <i className="ph ph-stethoscope" /> On-duty clinical staff
+              <i className="ph ph-stethoscope" /> Active doctor records
             </span>
           </div>
         </div>
@@ -324,6 +307,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
         <div
           className="hms-dash-kpi-card"
           onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => (onSelectTab ? onSelectTab('opd') : navigate('/opd')))}
           role="button"
           tabIndex={0}
           title="Open OPD workspace"
@@ -336,10 +320,10 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
           </div>
           <div className="hms-kpi-bottom">
             <div className="hms-kpi-value">
-              {loading || !data ? '—' : (data.kpis?.todayOpdVisits ?? 0).toLocaleString()}
+              {loading || unavailable ? '—' : (data.kpis?.todayOpdVisits ?? 0).toLocaleString()}
             </div>
             <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <i className="ph ph-users" /> {waiting} currently in queue
+              <i className="ph ph-users" /> {unavailable ? '—' : waiting.toLocaleString()} currently in queue
             </span>
           </div>
         </div>
@@ -348,6 +332,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
         <div
           className="hms-dash-kpi-card"
           onClick={() => navigate('/patients')}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => navigate('/patients'))}
           role="button"
           tabIndex={0}
           title="Open Patients directory"
@@ -360,7 +345,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
           </div>
           <div className="hms-kpi-bottom">
             <div className="hms-kpi-value">
-              {loading || !data ? '—' : (data.kpis?.registeredPatients ?? 0).toLocaleString()}
+              {loading || unavailable ? '—' : (data.kpis?.registeredPatients ?? 0).toLocaleString()}
             </div>
             <span className="hms-kpi-subtext" style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <i className="ph ph-identification-card" /> Registered patient directory
@@ -408,6 +393,12 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                 <div className="hms-dash-empty">
                   <i className="ph ph-chart-line" />
                   <div className="hms-dash-empty-title">Loading patient statistics...</div>
+                </div>
+              ) : unavailable ? (
+                <div className="hms-dash-empty" role="alert" style={{ padding: '3rem 1rem' }}>
+                  <i className="ph ph-warning-circle" style={{ fontSize: '2rem', color: '#dc2626' }} />
+                  <div className="hms-dash-empty-title">Patient statistics are unavailable</div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Use Refresh to retry the live dashboard request.</p>
                 </div>
               ) : trendList.length === 0 ? (
                 <div className="hms-dash-empty" style={{ padding: '3rem 1rem' }}>
@@ -553,10 +544,12 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
             {/* Card 1: Balance / Consultation Flow */}
             <div className="hms-dash-card">
               <div className="hms-card-header">
-                <h4 className="hms-card-title">Balance</h4>
+                <h4 className="hms-card-title">{data.financialSummary ? 'Financial Balance' : 'Consultation Flow'}</h4>
                 <button
                   className="hms-report-link"
-                  onClick={() => (onSelectTab ? onSelectTab('billing') : navigate('/billing/history'))}
+                  onClick={() => data.financialSummary
+                    ? navigate('/billing/history')
+                    : (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
                   style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}
                   type="button"
                 >
@@ -581,7 +574,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                         transform="rotate(-90 42 42)"
                       />
                     </svg>
-                    <div className="hms-donut-center">{balancePercentage}%</div>
+                    <div className="hms-donut-center">{unavailable ? '—' : `${balancePercentage}%`}</div>
                   </div>
                   <div className="hms-donut-info">
                     {data.financialSummary ? (
@@ -604,13 +597,13 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                         <div className="hms-spark-stat">
                           <div>
                             <small>Total flow</small>
-                            <strong>{(completed + activeFlowTotal).toLocaleString()}</strong>
+                            <strong>{unavailable ? '—' : (completed + activeFlowTotal).toLocaleString()}</strong>
                           </div>
                         </div>
                         <div className="hms-spark-stat">
                           <div>
                             <small>In queue</small>
-                            <strong>{waiting.toLocaleString()}</strong>
+                            <strong>{unavailable ? '—' : waiting.toLocaleString()}</strong>
                           </div>
                         </div>
                       </>
@@ -637,7 +630,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
               <div className="hms-card-body" style={{ padding: '0.95rem 1.15rem' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '0.75rem' }}>
                   <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
-                    {activeFlowTotal}
+                    {unavailable ? '—' : activeFlowTotal.toLocaleString()}
                   </span>
                   <span className="hms-kpi-subtext" style={{ fontSize: '0.75rem', color: '#64748b' }}>
                     chairside queue
@@ -656,7 +649,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                     </div>
                     <span className="hms-occupancy-label">Chairside / In Treatment</span>
                   </div>
-                  <strong className="hms-occupancy-val">{inConsultation}</strong>
+                  <strong className="hms-occupancy-val">{unavailable ? '—' : inConsultation.toLocaleString()}</strong>
                 </div>
                 <div
                   className="hms-occupancy-item"
@@ -671,7 +664,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                     </div>
                     <span className="hms-occupancy-label">Waiting for Chair</span>
                   </div>
-                  <strong className="hms-occupancy-val">{waiting}</strong>
+                  <strong className="hms-occupancy-val">{unavailable ? '—' : waiting.toLocaleString()}</strong>
                 </div>
                 <div
                   className="hms-occupancy-item"
@@ -686,7 +679,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                     </div>
                     <span className="hms-occupancy-label">Completed Today</span>
                   </div>
-                  <strong className="hms-occupancy-val">{completed}</strong>
+                  <strong className="hms-occupancy-val">{unavailable ? '—' : completed.toLocaleString()}</strong>
                 </div>
               </div>
             </div>
@@ -698,15 +691,22 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                 <button
                   aria-label="Report options"
                   className="hms-event-menu"
-                  onClick={() => navigate('/reports/library')}
-                  title="View all reports"
+                  onClick={() => canViewReports ? navigate('/reports/library') : navigate('/opd')}
+                  title={canViewReports ? 'View all reports' : 'Open OPD visits'}
                   type="button"
                 >
                   <i className="ph ph-arrow-up-right" />
                 </button>
               </div>
               <div className="hms-card-body" style={{ padding: '0.95rem 1.15rem' }}>
-                {data.recentVisits.length > 0 ? (
+                {unavailable ? (
+                  <div className="hms-dash-empty" role="alert" style={{ padding: '1rem', textAlign: 'center' }}>
+                    <i className="ph ph-warning-circle" style={{ fontSize: '1.5rem', color: '#dc2626' }} />
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginTop: '0.25rem' }}>
+                      Recent activity is unavailable
+                    </div>
+                  </div>
+                ) : data.recentVisits.length > 0 ? (
                   data.recentVisits.slice(0, 2).map((visit) => (
                     <div
                       className="hms-report-item"
@@ -825,25 +825,41 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
               </div>
 
               {/* Time-Slotted Live Schedule Feed */}
-              {dayVisits.length > 0 ? (
+              {loading || isFetching ? (
+                <div className="hms-dash-empty" role="status" style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
+                  <MedicalLoader text="Loading schedule…" subtext={`Fetching live activity for ${formattedSelectedDate}`} />
+                </div>
+              ) : unavailable ? (
+                <div className="hms-dash-empty" role="alert" style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
+                  <i className="ph ph-warning-circle" style={{ fontSize: '2.25rem', color: '#dc2626' }} />
+                  <div className="hms-dash-empty-title" style={{ marginTop: '0.5rem', fontWeight: 600, color: '#334155' }}>
+                    Schedule data is unavailable
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Refresh the dashboard to try again.</p>
+                </div>
+              ) : scheduleItems.length > 0 ? (
                 <div className="hms-schedule-timeline">
-                  {dayVisits.map((v, i) => {
-                    const checkIn = new Date(v.check_in_time);
-                    const timeStr = checkIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                  {scheduleItems.map((item, i) => {
+                    const scheduledAt = new Date(item.scheduled_at);
+                    const timeStr = scheduledAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    const openItem = () => item.visit_id
+                      ? navigate(`/opd/visit?id=${encodeURIComponent(item.visit_id)}`)
+                      : (onSelectTab ? onSelectTab('appointments') : navigate('/appointments'));
                     return (
-                      <div className="hms-schedule-slot" key={v.id || i}>
+                      <div className="hms-schedule-slot" key={`${item.source}-${item.id}-${i}`}>
                         <span className="hms-schedule-time">{timeStr}</span>
                         <div
                           className={`hms-schedule-event${i % 2 === 1 ? ' cyan' : ''}`}
-                          onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(v.id)}`)}
+                          onClick={openItem}
+                          onKeyDown={(event) => handleKeyboardActivation(event, openItem)}
                           role="button"
                           tabIndex={0}
-                          title="Open consultation details"
+                          title={item.source === 'VISIT' ? 'Open consultation details' : 'Open appointment workspace'}
                         >
                           <div className="hms-event-info">
-                            <strong>{`Consultation: ${v.patient_name}`}</strong>
+                            <strong>{`${item.source === 'VISIT' ? 'Consultation' : 'Appointment'}: ${item.patient_name}`}</strong>
                             <span>
-                              {v.doctor_name ? `Dr. ${v.doctor_name}` : 'Attending Doctor'} • {v.status.replace(/_/g, ' ')}
+                              {item.doctor_name || 'Attending Doctor'} • {item.status.replace(/_/g, ' ')}
                             </span>
                           </div>
                           <button
@@ -854,7 +870,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                               if (onSelectTab) onSelectTab('appointments');
                               else navigate('/appointments');
                             }}
-                            title="View appointments"
+                            title={item.source === 'VISIT' ? 'View appointments' : 'Open appointment workspace'}
                             type="button"
                           >
                             <i className="ph ph-arrow-square-out" />
@@ -963,7 +979,7 @@ const buildSuperAdministratorTabs = (onSelectTab?: (key: string) => void): Dashb
   { key: 'admin', label: 'Administration', icon: 'ph-gear', content: withSuspense('Administration', <AdministrationDashboardPage />) },
 ];
 
-const buildPermissionTabs = (user: AuthUser, onSelectTab?: (key: string) => void): DashboardTabDefinition[] => {
+const buildPermissionTabs = (user: AuthUser): DashboardTabDefinition[] => {
   const doctorUser = user.roles.some((role) => role.code === 'DOCTOR');
   const tabs: DashboardTabDefinition[] = [];
 
@@ -1016,7 +1032,7 @@ export function DashboardShell() {
 
   const tabs = isSuperAdministrator(user.roles)
     ? buildSuperAdministratorTabs(selectTab)
-    : buildPermissionTabs(user, selectTab);
+    : buildPermissionTabs(user);
   const requestedTab = searchParams.get('tab');
   const activeTab = tabs.find((tab) => tab.key === selectedTabKey) ??
     tabs.find((tab) => tab.key === requestedTab) ?? tabs[0] ?? {

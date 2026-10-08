@@ -7,6 +7,7 @@ import {
   otpFormSchema,
   phoneSchema,
   registrationFormSchema,
+  splitRegistrationFullName,
   type NativeSession,
   type PublicUser,
   type RegistrationFormValues,
@@ -138,16 +139,15 @@ export class SessionManager {
       }
     } catch (error) {
       if (generation === this.generation) {
-        const isRateLimited =
-          error instanceof ApiFailure && (error.status === 429 || error.code === 'AUTH_RATE_LIMITED');
         this.set({
           ...previous,
           phone: parsed.data,
-          resendAt: isRateLimited
-            ? previous.resendAt && previous.resendAt > this.now()
-              ? previous.resendAt
-              : this.now() + 60_000
-            : previous.resendAt,
+          // Preserve a cooldown only when it came from a successful OTP request.
+          // A generic 429 may be an identity/IP window with a different duration;
+          // inventing a 60-second timer strands the user after logout.
+          resendAt: previous.resendAt && previous.resendAt > this.now()
+            ? previous.resendAt
+            : undefined,
           message: friendlyError(error),
           errorDetails: toApiFailure(error, '/patient-portal/otp/request', 'POST'),
         });
@@ -251,9 +251,7 @@ export class SessionManager {
     try {
       if (!await this.online()) throw new ApiFailure('offline');
 
-      const names = parsed.data.fullName.trim().split(/\s+/);
-      const firstName = names[0] || parsed.data.fullName.trim();
-      const lastName = names.slice(1).join(' ') || '.';
+      const { firstName, lastName } = splitRegistrationFullName(parsed.data.fullName);
 
       const result = await this.api.signup({
         fullName: parsed.data.fullName,

@@ -9,6 +9,7 @@ import type { AuthPermission, AuthUser } from '../auth/auth-types';
 const testState = vi.hoisted(() => ({
   search: '',
   navigate: vi.fn(),
+  refresh: vi.fn(),
   executiveHook: vi.fn(() => ({
     data: {
       kpis: {
@@ -29,6 +30,7 @@ const testState = vi.hoisted(() => ({
     isLoading: false,
     isError: false,
     isFetching: false,
+    hasData: true,
     canViewExecutive: true,
     refresh: vi.fn(),
   })),
@@ -87,6 +89,7 @@ describe('permission-driven dashboard shell', () => {
   beforeEach(() => {
     testState.search = '';
     testState.navigate.mockReset();
+    testState.refresh.mockReset();
     testState.executiveHook.mockImplementation(() => ({
       data: {
         kpis: {
@@ -107,8 +110,9 @@ describe('permission-driven dashboard shell', () => {
       isLoading: false,
       isError: false,
       isFetching: false,
+      hasData: true,
       canViewExecutive: true,
-      refresh: vi.fn(),
+      refresh: testState.refresh,
     }));
     container = document.createElement('div');
     document.body.append(container);
@@ -152,6 +156,70 @@ describe('permission-driven dashboard shell', () => {
 
     expect(container.textContent).toContain('Appointment dashboard content');
     expect(testState.navigate).not.toHaveBeenCalled();
+  });
+
+  it('uses live schedule data and wires refresh, range, and calendar controls', async () => {
+    testState.user = user('SUPER_ADMIN', []);
+    testState.executiveHook.mockImplementation(() => ({
+      data: {
+        kpis: {
+          activeDoctors: 4,
+          todayAppointments: 7,
+          todayBilledRevenue: null,
+          todayOpdVisits: 3,
+          registeredPatients: 42,
+        },
+        operationalMetrics: {
+          patientsWaiting: 2,
+          patientsInConsultation: 1,
+          completedConsultationsToday: 5,
+        },
+        recentVisits: [],
+        scheduleItems: [{
+          id: 'appointment-1',
+          source: 'APPOINTMENT' as const,
+          patient_name: 'Jane Patient',
+          doctor_name: 'Dr. Live Doctor',
+          scheduled_at: new Date().toISOString(),
+          status: 'CONFIRMED',
+          appointment_id: 'appointment-1',
+          visit_id: null,
+        }],
+        trend: [{ date: '2026-10-08', day: 'Thu 8', revenue: 0, encounters: 3 }],
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      hasData: true,
+      canViewExecutive: true,
+      refresh: testState.refresh,
+    }));
+    await render();
+
+    expect(container.textContent).toContain('42');
+    expect(container.textContent).toContain('Appointment: Jane Patient');
+
+    const refreshButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Refresh'));
+    await act(async () => refreshButton?.click());
+    expect(testState.refresh).toHaveBeenCalledTimes(1);
+
+    const monthButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.trim() === 'Month');
+    await act(async () => monthButton?.click());
+    const callsAfterRange = testState.executiveHook.mock.calls as unknown as Array<[string, string]>;
+    expect(callsAfterRange.at(-1)?.[0]).toBe('month');
+
+    const initialScheduleDate = callsAfterRange.at(-1)?.[1];
+    const nextWeekButton = container.querySelector<HTMLButtonElement>('button[aria-label="Next week"]');
+    await act(async () => nextWeekButton?.click());
+    const callsAfterCalendar = testState.executiveHook.mock.calls as unknown as Array<[string, string]>;
+    expect(callsAfterCalendar.at(-1)?.[1]).not.toBe(initialScheduleDate);
+
+    const scheduleEvent = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]'))
+      .find((element) => element.textContent?.includes('Appointment: Jane Patient'));
+    await act(async () => scheduleEvent?.click());
+    expect(container.textContent).toContain('Appointment dashboard content');
   });
 
   it('does not mount Billing for a Super Admin stale billing tab URL', async () => {

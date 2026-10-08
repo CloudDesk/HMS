@@ -22,7 +22,7 @@ type ProvisionInput = {
 };
 
 type SelfProfileInput = {
-  firstName: string;
+  firstName: string | null;
   lastName: string;
   dateOfBirth: string;
   gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
@@ -66,7 +66,7 @@ type ActivateExistingPatientInput = {
 };
 
 type PatientProfileInput = {
-  firstName: string;
+  firstName: string | null;
   lastName: string;
   dateOfBirth: string;
   gender: 'MALE' | 'FEMALE' | 'OTHER' | 'UNKNOWN';
@@ -140,10 +140,10 @@ class SimpleTtlCache<T> {
 }
 
 export class PatientPortalService {
-  private readonly branchesCache = new SimpleTtlCache<any>(180);
-  private readonly departmentsCache = new SimpleTtlCache<any>(180);
-  private readonly servicesCache = new SimpleTtlCache<any>(180);
-  private readonly doctorsCache = new SimpleTtlCache<any>(180);
+  private readonly branchesCache = new SimpleTtlCache<Awaited<ReturnType<PatientPortalRepository['listPublicBranches']>>>(180);
+  private readonly departmentsCache = new SimpleTtlCache<Awaited<ReturnType<PatientPortalRepository['listPublicDepartments']>>>(180);
+  private readonly servicesCache = new SimpleTtlCache<Awaited<ReturnType<PatientPortalRepository['listPublicServices']>>>(180);
+  private readonly doctorsCache = new SimpleTtlCache<Awaited<ReturnType<PatientPortalRepository['listPublicDoctors']>>>(180);
 
   constructor(
     private readonly repository: PatientPortalRepository,

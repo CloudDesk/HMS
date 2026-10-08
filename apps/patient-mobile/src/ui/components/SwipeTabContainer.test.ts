@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MAIN_SWIPE_TABS } from './SwipeTabContainer';
+import { MAIN_SWIPE_TABS, shouldStartMainTabSwipe } from './SwipeTabContainer';
 
 vi.mock('react-native', () => ({
   Animated: {
@@ -111,5 +111,14 @@ describe('MAIN_SWIPE_TABS and SwipeTabContainer behavior', () => {
       expect(getTransitionTarget(currentIdx, 'left')).toBe(nextTab);
       expect(getTransitionTarget(nextIdx, 'right')).toBe(currentTab);
     }
+  });
+
+  it('captures horizontal swipes from scrollable screen content without stealing vertical scrolls', () => {
+    expect(shouldStartMainTabSwipe(2, -30, 4)).toBe(true);
+    expect(shouldStartMainTabSwipe(2, 30, 4)).toBe(true);
+    expect(shouldStartMainTabSwipe(2, 8, 1)).toBe(false);
+    expect(shouldStartMainTabSwipe(2, 20, 18)).toBe(false);
+    expect(shouldStartMainTabSwipe(0, 30, 1)).toBe(false);
+    expect(shouldStartMainTabSwipe(4, -30, 1)).toBe(false);
   });
 });

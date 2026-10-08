@@ -63,6 +63,20 @@ export const registrationFormSchema = z.object({
 });
 export type RegistrationFormValues = z.infer<typeof registrationFormSchema>;
 
+export const splitRegistrationFullName = (fullName: string): {
+  firstName: string | null;
+  lastName: string;
+} => {
+  const names = fullName.trim().split(/\s+/).filter(Boolean);
+  if (names.length === 1) {
+    return { firstName: null, lastName: names[0] ?? '' };
+  }
+  return {
+    firstName: names[0] ?? null,
+    lastName: names.slice(1).join(' '),
+  };
+};
+
 export const completeProfileResponseSchema = z.object({
   patientId: z.string(),
 });

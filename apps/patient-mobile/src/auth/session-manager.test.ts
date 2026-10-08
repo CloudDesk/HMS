@@ -568,6 +568,31 @@ describe('SessionManager', () => {
       expect(mockApi.completeProfile).not.toHaveBeenCalled();
     });
 
+    it('stores a one-word patient name as a mononym without a punctuation placeholder', async () => {
+      const manager = createManager();
+      await manager.start();
+      mockApi.requestOtp.mockResolvedValue({
+        success: true,
+        resendAvailableAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      mockApi.verifyRegistrationOtp.mockResolvedValue('reg-token-xyz-789');
+      mockApi.signup.mockResolvedValue(createSampleSession('r'.repeat(64), 'reg.access.token'));
+
+      await manager.requestOtp('+919876543210', 'register');
+      await manager.verifyRegistrationOtp('1234');
+      await manager.registerPatient({
+        fullName: 'Jey',
+        email: 'jey@example.com',
+        dateOfBirth: '1992-09-22',
+        gender: 'MALE',
+        preferredBranchId: 'branch-1',
+      });
+
+      expect(mockApi.signup).toHaveBeenCalledWith(expect.objectContaining({
+        selfProfile: expect.objectContaining({ firstName: null, lastName: 'Jey' }),
+      }));
+    });
+
     it('fails registration and does not authenticate when signup throws an error (including 409 DUPLICATE)', async () => {
       const manager = createManager();
       await manager.start();
@@ -684,7 +709,7 @@ describe('SessionManager', () => {
       expect(await store.readRegistrationSession()).toBeNull();
     });
 
-    it('sets cooldown resendAt and user-friendly error on 429 AUTH_RATE_LIMITED', async () => {
+    it('shows the rate-limit error without inventing a client-side cooldown', async () => {
       const manager = createManager();
       await manager.start();
 
@@ -701,8 +726,7 @@ describe('SessionManager', () => {
 
       const state = manager.getSnapshot();
       expect(state.message).toBe('Too many attempts. Please wait before trying again.');
-      expect(state.resendAt).toBeDefined();
-      expect(state.resendAt!).toBeGreaterThan(currentTime);
+      expect(state.resendAt).toBeUndefined();
     });
   });
 });

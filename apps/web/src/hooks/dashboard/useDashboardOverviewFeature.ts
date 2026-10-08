@@ -4,7 +4,10 @@ import { administrationDashboardApi } from '../../api/administration-dashboard';
 import { hasPermission } from '../../auth/access-control';
 import { useAuth } from '../../auth/useAuth';
 
-export function useDashboardOverviewFeature(range: 'week' | 'month' | 'year' = 'week') {
+export function useDashboardOverviewFeature(
+  range: 'week' | 'month' | 'year' = 'week',
+  scheduleDate?: string,
+) {
   const { user } = useAuth();
   const [selectedBranchId, setSelectedBranchId] = useState<string | undefined>(undefined);
 
@@ -14,8 +17,8 @@ export function useDashboardOverviewFeature(range: 'week' | 'month' | 'year' = '
   );
 
   const query = useQuery({
-    queryKey: ['executive-dashboard-overview', selectedBranchId, range],
-    queryFn: () => administrationDashboardApi.getOverview(selectedBranchId, range),
+    queryKey: ['executive-dashboard-overview', selectedBranchId, range, scheduleDate],
+    queryFn: () => administrationDashboardApi.getOverview(selectedBranchId, range, scheduleDate),
     enabled: Boolean(user) && canViewDashboard,
     staleTime: 30_000,
   });
@@ -33,6 +36,7 @@ export function useDashboardOverviewFeature(range: 'week' | 'month' | 'year' = '
     financialSummary: null,
     trend: [],
     recentVisits: [],
+    scheduleItems: [],
     operationalMetrics: {
       patientsWaiting: 0,
       patientsInConsultation: 0,
@@ -45,6 +49,7 @@ export function useDashboardOverviewFeature(range: 'week' | 'month' | 'year' = '
     isLoading: query.isLoading,
     isError: query.isError,
     isFetching: query.isFetching,
+    hasData: Boolean(query.data),
     selectedBranchId,
     setSelectedBranchId,
     refresh: () => query.refetch(),

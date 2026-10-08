@@ -53,9 +53,13 @@ const guardianProfileSchema = z.object({
   legal_consent_accepted: z.literal(true),
 });
 
+const patientFirstNameSchema = z.string().trim().min(1).max(100).nullable();
+const patientLastNameSchema = z.string().trim().min(1).max(100)
+  .refine((value) => /[\p{L}\p{M}]/u.test(value), 'Last name must contain a letter');
+
 const patientProfileSchema = z.object({
-  first_name: z.string().trim().min(1).max(100),
-  last_name: z.string().trim().min(1).max(100),
+  first_name: patientFirstNameSchema,
+  last_name: patientLastNameSchema,
   date_of_birth: z.string().date(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
   preferred_branch_id: z.string().min(1),
@@ -79,8 +83,8 @@ const dependentSchema = patientProfileSchema.extend({ relationship: z.enum(['PAR
 type DependentBody = z.infer<typeof dependentSchema>;
 
 const selfProfileSchema = z.object({
-  first_name: z.string().trim().min(1).max(100),
-  last_name: z.string().trim().min(1).max(100),
+  first_name: patientFirstNameSchema,
+  last_name: patientLastNameSchema,
   date_of_birth: z.string().date(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']),
   preferred_branch_id: z.string().min(1),
@@ -93,8 +97,6 @@ const selfProfileSchema = z.object({
     postal_code: z.string().trim().max(30).nullable().optional(),
   }).optional(),
 });
-type SelfProfileBody = z.infer<typeof selfProfileSchema>;
-
 const registerSchema = z.object({
   account_type: z.enum(['PATIENT', 'GUARDIAN']),
   full_name: z.string().trim().min(2).max(160),

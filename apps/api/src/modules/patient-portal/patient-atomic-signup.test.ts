@@ -223,6 +223,61 @@ describe('Patient Portal Atomic Signup Flow', () => {
     expect(contextBody.data.patients[0]?.relationship).toBe('SELF');
   });
 
+  it('persists a mononym without creating a dot placeholder surname', async () => {
+    const branch = await BranchModel.create({
+      code: 'BR-MAIN', name: 'Main Hospital', city: 'Mumbai', status: 'ACTIVE',
+    });
+    await createChallenge();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/patient-portal/signup',
+      payload: {
+        account_type: 'PATIENT',
+        full_name: 'Jey',
+        email: 'jey@example.test',
+        phone,
+        otp,
+        self_profile: {
+          first_name: null,
+          last_name: 'Jey',
+          date_of_birth: '1992-09-22',
+          gender: 'MALE',
+          preferred_branch_id: String(branch._id),
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const userId = response.json<{ data: { account: { id: string } } }>().data.account.id;
+    const user = await UserModel.findById(userId).lean();
+    const patient = await PatientModel.findById(user?.patientId).lean();
+    expect(patient?.firstName).toBeNull();
+    expect(patient?.lastName).toBe('Jey');
+  });
+
+  it('rejects punctuation-only placeholder surnames from older clients', async () => {
+    const branch = await BranchModel.create({
+      code: 'BR-MAIN', name: 'Main Hospital', city: 'Mumbai', status: 'ACTIVE',
+    });
+    await createChallenge();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/patient-portal/signup',
+      payload: {
+        account_type: 'PATIENT', full_name: 'Jey', email: 'jey@example.test', phone, otp,
+        self_profile: {
+          first_name: 'Jey', last_name: '.', date_of_birth: '1992-09-22',
+          gender: 'MALE', preferred_branch_id: String(branch._id),
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(await PatientModel.countDocuments({})).toBe(0);
+  });
+
   it.each(['email', 'username', 'phone'] as const)('identifies an existing User %s without creating a patient or grant', async (field) => {
     const branch = await BranchModel.create({ code: 'BR-MAIN', name: 'Main Hospital', city: 'Mumbai', status: 'ACTIVE' });
     await UserModel.create({

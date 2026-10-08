@@ -55,6 +55,16 @@ export type ExecutiveDashboardOverview = {
     check_in_time: string;
     status: string;
   }>;
+  scheduleItems: Array<{
+    id: string;
+    source: 'APPOINTMENT' | 'VISIT';
+    patient_name: string;
+    doctor_name: string;
+    scheduled_at: string;
+    status: string;
+    appointment_id: string | null;
+    visit_id: string | null;
+  }>;
   operationalMetrics: {
     patientsWaiting: number;
     patientsInConsultation: number;
@@ -66,10 +76,11 @@ export const administrationDashboardApi = {
   get() {
     return apiClient.request<AdministrationDashboard>('/administration/dashboard');
   },
-  getOverview(branchId?: string, range: 'week' | 'month' | 'year' = 'week') {
+  getOverview(branchId?: string, range: 'week' | 'month' | 'year' = 'week', scheduleDate?: string) {
     const params = new URLSearchParams();
     if (branchId) params.append('branch_id', branchId);
     if (range) params.append('range', range);
+    if (scheduleDate) params.append('schedule_date', scheduleDate);
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiClient.request<ExecutiveDashboardOverview>(`/administration/dashboard/overview${query}`);
   },

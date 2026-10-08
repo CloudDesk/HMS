@@ -34,4 +34,8 @@ export class AuthRateLimitRepository {
       throw error;
     }
   }
+
+  async reset(scope: string, keyHash: string) {
+    await AuthRateLimitModel.deleteMany({ scope, keyHash });
+  }
 }

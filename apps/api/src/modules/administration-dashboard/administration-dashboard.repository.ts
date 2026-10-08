@@ -82,6 +82,7 @@ export class AdministrationDashboardRepository {
     requestedBranchId?: string,
     financialAccess = true,
     range: 'week' | 'month' | 'year' = 'week',
+    scheduleDate?: string,
   ): Promise<ExecutiveDashboardOverview> {
     const branchScope = await this.authorizeBranch(userId, requestedBranchId);
     const branchOids = branchScope ? branchScope.map((id) => new Types.ObjectId(id)) : undefined;
@@ -89,6 +90,9 @@ export class AdministrationDashboardRepository {
     const now = new Date();
     const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    const scheduleStart = scheduleDate ? new Date(`${scheduleDate}T00:00:00.000Z`) : startOfDay;
+    const scheduleEnd = new Date(scheduleStart);
+    scheduleEnd.setUTCHours(23, 59, 59, 999);
     const startOfTrend = range === 'year'
       ? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + 1, 1, 0, 0, 0, 0))
       : range === 'month'
@@ -142,12 +146,14 @@ export class AdministrationDashboardRepository {
 
     const waitingFilter: Record<string, unknown> = {
       status: { $in: ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION'] },
+      visitDate: { $gte: startOfDay, $lte: endOfDay },
       deletedAt: null,
     };
     if (branchOids) waitingFilter.branchId = { $in: branchOids };
 
     const inConsultationFilter: Record<string, unknown> = {
       status: 'IN_CONSULTATION',
+      visitDate: { $gte: startOfDay, $lte: endOfDay },
       deletedAt: null,
     };
     if (branchOids) inConsultationFilter.branchId = { $in: branchOids };
@@ -161,6 +167,23 @@ export class AdministrationDashboardRepository {
 
     const recentVisitsFilter: Record<string, unknown> = { deletedAt: null };
     if (branchOids) recentVisitsFilter.branchId = { $in: branchOids };
+
+    const scheduleVisitsFilter: Record<string, unknown> = {
+      visitDate: { $gte: scheduleStart, $lte: scheduleEnd },
+      status: { $nin: ['CANCELLED', 'NO_SHOW'] },
+      deletedAt: null,
+    };
+    if (branchOids) scheduleVisitsFilter.branchId = { $in: branchOids };
+
+    const scheduleAppointmentsFilter: Record<string, unknown> = {
+      $or: [
+        { utcDateTime: { $gte: scheduleStart, $lte: scheduleEnd } },
+        { utcDateTime: { $exists: false }, appointmentDate: { $gte: scheduleStart, $lte: scheduleEnd } },
+      ],
+      status: { $nin: ['CANCELLED', 'RESCHEDULED'] },
+      deletedAt: null,
+    };
+    if (branchOids) scheduleAppointmentsFilter.branchId = { $in: branchOids };
 
     const dateFormat = range === 'year' ? '%Y-%m' : '%Y-%m-%d';
 
@@ -177,6 +200,8 @@ export class AdministrationDashboardRepository {
       patientsWaiting,
       patientsInConsultation,
       completedConsultationsToday,
+      scheduleVisitRows,
+      scheduleAppointmentRows,
     ] = await Promise.all([
       PatientModel.countDocuments(patientFilter),
       DoctorModel.countDocuments(doctorFilter),
@@ -211,6 +236,16 @@ export class AdministrationDashboardRepository {
       OpdVisitModel.countDocuments(waitingFilter),
       OpdVisitModel.countDocuments(inConsultationFilter),
       OpdVisitModel.countDocuments(completedTodayFilter),
+      OpdVisitModel.find(scheduleVisitsFilter)
+        .select('_id appointmentId patientName doctorName checkInTime status')
+        .sort({ checkInTime: 1, _id: 1 })
+        .limit(100)
+        .lean(),
+      AppointmentModel.find(scheduleAppointmentsFilter)
+        .select('_id patientName doctorName utcDateTime appointmentDate status')
+        .sort({ utcDateTime: 1, appointmentDate: 1, _id: 1 })
+        .limit(100)
+        .lean(),
     ]);
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -264,6 +299,35 @@ export class AdministrationDashboardRepository {
       financialAccess && totalBilledAmount !== null && collectedFunds !== null
         ? Math.max(0, Math.round((totalBilledAmount - collectedFunds) * 100) / 100)
         : null;
+    const convertedAppointmentIds = new Set(
+      scheduleVisitRows
+        .map((visit) => visit.appointmentId?.toString())
+        .filter((id): id is string => Boolean(id)),
+    );
+    const scheduleItems: ExecutiveDashboardOverview['scheduleItems'] = [
+      ...scheduleVisitRows.map((visit) => ({
+        id: String(visit._id),
+        source: 'VISIT' as const,
+        patient_name: visit.patientName,
+        doctor_name: visit.doctorName,
+        scheduled_at: visit.checkInTime.toISOString(),
+        status: visit.status,
+        appointment_id: visit.appointmentId?.toString() ?? null,
+        visit_id: String(visit._id),
+      })),
+      ...scheduleAppointmentRows
+        .filter((appointment) => !convertedAppointmentIds.has(String(appointment._id)))
+        .map((appointment) => ({
+          id: String(appointment._id),
+          source: 'APPOINTMENT' as const,
+          patient_name: appointment.patientName,
+          doctor_name: appointment.doctorName,
+          scheduled_at: (appointment.utcDateTime ?? appointment.appointmentDate ?? scheduleStart).toISOString(),
+          status: appointment.status,
+          appointment_id: String(appointment._id),
+          visit_id: null,
+        })),
+    ].sort((left, right) => left.scheduled_at.localeCompare(right.scheduled_at));
 
     return {
       generatedAt: now.toISOString(),
@@ -291,6 +355,7 @@ export class AdministrationDashboardRepository {
         check_in_time: v.checkInTime.toISOString(),
         status: v.status,
       })),
+      scheduleItems,
       operationalMetrics: {
         patientsWaiting,
         patientsInConsultation,

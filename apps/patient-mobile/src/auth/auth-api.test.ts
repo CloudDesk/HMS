@@ -253,6 +253,29 @@ describe('AuthApi', () => {
     );
   });
 
+  it('posts a one-word full name as a mononym instead of using a dot for last name', async () => {
+    const mockTransport = {
+      request: vi.fn().mockResolvedValue({ patientId: 'patient-456' }),
+    } as unknown as MobileTransport;
+    const authApi = new AuthApi(mockTransport);
+
+    await authApi.completeProfile('signup.access.jwt', {
+      fullName: 'Jey',
+      email: 'jey@example.com',
+      dateOfBirth: '1992-09-22',
+      gender: 'MALE',
+      preferredBranchId: 'branch-1',
+    });
+
+    expect(mockTransport.request).toHaveBeenCalledWith(
+      '/patient-portal/profile',
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.objectContaining({ first_name: null, last_name: 'Jey' }),
+      }),
+    );
+  });
+
   it('getPublicBranches requests /patient-portal/public/branches', async () => {
     const mockBranches = [
       { id: 'branch-1', name: 'Main Hospital', code: 'MAIN' },
