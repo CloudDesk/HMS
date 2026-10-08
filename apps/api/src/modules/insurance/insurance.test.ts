@@ -900,6 +900,50 @@ describe('Insurance Domain - Phase 1, Phase 2 & Phase 3', () => {
       await built.app.close();
     });
 
+    it.each([
+      ['GET', '/api/insurance/authorizations', 'View'],
+      ['POST', '/api/insurance/authorizations', 'Manage'],
+      ['POST', '/api/insurance/authorizations/507f1f77bcf86cd799439011/submit', 'Submit'],
+      ['POST', '/api/insurance/authorizations/507f1f77bcf86cd799439011/cancel', 'Manage'],
+    ] as const)('enforces Authorization permission for %s %s', async (method, url, action) => {
+      vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue(testStaffUser);
+      const permission = vi.spyOn(built.services.permissions, 'userHasPermission').mockResolvedValue(false);
+      vi.spyOn(built.services.permissions, 'auditDeniedAccess').mockResolvedValue(undefined);
+      const response = await built.app.inject({ method, url, headers: { authorization: 'Bearer test-token' } });
+      expect(response.statusCode).toBe(403);
+      expect(permission).toHaveBeenCalledWith(testStaffUser.id, 'Insurance', 'Authorization', action);
+    });
+
+    it.each([
+      ['GET', '/api/insurance/encounters/507f1f77bcf86cd799439011/context', 'View'],
+      ['POST', '/api/insurance/encounters/507f1f77bcf86cd799439011/services/507f1f77bcf86cd799439012/coverage', 'Verify'],
+      ['POST', '/api/insurance/sha-service-mappings', 'Manage'],
+      ['GET', '/api/insurance/sha-service-mappings', 'View'],
+      ['POST', '/api/insurance/sha-service-mappings/507f1f77bcf86cd799439011/deactivate', 'Manage'],
+    ] as const)('enforces Phase 6 Benefits permission for %s %s', async (method, url, action) => {
+      vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue(testStaffUser);
+      const permission = vi.spyOn(built.services.permissions, 'userHasPermission').mockResolvedValue(false);
+      vi.spyOn(built.services.permissions, 'auditDeniedAccess').mockResolvedValue(undefined);
+      const response = await built.app.inject({ method, url, headers: { authorization: 'Bearer test-token' } });
+      expect(response.statusCode).toBe(403);
+      expect(permission).toHaveBeenCalledWith(testStaffUser.id, 'Insurance', 'Benefits', action);
+    });
+
+    it.each([
+      ['GET', '/api/insurance/claims', 'View'],
+      ['GET', '/api/insurance/claims/507f1f77bcf86cd799439011', 'View'],
+      ['GET', '/api/insurance/claims/507f1f77bcf86cd799439011/readiness', 'View'],
+      ['POST', '/api/insurance/claims', 'Create'],
+      ['POST', '/api/insurance/claims/507f1f77bcf86cd799439011/validate', 'Validate'],
+    ] as const)('enforces Phase 7 Claims permission for %s %s', async (method, url, action) => {
+      vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue(testStaffUser);
+      const permission = vi.spyOn(built.services.permissions, 'userHasPermission').mockResolvedValue(false);
+      vi.spyOn(built.services.permissions, 'auditDeniedAccess').mockResolvedValue(undefined);
+      const response = await built.app.inject({ method, url, headers: { authorization: 'Bearer test-token' } });
+      expect(response.statusCode).toBe(403);
+      expect(permission).toHaveBeenCalledWith(testStaffUser.id, 'Insurance', 'Claims', action);
+    });
+
     it('rejects access to list payers when user lacks Insurance.Configuration.View permission', async () => {
       vi.spyOn(built.services.auth, 'authenticateAccessToken').mockResolvedValue(testStaffUser);
       vi.spyOn(built.services.permissions, 'userHasPermission').mockResolvedValue(false);
@@ -2070,6 +2114,71 @@ describe('Insurance Domain - Phase 1, Phase 2 & Phase 3', () => {
         statusCode: 404,
         code: 'SERVICE_NOT_FOUND',
       });
+    });
+
+    const hierarchy = [
+      { _id: 'policy-service', policyId: 'policy-001', serviceId: 'srv-consult-001' },
+      { _id: 'policy-code', policyId: 'policy-001', serviceCode: 'CONS-GEN' },
+      { _id: 'policy-category', policyId: 'policy-001', category: 'CONSULTATION' },
+      { _id: 'scheme-service', schemeId: 'scheme-shif-id', serviceId: 'srv-consult-001' },
+      { _id: 'scheme-code', schemeId: 'scheme-shif-id', serviceCode: 'CONS-GEN' },
+      { _id: 'scheme-category', schemeId: 'scheme-shif-id', category: 'CONSULTATION' },
+      { _id: 'payer-service', serviceId: 'srv-consult-001' },
+      { _id: 'payer-code', serviceCode: 'CONS-GEN' },
+      { _id: 'payer-category', category: 'CONSULTATION' },
+    ];
+
+    it.each(hierarchy.map((config, index) => ({ ...config, index })))(
+      'resolves $_id with all lower-priority fallbacks present (level $index)',
+      async ({ _id, index }) => {
+        mockRepository.findRecentEligibilityVerification.mockResolvedValue({ status: 'ELIGIBLE' });
+        mockRepository.findMatchingBenefitConfigs.mockResolvedValue(
+          hierarchy.slice(index).reverse().map((config) => ({ ...config, coverageRule: 'COVERED' }))
+        );
+        const result = await service.verifyBenefit(
+          { memberId: 'member-001', serviceCode: 'CONS-GEN', requestedDate: '2026-06-15' },
+          userId, mockMetadata
+        );
+        expect(result.benefitId).toBe(_id);
+        expect(mockRepository.findMatchingBenefitConfigs).toHaveBeenCalledWith(expect.objectContaining({
+          policyId: 'policy-001', schemeId: 'scheme-shif-id', payerId: 'payer-sha-id',
+          asOfDate: new Date('2026-06-15'),
+        }));
+      }
+    );
+
+    it('does not fall back from an authoritative policy exclusion to covered scheme or payer benefits', async () => {
+      mockRepository.findRecentEligibilityVerification.mockResolvedValue({ status: 'ELIGIBLE' });
+      mockRepository.findMatchingBenefitConfigs.mockResolvedValue([
+        { ...hierarchy[3], coverageRule: 'COVERED' },
+        { ...hierarchy[6], coverageRule: 'COVERED' },
+        { ...hierarchy[2], coverageRule: 'NOT_COVERED', isExcluded: true },
+      ]);
+      const result = await service.verifyBenefit(
+        { memberId: 'member-001', serviceCode: 'CONS-GEN' }, userId, mockMetadata
+      );
+      expect(result.benefitId).toBe('policy-category');
+      expect(result.eligible).toBe(false);
+      expect(result.benefitStatus).toBe('NOT_COVERED');
+    });
+
+    it.each(['FIXED', 'PERCENTAGE'] as const)('returns %s copay as configured terms without calculating liability', async (type) => {
+      mockRepository.findRecentEligibilityVerification.mockResolvedValue({ status: 'ELIGIBLE' });
+      mockRepository.findMatchingBenefitConfigs.mockResolvedValue([
+        { ...hierarchy[0], coverageRule: 'COVERED', copay: { type, value: 20 },
+          coverageLimit: { maxAmount: 5000 }, authorizationRequired: true },
+      ]);
+      const result = await service.verifyBenefit(
+        { memberId: 'member-001', serviceCode: 'CONS-GEN', quantity: 5 }, userId, mockMetadata
+      );
+      expect(result.configuredPatientResponsibility).toEqual({ type, value: 20 });
+      expect(result.patientResponsibility).toEqual(result.configuredPatientResponsibility);
+      expect(result.financialTermsBasis).toBe('CONFIGURED_ONLY');
+      expect(result.coverageLimit).toEqual({ maxAmount: 5000 });
+      expect(result.authorizationRequired).toBe(true);
+      for (const field of ['finalInvoiceLiability', 'payerApprovedAmount', 'claimAdjudicationResult', 'patientOutstandingBalance']) {
+        expect(result).not.toHaveProperty(field);
+      }
     });
 
     it('allows querying historical benefit configurations via listBenefitConfigs', async () => {

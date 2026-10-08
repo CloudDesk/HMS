@@ -768,6 +768,7 @@ export class InsuranceService {
     const conflict = await this.repository.findConflictingBenefitConfig({
       payerId: data.payerId,
       schemeId: data.schemeId,
+      policyId: data.policyId,
       serviceId: data.serviceId,
       serviceCode: data.serviceCode,
       category: data.category,
@@ -823,6 +824,7 @@ export class InsuranceService {
       const conflict = await this.repository.findConflictingBenefitConfig({
         payerId,
         schemeId,
+        policyId: existing.policyId?._id.toString() ?? null,
         serviceId,
         serviceCode,
         category,
@@ -918,6 +920,7 @@ export class InsuranceService {
     const matchingConfigs = await this.repository.findMatchingBenefitConfigs({
       payerId,
       schemeId,
+      policyId: policy._id.toString(),
       serviceId: service._id.toString(),
       serviceCode: service.code,
       category: service.category,
@@ -933,21 +936,20 @@ export class InsuranceService {
         serviceCode: service.code,
         serviceName: service.name,
         reasonCode: 'NO_BENEFIT_CONFIGURED',
-        message: 'No active benefit configuration found for this service under member scheme',
+        message: 'No active benefit configuration found for this service under member policy, scheme or payer',
         authorizationRequired: false,
         verifiedAt: new Date().toISOString(),
       };
     }
 
-    // Sort by priority / specificity:
+    // Scope takes precedence over target specificity. Exclusions are authoritative
+    // decisions too; never retry a less-specific configuration after selection.
     matchingConfigs.sort((a, b) => {
       const getPriority = (c: typeof a) => {
-        let score = 0;
-        if (c.serviceId) score += 40;
-        else if (c.serviceCode) score += 30;
-        else if (c.category) score += 20;
-
-        if (c.schemeId) score += 5;
+        let score = c.policyId ? 20 : c.schemeId ? 10 : 0;
+        if (c.serviceId) score += 3;
+        else if (c.serviceCode) score += 2;
+        else if (c.category) score += 1;
         return score;
       };
       return getPriority(b) - getPriority(a);
@@ -963,7 +965,7 @@ export class InsuranceService {
         serviceCode: service.code,
         serviceName: service.name,
         reasonCode: 'NO_BENEFIT_CONFIGURED',
-        message: 'No active benefit configuration found for this service under member scheme',
+        message: 'No active benefit configuration found for this service under member policy, scheme or payer',
         authorizationRequired: false,
         verifiedAt: new Date().toISOString(),
       };
@@ -973,7 +975,7 @@ export class InsuranceService {
     let benefitStatus: CoverageRule = selectedBenefit.coverageRule;
     let eligible = true;
     let reasonCode = 'BENEFIT_COVERED';
-    let message = 'Service is fully covered under active scheme benefit';
+    let message = 'Service is covered under the configured benefit; final financial liability is not determined';
     let authorizationRequired = Boolean(selectedBenefit.authorizationRequired || benefitStatus === 'AUTHORIZATION_REQUIRED');
 
     if (selectedBenefit.isExcluded || benefitStatus === 'NOT_COVERED') {
@@ -1003,6 +1005,8 @@ export class InsuranceService {
       serviceName: service.name,
       benefitId: selectedBenefit._id.toString(),
       coverageLimit: selectedBenefit.coverageLimit ?? null,
+      configuredPatientResponsibility: selectedBenefit.copay ?? null,
+      financialTermsBasis: 'CONFIGURED_ONLY',
       patientResponsibility: selectedBenefit.copay ?? null,
       reasonCode,
       message,

@@ -213,10 +213,14 @@ export type BenefitLimit = {
   frequency?: string | null;
 };
 
-export type PatientResponsibility = {
+/** Configured copay terms, never calculated or adjudicated financial liability. */
+export type ConfiguredPatientResponsibility = {
   type: 'FIXED' | 'PERCENTAGE';
   value: number;
 };
+
+/** @deprecated Use ConfiguredPatientResponsibility. */
+export type PatientResponsibility = ConfiguredPatientResponsibility;
 
 export type BenefitStatus = 'ACTIVE' | 'INACTIVE';
 
@@ -230,7 +234,7 @@ export type CreateBenefitConfigInput = {
   coverageRule: CoverageRule;
   authorizationRequired?: boolean;
   coverageLimit?: BenefitLimit | null;
-  copay?: PatientResponsibility | null;
+  copay?: ConfiguredPatientResponsibility | null;
   isExcluded?: boolean;
   exclusionReason?: string | null;
   startDate: string;
@@ -269,8 +273,12 @@ export type VerifyBenefitResult = {
   serviceCode?: string;
   serviceName?: string;
   benefitId?: string;
+  /** Configured limits, not remaining balances or approved amounts. */
   coverageLimit?: BenefitLimit | null;
-  patientResponsibility?: PatientResponsibility | null;
+  configuredPatientResponsibility?: ConfiguredPatientResponsibility | null;
+  financialTermsBasis?: 'CONFIGURED_ONLY';
+  /** @deprecated Configured copay alias only; never final patient liability. */
+  patientResponsibility?: ConfiguredPatientResponsibility | null;
   reasonCode: string;
   message: string;
   authorizationRequired: boolean;

@@ -801,6 +801,7 @@ export class InsuranceRepository {
   async findConflictingBenefitConfig(params: {
     payerId: string;
     schemeId?: string | null;
+    policyId?: string | null;
     serviceId?: string | null;
     serviceCode?: string | null;
     category?: string | null;
@@ -815,6 +816,7 @@ export class InsuranceRepository {
 
     const filter: Record<string, unknown> = {
       payerId: new Types.ObjectId(params.payerId),
+      policyId: params.policyId ? new Types.ObjectId(params.policyId) : null,
       status: 'ACTIVE',
     };
 
@@ -861,6 +863,7 @@ export class InsuranceRepository {
   async findMatchingBenefitConfigs(params: {
     payerId: string;
     schemeId?: string | null;
+    policyId?: string | null;
     serviceId?: string;
     serviceCode?: string;
     category?: string;
@@ -873,16 +876,20 @@ export class InsuranceRepository {
     if (params.schemeId && Types.ObjectId.isValid(params.schemeId)) {
       schemeIds.push(new Types.ObjectId(params.schemeId));
     }
+    const policyIds: (Types.ObjectId | null)[] = [null];
+    if (params.policyId && Types.ObjectId.isValid(params.policyId)) {
+      policyIds.push(new Types.ObjectId(params.policyId));
+    }
 
     const targetConditions: Record<string, unknown>[] = [];
     if (params.serviceId && Types.ObjectId.isValid(params.serviceId)) {
       targetConditions.push({ serviceId: new Types.ObjectId(params.serviceId) });
     }
     if (params.serviceCode) {
-      targetConditions.push({ serviceCode: params.serviceCode.trim().toUpperCase() });
+      targetConditions.push({ serviceId: null, serviceCode: params.serviceCode.trim().toUpperCase() });
     }
     if (params.category) {
-      targetConditions.push({ category: params.category.trim() });
+      targetConditions.push({ serviceId: null, serviceCode: null, category: params.category.trim() });
     }
 
     if (targetConditions.length === 0) return [];
@@ -894,6 +901,7 @@ export class InsuranceRepository {
       $and: [
         { $or: [{ endDate: null }, { endDate: { $gte: date } }] },
         { schemeId: { $in: schemeIds } },
+        { policyId: { $in: policyIds } },
         { $or: targetConditions },
       ],
     };

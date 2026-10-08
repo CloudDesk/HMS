@@ -1,3 +1,9 @@
+import { InsuranceClaimService } from '../../modules/insurance/insurance-claim.service.js';
+import { InsuranceClaimRepository } from '../../modules/insurance/insurance-claim.repository.js';
+import { InsuranceIntegrationService } from '../../modules/insurance/insurance-integration.service.js';
+import { InsuranceIntegrationRepository } from '../../modules/insurance/insurance-integration.repository.js';
+import { InsuranceAuthorizationService } from '../../modules/insurance/insurance-authorization.service.js';
+import { InsuranceAuthorizationRepository } from '../../modules/insurance/insurance-authorization.repository.js';
 import { checkDatabaseHealth } from '../../database/health.js';
 import { AuthRepository } from '../../modules/auth/auth.repository.js';
 import { AuthRateLimitRepository } from '../../modules/auth/auth-rate-limit.repository.js';
@@ -280,5 +286,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     ),
     advancePayment: advancePaymentService,
     insurance: new InsuranceService(new InsuranceRepository()),
+    insuranceClaims: new InsuranceClaimService(new InsuranceClaimRepository(), new InsuranceIntegrationRepository(), new InsuranceIntegrationService(new InsuranceIntegrationRepository(), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
+    insuranceIntegration: new InsuranceIntegrationService(new InsuranceIntegrationRepository(), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
+    insuranceAuthorization: new InsuranceAuthorizationService(new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
   };
 };

@@ -1,0 +1,9 @@
+# Insurance Phase 6 gap note
+
+Confirmed: Patient is shared. OPD visits are created from checked appointments or walk-ins; Emergency and IP admissions are separate models. Clinical orders use a shared source-type/source-ID contract, not a common Encounter model. Invoice headers reference visit/source/branch/patient; invoice items reference Service. OPD clinical-order items also reference Service. OPD consultation assessment and Emergency diagnosis are free text. No structured ICD-11 support or SHA external-service mapping was found. Service.code is the internal unique catalogue code. Doctor.registrationNumber and Branch.code exist but are not confirmed SHA identifiers; SHA_FACILITY_CODE and SHA_API_BASE_URL configuration already exist.
+
+Implement OPD context and encounter-linked service coverage only, reusing Phase 4 and Phase 5. Reject unsupported encounter types explicitly. Add a small service-to-SHA mapping collection with effective dates, versioned activation/deactivation, one active mapping per service, and transactional audit; no codes seeded. Context excludes demographics, free-text clinical notes and financial amounts. Use existing Benefits View/Verify/Manage permissions and authenticated branch access. No frontend changes.
+
+Authorization links must match encounter/patient/member/policy/payer/branch/service/date, LIVE mode and APPROVED status. Mock records must never count as applicable. Existing model has no confirmed expiry window, so expose that limitation and do not imply payer-side validity confirmation. No SHA calls or new mocks. Confirmed SHA DEV/UAT contract, code source, expiry rules and ICD-11 source remain dependencies.
+
+Intended changes: insurance integration model/schemas/repository/service/tests, minimal routes and service-registry wiring, phase-plan tracking and verification note. Preserve previous uncommitted phases.

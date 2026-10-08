@@ -1,3 +1,6 @@
+import type { InsuranceClaimService } from '../../modules/insurance/insurance-claim.service.js';
+import type { InsuranceIntegrationService } from '../../modules/insurance/insurance-integration.service.js';
+import type { InsuranceAuthorizationService } from '../../modules/insurance/insurance-authorization.service.js';
 import type { checkDatabaseHealth } from '../../database/health.js';
 import type { AuthService } from '../../modules/auth/auth.service.js';
 import type { PermissionService } from '../../modules/permissions/permission.service.js';
@@ -74,4 +77,7 @@ export type ServiceRegistry = {
   emergency: EmergencyService;
   advancePayment: AdvancePaymentService;
   insurance: InsuranceService;
+  insuranceIntegration: InsuranceIntegrationService;
+  insuranceClaims: InsuranceClaimService;
+  insuranceAuthorization: InsuranceAuthorizationService;
 };

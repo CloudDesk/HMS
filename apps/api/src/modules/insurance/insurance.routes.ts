@@ -1,3 +1,7 @@
+import { createClaimSchema, listClaimsSchema, validateClaimSchema } from './insurance-claim.schemas.js';
+import { insuranceEncounterQuery, encounterCoverageSchema, shaMappingSchema, shaMappingListSchema, shaMappingDeactivateSchema } from './insurance-integration.schemas.js';
+import { z } from 'zod';
+import { authorizationId, authorizationRequestSchema, authorizationActionSchema, authorizationCancelSchema, authorizationListSchema } from './insurance-authorization.schemas.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { requirePermission } from '../../middleware/require-permission.js';
@@ -297,4 +301,68 @@ export const registerInsuranceRoutes = async (app: FastifyInstance, services: Se
       return reply.status(200).send(ok(result));
     }
   );
+
+  app.post('/api/insurance/authorizations', { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'Manage') }, async (request, reply) => {
+    const body = parse(authorizationRequestSchema, request.body);
+    return reply.status(201).send(ok(await services.insuranceAuthorization.requestPreauthorization(body, request.user!.id, metadata(request))));
+  });
+  app.get('/api/insurance/authorizations', { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'View') }, async request => {
+    return ok(await services.insuranceAuthorization.list(parse(authorizationListSchema, request.query), request.user!.id));
+  });
+  app.get('/api/insurance/authorizations/:id', { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'View') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    return ok(await services.insuranceAuthorization.get(parse(authorizationId, params.id), request.user!.id));
+  });
+  app.post('/api/insurance/authorizations/:id/submit', { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'Submit') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    const body = parse(authorizationActionSchema, request.body);
+    return ok(await services.insuranceAuthorization.submit(parse(authorizationId, params.id), body.version, request.user!.id, metadata(request)));
+  });
+  app.post('/api/insurance/authorizations/:id/cancel', { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'Manage') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    const body = parse(authorizationCancelSchema, request.body);
+    return ok(await services.insuranceAuthorization.cancel(parse(authorizationId, params.id), body.version, body.reason, request.user!.id, metadata(request)));
+  });
+
+  const encounterParams = z.object({ encounterId: authorizationId });
+  app.post('/api/insurance/claims', { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Create') }, async (request, reply) => {
+    return reply.status(201).send(ok(await services.insuranceClaims.create(parse(createClaimSchema, request.body), request.user!.id, metadata(request))));
+  });
+  app.get('/api/insurance/claims', { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') }, async request => {
+    return ok(await services.insuranceClaims.list(parse(listClaimsSchema, request.query), request.user!.id));
+  });
+  app.get('/api/insurance/claims/:id', { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    return ok(await services.insuranceClaims.get(parse(authorizationId, params.id), request.user!.id));
+  });
+  app.get('/api/insurance/claims/:id/readiness', { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    return ok(await services.insuranceClaims.readiness(parse(authorizationId, params.id), request.user!.id));
+  });
+  app.post('/api/insurance/claims/:id/validate', { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') }, async request => {
+    const params = parse(idParamsSchema, request.params); const body = parse(validateClaimSchema, request.body);
+    return ok(await services.insuranceClaims.validate(parse(authorizationId, params.id), body.version, request.user!.id, metadata(request)));
+  });
+  const serviceParams = encounterParams.extend({ serviceId: authorizationId });
+  app.get('/api/insurance/encounters/:encounterId/context', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'View') }, async request => {
+    const params = parse(encounterParams, request.params);
+    const query = parse(insuranceEncounterQuery, request.query);
+    return ok(await services.insuranceIntegration.context(params.encounterId, query.encounterType, request.user!.id));
+  });
+  app.post('/api/insurance/encounters/:encounterId/services/:serviceId/coverage', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'Verify') }, async request => {
+    const params = parse(serviceParams, request.params);
+    const query = parse(insuranceEncounterQuery, request.query);
+    return ok(await services.insuranceIntegration.coverage(params.encounterId, query.encounterType, params.serviceId, parse(encounterCoverageSchema, request.body), request.user!.id, metadata(request)));
+  });
+  app.post('/api/insurance/sha-service-mappings', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'Manage') }, async (request, reply) => {
+    return reply.status(201).send(ok(await services.insuranceIntegration.createMapping(parse(shaMappingSchema, request.body), request.user!.id, metadata(request))));
+  });
+  app.get('/api/insurance/sha-service-mappings', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'View') }, async request => {
+    return ok(await services.insuranceIntegration.listMappings(parse(shaMappingListSchema, request.query)));
+  });
+  app.post('/api/insurance/sha-service-mappings/:id/deactivate', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'Manage') }, async request => {
+    const params = parse(idParamsSchema, request.params);
+    const body = parse(shaMappingDeactivateSchema, request.body);
+    return ok(await services.insuranceIntegration.deactivateMapping(parse(authorizationId, params.id), body.version, body.reason, request.user!.id, metadata(request)));
+  });
 };

@@ -397,6 +397,37 @@ The release is complete only when all approved Developer 1 requirements pass aut
 
 ## Phase Status Tracker
 
+Insurance Phase 8 claim validation and submission readiness (8 October 2026)
+is tracked in `HMS_INSURANCE_PHASE8_GAP_NOTE.md` and
+`HMS_INSURANCE_PHASE8_VERIFICATION.md`. Internal validation distinguishes VALID
+(transitions to VALIDATED) from INVALID (remains DRAFT). readyForShaSubmission
+remains false deterministically due to unconfirmed SHA submission bundle
+contracts, identifier mappings, terminology, and ICD-11 gaps. Phase 9 has not
+started.
+
+Insurance Phase 7 claim draft, line derivation and readiness validation
+(8 October 2026) is tracked in `HMS_INSURANCE_PHASE7_GAP_NOTE.md` and
+`HMS_INSURANCE_PHASE7_VERIFICATION.md`. Claims remain DRAFT, line amounts are
+strictly derived from invoice items, financial liability is not calculated, and
+readiness reports missing SHA mappings, unconfirmed authorizations, ICD-11 gaps,
+and unconfirmed discount/tax allocations.
+
+Insurance Phase 6 OPD context, service coverage and SHA mapping configuration
+(8 October 2026) is tracked in `HMS_INSURANCE_PHASE6_GAP_NOTE.md` and
+`HMS_INSURANCE_PHASE6_VERIFICATION.md`. IPD/Emergency integration and confirmed
+SHA/ICD-11 contracts remain dependencies.
+
+Insurance Phase 5 internal preauthorization backend (8 October 2026) is tracked in
+`HMS_INSURANCE_PHASE5_GAP_NOTE.md` and `HMS_INSURANCE_PHASE5_VERIFICATION.md`.
+Live SHA submission and production acceptance remain blocked by the confirmed
+SHA contract. Claims/payments and Phase 6 have not started.
+
+Insurance Phase 4 correction (8 October 2026) is tracked separately in
+`HMS_INSURANCE_PHASE4_HOTFIX_GAP_NOTE.md` and
+`HMS_INSURANCE_PHASE4_HOTFIX_VERIFICATION.md`. This narrow benefit-resolution
+and configured-financial-terms hotfix does not start Insurance Phase 5 or
+change the Developer 1 phase boundaries below.
+
 | Phase | Status | Completion date | Evidence |
 |---|---|---|---|
 | P3-0 Contract and baseline | Completed | 21 August 2026 | `HMS_SCOPE2_PHASE3_CONTRACT.md`, `HMS_SCOPE2_PHASE3_P0_VERIFICATION.md` |
