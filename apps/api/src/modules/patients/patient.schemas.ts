@@ -208,3 +208,60 @@ export const patientListResponseSchema = apiResponseSchema({
   },
 });
 
+export const patientIdentifierIdParamsSchema = {
+  type: 'object',
+  required: ['id', 'identifierId'],
+  properties: {
+    id: { type: 'string', minLength: 1 },
+    identifierId: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+export const addPatientIdentifierBodySchema = {
+  type: 'object',
+  required: ['identifier_type', 'value', 'issuing_authority'],
+  additionalProperties: false,
+  properties: {
+    identifier_type: { type: 'string', minLength: 1, maxLength: 50 },
+    value: { type: 'string', minLength: 1, maxLength: 100 },
+    issuing_authority: { type: 'string', minLength: 1, maxLength: 100 },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_from: { type: ['string', 'null'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const updatePatientIdentifierStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: {
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const patientIdentifierDataSchema = {
+  type: 'object',
+  required: ['id', 'identifier_type', 'value', 'issuing_authority', 'status', 'effective_from', 'effective_to', 'created_at', 'updated_at'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    identifier_type: { type: 'string' },
+    value: { type: 'string' },
+    issuing_authority: { type: 'string' },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_from: { type: ['string', 'null'] },
+    effective_to: { type: ['string', 'null'] },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+  },
+} as const;
+
+export const patientIdentifierResponseSchema = apiResponseSchema(patientIdentifierDataSchema);
+export const patientIdentifierListResponseSchema = apiResponseSchema({
+  type: 'array',
+  items: patientIdentifierDataSchema,
+});
+
+

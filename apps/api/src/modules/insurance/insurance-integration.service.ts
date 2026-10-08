@@ -4,6 +4,8 @@ import type { InsuranceAuthorizationRepository } from './insurance-authorization
 import type { InsuranceService } from './insurance.service.js';
 import { shaMappingSchema, type ShaMappingInput } from './insurance-integration.schemas.js';
 import type { RequestMetadata } from './insurance.types.js';
+import { evaluatePatientIdentifierReadiness } from '../patients/patient-identifier.utils.js';
+
 
 export class InsuranceIntegrationService {
   constructor(private readonly repository: InsuranceIntegrationRepository, private readonly access: InsuranceAuthorizationRepository, private readonly insurance: InsuranceService) {}
@@ -23,17 +25,41 @@ export class InsuranceIntegrationService {
     const refs = await this.repository.references(id, patientId, branchId);
     if (refs.invoices.length > 100 || refs.items.length > 1000 || refs.orders.length > 100) throw new AppError('Encounter context exceeds supported size', 422, 'ENCOUNTER_CONTEXT_TOO_LARGE');
     const ids = [...new Set([...refs.items.map(row => row.serviceId.toString()), ...refs.orders.flatMap(row => row.items.map(item => item.serviceId.toString()))])];
-    const [services, members] = await Promise.all([this.repository.services(ids), this.repository.members(patientId, date)]);
+    const [services, members, patientRecord] = await Promise.all([
+      this.repository.services(ids),
+      this.repository.members(patientId, date),
+      this.repository.patientRecord(patientId),
+    ]);
+    const patientIdentifierReadiness = evaluatePatientIdentifierReadiness(patientRecord?.identifiers);
+    const structuredDiagnoses = refs.consultation?.diagnoses ?? [];
+    const icd11Diagnoses = structuredDiagnoses.filter(d => {
+      const sys = (d.codingSystem ?? '').toUpperCase().trim();
+      return sys === 'ICD-11' || sys === 'ICD11' || sys.includes('ICD/RELEASE/11') || sys.includes('ICD-11');
+    });
+    const hasIcd11 = icd11Diagnoses.length > 0;
     return {
       encounterId: id, encounterType: 'OPD', patientId, branchId, encounterDate: date,
       appointmentId: encounter.appointmentId?.toString() ?? null,
       doctorId: encounter.doctorId.toString(), departmentId: encounter.departmentId.toString(),
       services: services.map(row => ({ serviceId: row._id.toString(), serviceCode: row.code })),
       invoiceItems: refs.items.map(row => ({ invoiceId: row.invoiceId.toString(), invoiceItemId: row._id.toString(), serviceId: row.serviceId.toString() })),
-      diagnosis: { consultationId: refs.consultation?._id.toString() ?? null, codingSystem: null, codes: [], icd11Readiness: 'NOT_AVAILABLE', requiredForFutureClaims: true },
+      diagnosis: {
+        consultationId: refs.consultation?._id.toString() ?? null,
+        codingSystem: hasIcd11 ? (icd11Diagnoses[0]?.codingSystem ?? 'ICD-11') : (structuredDiagnoses.length > 0 ? structuredDiagnoses[0]?.codingSystem ?? null : null),
+        codes: (hasIcd11 ? icd11Diagnoses : structuredDiagnoses).map(row => ({
+          code: row.code,
+          display: row.display,
+          codingSystem: row.codingSystem,
+          type: row.type,
+        })),
+        icd11Readiness: hasIcd11 ? ('AVAILABLE' as const) : ('NOT_AVAILABLE' as const),
+        requiredForFutureClaims: true,
+      },
+      patientIdentifierReadiness,
       insurance: { memberId: members.length === 1 ? members[0]?._id.toString() : null, selectionRequired: members.length > 1, coverageVerified: false },
     };
   }
+
   async coverage(id: string, type: string, serviceId: string, input: { memberId?: string; quantity: number }, actor: string, metadata: RequestMetadata) {
     const context = await this.context(id, type, actor);
     if (!context.services.some(row => row.serviceId === serviceId)) throw new AppError('Service does not belong to encounter', 409, 'SERVICE_NOT_IN_ENCOUNTER');

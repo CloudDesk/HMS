@@ -370,8 +370,10 @@ export const env = {
     apiKey: process.env.SHA_API_KEY ?? '',
     facilityCode: process.env.SHA_FACILITY_CODE ?? '',
     timeoutMs: parseInteger(process.env.SHA_TIMEOUT_MS, 10000),
+    patientIdentifierSystem: process.env.SHA_PATIENT_IDENTIFIER_SYSTEM ?? '',
   },
 } as const;
+
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
   throw new Error('JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET are required');

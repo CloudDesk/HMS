@@ -5,6 +5,7 @@ import type { PatientDocumentStorageService } from '../../shared/storage/patient
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { PatientRepository } from './patient.repository.js';
 import type {
+  AddPatientIdentifierDTO,
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   PatientDocument,
@@ -13,8 +14,11 @@ import type {
   PatientTimelineListQuery,
   ReviewPatientDocumentDTO,
   UpdatePatientDTO,
+  UpdatePatientIdentifierDTO,
   UploadPatientDocumentDTO,
 } from './patient.types.js';
+import { evaluatePatientIdentifierReadiness } from './patient-identifier.utils.js';
+
 
 const isValidDate = (value: string) => {
   const date = new Date(value);
@@ -499,5 +503,40 @@ export class PatientService {
       throw new AppError('Timeline from date must be before to date', 400, 'VALIDATION_ERROR');
     }
   }
+
+  async getIdentifiers(patientId: string, userId?: string) {
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.getIdentifiers(patientId);
+  }
+
+  async addIdentifier(patientId: string, data: AddPatientIdentifierDTO, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.addIdentifier(patientId, data, userId);
+  }
+
+  async updateIdentifierStatus(patientId: string, identifierId: string, data: UpdatePatientIdentifierDTO, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.updateIdentifierStatus(patientId, identifierId, data, userId);
+  }
+
+  async evaluateShaIdentifierReadiness(patientId: string, configuredSystem?: string) {
+    const identifiers = await this.repository.getIdentifiers(patientId);
+    return evaluatePatientIdentifierReadiness(
+      identifiers.map((id) => ({
+        identifierType: id.identifier_type,
+        issuingAuthority: id.issuing_authority,
+        status: id.status,
+        value: id.value,
+      })),
+      configuredSystem,
+    );
+  }
 }
+
 

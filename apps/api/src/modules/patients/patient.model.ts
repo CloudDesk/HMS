@@ -34,6 +34,7 @@ export type PatientDocumentFields = {
   bloodGroup?: string | null;
   status: PatientStatus;
   notes?: string | null;
+  identifiers?: PatientIdentifierFields[];
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -41,6 +42,30 @@ export type PatientDocumentFields = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type PatientIdentifierFields = {
+  _id: Types.ObjectId;
+  identifierType: string;
+  value: string;
+  issuingAuthority: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  effectiveFrom?: Date | null;
+  effectiveTo?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const patientIdentifierSchema = new Schema<PatientIdentifierFields>(
+  {
+    identifierType: { type: String, required: true, trim: true },
+    value: { type: String, required: true, trim: true },
+    issuingAuthority: { type: String, required: true, trim: true },
+    status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
+    effectiveFrom: { type: Date, default: null },
+    effectiveTo: { type: Date, default: null },
+  },
+  { timestamps: true },
+);
 
 const patientSchema = new Schema<PatientDocumentFields>(
   {
@@ -70,6 +95,7 @@ const patientSchema = new Schema<PatientDocumentFields>(
     bloodGroup: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'DECEASED'], default: 'ACTIVE', required: true },
     notes: { type: String, default: null },
+    identifiers: { type: [patientIdentifierSchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -84,6 +110,9 @@ patientSchema.index({ firstName: 1, lastName: 1 });
 patientSchema.index({ phone: 1 });
 patientSchema.index({ email: 1 });
 patientSchema.index({ status: 1 });
+patientSchema.index({ 'identifiers.value': 1, 'identifiers.issuingAuthority': 1 });
+patientSchema.index({ 'identifiers.identifierType': 1, 'identifiers.status': 1 });
+
 
 export type PatientDocumentMetadataFields = {
   patientId: Types.ObjectId;
@@ -198,8 +227,11 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
       enum: [
         'REGISTRATION',
         'PROFILE_UPDATED',
+        'PATIENT_IDENTIFIER_ADDED',
+        'PATIENT_IDENTIFIER_UPDATED',
         'APPOINTMENT_CREATED',
         'DOCUMENT_ADDED',
+
         'DOCUMENT_DELETED',
         'DOCUMENT_REVIEWED',
         'CONSENT_ADDED',

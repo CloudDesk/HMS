@@ -15,12 +15,14 @@ import type { RequestMetadata } from './insurance.types.js';
 export class InsuranceIntegrationRepository {
   encounter(id: string) { return OpdVisitModel.findOne({ _id: id, deletedAt: null }).select('patientId branchId departmentId doctorId appointmentId visitDate').lean(); }
   patient(id: string) { return PatientModel.exists({ _id: id, deletedAt: null }); }
+  patientRecord(id: string) { return PatientModel.findOne({ _id: id, deletedAt: null }).select('_id identifiers').lean(); }
+
   async references(encounterId: string, patientId: string, branchId: string) {
     const invoices = await BillingInvoiceModel.find({ visitId: encounterId, patientId, branchId, sourceType: 'OPD', deletedAt: null, status: { $ne: 'CANCELLED' } }).select('_id').limit(101).lean();
     const [items, orders, consultation] = await Promise.all([
       BillingInvoiceItemModel.find({ invoiceId: { $in: invoices.map(row => row._id) }, deletedAt: null }).select('invoiceId serviceId').limit(1001).lean(),
       OpdClinicalOrderModel.find({ sourceType: 'OPD_VISIT', sourceId: encounterId, patientId, branchId, deletedAt: null }).select('items.serviceId').limit(101).lean(),
-      OpdConsultationModel.findOne({ visitId: encounterId, patientId, deletedAt: null }).select('_id').lean(),
+      OpdConsultationModel.findOne({ visitId: encounterId, patientId, deletedAt: null }).select('_id assessment diagnoses').lean(),
     ]);
     return { invoices, items, orders, consultation };
   }

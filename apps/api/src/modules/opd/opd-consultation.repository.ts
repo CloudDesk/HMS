@@ -34,6 +34,13 @@ const toConsultation = (consultation: OpdConsultationLean): OpdConsultation => (
   allergies: consultation.allergies ?? null,
   physical_examination: consultation.physicalExamination ?? null,
   assessment: consultation.assessment ?? null,
+  diagnoses: consultation.diagnoses?.map((d) => ({
+    code: d.code,
+    display: d.display,
+    codingSystem: d.codingSystem,
+    type: d.type,
+    notes: d.notes ?? null,
+  })) ?? [],
   treatment_plan: consultation.treatmentPlan ?? null,
   doctor_notes: consultation.doctorNotes ?? null,
   completed_at: consultation.completedAt ?? null,
@@ -51,12 +58,22 @@ const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => 
   ...(data.allergies !== undefined ? { allergies: nullableString(data.allergies) } : {}),
   ...(data.physical_examination !== undefined ? { physicalExamination: nullableString(data.physical_examination) } : {}),
   ...(data.assessment !== undefined ? { assessment: nullableString(data.assessment) } : {}),
+  ...(data.diagnoses !== undefined ? {
+    diagnoses: data.diagnoses.map((d) => ({
+      code: d.code.trim(),
+      display: d.display.trim(),
+      codingSystem: (d.codingSystem || 'ICD-11').trim(),
+      type: d.type || 'PRIMARY',
+      notes: nullableString(d.notes),
+    })),
+  } : {}),
   ...(data.treatment_plan !== undefined ? { treatmentPlan: nullableString(data.treatment_plan) } : {}),
   ...(data.doctor_notes !== undefined ? { doctorNotes: nullableString(data.doctor_notes) } : {}),
   ...(data.status ? { status: data.status } : {}),
   ...(data.completedAt !== undefined ? { completedAt: data.completedAt } : {}),
   updatedBy: requiredObjectId(userId),
 });
+
 
 export class OpdConsultationRepository {
   async getByVisit(visitId: string): Promise<OpdConsultation | null> {

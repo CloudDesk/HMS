@@ -5,22 +5,27 @@ import {
   PatientTimelineEventModel,
   type PatientDocumentFields,
   type PatientDocumentMetadataFields,
+  type PatientIdentifierFields,
   type PatientTimelineEventFields,
 } from './patient.model.js';
 import { PatientNumberSequenceModel } from './patient-number.model.js';
 import { buildPhoneMongoFilter } from '../../utils/phone.js';
 import type {
+  AddPatientIdentifierDTO,
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   Patient,
   PatientConsentContextType,
   PatientDocument,
   PatientDocumentListQuery,
+  PatientIdentifier,
   PatientListQuery,
   PatientTimelineListQuery,
   PatientTimelineEvent,
   UpdatePatientDTO,
+  UpdatePatientIdentifierDTO,
 } from './patient.types.js';
+
 import { AuditLogModel } from '../auth/auth.model.js';
 import { RefreshTokenModel } from '../auth/refresh-token.model.js';
 import { BranchModel } from '../branches/branch.model.js';
@@ -81,7 +86,20 @@ const toPatient = (patient: PatientLean): Patient => ({
   updated_at: patient.updatedAt,
 });
 
+const toPatientIdentifier = (identifier: PatientIdentifierFields): PatientIdentifier => ({
+  id: identifier._id.toString(),
+  identifier_type: identifier.identifierType,
+  value: identifier.value,
+  issuing_authority: identifier.issuingAuthority,
+  status: identifier.status,
+  effective_from: identifier.effectiveFrom ?? null,
+  effective_to: identifier.effectiveTo ?? null,
+  created_at: identifier.createdAt,
+  updated_at: identifier.updatedAt,
+});
+
 const toPatientDocument = (
+
   document: PatientDocumentLean,
   uploadedByName: string | null = null,
   reviewedByName: string | null = null,
@@ -639,4 +657,178 @@ export class PatientRepository {
     const document = await query.lean<PatientDocumentLean>();
     return document ? toPatientDocument(document) : null;
   }
+
+  async getIdentifiers(patientId: string): Promise<PatientIdentifier[]> {
+    const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
+    if (!isPatientOid) throw new AppError('Invalid patient id', 400, 'VALIDATION_ERROR');
+
+    const patient = await PatientModel.findOne({ _id: new Types.ObjectId(patientId), deletedAt: null })
+      .select('identifiers')
+      .lean<PatientLean>();
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return (patient.identifiers ?? []).map(toPatientIdentifier);
+  }
+
+  async addIdentifier(patientId: string, data: AddPatientIdentifierDTO, userId: string): Promise<PatientIdentifier> {
+    const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
+    if (!isPatientOid) throw new AppError('Invalid patient id', 400, 'VALIDATION_ERROR');
+
+    const trimmedValue = data.value.trim();
+    const trimmedType = data.identifier_type.trim();
+    const trimmedAuthority = data.issuing_authority.trim();
+    const status = data.status ?? 'ACTIVE';
+
+    if (!trimmedValue) throw new AppError('Identifier value cannot be empty', 400, 'VALIDATION_ERROR');
+    if (!trimmedType) throw new AppError('Identifier type cannot be empty', 400, 'VALIDATION_ERROR');
+    if (!trimmedAuthority) throw new AppError('Issuing authority cannot be empty', 400, 'VALIDATION_ERROR');
+
+    const patientOid = new Types.ObjectId(patientId);
+
+    // 1. Uniqueness check across other patients if active
+    if (status === 'ACTIVE') {
+      const existsOther = await PatientModel.exists({
+        _id: { $ne: patientOid },
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            value: trimmedValue,
+            issuingAuthority: trimmedAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsOther) {
+        throw new AppError('Identifier already registered to another patient', 409, 'IDENTIFIER_CONFLICT');
+      }
+
+      // 2. Conflict check within same patient: only 1 active identifier per (identifierType, issuingAuthority)
+      const existsSame = await PatientModel.exists({
+        _id: patientOid,
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            identifierType: trimmedType,
+            issuingAuthority: trimmedAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsSame) {
+        throw new AppError('Patient already has an active identifier for this type and authority', 409, 'ACTIVE_IDENTIFIER_CONFLICT');
+      }
+    }
+
+    const newIdentifierId = new Types.ObjectId();
+    const now = new Date();
+    const identifierRecord: PatientIdentifierFields = {
+      _id: newIdentifierId,
+      identifierType: trimmedType,
+      value: trimmedValue,
+      issuingAuthority: trimmedAuthority,
+      status,
+      effectiveFrom: data.effective_from ? new Date(data.effective_from) : null,
+      effectiveTo: data.effective_to ? new Date(data.effective_to) : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const updated = await PatientModel.findOneAndUpdate(
+      { _id: patientOid, deletedAt: null },
+      {
+        $push: { identifiers: identifierRecord },
+        $set: { updatedBy: new Types.ObjectId(userId) },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientLean>();
+
+    if (!updated) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+
+    // Audit log - NEVER store raw identifier value!
+    await this.auditClinicalEvent('patient.identifier.added', userId, {
+      patientId,
+      identifierId: newIdentifierId.toString(),
+      identifierType: trimmedType,
+      issuingAuthority: trimmedAuthority,
+      status,
+    });
+
+    return toPatientIdentifier(identifierRecord);
+  }
+
+  async updateIdentifierStatus(patientId: string, identifierId: string, data: UpdatePatientIdentifierDTO, userId: string): Promise<PatientIdentifier> {
+    const isPatientOid = /^[a-f\d]{24}$/i.test(patientId);
+    const isIdOid = /^[a-f\d]{24}$/i.test(identifierId);
+    if (!isPatientOid || !isIdOid) throw new AppError('Invalid id format', 400, 'VALIDATION_ERROR');
+
+    const patientOid = new Types.ObjectId(patientId);
+    const identifierOid = new Types.ObjectId(identifierId);
+
+    const patient = await PatientModel.findOne({ _id: patientOid, deletedAt: null }).lean<PatientLean>();
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+
+    const current = (patient.identifiers ?? []).find(id => id._id.toString() === identifierId);
+    if (!current) throw new AppError('Patient identifier not found', 404, 'NOT_FOUND');
+
+    if (data.status === 'ACTIVE' && current.status !== 'ACTIVE') {
+      const existsOther = await PatientModel.exists({
+        _id: { $ne: patientOid },
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            value: current.value,
+            issuingAuthority: current.issuingAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsOther) {
+        throw new AppError('Identifier already registered to another patient', 409, 'IDENTIFIER_CONFLICT');
+      }
+
+      const existsSame = await PatientModel.exists({
+        _id: patientOid,
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            _id: { $ne: identifierOid },
+            identifierType: current.identifierType,
+            issuingAuthority: current.issuingAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsSame) {
+        throw new AppError('Patient already has an active identifier for this type and authority', 409, 'ACTIVE_IDENTIFIER_CONFLICT');
+      }
+    }
+
+    const updateFields: Record<string, unknown> = {
+      'identifiers.$.status': data.status,
+      updatedBy: new Types.ObjectId(userId),
+    };
+    if (data.effective_to !== undefined) {
+      updateFields['identifiers.$.effectiveTo'] = data.effective_to ? new Date(data.effective_to) : null;
+    }
+
+    const updated = await PatientModel.findOneAndUpdate(
+      { _id: patientOid, 'identifiers._id': identifierOid, deletedAt: null },
+      { $set: updateFields },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientLean>();
+
+    if (!updated) throw new AppError('Identifier update failed', 500, 'UPDATE_FAILED');
+
+    // Audit log - NEVER store raw identifier value!
+    await this.auditClinicalEvent('patient.identifier.updated', userId, {
+      patientId,
+      identifierId,
+      status: data.status,
+    });
+
+    const updatedIdentifier = (updated.identifiers ?? []).find(id => id._id.toString() === identifierId);
+    if (!updatedIdentifier) throw new AppError('Identifier not found after update', 500, 'UPDATE_FAILED');
+
+    return toPatientIdentifier(updatedIdentifier);
+  }
 }
+

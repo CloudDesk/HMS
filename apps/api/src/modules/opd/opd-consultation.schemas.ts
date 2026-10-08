@@ -6,6 +6,19 @@ export const opdConsultationVisitParamsSchema = {
   },
 } as const;
 
+export const opdStructuredDiagnosisSchema = {
+  type: 'object',
+  required: ['code', 'display'],
+  additionalProperties: false,
+  properties: {
+    code: { type: 'string', minLength: 1 },
+    display: { type: 'string', minLength: 1 },
+    codingSystem: { type: 'string', minLength: 1 },
+    type: { type: 'string', enum: ['PRIMARY', 'SECONDARY'] },
+    notes: { type: ['string', 'null'] },
+  },
+} as const;
+
 export const saveOpdConsultationBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -17,7 +30,12 @@ export const saveOpdConsultationBodySchema = {
     allergies: { type: ['string', 'null'] },
     physical_examination: { type: ['string', 'null'] },
     assessment: { type: ['string', 'null'] },
+    diagnoses: {
+      type: 'array',
+      items: opdStructuredDiagnosisSchema,
+    },
     treatment_plan: { type: ['string', 'null'] },
     doctor_notes: { type: ['string', 'null'] },
   },
 } as const;
+

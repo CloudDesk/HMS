@@ -1,5 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import type { OpdConsultationStatus } from './opd-consultation.types.js';
+import type { OpdConsultationStatus, OpdStructuredDiagnosis } from './opd-consultation.types.js';
 
 export type OpdConsultationFields = {
   visitId: Types.ObjectId;
@@ -16,6 +16,7 @@ export type OpdConsultationFields = {
   allergies?: string | null;
   physicalExamination?: string | null;
   assessment?: string | null;
+  diagnoses?: OpdStructuredDiagnosis[];
   treatmentPlan?: string | null;
   doctorNotes?: string | null;
   completedAt?: Date | null;
@@ -26,6 +27,17 @@ export type OpdConsultationFields = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+const opdStructuredDiagnosisSchema = new Schema<OpdStructuredDiagnosis>(
+  {
+    code: { type: String, required: true },
+    display: { type: String, required: true },
+    codingSystem: { type: String, required: true, default: 'ICD-11' },
+    type: { type: String, enum: ['PRIMARY', 'SECONDARY'], default: 'PRIMARY', required: true },
+    notes: { type: String, default: null },
+  },
+  { _id: false },
+);
 
 const opdConsultationSchema = new Schema<OpdConsultationFields>(
   {
@@ -43,6 +55,7 @@ const opdConsultationSchema = new Schema<OpdConsultationFields>(
     allergies: { type: String, default: null },
     physicalExamination: { type: String, default: null },
     assessment: { type: String, default: null },
+    diagnoses: { type: [opdStructuredDiagnosisSchema], default: [] },
     treatmentPlan: { type: String, default: null },
     doctorNotes: { type: String, default: null },
     completedAt: { type: Date, default: null },
@@ -53,6 +66,7 @@ const opdConsultationSchema = new Schema<OpdConsultationFields>(
   },
   { timestamps: true },
 );
+
 
 opdConsultationSchema.index({ patientId: 1, createdAt: -1 });
 opdConsultationSchema.index({ doctorId: 1, createdAt: -1 });

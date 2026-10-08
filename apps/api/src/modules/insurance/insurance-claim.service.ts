@@ -19,6 +19,7 @@ const issue = (code: string, invoiceItemId?: string, message?: string, severity:
 
 export const externalReadinessCodes = new Set([
   'ICD11_NOT_AVAILABLE',
+  'SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE',
   'SHA_SUBMISSION_CONTRACT_UNCONFIRMED',
   'SHA_IDENTIFIER_MAPPING_UNCONFIRMED',
   'SHA_TERMINOLOGY_UNCONFIRMED',
@@ -27,12 +28,15 @@ export const externalReadinessCodes = new Set([
   'INVOICE_ADJUSTMENT_ALLOCATION_UNCONFIRMED',
 ]);
 
-const generalReadinessIssues = (): ClaimIssue[] => [
-  issue('ICD11_NOT_AVAILABLE', undefined, 'Structured ICD-11 diagnosis coding is required for SHA claim submission but unavailable in OPD encounter', 'ERROR'),
+const generalReadinessIssues = (params: { icd11Available?: boolean; patientIdentifierAvailable?: boolean } = {}): ClaimIssue[] => [
+  ...(!params.icd11Available ? [issue('ICD11_NOT_AVAILABLE', undefined, 'Structured ICD-11 diagnosis coding is required for SHA claim submission but unavailable in OPD encounter', 'ERROR')] : []),
+  ...(!params.patientIdentifierAvailable ? [issue('SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE', undefined, 'Patient SHA unique personal identifier (UPI) is required for SHA claim submission but unavailable', 'ERROR')] : []),
   issue('SHA_SUBMISSION_CONTRACT_UNCONFIRMED', undefined, 'SHA claim submission endpoint and FHIR Bundle contract are unconfirmed', 'ERROR'),
   issue('SHA_IDENTIFIER_MAPPING_UNCONFIRMED', undefined, 'SHA facility, practitioner, and claim identifier mappings are unconfirmed', 'ERROR'),
   issue('SHA_TERMINOLOGY_UNCONFIRMED', undefined, 'SHA clinical and administrative terminology mappings are unconfirmed', 'ERROR'),
 ];
+
+
 
 export class InsuranceClaimService {
   constructor(
@@ -103,10 +107,13 @@ export class InsuranceClaimService {
       throw new AppError('Invoice must contain between 1 and 100 items', 422, 'CLAIM_ITEM_COUNT_INVALID');
     }
 
-    const issues: ClaimIssue[] = generalReadinessIssues();
+    const icd11Available = context.diagnosis.icd11Readiness === 'AVAILABLE';
+    const patientIdentifierAvailable = context.patientIdentifierReadiness?.identifierAvailable === true;
+    const issues: ClaimIssue[] = generalReadinessIssues({ icd11Available, patientIdentifierAvailable });
     if (invoice.discountAmount || invoice.taxAmount) {
       issues.push(issue('INVOICE_ADJUSTMENT_ALLOCATION_UNCONFIRMED', undefined, 'Invoice header discounts or taxes cannot be deterministically allocated across claim lines', 'WARNING'));
     }
+
 
     const lines: ClaimLine[] = [];
     // Check cumulative service quantity so repeated invoice items cannot reuse an insufficient authorization.
@@ -124,9 +131,10 @@ export class InsuranceClaimService {
       }
       const benefit = await this.integration.coverage(invoice.visitId.toString(), 'OPD', service.serviceId, { memberId: member._id.toString(), quantity: quantities.get(service.serviceId) ?? item.quantity }, actor, metadata);
       const reasons: ClaimIssue[] = [
-        issue('ICD11_NOT_AVAILABLE', item._id.toString(), 'Structured ICD-11 diagnosis coding is required for SHA claim submission', 'ERROR'),
+        ...(!icd11Available ? [issue('ICD11_NOT_AVAILABLE', item._id.toString(), 'Structured ICD-11 diagnosis coding is required for SHA claim submission', 'ERROR')] : []),
         issue(benefit.shaMapping ? 'CONFIGURED_NOT_SHA_VALIDATED' : 'SHA_SERVICE_MAPPING_MISSING', item._id.toString(), benefit.shaMapping ? 'Service mapping is configured locally but intervention code is unconfirmed against SHA tariff master' : 'No active SHA service mapping exists for this service', benefit.shaMapping ? 'WARNING' : 'ERROR'),
       ];
+
       if (!benefit.eligible) {
         reasons.push(issue(benefit.reasonCode, item._id.toString(), benefit.message ?? 'Service is not covered under insurance benefit rules', 'ERROR'));
       }
@@ -198,8 +206,9 @@ export class InsuranceClaimService {
     } catch (error) {
       if (!(error instanceof AppError) || error.statusCode === 403) throw error;
       if (error.code === 'STALE_CLAIM' || error.code === 'CLAIM_CANCELLED') throw error;
-      issues = [issue(error.code, undefined, error.message, 'ERROR'), ...generalReadinessIssues()];
+      issues = [issue(error.code, undefined, error.message, 'ERROR'), ...generalReadinessIssues({ icd11Available: false, patientIdentifierAvailable: false })];
       internalValid = false;
+
     }
 
     const nextStatus = internalValid ? 'VALIDATED' : 'DRAFT';

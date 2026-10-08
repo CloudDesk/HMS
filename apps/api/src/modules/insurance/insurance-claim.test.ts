@@ -13,10 +13,12 @@ import { InsuranceAuthorizationModel } from './insurance-authorization.model.js'
 import { ShaServiceMappingModel } from './insurance-integration.model.js';
 import { InsuranceMemberModel, InsurancePolicyModel } from './insurance.model.js';
 import { OpdVisitModel } from '../opd/opd-visit.model.js';
+import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { PatientModel } from '../patients/patient.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { BillingInvoiceModel, BillingInvoiceItemModel } from '../billing/billing.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+
 
 describe('Insurance Phase 8 claim validation and submission readiness service', () => {
   let mongo: MongoMemoryReplSet;
@@ -83,7 +85,9 @@ describe('Insurance Phase 8 claim validation and submission readiness service', 
     await InsurancePolicyModel.deleteMany({});
     await BillingInvoiceModel.deleteMany({});
     await BillingInvoiceItemModel.deleteMany({});
+    await OpdConsultationModel.deleteMany({});
     await AuditLogModel.deleteMany({});
+
 
     await InsurancePolicyModel.collection.insertOne({ _id: policyId, payerId, status: 'ACTIVE' });
     await InsuranceMemberModel.collection.insertOne({
@@ -171,6 +175,122 @@ describe('Insurance Phase 8 claim validation and submission readiness service', 
       expect(issueCodes).toContain('SHA_TERMINOLOGY_UNCONFIRMED');
       expect(issueCodes).toContain('CONFIGURED_NOT_SHA_VALIDATED');
     });
+
+    it('1b. Claim with structured ICD-11 diagnosis in consultation omits ICD11_NOT_AVAILABLE but remains readyForShaSubmission: false', async () => {
+      await setupActiveMappings();
+      const consultationId = new Types.ObjectId();
+      await OpdConsultationModel.collection.insertOne({
+        _id: consultationId,
+        visitId: encounterId,
+        patientId,
+        patientNumber: 'P-P8',
+        patientName: 'John Doe',
+        doctorId: new Types.ObjectId(),
+        doctorName: 'Dr. Physician',
+        status: 'COMPLETED',
+        assessment: 'Type 2 Diabetes Mellitus',
+        diagnoses: [
+          {
+            code: '5A11',
+            display: 'Type 2 diabetes mellitus',
+            codingSystem: 'ICD-11',
+            type: 'PRIMARY',
+            notes: 'Uncomplicated',
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
+
+      const claim = await claims.create({ invoiceId: invoiceId.toString() }, actor, {});
+      expect(claim.status).toBe('DRAFT');
+
+      const validated = await claims.validate(claim._id.toString(), 0, actor, { ipAddress: '127.0.0.1' });
+      expect(validated.status).toBe('VALIDATED');
+      expect(validated.valid).toBe(true);
+      expect(validated.readyForShaSubmission).toBe(false);
+
+      const issueCodes = validated.issues.map(i => i.code);
+      expect(issueCodes).not.toContain('ICD11_NOT_AVAILABLE');
+      expect(issueCodes).toContain('SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE');
+      expect(issueCodes).toContain('SHA_SUBMISSION_CONTRACT_UNCONFIRMED');
+      expect(issueCodes).toContain('SHA_IDENTIFIER_MAPPING_UNCONFIRMED');
+      expect(issueCodes).toContain('SHA_TERMINOLOGY_UNCONFIRMED');
+      expect(issueCodes).toContain('CONFIGURED_NOT_SHA_VALIDATED');
+    });
+
+    it('1c. Claim with structured ICD-11 diagnosis AND configured SHA patient identifier omits both ICD11_NOT_AVAILABLE and SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE but remains readyForShaSubmission: false', async () => {
+      const originalSystem = process.env.SHA_PATIENT_IDENTIFIER_SYSTEM;
+      process.env.SHA_PATIENT_IDENTIFIER_SYSTEM = 'SHA_UPI';
+      await setupActiveMappings();
+
+      const consultationId = new Types.ObjectId();
+      await OpdConsultationModel.collection.insertOne({
+        _id: consultationId,
+        visitId: encounterId,
+        patientId,
+        patientNumber: 'P-P8',
+        patientName: 'John Doe',
+        doctorId: new Types.ObjectId(),
+        doctorName: 'Dr. Physician',
+        status: 'COMPLETED',
+        assessment: 'Type 2 Diabetes Mellitus',
+        diagnoses: [
+          {
+            code: '5A11',
+            display: 'Type 2 diabetes mellitus',
+            codingSystem: 'ICD-11',
+            type: 'PRIMARY',
+            notes: 'Uncomplicated',
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
+
+      await PatientModel.collection.updateOne(
+        { _id: patientId },
+        {
+          $set: {
+            identifiers: [
+              {
+                _id: new Types.ObjectId(),
+                identifierType: 'SHA_UPI',
+                value: 'SYNTH-PAT-UPI-888',
+                issuingAuthority: 'SHA',
+                status: 'ACTIVE',
+              },
+            ],
+          },
+        },
+      );
+
+      try {
+        const claim = await claims.create({ invoiceId: invoiceId.toString() }, actor, {});
+        expect(claim.status).toBe('DRAFT');
+
+        const validated = await claims.validate(claim._id.toString(), 0, actor, { ipAddress: '127.0.0.1' });
+        expect(validated.status).toBe('VALIDATED');
+        expect(validated.valid).toBe(true);
+        expect(validated.readyForShaSubmission).toBe(false);
+
+        const issueCodes = validated.issues.map(i => i.code);
+        expect(issueCodes).not.toContain('ICD11_NOT_AVAILABLE');
+        expect(issueCodes).not.toContain('SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE');
+        expect(issueCodes).toContain('SHA_SUBMISSION_CONTRACT_UNCONFIRMED');
+        expect(issueCodes).toContain('SHA_IDENTIFIER_MAPPING_UNCONFIRMED');
+        expect(issueCodes).toContain('SHA_TERMINOLOGY_UNCONFIRMED');
+        expect(issueCodes).toContain('CONFIGURED_NOT_SHA_VALIDATED');
+      } finally {
+        process.env.SHA_PATIENT_IDENTIFIER_SYSTEM = originalSystem;
+        await OpdConsultationModel.deleteOne({ _id: consultationId });
+        await PatientModel.collection.updateOne({ _id: patientId }, { $set: { identifiers: [] } });
+      }
+    });
+
+
 
     it('2. Missing patient fails internal validation', async () => {
       await setupActiveMappings();

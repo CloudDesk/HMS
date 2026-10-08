@@ -10,7 +10,9 @@ import { InsuranceAuthorizationModel } from './insurance-authorization.model.js'
 import { ShaServiceMappingModel } from './insurance-integration.model.js';
 import { InsuranceMemberModel, InsurancePolicyModel } from './insurance.model.js';
 import { OpdVisitModel } from '../opd/opd-visit.model.js';
+import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
+
 import { PatientModel } from '../patients/patient.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { BillingInvoiceModel, BillingInvoiceItemModel } from '../billing/billing.model.js';
@@ -50,6 +52,7 @@ describe('Insurance Phase 6 encounter integration', () => {
     await InsuranceAuthorizationModel.deleteMany({});
     await ShaServiceMappingModel.deleteMany({});
     await InsuranceClaimModel.deleteMany({});
+    await OpdConsultationModel.deleteMany({});
     vi.spyOn(access, 'hasBranchAccess').mockResolvedValue(true);
     vi.spyOn(insurance, 'verifyBenefit').mockResolvedValue(benefit);
     vi.spyOn(insurance, 'checkCoverage').mockResolvedValue({ valid: true, reasonCode: 'LOCAL_COVERAGE_VALID', message: 'Valid', shaEligibilityStatus: 'NOT_VERIFIED', checkedAt: '2026-10-08' });
@@ -67,7 +70,100 @@ describe('Insurance Phase 6 encounter integration', () => {
     expect(JSON.stringify(result)).not.toContain('Sensitive name');
     expect(JSON.stringify(result)).not.toContain('totalAmount');
   });
+
+  it('returns icd11Readiness: AVAILABLE and structured codes when OPD consultation has ICD-11 diagnosis', async () => {
+    const consultationId = new Types.ObjectId();
+    await OpdConsultationModel.collection.insertOne({
+      _id: consultationId,
+      visitId: encounterId,
+      patientId,
+      patientNumber: 'TEST-P6',
+      patientName: 'Sensitive name',
+      doctorId: new Types.ObjectId(),
+      doctorName: 'Dr. Physician',
+      status: 'COMPLETED',
+      assessment: 'Acute bronchitis',
+      diagnoses: [
+        {
+          code: 'CA20.0',
+          display: 'Acute bronchitis',
+          codingSystem: 'ICD-11',
+          type: 'PRIMARY',
+          notes: 'Productive cough',
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+
+    const result = await integration.context(encounterId.toString(), 'OPD', actor);
+    expect(result.diagnosis.icd11Readiness).toBe('AVAILABLE');
+    expect(result.diagnosis.codingSystem).toBe('ICD-11');
+    expect(result.diagnosis.codes).toEqual([
+      {
+        code: 'CA20.0',
+        display: 'Acute bronchitis',
+        codingSystem: 'ICD-11',
+        type: 'PRIMARY',
+      },
+    ]);
+  });
+
+  it('returns patientIdentifierReadiness: SHA_PATIENT_IDENTIFIER_AVAILABLE when patient has active SHA identifier', async () => {
+    const originalSystem = process.env.SHA_PATIENT_IDENTIFIER_SYSTEM;
+    process.env.SHA_PATIENT_IDENTIFIER_SYSTEM = 'SHA_UPI';
+    const testPatientId = new Types.ObjectId();
+    const testEncounterId = new Types.ObjectId();
+    const sensitiveUpi = 'SYNTH-UPI-TEST-12345';
+
+    await PatientModel.collection.insertOne({
+      _id: testPatientId,
+      patientNumber: 'TEST-UPI-P',
+      lastName: 'IdentifierTest',
+      dateOfBirth: new Date('1990-01-01'),
+      gender: 'OTHER',
+      identifiers: [
+        {
+          _id: new Types.ObjectId(),
+          identifierType: 'SHA_UPI',
+          value: sensitiveUpi,
+          issuingAuthority: 'SHA',
+          status: 'ACTIVE',
+        },
+      ],
+      deletedAt: null,
+    });
+
+    await OpdVisitModel.collection.insertOne({
+      _id: testEncounterId,
+      patientId: testPatientId,
+      branchId,
+      doctorId: new Types.ObjectId(),
+      departmentId: new Types.ObjectId(),
+      visitDate: new Date('2026-10-08'),
+      visitNumber: 'OPD-UPI-TEST-1',
+      patientName: 'Identifier Patient',
+      deletedAt: null,
+    });
+
+    try {
+      const result = await integration.context(testEncounterId.toString(), 'OPD', actor);
+      expect(result.patientIdentifierReadiness.status).toBe('SHA_PATIENT_IDENTIFIER_AVAILABLE');
+      expect(result.patientIdentifierReadiness.identifierSystemConfigured).toBe(true);
+      expect(result.patientIdentifierReadiness.identifierAvailable).toBe(true);
+      expect(result.patientIdentifierReadiness.identifierType).toBe('SHA_UPI');
+      // Zero PII leakage: raw UPI must NOT be present in context
+      expect(JSON.stringify(result)).not.toContain(sensitiveUpi);
+    } finally {
+      process.env.SHA_PATIENT_IDENTIFIER_SYSTEM = originalSystem;
+      await PatientModel.deleteOne({ _id: testPatientId });
+      await OpdVisitModel.deleteOne({ _id: testEncounterId });
+    }
+  });
+
   it('rejects missing encounters', async () => {
+
     await expect(integration.context(new Types.ObjectId().toString(), 'OPD', actor)).rejects.toMatchObject({ code: 'ENCOUNTER_NOT_FOUND' });
   });
   it.each(['IPD', 'EMERGENCY'])('rejects unsupported %s explicitly', async type => {

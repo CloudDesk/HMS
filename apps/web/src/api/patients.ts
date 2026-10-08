@@ -340,5 +340,55 @@ export const patientsApi = {
       { method: 'PATCH' },
     );
   },
+
+  getIdentifiers(patientId: string) {
+    return apiClient.request<ApiPatientIdentifier[]>(`/patients/${encodeURIComponent(patientId)}/identifiers`);
+  },
+
+  addIdentifier(patientId: string, payload: AddPatientIdentifierPayload) {
+    return apiClient.request<ApiPatientIdentifier>(`/patients/${encodeURIComponent(patientId)}/identifiers`, {
+      body: payload,
+      method: 'POST',
+    });
+  },
+
+  updateIdentifierStatus(patientId: string, identifierId: string, payload: UpdatePatientIdentifierStatusPayload) {
+    return apiClient.request<ApiPatientIdentifier>(
+      `/patients/${encodeURIComponent(patientId)}/identifiers/${encodeURIComponent(identifierId)}/status`,
+      {
+        body: payload,
+        method: 'PUT',
+      },
+    );
+  },
 };
+
+export type ApiPatientIdentifierStatus = 'ACTIVE' | 'INACTIVE';
+
+export type ApiPatientIdentifier = {
+  id: string;
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status: ApiPatientIdentifierStatus;
+  effective_from: string | null;
+  effective_to: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AddPatientIdentifierPayload = {
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status?: ApiPatientIdentifierStatus;
+  effective_from?: string | null;
+  effective_to?: string | null;
+};
+
+export type UpdatePatientIdentifierStatusPayload = {
+  status: ApiPatientIdentifierStatus;
+  effective_to?: string | null;
+};
+
 
