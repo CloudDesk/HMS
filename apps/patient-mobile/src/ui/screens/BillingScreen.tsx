@@ -176,32 +176,32 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
     }
   }, [initialInvoiceId, invoices, handleOpenInvoice]);
 
-  // Calculate totals - CANCELLED and DRAFT invoices are excluded from finalized billing totals
-  const finalizedInvoices = useMemo(
-    () => invoices.filter((inv) => !['CANCELLED', 'DRAFT'].includes(inv.status?.toUpperCase())),
+  // Calculate totals - CANCELLED invoices are excluded; DRAFT and issued/pending invoices are included in outstanding bills
+  const activeInvoices = useMemo(
+    () => invoices.filter((inv) => inv.status?.toUpperCase() !== 'CANCELLED'),
     [invoices]
   );
 
   const totalBilled = useMemo(
-    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0),
-    [finalizedInvoices]
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0),
+    [activeInvoices]
   );
   const totalPaid = useMemo(
-    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0),
-    [finalizedInvoices]
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0),
+    [activeInvoices]
   );
   const totalOutstanding = useMemo(
-    () => finalizedInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0),
-    [finalizedInvoices]
+    () => activeInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0),
+    [activeInvoices]
   );
 
   const outstandingInvoices = useMemo(
-    () => finalizedInvoices.filter((inv) => inv.balance_amount > 0),
-    [finalizedInvoices]
+    () => activeInvoices.filter((inv) => inv.balance_amount > 0),
+    [activeInvoices]
   );
   const settledInvoices = useMemo(
-    () => finalizedInvoices.filter((inv) => inv.balance_amount === 0 || inv.status?.toUpperCase() === 'PAID'),
-    [finalizedInvoices]
+    () => activeInvoices.filter((inv) => inv.balance_amount === 0 || inv.status?.toUpperCase() === 'PAID'),
+    [activeInvoices]
   );
 
   const filteredInvoices = useMemo(() => {
@@ -374,7 +374,7 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
                     <Text
                       style={[
                         styles.amountValue,
-                        !['CANCELLED', 'DRAFT'].includes(inv.status?.toUpperCase()) && inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
+                        inv.status?.toUpperCase() !== 'CANCELLED' && inv.balance_amount > 0 ? { color: colors.status.danger } : undefined,
                       ]}
                     >
                       {formatCurrency(inv.status?.toUpperCase() === 'CANCELLED' ? 0 : inv.balance_amount)}

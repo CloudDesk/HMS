@@ -620,15 +620,15 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
               </div>
             </div>
 
-            {/* Card 2: Room occupancy */}
+            {/* Card 2: Dental Activity / Chairside Operations */}
             <div className="hms-dash-card">
               <div className="hms-card-header">
-                <h4 className="hms-card-title">Room occupancy</h4>
+                <h4 className="hms-card-title">Dental Operations</h4>
                 <button
-                  aria-label="Room options"
+                  aria-label="Dental options"
                   className="hms-event-menu"
-                  onClick={() => navigate('/admissions/bed-availability')}
-                  title="View Bed Availability"
+                  onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+                  title="View Dental OPD Queue"
                   type="button"
                 >
                   <i className="ph ph-arrow-up-right" />
@@ -640,7 +640,7 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                     {activeFlowTotal}
                   </span>
                   <span className="hms-kpi-subtext" style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    active in facility
+                    chairside queue
                   </span>
                 </div>
                 <div
@@ -651,10 +651,10 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                   tabIndex={0}
                 >
                   <div className="hms-occupancy-left">
-                    <div className="hms-occupancy-icon">
-                      <i className="ph ph-stethoscope" />
+                    <div className="hms-occupancy-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                      <i className="ph ph-tooth" />
                     </div>
-                    <span className="hms-occupancy-label">In Consultation</span>
+                    <span className="hms-occupancy-label">Chairside / In Treatment</span>
                   </div>
                   <strong className="hms-occupancy-val">{inConsultation}</strong>
                 </div>
@@ -666,12 +666,27 @@ function ExecutiveOverviewTab({ onSelectTab }: { onSelectTab?: (key: string) => 
                   tabIndex={0}
                 >
                   <div className="hms-occupancy-left">
-                    <div className="hms-occupancy-icon">
+                    <div className="hms-occupancy-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
                       <i className="ph ph-clock" />
                     </div>
-                    <span className="hms-occupancy-label">Waiting in Queue</span>
+                    <span className="hms-occupancy-label">Waiting for Chair</span>
                   </div>
                   <strong className="hms-occupancy-val">{waiting}</strong>
+                </div>
+                <div
+                  className="hms-occupancy-item"
+                  onClick={() => (onSelectTab ? onSelectTab('opd') : navigate('/opd'))}
+                  role="button"
+                  style={{ cursor: 'pointer' }}
+                  tabIndex={0}
+                >
+                  <div className="hms-occupancy-left">
+                    <div className="hms-occupancy-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+                      <i className="ph ph-check-circle" />
+                    </div>
+                    <span className="hms-occupancy-label">Completed Today</span>
+                  </div>
+                  <strong className="hms-occupancy-val">{completed}</strong>
                 </div>
               </div>
             </div>

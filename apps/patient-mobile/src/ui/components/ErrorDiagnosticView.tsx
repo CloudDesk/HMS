@@ -23,6 +23,7 @@ export interface ErrorDiagnosticViewProps {
   onRetry?: () => void;
   onDismiss?: () => void;
   showExpandToggle?: boolean;
+  showDiagnostics?: boolean;
   initiallyExpanded?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
 }
@@ -31,7 +32,8 @@ export function ErrorDiagnosticView({
   error,
   onRetry,
   onDismiss,
-  showExpandToggle = true,
+  showExpandToggle = false,
+  showDiagnostics = false,
   initiallyExpanded = false,
   containerStyle,
 }: ErrorDiagnosticViewProps) {
@@ -71,7 +73,7 @@ export function ErrorDiagnosticView({
         </View>
         <View style={styles.messageContainer}>
           <Text style={styles.userMessage}>{userMessage}</Text>
-          {diagnosticId ? (
+          {showDiagnostics && diagnosticId ? (
             <Text style={styles.diagnosticBadge}>Ref: {diagnosticId}</Text>
           ) : null}
         </View>
@@ -89,7 +91,7 @@ export function ErrorDiagnosticView({
           </TouchableOpacity>
         ) : null}
 
-        {showExpandToggle && (apiFailure || diagnosticId) ? (
+        {showDiagnostics && showExpandToggle && (apiFailure || diagnosticId) ? (
           <TouchableOpacity
             style={styles.toggleButton}
             onPress={() => setExpanded(!expanded)}
@@ -113,7 +115,7 @@ export function ErrorDiagnosticView({
       </View>
 
       {/* Expanded technical details */}
-      {expanded && apiFailure ? (
+      {showDiagnostics && expanded && apiFailure ? (
         <View style={styles.detailsContainer}>
           <View style={styles.detailsHeader}>
             <Text style={styles.detailsTitle}>Diagnostic Information</Text>

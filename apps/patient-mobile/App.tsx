@@ -27,6 +27,7 @@ import { NotificationsScreen } from './src/ui/screens/NotificationsScreen';
 import { ProfileScreen } from './src/ui/screens/ProfileScreen';
 import { ErrorScreen } from './src/ui/screens/ErrorScreen';
 import { BottomNavBar, type MainTab } from './src/ui/components/BottomNavBar';
+import { SwipeTabContainer } from './src/ui/components/SwipeTabContainer';
 import { colors } from './src/ui/theme';
 
 export interface NavigationOptions {
@@ -44,8 +45,8 @@ function AuthenticatedApp() {
     setNavOptions(options ?? null);
   };
 
-  const renderScreen = () => {
-    switch (activeTab) {
+  const renderScreen = (tab: MainTab) => {
+    switch (tab) {
       case 'home':
         return <HomeScreen onNavigateTab={handleNavigateTab} />;
       case 'appointments':
@@ -102,7 +103,13 @@ function AuthenticatedApp() {
   return (
     <PatientProvider>
       <View style={styles.authenticatedContainer}>
-        <View style={styles.tabContent}>{renderScreen()}</View>
+        <View style={styles.tabContent}>
+          <SwipeTabContainer
+            activeTab={activeTab}
+            onTabChange={(tab) => handleNavigateTab(tab)}
+            renderScreen={renderScreen}
+          />
+        </View>
         <BottomNavBar
           activeTab={activeTab}
           onTabChange={(tab) => handleNavigateTab(tab)}

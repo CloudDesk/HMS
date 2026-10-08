@@ -120,4 +120,28 @@ describe('LoginScreen UI & Keyboard Architecture', () => {
     const settledInvoices = activeInvoices.filter((inv) => inv.balance_amount === 0);
     expect(settledInvoices.length).toBe(1); // inv-1
   });
+
+  it('includes draft invoices in total outstanding balance and outstanding invoices list', () => {
+    const invoices = [
+      { id: 'inv-1', total_amount: 40000, paid_amount: 0, balance_amount: 0, status: 'CANCELLED' },
+      { id: 'inv-2', total_amount: 45000, paid_amount: 0, balance_amount: 45000, status: 'DRAFT' },
+      { id: 'inv-3', total_amount: 25030, paid_amount: 0, balance_amount: 25030, status: 'PENDING' },
+      { id: 'inv-4', total_amount: 65000, paid_amount: 65000, balance_amount: 0, status: 'PAID' },
+    ];
+
+    const activeInvoices = invoices.filter((inv) => inv.status?.toUpperCase() !== 'CANCELLED');
+    const totalBilled = activeInvoices.reduce((acc, inv) => acc + (inv.total_amount || 0), 0);
+    const totalPaid = activeInvoices.reduce((acc, inv) => acc + (inv.paid_amount || 0), 0);
+    const totalOutstanding = activeInvoices.reduce((acc, inv) => acc + (inv.balance_amount || 0), 0);
+
+    // Total billed should include DRAFT: 45000 + 25030 + 65000 = 135030
+    expect(totalBilled).toBe(135030);
+    expect(totalPaid).toBe(65000);
+    // Outstanding should include DRAFT balance: 45000 + 25030 = 70030
+    expect(totalOutstanding).toBe(70030);
+
+    const outstandingInvoices = activeInvoices.filter((inv) => inv.balance_amount > 0);
+    expect(outstandingInvoices.length).toBe(2); // DRAFT (45000) and PENDING (25030)
+    expect(outstandingInvoices.some((inv) => inv.status === 'DRAFT')).toBe(true);
+  });
 });

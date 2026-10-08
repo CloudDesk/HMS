@@ -38,7 +38,6 @@ export function Sidebar({
         )}
         <div className="logo-text">
           <h2>{hospitalName || 'HMS'}</h2>
-          <p>Enterprise</p>
         </div>
         <button
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
