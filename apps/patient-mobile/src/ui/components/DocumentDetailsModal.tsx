@@ -12,7 +12,6 @@ import {
   formatFileSize,
   getDocumentTypeIcon,
   getDocumentTypeLabel,
-  getReviewStatusBadge,
   type PortalDocument,
 } from '../../documents/contracts';
 import { colors, radius, shadows, spacing, typography } from '../theme';
@@ -30,7 +29,14 @@ export function DocumentDetailsModal({
 }: DocumentDetailsModalProps) {
   if (!document) return null;
 
-  const reviewBadge = getReviewStatusBadge(document.review_status);
+  const reviewBadge = (() => {
+    switch (document.review_status?.toUpperCase()) {
+      case 'VERIFIED': return { label: 'Verified', bg: colors.status.successBg, text: colors.status.success, border: colors.status.successBorder };
+      case 'PENDING': return { label: 'Under Review', bg: colors.status.warningBg, text: colors.status.warning, border: colors.status.warningBorder };
+      case 'REJECTED': return { label: 'Rejected', bg: colors.status.dangerBg, text: colors.status.danger, border: colors.status.dangerBorder };
+      default: return { label: 'Hospital Record', bg: colors.neutral.surfaceSubtle, text: colors.text.secondary, border: colors.border.default };
+    }
+  })();
   const typeIcon = getDocumentTypeIcon(document.document_type);
   const typeLabel = getDocumentTypeLabel(document.document_type);
 
@@ -331,11 +337,11 @@ const styles = StyleSheet.create({
   },
   securityBanner: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
@@ -347,12 +353,12 @@ const styles = StyleSheet.create({
   },
   securityTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#166534',
+    color: colors.status.success,
     marginBottom: 2,
   },
   securityText: {
     ...typography.presets.caption,
-    color: '#14532D',
+    color: colors.status.success,
     lineHeight: typography.lineHeight.tight,
   },
   footer: {

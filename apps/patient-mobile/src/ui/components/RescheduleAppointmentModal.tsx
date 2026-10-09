@@ -236,7 +236,7 @@ export function RescheduleAppointmentModal({
             >
               {isCheckingEligibility ? (
                 <View style={styles.centerLoading}>
-                  <ActivityIndicator size="small" color="#0284C7" />
+                  <ActivityIndicator size="small" color={colors.brand.primary} />
                   <Text style={styles.loadingText}>Checking reschedule eligibility…</Text>
                 </View>
               ) : eligibility && !eligibility.eligible ? (
@@ -312,7 +312,7 @@ export function RescheduleAppointmentModal({
                   <View style={styles.formGroup}>
                     <Text style={styles.label}>Choose New Time Slot</Text>
                     {isLoadingSlots ? (
-                      <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                      <ActivityIndicator size="small" color={colors.brand.primary} style={styles.loadingSpinner} />
                     ) : slotData && slotData.slots.length > 0 ? (
                       <View style={styles.slotGrid}>
                         {slotData.slots.map((slot) => {
@@ -390,7 +390,7 @@ export function RescheduleAppointmentModal({
                   activeOpacity={0.8}
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <ActivityIndicator color={colors.text.inverse} size="small" />
                   ) : (
                     <Text style={styles.confirmBtnText}>Confirm Reschedule</Text>
                   )}
@@ -483,12 +483,12 @@ const styles = StyleSheet.create({
   },
   ineligibleTitle: {
     ...typography.presets.bodyStrong,
-    color: '#991B1B',
+    color: colors.status.danger,
     marginBottom: spacing.xs,
   },
   ineligibleReason: {
     ...typography.presets.bodySmall,
-    color: '#7F1D1D',
+    color: colors.status.danger,
     lineHeight: typography.lineHeight.snug,
   },
   currentBox: {

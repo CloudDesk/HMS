@@ -223,15 +223,15 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
   recommendationsBox: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     borderRadius: radius.md,
     padding: spacing.md + 2,
   },
   recommendationsText: {
     ...typography.presets.bodySmall,
-    color: '#166534',
+    color: colors.status.success,
   },
   timelineRow: {
     marginTop: spacing.xs,

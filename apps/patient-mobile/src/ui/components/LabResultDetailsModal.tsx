@@ -297,9 +297,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   remarksBox: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md + 2,
@@ -307,12 +307,12 @@ const styles = StyleSheet.create({
   remarksTitle: {
     fontSize: typography.size.xs,
     fontWeight: typography.weight.bold,
-    color: '#166534',
+    color: colors.status.success,
     marginBottom: spacing.xs,
   },
   remarksContent: {
     fontSize: typography.size.xs,
-    color: '#14532D',
+    color: colors.status.success,
     lineHeight: typography.lineHeight.snug,
   },
   disclaimerBox: {

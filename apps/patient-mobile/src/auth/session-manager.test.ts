@@ -435,6 +435,7 @@ describe('SessionManager', () => {
     expect(manager.getSnapshot().status).toBe('authenticated');
 
     mockApi.logout.mockResolvedValue({ ok: true });
+    mockTransport.request.mockResolvedValue({ success: true, unregisteredCount: 1 });
 
     await manager.logout();
 
@@ -443,6 +444,15 @@ describe('SessionManager', () => {
     const marker = JSON.parse((await storage.readMarker()) ?? '{}');
     expect(marker.signedOut).toBe(true);
     expect(mockApi.logout).toHaveBeenCalledWith('l'.repeat(64));
+    expect(mockTransport.request).toHaveBeenCalledWith(
+      '/mobile/devices/unregister',
+      expect.anything(),
+      expect.objectContaining({
+        method: 'POST',
+        accessToken: 'logout.test.jwt',
+        body: { installationId: storage.nextId },
+      }),
+    );
   });
 
   it('authenticatedRequest attaches bearer token and executes successfully', async () => {

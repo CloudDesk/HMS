@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { ApiFailure, friendlyError, toApiFailure } from '../api/errors';
 import type { Connectivity, MobileTransport } from '../api/transport';
 import type { SessionStore } from '../storage/session-store';
@@ -466,8 +466,38 @@ export class SessionManager {
       throw error;
     }
   }
+  async registerPushDevice(input: {
+    platform: 'android' | 'ios';
+    pushToken: string;
+    appVersion?: string;
+    osVersion?: string;
+  }) {
+    return this.authenticatedRequest(
+      '/mobile/devices/register',
+      z.object({ id: z.string(), isActive: z.boolean() }),
+      {
+        method: 'POST',
+        body: {
+          installationId: this.store.installationId,
+          ...input,
+        },
+      },
+    );
+  }
   async logout() {
     if (this.state.status === 'loggingOut') return;
+    const currentAccessToken = this.access?.value;
+    const deviceUnregistration = currentAccessToken
+      ? this.transport.request(
+          '/mobile/devices/unregister',
+          z.object({ success: z.boolean(), unregisteredCount: z.number().int().nonnegative() }),
+          {
+            method: 'POST',
+            accessToken: currentAccessToken,
+            body: { installationId: this.store.installationId },
+          },
+        ).then(() => true).catch(() => false)
+      : Promise.resolve(true);
     ++this.generation;
     const proof = this.saved?.refreshToken;
     this.saved = null; this.access = undefined;
@@ -475,7 +505,7 @@ export class SessionManager {
     // Start revocation, then immediately clear local credentials; no offline logout queue.
     const revocation = proof ? this.revokeQuietly(proof) : Promise.resolve(true);
     try { await this.store.clear(); } catch { this.storageError(); await revocation; return; }
-    const revoked = await revocation;
+    const [revoked] = await Promise.all([revocation, deviceUnregistration]);
     this.set({ status: 'unauthenticated', message: revoked ? undefined
       : 'Signed out on this device. The server could not be reached to confirm session revocation.', errorDetails: undefined });
   }

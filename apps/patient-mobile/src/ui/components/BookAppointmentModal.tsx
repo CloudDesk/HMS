@@ -602,7 +602,7 @@ export function BookAppointmentModal({
                   ) : null}
                 </View>
                 {isLoadingCatalogues ? (
-                  <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                  <ActivityIndicator size="small" color={colors.brand.primary} style={styles.loadingSpinner} />
                 ) : (
                   <View style={styles.chipSelector}>
                     {branches.map((b) => (
@@ -639,7 +639,7 @@ export function BookAppointmentModal({
                     <View style={styles.selectTriggerLocked}>
                       {isLoadingDepartments ? (
                         <View style={styles.selectTriggerLoading}>
-                          <ActivityIndicator size="small" color="#0284C7" />
+                          <ActivityIndicator size="small" color={colors.brand.primary} />
                           <Text style={styles.selectPlaceholderText} numberOfLines={1}>
                             Loading…
                           </Text>
@@ -688,7 +688,7 @@ export function BookAppointmentModal({
                     >
                       {isLoadingDoctors ? (
                         <View style={styles.selectTriggerLoading}>
-                          <ActivityIndicator size="small" color="#0284C7" />
+                          <ActivityIndicator size="small" color={colors.brand.primary} />
                           <Text style={styles.selectPlaceholderText} numberOfLines={1}>
                             Loading…
                           </Text>
@@ -734,7 +734,7 @@ export function BookAppointmentModal({
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Available Times</Text>
                 {isLoadingSlots ? (
-                  <ActivityIndicator size="small" color="#0284C7" style={styles.loadingSpinner} />
+                  <ActivityIndicator size="small" color={colors.brand.primary} style={styles.loadingSpinner} />
                 ) : slotData && slotData.slots.length > 0 ? (
                   <View style={styles.slotGrid}>
                     {slotData.slots.map((slot) => {
@@ -813,7 +813,7 @@ export function BookAppointmentModal({
                   }}
                   onFocus={() => handleFieldFocus('reason')}
                   placeholder="Describe your symptoms or consultation reason (min 3 chars)…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.text.muted}
                   multiline
                   numberOfLines={3}
                   maxLength={500}
@@ -868,7 +868,7 @@ export function BookAppointmentModal({
                         }
                         onFocus={() => handleFieldFocus('chiefComplaint')}
                         placeholder="What is the main reason for your visit?"
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={colors.text.muted}
                         multiline
                         numberOfLines={2}
                         maxLength={500}
@@ -890,7 +890,7 @@ export function BookAppointmentModal({
                         }
                         onFocus={() => handleFieldFocus('historyPresentIllness')}
                         placeholder="Tell us about your current symptoms or concern."
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={colors.text.muted}
                         multiline
                         numberOfLines={2}
                         maxLength={500}
@@ -912,7 +912,7 @@ export function BookAppointmentModal({
                         }
                         onFocus={() => handleFieldFocus('pastMedicalHistory')}
                         placeholder="Previous illnesses, conditions, surgeries, or treatments."
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={colors.text.muted}
                         multiline
                         numberOfLines={2}
                         maxLength={500}
@@ -934,7 +934,7 @@ export function BookAppointmentModal({
                         }
                         onFocus={() => handleFieldFocus('familyHistory')}
                         placeholder="Relevant medical conditions in your family."
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={colors.text.muted}
                         multiline
                         numberOfLines={2}
                         maxLength={500}
@@ -959,7 +959,7 @@ export function BookAppointmentModal({
                         }
                         onFocus={() => handleFieldFocus('allergies')}
                         placeholder="Medicines, food, or other known allergies or sensitivities."
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={colors.text.muted}
                         multiline
                         numberOfLines={2}
                         maxLength={500}
@@ -996,7 +996,7 @@ export function BookAppointmentModal({
                 activeOpacity={0.8}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={colors.text.inverse} size="small" />
                 ) : (
                   <Text style={styles.confirmBtnText}>Confirm Booking</Text>
                 )}
@@ -1460,8 +1460,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
-    backgroundColor: '#F0F9FF',
+    borderColor: colors.status.infoBorder,
+    backgroundColor: colors.brand.primarySubtle,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.xs,
     flexDirection: 'row',
@@ -1478,7 +1478,7 @@ const styles = StyleSheet.create({
   },
   lockedDeptText: {
     ...typography.presets.bodySmallMedium,
-    color: '#0369A1',
+    color: colors.brand.primaryDark,
     fontWeight: '600',
   },
   selectTriggerLoading: {

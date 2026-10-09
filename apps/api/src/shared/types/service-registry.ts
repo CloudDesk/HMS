@@ -39,6 +39,7 @@ import type { ConsentService } from '../../modules/consents/consent.service.js';
 import type { SurgeryService } from '../../modules/surgery/surgery.service.js';
 import type { EmergencyService } from '../../modules/emergency/emergency.service.js';
 import type { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
+import type { DeviceService } from '../../modules/devices/device.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -84,4 +85,5 @@ export type ServiceRegistry = {
   surgery: SurgeryService;
   emergency: EmergencyService;
   advancePayment: AdvancePaymentService;
+  devices: DeviceService;
 };

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  type ColorValue,
 } from 'react-native';
 import type { PrescriptionRecord } from '../../prescriptions/contracts';
 import { colors, typography } from '../theme';
@@ -16,16 +17,16 @@ interface PrescriptionDetailsModalProps {
   onClose: () => void;
 }
 
-export function prescriptionStatusBadge(status: string): { bg: string; text: string; label: string } {
+export function prescriptionStatusBadge(status: string): { bg: ColorValue; text: ColorValue; label: string } {
   switch (status.toUpperCase()) {
     case 'DISPENSED':
-      return { bg: '#DCFCE7', text: '#15803D', label: 'Dispensed' };
+      return { bg: colors.status.successBg, text: colors.status.success, label: 'Dispensed' };
     case 'SUBMITTED':
-      return { bg: '#E0F2FE', text: '#0369A1', label: 'Doctor Issued' };
+      return { bg: colors.brand.primaryLight, text: colors.brand.primaryDark, label: 'Doctor Issued' };
     case 'CANCELLED':
-      return { bg: '#FEE2E2', text: '#B91C1C', label: 'Cancelled' };
+      return { bg: colors.status.dangerBg, text: colors.status.danger, label: 'Cancelled' };
     default:
-      return { bg: '#F1F5F9', text: '#475569', label: status };
+      return { bg: colors.neutral.surfaceSubtle, text: colors.text.secondary, label: status };
   }
 }
 
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '88%',
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border.subtle,
   },
   headerLeft: {
     flex: 1,
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   },
   doctorTitle: {
     ...typography.presets.bodyStrong,
-    color: '#0284C7',
+    color: colors.text.brand,
     marginTop: 2,
   },
   closeBtn: {
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     fontSize: typography.size.title,
-    color: '#64748B',
+    color: colors.text.secondary,
     fontWeight: typography.weight.semibold,
   },
   scrollContent: {
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     ...typography.presets.captionMedium,
-    color: '#64748B',
+    color: colors.text.secondary,
   },
   section: {
     marginBottom: 16,
@@ -259,23 +260,23 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.presets.cardTitle,
-    color: '#1E293B',
+    color: colors.text.primary,
     textTransform: 'uppercase',
     letterSpacing: typography.letterSpacing.wide,
   },
   emptyItemsText: {
     ...typography.presets.bodySmall,
-    color: '#94A3B8',
+    color: colors.text.muted,
     fontStyle: 'italic',
   },
   medicinesList: {
     gap: 12,
   },
   medicineCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border.default,
     padding: 14,
   },
   medHeader: {
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E0F2FE',
+    backgroundColor: colors.brand.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -305,11 +306,11 @@ const styles = StyleSheet.create({
   },
   medicineStrength: {
     ...typography.presets.captionMedium,
-    color: '#0284C7',
+    color: colors.text.brand,
     marginTop: 1,
   },
   qtyBadge: {
-    backgroundColor: '#EEF2F6',
+    backgroundColor: colors.neutral.surfaceSubtle,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -317,16 +318,16 @@ const styles = StyleSheet.create({
   qtyText: {
     ...typography.presets.captionMedium,
     fontSize: typography.size.xs,
-    color: '#475569',
+    color: colors.text.secondary,
   },
   medDetailsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
+    borderColor: colors.border.subtle,
     marginBottom: 8,
   },
   medDetailCol: {
@@ -334,19 +335,19 @@ const styles = StyleSheet.create({
   },
   medDetailLabel: {
     ...typography.presets.micro,
-    color: '#64748B',
+    color: colors.text.secondary,
     fontWeight: typography.weight.semibold,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   medDetailValue: {
     ...typography.presets.captionStrong,
-    color: '#1E293B',
+    color: colors.text.primary,
   },
   instructionRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.brand.primarySubtle,
     borderRadius: 6,
     padding: 8,
     marginTop: 2,
@@ -359,31 +360,31 @@ const styles = StyleSheet.create({
   instructionText: {
     flex: 1,
     ...typography.presets.caption,
-    color: '#0369A1',
+    color: colors.brand.primaryDark,
     lineHeight: typography.lineHeight.normal,
   },
   adviceBox: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.status.infoBg,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: colors.status.infoBorder,
     borderRadius: 10,
     padding: 12,
     marginBottom: 12,
   },
   adviceTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#1E40AF',
+    color: colors.status.info,
     marginBottom: 4,
   },
   adviceContent: {
     ...typography.presets.caption,
-    color: '#1E3A8A',
+    color: colors.status.info,
     lineHeight: typography.lineHeight.relaxed,
   },
   followUpBox: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     borderRadius: 10,
     padding: 12,
     marginBottom: 12,
@@ -391,20 +392,20 @@ const styles = StyleSheet.create({
   followUpTitle: {
     ...typography.presets.bodySmallMedium,
     fontWeight: typography.weight.semibold,
-    color: '#166534',
+    color: colors.status.success,
   },
   footer: {
     paddingHorizontal: 20,
     paddingTop: 8,
   },
   doneBtn: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.neutral.surfaceSubtle,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
   },
   doneBtnText: {
     ...typography.presets.button,
-    color: '#475569',
+    color: colors.text.secondary,
   },
 });

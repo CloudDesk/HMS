@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.border.subtle,
   },
   headerTitleGroup: {
     flexDirection: 'row',
@@ -168,13 +168,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.neutral.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeButtonText: {
     fontSize: typography.size.subtitle,
-    color: '#64748B',
+    color: colors.text.secondary,
     fontWeight: typography.weight.semibold,
   },
   body: {
@@ -185,11 +185,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   summaryCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border.default,
     marginBottom: 16,
   },
   badgeRow: {
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   typeBadge: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: colors.brand.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -207,12 +207,12 @@ const styles = StyleSheet.create({
   typeBadgeText: {
     ...typography.presets.captionStrong,
     fontSize: typography.size.xs,
-    color: '#0284C7',
+    color: colors.text.brand,
     textTransform: 'uppercase',
   },
   timeText: {
     ...typography.presets.caption,
-    color: '#64748B',
+    color: colors.text.secondary,
   },
   titleText: {
     ...typography.presets.cardTitle,
@@ -221,36 +221,36 @@ const styles = StyleSheet.create({
     lineHeight: typography.lineHeight.relaxed,
   },
   messageCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border.default,
   },
   messageText: {
     ...typography.presets.body,
-    color: '#334155',
+    color: colors.text.primary,
     lineHeight: typography.lineHeight.normal,
   },
   footer: {
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.border.subtle,
     gap: 8,
   },
   actionButton: {
-    backgroundColor: '#0284C7',
+    backgroundColor: colors.brand.primary,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   actionButtonText: {
     ...typography.presets.button,
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   closeFullButton: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.neutral.surfaceSubtle,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -258,6 +258,6 @@ const styles = StyleSheet.create({
   closeFullButtonText: {
     ...typography.presets.button,
     fontWeight: typography.weight.semibold,
-    color: '#475569',
+    color: colors.text.secondary,
   },
 });

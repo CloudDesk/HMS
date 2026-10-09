@@ -190,7 +190,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('prescriptions')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#F3E8FF' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.status.infoBg }]}>
               <Text style={styles.serviceEmoji}>💊</Text>
             </View>
             <Text style={styles.serviceTitle}>Medicines</Text>
@@ -202,7 +202,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('records')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#DCFCE7' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.status.successBg }]}>
               <Text style={styles.serviceEmoji}>📋</Text>
             </View>
             <Text style={styles.serviceTitle}>Medical Records</Text>
@@ -214,7 +214,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('billing')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEF9C3' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.status.warningBg }]}>
               <Text style={styles.serviceEmoji}>🧾</Text>
             </View>
             <Text style={styles.serviceTitle}>Billing</Text>
@@ -226,7 +226,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('documents')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#E0E7FF' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.status.infoBg }]}>
               <Text style={styles.serviceEmoji}>📁</Text>
             </View>
             <Text style={styles.serviceTitle}>Documents</Text>
@@ -238,7 +238,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('dental')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#CCFBF1' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.brand.primaryLight }]}>
               <Text style={styles.serviceEmoji}>🦷</Text>
             </View>
             <Text style={styles.serviceTitle}>Dental Care</Text>
@@ -250,7 +250,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
             onPress={() => onNavigateTab('consents')}
             activeOpacity={0.75}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#FEE2E2' }]}>
+            <View style={[styles.serviceIconCircle, { backgroundColor: colors.status.dangerBg }]}>
               <Text style={styles.serviceEmoji}>✍️</Text>
             </View>
             <Text style={styles.serviceTitle}>Consent Forms</Text>

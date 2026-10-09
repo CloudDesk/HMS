@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Platform, StatusBar, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as Network from 'expo-network';
 
@@ -29,6 +29,8 @@ import { ErrorScreen } from './src/ui/screens/ErrorScreen';
 import { BottomNavBar, type MainTab } from './src/ui/components/BottomNavBar';
 import { SwipeTabContainer } from './src/ui/components/SwipeTabContainer';
 import { colors } from './src/ui/theme';
+import { AppearanceProvider, useAppearance } from './src/ui/appearance';
+import { startPushNotifications } from './src/notifications/push-notifications';
 
 export interface NavigationOptions {
   entityId?: string | null;
@@ -37,13 +39,30 @@ export interface NavigationOptions {
 }
 
 function AuthenticatedApp() {
+  const { manager } = useAuth();
   const [activeTab, setActiveTab] = useState<MainTab>('home');
   const [navOptions, setNavOptions] = useState<NavigationOptions | null>(null);
+  const tabPosition = useRef(new Animated.Value(0)).current;
 
-  const handleNavigateTab = (tab: MainTab, options?: NavigationOptions) => {
+  const handleNavigateTab = useCallback((tab: MainTab, options?: NavigationOptions) => {
     setActiveTab(tab);
     setNavOptions(options ?? null);
-  };
+  }, []);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let active = true;
+    void startPushNotifications(manager, (tab, entityId) => {
+      handleNavigateTab(tab, entityId ? { entityId } : undefined);
+    }).then((stop) => {
+      if (active) cleanup = stop;
+      else stop();
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      cleanup?.();
+    };
+  }, [handleNavigateTab, manager]);
 
   const renderScreen = (tab: MainTab) => {
     switch (tab) {
@@ -108,11 +127,13 @@ function AuthenticatedApp() {
             activeTab={activeTab}
             onTabChange={(tab) => handleNavigateTab(tab)}
             renderScreen={renderScreen}
+            tabPosition={tabPosition}
           />
         </View>
         <BottomNavBar
           activeTab={activeTab}
           onTabChange={(tab) => handleNavigateTab(tab)}
+          tabPosition={tabPosition}
         />
       </View>
     </PatientProvider>
@@ -148,7 +169,8 @@ function NavigationRoot() {
   }
 }
 
-export default function App() {
+function AppContent() {
+  const { resolvedAppearance } = useAppearance();
   const sessionManager = useMemo(() => {
     const config = readPublicConfig();
     const transport = new MobileTransport(config);
@@ -173,13 +195,24 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar
+        barStyle={resolvedAppearance === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.neutral.background}
+      />
       <SafeAreaView style={styles.safeArea}>
         <AuthProvider manager={sessionManager}>
           <NavigationRoot />
         </AuthProvider>
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AppearanceProvider>
+      <AppContent />
+    </AppearanceProvider>
   );
 }
 

@@ -66,6 +66,7 @@ import { AdministrationDashboardService } from '../../modules/administration-das
 import { PhaseTwoReportRepository } from '../../modules/administration-dashboard/phase-two-report.repository.js';
 import { NotificationRepository } from '../../modules/notifications/notification.repository.js';
 import { NotificationService } from '../../modules/notifications/notification.service.js';
+import { PushNotificationService } from '../../modules/notifications/push-notification.service.js';
 import { PatientDocumentStorageService } from '../storage/patient-document-storage.service.js';
 import type { ServiceRegistry } from '../types/service-registry.js';
 import { PharmacyDispensingRepository } from '../../modules/pharmacy-dispensing/pharmacy-dispensing.repository.js';
@@ -88,6 +89,8 @@ import { EmergencyRepository } from '../../modules/emergency/emergency.repositor
 import { EmergencyService } from '../../modules/emergency/emergency.service.js';
 import { AdvancePaymentRepository } from '../../modules/advance-payment/advance-payment.repository.js';
 import { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
+import { DeviceRepository } from '../../modules/devices/device.repository.js';
+import { DeviceService } from '../../modules/devices/device.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -135,6 +138,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const emergencyRepository = new EmergencyRepository(sequenceService);
   const advancePaymentRepository = new AdvancePaymentRepository();
   const advancePaymentService = new AdvancePaymentService(advancePaymentRepository);
+  const deviceService = new DeviceService(new DeviceRepository());
   const patientDocumentStorageService = new PatientDocumentStorageService();
   const sms = createSmsService();
   const authRateLimits = new AuthRateLimitRepository();
@@ -208,7 +212,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
     settingsRepository,
     dentalLabOrderRepository,
   );
-  const notificationService = new NotificationService(notificationRepository);
+  const notificationService = new NotificationService(
+    notificationRepository,
+    new PushNotificationService(deviceService),
+  );
   const dentalLabOrderService = new DentalLabOrderService(
     dentalLabOrderRepository,
     dentalStageRepository,
@@ -362,5 +369,6 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentService,
     ),
     advancePayment: advancePaymentService,
+    devices: deviceService,
   };
 };

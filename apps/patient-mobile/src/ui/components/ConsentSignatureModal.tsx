@@ -460,9 +460,9 @@ const styles = StyleSheet.create({
   guidanceBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.status.infoBg,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: colors.status.infoBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   guidanceText: {
     flex: 1,
     ...typography.presets.caption,
-    color: '#1E40AF',
+    color: colors.status.info,
     lineHeight: typography.lineHeight.normal,
   },
   previewContainer: {

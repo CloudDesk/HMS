@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MAIN_SWIPE_TABS, shouldStartMainTabSwipe } from './SwipeTabContainer';
+import {
+  MAIN_SWIPE_TABS,
+  resolveSwipeTargetIndex,
+  shouldStartMainTabSwipe,
+} from './SwipeTabContainer';
 
 vi.mock('react-native', () => ({
   Animated: {
@@ -120,5 +124,18 @@ describe('MAIN_SWIPE_TABS and SwipeTabContainer behavior', () => {
     expect(shouldStartMainTabSwipe(2, 20, 18)).toBe(false);
     expect(shouldStartMainTabSwipe(0, 30, 1)).toBe(false);
     expect(shouldStartMainTabSwipe(4, -30, 1)).toBe(false);
+  });
+
+  it('commits only adjacent tabs after the distance or velocity threshold', () => {
+    expect(resolveSwipeTargetIndex(2, -120, 0.1, 375)).toBe(3);
+    expect(resolveSwipeTargetIndex(2, 120, 0.1, 375)).toBe(1);
+    expect(resolveSwipeTargetIndex(2, -30, -0.5, 375)).toBe(3);
+    expect(resolveSwipeTargetIndex(2, 30, 0.5, 375)).toBe(1);
+    expect(resolveSwipeTargetIndex(2, -30, -0.1, 375)).toBe(2);
+  });
+
+  it('keeps first and last tab boundary swipes on the current tab', () => {
+    expect(resolveSwipeTargetIndex(0, 180, 0.8, 375)).toBe(0);
+    expect(resolveSwipeTargetIndex(4, -180, -0.8, 375)).toBe(4);
   });
 });

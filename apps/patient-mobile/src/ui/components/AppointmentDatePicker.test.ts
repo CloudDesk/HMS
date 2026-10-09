@@ -15,6 +15,8 @@ vi.mock('react-native', () => {
       createElement('button', { onClick: onPress, disabled, 'aria-label': accessibilityLabel }, children),
     StyleSheet: { create: (styles: unknown) => styles },
     Platform: { OS: 'android', select: (values: Record<string, unknown>) => values.android ?? values.default },
+    PlatformColor: (resource: string) => resource,
+    DynamicColorIOS: ({ light }: { light: string }) => light,
     Keyboard: { dismiss: vi.fn() }, TextInput: {},
   };
 });

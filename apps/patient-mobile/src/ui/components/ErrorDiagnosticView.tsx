@@ -190,8 +190,8 @@ export function ErrorDiagnosticView({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
+    backgroundColor: colors.status.dangerBg,
+    borderColor: colors.status.dangerBorder,
     borderWidth: 1,
     borderRadius: radius.md,
     padding: spacing.md,
@@ -213,13 +213,13 @@ const styles = StyleSheet.create({
   },
   userMessage: {
     ...typography.presets.bodySmallMedium,
-    color: '#991B1B',
+    color: colors.status.danger,
   },
   diagnosticBadge: {
     ...typography.presets.code,
     fontSize: typography.size.xs,
     fontWeight: typography.weight.semibold,
-    color: '#B91C1C',
+    color: colors.status.danger,
     marginTop: spacing.xs,
   },
   actionRow: {
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: {
     ...typography.presets.captionMedium,
-    color: '#7F1D1D',
+    color: colors.status.danger,
     textDecorationLine: 'underline',
   },
   dismissButton: {
@@ -255,14 +255,14 @@ const styles = StyleSheet.create({
   },
   dismissButtonText: {
     ...typography.presets.caption,
-    color: '#991B1B',
+    color: colors.status.danger,
   },
   detailsContainer: {
     marginTop: spacing.sm + 2,
     paddingTop: spacing.sm + 2,
     borderTopWidth: 1,
-    borderTopColor: '#FECACA',
-    backgroundColor: '#FFF1F2',
+    borderTopColor: colors.status.dangerBorder,
+    backgroundColor: colors.status.dangerBg,
     borderRadius: radius.xs + 2,
     padding: spacing.sm + 2,
   },
@@ -274,12 +274,12 @@ const styles = StyleSheet.create({
   },
   detailsTitle: {
     ...typography.presets.captionStrong,
-    color: '#881337',
+    color: colors.status.danger,
     textTransform: 'uppercase',
     letterSpacing: typography.letterSpacing.widest,
   },
   shareButton: {
-    backgroundColor: '#E11D48',
+    backgroundColor: colors.status.danger,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.xs,
@@ -295,12 +295,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     ...typography.presets.captionStrong,
-    color: '#9F1239',
+    color: colors.status.danger,
     width: '40%',
   },
   detailValue: {
     ...typography.presets.caption,
-    color: '#4C0519',
+    color: colors.text.primary,
     width: '60%',
     textAlign: 'right',
   },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     ...typography.presets.code,
     fontSize: typography.size.xs,
     fontWeight: typography.weight.bold,
-    color: '#4C0519',
+    color: colors.text.primary,
     width: '60%',
     textAlign: 'right',
   },

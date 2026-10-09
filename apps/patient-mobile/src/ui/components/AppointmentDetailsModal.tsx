@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  type ColorValue,
 } from 'react-native';
 import type { PortalAppointment } from '../../appointments/contracts';
 import {
@@ -25,7 +26,7 @@ interface AppointmentDetailsModalProps {
   isCheckingIn?: boolean;
 }
 
-export function statusColor(status: PortalAppointment['status']): { bg: string; text: string } {
+export function statusColor(status: PortalAppointment['status']): { bg: ColorValue; text: ColorValue } {
   switch (status) {
     case 'SCHEDULED':
       return { bg: colors.brand.primaryLight, text: colors.brand.primaryDark };
@@ -38,7 +39,7 @@ export function statusColor(status: PortalAppointment['status']): { bg: string; 
     case 'CANCELLED':
       return { bg: colors.status.dangerBg, text: colors.status.danger };
     case 'RESCHEDULED':
-      return { bg: '#F3E8FF', text: '#7E22CE' };
+      return { bg: colors.status.infoBg, text: colors.status.info };
     case 'NO_SHOW':
     case 'SKIPPED':
       return { bg: colors.status.warningBg, text: colors.status.warning };

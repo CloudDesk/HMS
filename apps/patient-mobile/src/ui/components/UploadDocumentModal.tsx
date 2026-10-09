@@ -473,7 +473,7 @@ export function UploadDocumentModal({
                     testID="submit-upload-button"
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" testID="upload-activity-indicator" />
+                      <ActivityIndicator size="small" color={colors.text.inverse} testID="upload-activity-indicator" />
                     ) : (
                       <Text style={styles.primaryButtonText}>Upload Document</Text>
                     )}
@@ -716,9 +716,9 @@ const styles = StyleSheet.create({
   guidanceBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     borderRadius: radius.md,
     padding: spacing.sm + 2,
     marginBottom: spacing.lg,
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
   guidanceText: {
     flex: 1,
     ...typography.presets.micro,
-    color: '#166534',
+    color: colors.status.success,
     lineHeight: typography.lineHeight.tight,
   },
   actionButtonsContainer: {

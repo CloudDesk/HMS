@@ -19,6 +19,7 @@ import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
 import { colors, radius, shadows, spacing, typography } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
+import { useAppearance, type AppearancePreference } from '../appearance';
 
 interface ProfileScreenProps {
   onNavigateTab?: (tab: MainTab) => void;
@@ -26,6 +27,7 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
   const { logout } = useAuth();
+  const { preference, resolvedAppearance, setPreference } = useAppearance();
   const {
     context,
     selectedPatient,
@@ -295,6 +297,38 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
         </View>
       ) : null}
 
+      <View style={styles.appearanceCard}>
+        <View style={styles.appearanceHeader}>
+          <View style={styles.appearanceHeaderText}>
+            <Text style={styles.cardTitle}>Appearance</Text>
+            <Text style={styles.appearanceSubtitle}>
+              Choose how MyCare looks on this device. Currently {resolvedAppearance}.
+            </Text>
+          </View>
+          <Text style={styles.appearanceIcon} accessibilityElementsHidden>◐</Text>
+        </View>
+        <View style={styles.appearanceOptions} accessibilityRole="radiogroup">
+          {(['light', 'dark', 'system'] as AppearancePreference[]).map((option) => {
+            const selected = preference === option;
+            return (
+              <TouchableOpacity
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={`${option[0]?.toUpperCase()}${option.slice(1)} appearance`}
+                style={[styles.appearanceOption, selected && styles.appearanceOptionSelected]}
+                onPress={() => setPreference(option)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.appearanceOptionText, selected && styles.appearanceOptionTextSelected]}>
+                  {option[0]?.toUpperCase()}{option.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
       {/* Shortcuts */}
       {onNavigateTab ? (
         <View style={styles.section}>
@@ -507,6 +541,60 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginBottom: spacing.md,
     letterSpacing: typography.letterSpacing.tight,
+  },
+  appearanceCard: {
+    backgroundColor: colors.neutral.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: spacing.lg,
+    ...shadows.subtle,
+  },
+  appearanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  appearanceHeaderText: {
+    flex: 1,
+  },
+  appearanceSubtitle: {
+    ...typography.presets.caption,
+    color: colors.text.secondary,
+    marginTop: -spacing.sm,
+  },
+  appearanceIcon: {
+    color: colors.brand.primary,
+    fontSize: typography.size.xl,
+    marginLeft: spacing.md,
+  },
+  appearanceOptions: {
+    flexDirection: 'row',
+    padding: spacing.xs,
+    gap: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutral.surfaceSubtle,
+  },
+  appearanceOption: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  appearanceOptionSelected: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+  },
+  appearanceOptionText: {
+    ...typography.presets.bodySmallStrong,
+    color: colors.text.secondary,
+  },
+  appearanceOptionTextSelected: {
+    color: colors.text.inverse,
   },
   row: {
     flexDirection: 'row',

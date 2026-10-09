@@ -12,7 +12,7 @@ const config: ExpoConfig & {
   version: '0.1.0',
   owner: 'hmsapps',
   orientation: 'portrait',
-  userInterfaceStyle: 'light',
+  userInterfaceStyle: 'automatic',
   platforms: ['android', 'ios'],
   icon: './assets/icon.png',
   splash: {
@@ -37,7 +37,12 @@ const config: ExpoConfig & {
       backgroundColor: '#FFFFFF',
     },
   },
-  plugins: [['expo-secure-store', { configureAndroidBackup: true }], 'expo-dev-client'],
+  plugins: [
+    ['expo-secure-store', { configureAndroidBackup: true }],
+    ['expo-notifications', { icon: './assets/icon.png', color: '#0e4c59', defaultChannel: 'hms_general' }],
+    './plugins/with-hms-theme-colors.cjs',
+    'expo-dev-client',
+  ],
   extra: {
     eas: {
       projectId: '07adcdc9-76ef-4b20-a4e7-2392688a4e2c',

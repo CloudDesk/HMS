@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { DynamicColorIOS, Platform, PlatformColor, type ColorValue } from 'react-native';
 
 /**
  * HMS Patient Mobile — Centralized Design System & Theme Tokens
@@ -10,59 +10,65 @@ import { Platform } from 'react-native';
  * - High readability and contrast
  */
 
+const adaptiveColor = (resource: string, light: string, dark: string): ColorValue => {
+  if (Platform.OS === 'ios') return DynamicColorIOS({ light, dark });
+  if (Platform.OS === 'android') return PlatformColor(`@color/${resource}`);
+  return light;
+};
+
 export const colors = {
   // Brand Palette
   brand: {
-    primary: '#0284C7',       // Sky 600 - Main action color
-    primaryDark: '#0369A1',   // Sky 700 - Hover / pressed / active
-    primaryDeep: '#0C4A6E',   // Sky 900 - High-contrast headers
-    primaryLight: '#E0F2FE',  // Sky 100 - Subtle badges / icon backgrounds
-    primarySubtle: '#F0F9FF', // Sky 50 - Card highlights / selected state
-    accent: '#38BDF8',        // Sky 400 - Focus / rings
+    primary: adaptiveColor('hms_brand_primary', '#0284C7', '#38BDF8'),
+    primaryDark: adaptiveColor('hms_brand_primary_dark', '#0369A1', '#7DD3FC'),
+    primaryDeep: adaptiveColor('hms_brand_primary_deep', '#0C4A6E', '#BAE6FD'),
+    primaryLight: adaptiveColor('hms_brand_primary_light', '#E0F2FE', '#123247'),
+    primarySubtle: adaptiveColor('hms_brand_primary_subtle', '#F0F9FF', '#0D2637'),
+    accent: adaptiveColor('hms_brand_accent', '#38BDF8', '#38BDF8'),
   },
 
   // Neutral Palette
   neutral: {
-    background: '#F8FAFC',    // Slate 50 - Main screen background
-    surface: '#FFFFFF',       // Card / modal surface
-    surfaceSubtle: '#F1F5F9', // Slate 100 - Inset panels / chips
-    surfaceMuted: '#E2E8F0',  // Slate 200 - Disabled / placeholder
+    background: adaptiveColor('hms_neutral_background', '#F8FAFC', '#0B1220'),
+    surface: adaptiveColor('hms_neutral_surface', '#FFFFFF', '#111827'),
+    surfaceSubtle: adaptiveColor('hms_neutral_surface_subtle', '#F1F5F9', '#1E293B'),
+    surfaceMuted: adaptiveColor('hms_neutral_surface_muted', '#E2E8F0', '#334155'),
   },
 
   // Text Hierarchy
   text: {
-    primary: '#0F172A',       // Slate 900 - Headings & main body
-    secondary: '#475569',     // Slate 600 - Supportive text & labels
-    muted: '#94A3B8',         // Slate 400 - Placeholders & timestamps
-    inverse: '#FFFFFF',       // On dark buttons / badges
-    brand: '#0284C7',         // Interactive links
+    primary: adaptiveColor('hms_text_primary', '#0F172A', '#F8FAFC'),
+    secondary: adaptiveColor('hms_text_secondary', '#475569', '#CBD5E1'),
+    muted: adaptiveColor('hms_text_muted', '#94A3B8', '#94A3B8'),
+    inverse: adaptiveColor('hms_text_inverse', '#FFFFFF', '#08111F'),
+    brand: adaptiveColor('hms_text_brand', '#0284C7', '#7DD3FC'),
   },
 
   // Border & Dividers
   border: {
-    default: '#E2E8F0',       // Slate 200 - Card / input borders
-    subtle: '#F1F5F9',        // Slate 100 - Row dividers
-    focused: '#0284C7',       // Sky 600 - Focused inputs
-    error: '#FCA5A5',         // Red 300 - Invalid fields
+    default: adaptiveColor('hms_border_default', '#E2E8F0', '#334155'),
+    subtle: adaptiveColor('hms_border_subtle', '#F1F5F9', '#1E293B'),
+    focused: adaptiveColor('hms_border_focused', '#0284C7', '#38BDF8'),
+    error: adaptiveColor('hms_border_error', '#FCA5A5', '#F87171'),
   },
 
   // Semantic Status Colors
   status: {
-    success: '#16A34A',       // Green 600
-    successBg: '#DCFCE7',     // Green 100
-    successBorder: '#86EFAC', // Green 300
+    success: adaptiveColor('hms_status_success', '#16A34A', '#4ADE80'),
+    successBg: adaptiveColor('hms_status_success_bg', '#DCFCE7', '#123421'),
+    successBorder: adaptiveColor('hms_status_success_border', '#86EFAC', '#166534'),
 
-    warning: '#D97706',       // Amber 600
-    warningBg: '#FEF3C7',     // Amber 100
-    warningBorder: '#FDE68A', // Amber 300
+    warning: adaptiveColor('hms_status_warning', '#D97706', '#FBBF24'),
+    warningBg: adaptiveColor('hms_status_warning_bg', '#FEF3C7', '#3B2A0A'),
+    warningBorder: adaptiveColor('hms_status_warning_border', '#FDE68A', '#92400E'),
 
-    danger: '#DC2626',        // Red 600
-    dangerBg: '#FEE2E2',      // Red 100
-    dangerBorder: '#FCA5A5',  // Red 300
+    danger: adaptiveColor('hms_status_danger', '#DC2626', '#F87171'),
+    dangerBg: adaptiveColor('hms_status_danger_bg', '#FEE2E2', '#3F171B'),
+    dangerBorder: adaptiveColor('hms_status_danger_border', '#FCA5A5', '#991B1B'),
 
-    info: '#2563EB',          // Blue 600
-    infoBg: '#DBEAFE',        // Blue 100
-    infoBorder: '#BFDBFE',    // Blue 300
+    info: adaptiveColor('hms_status_info', '#2563EB', '#60A5FA'),
+    infoBg: adaptiveColor('hms_status_info_bg', '#DBEAFE', '#172554'),
+    infoBorder: adaptiveColor('hms_status_info_border', '#BFDBFE', '#1E40AF'),
   },
 } as const;
 
@@ -258,21 +264,21 @@ export const shadows = {
     elevation: 0,
   },
   subtle: {
-    shadowColor: '#0F172A',
+    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
   card: {
-    shadowColor: '#0F172A',
+    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
   modal: {
-    shadowColor: '#0F172A',
+    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 16,

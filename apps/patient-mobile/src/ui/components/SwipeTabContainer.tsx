@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -19,6 +19,9 @@ export const MAIN_SWIPE_TABS: MainTab[] = [
   'profile',
 ];
 
+export const SWIPE_DISTANCE_RATIO = 0.28;
+export const SWIPE_VELOCITY_THRESHOLD = 0.4;
+
 export const shouldStartMainTabSwipe = (
   activeIndex: number,
   dx: number,
@@ -31,203 +34,170 @@ export const shouldStartMainTabSwipe = (
   return activeIndex >= 0 && activeIndex < MAIN_SWIPE_TABS.length;
 };
 
+export const resolveSwipeTargetIndex = (
+  activeIndex: number,
+  dx: number,
+  vx: number,
+  screenWidth: number,
+) => {
+  const distanceThreshold = screenWidth * SWIPE_DISTANCE_RATIO;
+  if (
+    (dx < -distanceThreshold || vx < -SWIPE_VELOCITY_THRESHOLD) &&
+    activeIndex < MAIN_SWIPE_TABS.length - 1
+  ) {
+    return activeIndex + 1;
+  }
+  if (
+    (dx > distanceThreshold || vx > SWIPE_VELOCITY_THRESHOLD) &&
+    activeIndex > 0
+  ) {
+    return activeIndex - 1;
+  }
+  return activeIndex;
+};
+
 interface SwipeTabContainerProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
   renderScreen: (tab: MainTab) => React.ReactNode;
+  tabPosition: Animated.Value;
 }
+
+const tabsToPrepare = (activeIndex: number) =>
+  MAIN_SWIPE_TABS.filter((_, index) => Math.abs(index - activeIndex) <= 1);
 
 export function SwipeTabContainer({
   activeTab,
   onTabChange,
   renderScreen,
+  tabPosition,
 }: SwipeTabContainerProps) {
   const [screenWidth, setScreenWidth] = useState(() => Dimensions.get('window').width || 375);
-  const translateX = useRef(new Animated.Value(0)).current;
-
-  // Track dragging state to render adjacent tab during drag
-  const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
-
   const activeIndex = MAIN_SWIPE_TABS.indexOf(activeTab);
   const isMainTab = activeIndex !== -1;
-
-  // Keep ref to latest props/state for PanResponder
-  const stateRef = useRef({
-    activeIndex,
-    isMainTab,
-    screenWidth,
-    onTabChange,
-  });
+  const [mountedTabs, setMountedTabs] = useState<Set<MainTab>>(
+    () => new Set(tabsToPrepare(Math.max(0, activeIndex))),
+  );
+  const transitionIdRef = useRef(0);
+  const stateRef = useRef({ activeIndex, isMainTab, screenWidth, onTabChange });
 
   useEffect(() => {
-    stateRef.current = {
-      activeIndex,
-      isMainTab,
-      screenWidth,
-      onTabChange,
-    };
+    stateRef.current = { activeIndex, isMainTab, screenWidth, onTabChange };
   }, [activeIndex, isMainTab, screenWidth, onTabChange]);
 
-  const handleLayout = (e: LayoutChangeEvent) => {
-    const width = e.nativeEvent?.layout?.width;
-    if (width && width > 0 && width !== screenWidth) {
-      setScreenWidth(width);
+  useEffect(() => {
+    transitionIdRef.current += 1;
+    tabPosition.stopAnimation();
+    if (isMainTab) {
+      tabPosition.setValue(activeIndex);
+      setMountedTabs((current) => {
+        const next = new Set(current);
+        for (const tab of tabsToPrepare(activeIndex)) next.add(tab);
+        return next.size === current.size ? current : next;
+      });
     }
+  }, [activeIndex, isMainTab, tabPosition]);
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    if (width > 0 && width !== screenWidth) setScreenWidth(width);
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
+  const settleAt = (targetIndex: number, commit: boolean) => {
+    const transitionId = ++transitionIdRef.current;
+    Animated.timing(tabPosition, {
+      toValue: targetIndex,
+      duration: commit ? 190 : 160,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished || transitionId !== transitionIdRef.current || !commit) return;
+      const targetTab = MAIN_SWIPE_TABS[targetIndex];
+      if (targetTab) stateRef.current.onTabChange(targetTab);
+    });
+  };
+
+  const panResponder = useMemo(
+    () => PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (
-        _evt: GestureResponderEvent,
-        gestureState: PanResponderGestureState
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
       ) => {
-        const { isMainTab, activeIndex } = stateRef.current;
-        if (!isMainTab) return false;
-
-        return shouldStartMainTabSwipe(activeIndex, gestureState.dx, gestureState.dy);
+        const state = stateRef.current;
+        return state.isMainTab && shouldStartMainTabSwipe(
+          state.activeIndex,
+          gestureState.dx,
+          gestureState.dy,
+        );
       },
-      // Main screens contain ScrollViews. Capture a clearly horizontal gesture
-      // before a child scroll view claims it so the swipe works across the screen.
       onMoveShouldSetPanResponderCapture: (
-        _evt: GestureResponderEvent,
-        gestureState: PanResponderGestureState
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
       ) => {
-        const { isMainTab, activeIndex } = stateRef.current;
-        return isMainTab && shouldStartMainTabSwipe(activeIndex, gestureState.dx, gestureState.dy);
+        const state = stateRef.current;
+        return state.isMainTab && shouldStartMainTabSwipe(
+          state.activeIndex,
+          gestureState.dx,
+          gestureState.dy,
+        );
       },
       onPanResponderGrant: () => {
-        translateX.stopAnimation();
+        transitionIdRef.current += 1;
+        tabPosition.stopAnimation();
+        tabPosition.setValue(stateRef.current.activeIndex);
       },
       onPanResponderMove: (
-        _evt: GestureResponderEvent,
-        gestureState: PanResponderGestureState
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
       ) => {
-        const { activeIndex } = stateRef.current;
-        let dx = gestureState.dx;
-
-        // Prevent dragging past boundaries
-        if (activeIndex === 0 && dx > 0) {
-          dx = 0;
-        } else if (activeIndex === MAIN_SWIPE_TABS.length - 1 && dx < 0) {
-          dx = 0;
-        }
-
-        if (dx < 0) {
-          setDragDirection('right'); // dragging towards right tab (finger moves left)
-        } else if (dx > 0) {
-          setDragDirection('left'); // dragging towards left tab (finger moves right)
-        }
-
-        translateX.setValue(dx);
+        const state = stateRef.current;
+        if (state.screenWidth <= 0) return;
+        const gesturePosition = state.activeIndex - gestureState.dx / state.screenWidth;
+        tabPosition.setValue(Math.max(0, Math.min(MAIN_SWIPE_TABS.length - 1, gesturePosition)));
       },
       onPanResponderRelease: (
-        _evt: GestureResponderEvent,
-        gestureState: PanResponderGestureState
+        _event: GestureResponderEvent,
+        gestureState: PanResponderGestureState,
       ) => {
-        const { activeIndex, screenWidth, onTabChange } = stateRef.current;
-        const { dx, vx } = gestureState;
-
-        const distanceThreshold = screenWidth * 0.25;
-        const velocityThreshold = 0.4;
-
-        let targetTab: MainTab | null = null;
-        let targetX = 0;
-
-        // Swiping Left (finger moves to left, next tab on the right)
-        if ((dx < -distanceThreshold || vx < -velocityThreshold) && activeIndex < MAIN_SWIPE_TABS.length - 1) {
-          targetTab = MAIN_SWIPE_TABS[activeIndex + 1] ?? null;
-          targetX = -screenWidth;
-        }
-        // Swiping Right (finger moves to right, previous tab on the left)
-        else if ((dx > distanceThreshold || vx > velocityThreshold) && activeIndex > 0) {
-          targetTab = MAIN_SWIPE_TABS[activeIndex - 1] ?? null;
-          targetX = screenWidth;
-        }
-
-        if (targetTab) {
-          Animated.timing(translateX, {
-            toValue: targetX,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            translateX.setValue(0);
-            setDragDirection(null);
-            onTabChange(targetTab!);
-          });
-        } else {
-          // Spring back to current tab
-          Animated.spring(translateX, {
-            toValue: 0,
-            friction: 7,
-            tension: 40,
-            useNativeDriver: true,
-          }).start(() => {
-            setDragDirection(null);
-          });
-        }
+        const state = stateRef.current;
+        const targetIndex = resolveSwipeTargetIndex(
+          state.activeIndex,
+          gestureState.dx,
+          gestureState.vx,
+          state.screenWidth,
+        );
+        settleAt(targetIndex, targetIndex !== state.activeIndex);
       },
-      onPanResponderTerminate: () => {
-        Animated.spring(translateX, {
-          toValue: 0,
-          friction: 7,
-          tension: 40,
-          useNativeDriver: true,
-        }).start(() => {
-          setDragDirection(null);
-        });
-      },
+      onPanResponderTerminate: () => settleAt(stateRef.current.activeIndex, false),
       onPanResponderTerminationRequest: () => false,
-    })
-  ).current;
+    }),
+    [tabPosition],
+  );
 
-  // If not a main swipe tab (e.g., secondary views like billing, dental, consents, documents, notifications),
-  // render directly without gesture handlers
   if (!isMainTab) {
     return <View style={styles.container}>{renderScreen(activeTab)}</View>;
   }
 
-  const adjacentTab: MainTab | null =
-    dragDirection === 'right' && activeIndex < MAIN_SWIPE_TABS.length - 1
-      ? (MAIN_SWIPE_TABS[activeIndex + 1] ?? null)
-      : dragDirection === 'left' && activeIndex > 0
-      ? (MAIN_SWIPE_TABS[activeIndex - 1] ?? null)
-      : null;
-
-  const adjacentOffset = dragDirection === 'right' ? screenWidth : -screenWidth;
+  const preparedTabs = new Set(mountedTabs);
+  for (const tab of tabsToPrepare(activeIndex)) preparedTabs.add(tab);
+  const trackTranslateX = Animated.multiply(tabPosition, -screenWidth);
 
   return (
-    <View
-      style={styles.container}
-      onLayout={handleLayout}
-      {...panResponder.panHandlers}
-    >
+    <View style={styles.container} onLayout={handleLayout} {...panResponder.panHandlers}>
       <Animated.View
         style={[
-          styles.slideContainer,
+          styles.track,
           {
-            transform: [{ translateX }],
+            width: screenWidth * MAIN_SWIPE_TABS.length,
+            transform: [{ translateX: trackTranslateX }],
           },
         ]}
       >
-        <View style={[styles.screenWrapper, { width: screenWidth }]}>
-          {renderScreen(activeTab)}
-        </View>
-
-        {adjacentTab && (
-          <Animated.View
-            style={[
-              styles.screenWrapper,
-              styles.adjacentScreen,
-              {
-                width: screenWidth,
-                transform: [{ translateX: adjacentOffset }],
-              },
-            ]}
-          >
-            {renderScreen(adjacentTab)}
-          </Animated.View>
-        )}
+        {MAIN_SWIPE_TABS.map((tab) => (
+          <View key={tab} style={[styles.screenWrapper, { width: screenWidth }]}>
+            {preparedTabs.has(tab) ? renderScreen(tab) : null}
+          </View>
+        ))}
       </Animated.View>
     </View>
   );
@@ -238,18 +208,11 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
   },
-  slideContainer: {
+  track: {
     flex: 1,
     flexDirection: 'row',
   },
   screenWrapper: {
-    flex: 1,
     height: '100%',
-  },
-  adjacentScreen: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
   },
 });

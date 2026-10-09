@@ -14,7 +14,6 @@ import {
   formatDentalCurrency,
   formatToothDescription,
   getDentalStatusLabel,
-  getDentalStatusStyle,
   type DentalQuotation,
   type DentalQuotationOption,
 } from '../../dental/contracts';
@@ -45,7 +44,16 @@ export function DentalQuotationDetailsModal({
 
   if (!quotation) return null;
 
-  const statusStyle = getDentalStatusStyle(quotation.status);
+  const statusStyle = (() => {
+    switch (quotation.status?.toUpperCase()) {
+      case 'ACCEPTED': return { bg: colors.status.successBg, text: colors.status.success, border: colors.status.successBorder };
+      case 'SENT': return { bg: colors.brand.primaryLight, text: colors.brand.primaryDark, border: colors.status.infoBorder };
+      case 'POSTPONED': return { bg: colors.status.warningBg, text: colors.status.warning, border: colors.status.warningBorder };
+      case 'REJECTED':
+      case 'EXPIRED': return { bg: colors.status.dangerBg, text: colors.status.danger, border: colors.status.dangerBorder };
+      default: return { bg: colors.neutral.surfaceSubtle, text: colors.text.secondary, border: colors.border.default };
+    }
+  })();
   const isPendingDecision =
     quotation.status === 'SENT' || quotation.status === 'POSTPONED';
 
@@ -322,7 +330,7 @@ export function DentalQuotationDetailsModal({
                 <TextInput
                   style={styles.decisionInput}
                   placeholder="Enter notes or reason (optional)…"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.text.muted}
                   value={decisionReason}
                   onChangeText={setDecisionReason}
                   multiline={true}
@@ -346,7 +354,7 @@ export function DentalQuotationDetailsModal({
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={colors.text.inverse} />
                     ) : (
                       <Text style={styles.decisionConfirmText}>
                         {decisionMode === 'reject'
@@ -407,7 +415,7 @@ export function DentalQuotationDetailsModal({
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color={colors.text.inverse} />
                   ) : (
                     <Text style={styles.acceptButtonText}>Accept Quotation</Text>
                   )}
@@ -685,16 +693,16 @@ const styles = StyleSheet.create({
     color: colors.brand.primary,
   },
   decisionForm: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: colors.status.warningBg,
     borderRadius: radius.md,
     padding: spacing.md + 2,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.status.warningBorder,
     marginBottom: spacing.lg,
   },
   decisionFormTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#92400E',
+    color: colors.status.warning,
     marginBottom: spacing.sm,
   },
   decisionInput: {
@@ -740,31 +748,31 @@ const styles = StyleSheet.create({
   },
   acceptedBanner: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
   rejectedBanner: {
     flexDirection: 'row',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.status.dangerBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: colors.status.dangerBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
   postponedBanner: {
     flexDirection: 'row',
-    backgroundColor: '#FFFBEB',
+    backgroundColor: colors.status.warningBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.status.warningBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
@@ -809,29 +817,29 @@ const styles = StyleSheet.create({
   },
   postponeButton: {
     flex: 1,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.status.warningBg,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.status.warningBorder,
   },
   postponeButtonText: {
     ...typography.presets.buttonSmall,
-    color: '#92400E',
+    color: colors.status.warning,
   },
   rejectButton: {
     flex: 1,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.status.dangerBg,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: colors.status.dangerBorder,
   },
   rejectButtonText: {
     ...typography.presets.buttonSmall,
-    color: '#991B1B',
+    color: colors.status.danger,
   },
   closeFullButton: {
     backgroundColor: colors.neutral.surfaceSubtle,

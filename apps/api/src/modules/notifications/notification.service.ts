@@ -2,12 +2,20 @@ import type { NotificationRepository } from './notification.repository.js';
 import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CreateNotificationDTO, NotificationListQuery } from './notification.types.js';
+import type { PushNotificationService } from './push-notification.service.js';
 
 export class NotificationService {
-  constructor(private readonly repository: NotificationRepository) {}
+  constructor(
+    private readonly repository: NotificationRepository,
+    private readonly push?: PushNotificationService,
+  ) {}
 
   async createNotification(data: CreateNotificationDTO, session?: ClientSession) {
-    return this.repository.create(data, session);
+    const notification = await this.repository.create(data, session);
+    if (!session && notification.recipient_user_id) {
+      void this.push?.sendToUser(notification.recipient_user_id, notification);
+    }
+    return notification;
   }
 
   async createGlobalNotification(data: CreateNotificationDTO, actorUserId: string) {
@@ -51,7 +59,11 @@ export class NotificationService {
       }
     }
 
-    return this.repository.create(data, undefined, actorUserId);
+    const notification = await this.repository.create(data, undefined, actorUserId);
+    if (notification.recipient_user_id) {
+      void this.push?.sendToUser(notification.recipient_user_id, notification);
+    }
+    return notification;
   }
 
   async listNotifications(query: NotificationListQuery, actorUserId: string) {

@@ -12,7 +12,6 @@ import {
   formatCurrency,
   formatInvoiceDate,
   getInvoiceStatusLabel,
-  getInvoiceStatusStyle,
   type PortalInvoiceDetails,
 } from '../../billing/contracts';
 import { colors, radius, shadows, spacing, typography } from '../theme';
@@ -34,9 +33,16 @@ export function InvoiceDetailsModal({
   error,
   onRetry,
 }: InvoiceDetailsModalProps) {
-  const statusStyle = invoice
-    ? getInvoiceStatusStyle(invoice.status)
-    : { bg: '#F1F5F9', text: '#475569', border: '#CBD5E1' };
+  const statusStyle = (() => {
+    switch (invoice?.status?.toUpperCase()) {
+      case 'PAID': return { bg: colors.status.successBg, text: colors.status.success, border: colors.status.successBorder };
+      case 'PARTIALLY_PAID': return { bg: colors.status.warningBg, text: colors.status.warning, border: colors.status.warningBorder };
+      case 'PENDING': return { bg: colors.status.dangerBg, text: colors.status.danger, border: colors.status.dangerBorder };
+      case 'CANCELLED':
+      case 'DRAFT': return { bg: colors.neutral.surfaceSubtle, text: colors.text.secondary, border: colors.border.default };
+      default: return { bg: colors.brand.primarySubtle, text: colors.brand.primaryDark, border: colors.status.infoBorder };
+    }
+  })();
 
   return (
     <Modal
@@ -64,7 +70,7 @@ export function InvoiceDetailsModal({
 
           {isLoading ? (
             <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#0284C7" />
+              <ActivityIndicator size="large" color={colors.brand.primary} />
               <Text style={styles.loadingText}>Loading invoice details…</Text>
             </View>
           ) : error ? (
@@ -640,10 +646,10 @@ const styles = StyleSheet.create({
     ...typography.presets.bodyStrong,
   },
   balanceDueText: {
-    color: '#991B1B',
+    color: colors.status.danger,
   },
   balanceSettledText: {
-    color: '#166534',
+    color: colors.status.success,
   },
   paymentsCard: {
     backgroundColor: colors.neutral.surface,
@@ -677,15 +683,15 @@ const styles = StyleSheet.create({
   },
   paymentAmount: {
     ...typography.presets.bodyStrong,
-    color: '#166534',
+    color: colors.status.success,
   },
   dueNoticeBanner: {
     flexDirection: 'row',
-    backgroundColor: '#FFFBEB',
+    backgroundColor: colors.status.warningBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.status.warningBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
@@ -697,21 +703,21 @@ const styles = StyleSheet.create({
   },
   dueNoticeTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#92400E',
+    color: colors.status.warning,
     marginBottom: 2,
   },
   dueNoticeText: {
     ...typography.presets.caption,
-    color: '#78350F',
+    color: colors.status.warning,
     lineHeight: typography.lineHeight.tight,
   },
   settledNoticeBanner: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     gap: spacing.sm + 2,
     marginTop: spacing.xs,
   },
@@ -723,12 +729,12 @@ const styles = StyleSheet.create({
   },
   settledNoticeTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#166534',
+    color: colors.status.success,
     marginBottom: 2,
   },
   settledNoticeText: {
     ...typography.presets.caption,
-    color: '#14532D',
+    color: colors.status.success,
     lineHeight: typography.lineHeight.tight,
   },
   footer: {

@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   prereqBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.status.warningBg,
     padding: spacing.sm,
     borderRadius: radius.md,
     marginTop: spacing.sm,
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   prereqText: {
     flex: 1,
     ...typography.presets.caption,
-    color: '#92400E',
+    color: colors.status.warning,
   },
   labBox: {
     flexDirection: 'row',
@@ -640,12 +640,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   labBoxPending: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: colors.status.infoBg,
+    borderColor: colors.status.infoBorder,
   },
   labBoxReady: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
+    backgroundColor: colors.status.successBg,
+    borderColor: colors.status.successBorder,
   },
   labIcon: {
     fontSize: typography.size.base,
@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
   appointmentBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.neutral.background,
     padding: spacing.sm,
     borderRadius: radius.md,
     marginTop: spacing.sm,

@@ -329,9 +329,9 @@ const styles = StyleSheet.create({
   guardianConsentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.status.successBg,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colors.status.successBorder,
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
@@ -345,11 +345,11 @@ const styles = StyleSheet.create({
   },
   guardianTitle: {
     ...typography.presets.bodySmallStrong,
-    color: '#166534',
+    color: colors.status.success,
   },
   guardianSubtitle: {
     ...typography.presets.micro,
-    color: '#15803D',
+    color: colors.status.success,
     marginTop: 2,
     lineHeight: typography.lineHeight.compact,
   },
@@ -434,12 +434,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   signatureBoxPending: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
+    backgroundColor: colors.status.warningBg,
+    borderColor: colors.status.warningBorder,
   },
   signatureBoxSigned: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
+    backgroundColor: colors.status.successBg,
+    borderColor: colors.status.successBorder,
   },
   signatureIcon: {
     fontSize: typography.size.base,

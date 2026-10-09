@@ -202,7 +202,7 @@ export function ProfilePhotoModal({
                     activeOpacity={0.8}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={colors.text.inverse} />
                     ) : (
                       <Text style={styles.primaryButtonText}>Save Profile Photo</Text>
                     )}
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.md,
-    backgroundColor: '#FFE5E5',
+    backgroundColor: colors.status.dangerBg,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
