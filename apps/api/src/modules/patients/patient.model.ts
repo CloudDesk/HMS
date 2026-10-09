@@ -51,6 +51,9 @@ export type PatientIdentifierFields = {
   status: 'ACTIVE' | 'INACTIVE';
   effectiveFrom?: Date | null;
   effectiveTo?: Date | null;
+  sourceEnvironment?: string | null;
+  verifiedAt?: Date | null;
+  verifiedBy?: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -63,6 +66,9 @@ const patientIdentifierSchema = new Schema<PatientIdentifierFields>(
     status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
     effectiveFrom: { type: Date, default: null },
     effectiveTo: { type: Date, default: null },
+    sourceEnvironment: { type: String, default: null },
+    verifiedAt: { type: Date, default: null },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true },
 );

@@ -5,6 +5,7 @@ const reference = (ref: string, required = true) => ({ type: Schema.Types.Object
 const lineSchema = new Schema({
   serviceId: reference('Service'), serviceCode: { type: String, required: true },
   requestedQuantity: { type: Number, required: true, min: 1 },
+  requestedAmount: Number,
   approvedQuantity: Number, approvedAmount: Number, rejectedQuantity: Number,
 }, { _id: false });
 const historySchema = new Schema({

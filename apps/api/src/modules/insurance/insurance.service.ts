@@ -659,6 +659,7 @@ export class InsuranceService {
       payerCode: payer?.payerCode ?? 'SHA',
       requestedDate: requestedDateStr,
       correlationId,
+      patientId: patient?._id?.toString() ?? member.patientId?.toString(),
     });
 
     const responseTimestamp = new Date();

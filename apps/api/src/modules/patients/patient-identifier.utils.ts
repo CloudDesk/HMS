@@ -2,8 +2,10 @@ import { env } from '../../config/env.js';
 import type { ShaPatientIdentifierReadiness } from './patient.types.js';
 
 export type PatientIdentifierLike = {
-  identifierType: string;
-  issuingAuthority: string;
+  identifierType?: string;
+  identifier_type?: string;
+  issuingAuthority?: string;
+  issuing_authority?: string;
   status: string;
   value?: string;
 };
@@ -25,19 +27,22 @@ export const evaluatePatientIdentifierReadiness = (
   }
 
   const activeMatching = (identifiers ?? []).find(
-    (id) =>
-      id.status === 'ACTIVE' &&
-      (id.issuingAuthority.trim().toLowerCase() === sys.toLowerCase() ||
-        id.identifierType.trim().toLowerCase() === sys.toLowerCase()),
+    (id) => {
+      const authority = (id.issuingAuthority || id.issuing_authority || '').trim().toLowerCase();
+      const type = (id.identifierType || id.identifier_type || '').trim().toLowerCase();
+      return id.status === 'ACTIVE' && (authority === sys.toLowerCase() || type === sys.toLowerCase());
+    },
   );
 
   if (activeMatching && activeMatching.value && activeMatching.value.trim().length > 0) {
+    const authority = activeMatching.issuingAuthority || activeMatching.issuing_authority || sys;
+    const type = activeMatching.identifierType || activeMatching.identifier_type || null;
     return {
       status: 'SHA_PATIENT_IDENTIFIER_AVAILABLE',
       identifierSystemConfigured: true,
       identifierAvailable: true,
-      identifierSystem: activeMatching.issuingAuthority,
-      identifierType: activeMatching.identifierType,
+      identifierSystem: authority,
+      identifierType: type,
     };
   }
 
@@ -49,3 +54,36 @@ export const evaluatePatientIdentifierReadiness = (
     identifierType: null,
   };
 };
+
+export const resolveActiveShaPatientIdentifier = (
+  identifiers: PatientIdentifierLike[] | undefined,
+  configuredSystem?: string,
+): { value: string; identifierType: string; issuingAuthority: string } | null => {
+  const activeConfig =
+    configuredSystem !== undefined
+      ? configuredSystem
+      : (process.env.SHA_PATIENT_IDENTIFIER_SYSTEM || env.sha.patientIdentifierSystem);
+  const sys = activeConfig?.trim();
+  if (!sys) return null;
+
+  const activeMatching = (identifiers ?? []).find(
+    (id) => {
+      const authority = (id.issuingAuthority || id.issuing_authority || '').trim().toLowerCase();
+      const type = (id.identifierType || id.identifier_type || '').trim().toLowerCase();
+      return id.status === 'ACTIVE' && (authority === sys.toLowerCase() || type === sys.toLowerCase());
+    },
+  );
+
+  if (activeMatching && activeMatching.value && activeMatching.value.trim().length > 0) {
+    const authority = activeMatching.issuingAuthority || activeMatching.issuing_authority || sys;
+    const type = activeMatching.identifierType || activeMatching.identifier_type || '';
+    return {
+      value: activeMatching.value.trim(),
+      identifierType: type,
+      issuingAuthority: authority,
+    };
+  }
+
+  return null;
+};
+

@@ -27,8 +27,20 @@ export type PatientIdentifier = {
   status: PatientIdentifierStatus;
   effective_from: Date | null;
   effective_to: Date | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
   created_at: Date;
   updated_at: Date;
+};
+
+export type DhaPatientVerificationResult = {
+  matched: boolean;
+  externalSystem: string;
+  externalIdentifierType: string;
+  mappingAvailable: boolean;
+  reused?: boolean;
+  message?: string;
 };
 
 export type AddPatientIdentifierDTO = {
@@ -38,6 +50,9 @@ export type AddPatientIdentifierDTO = {
   status?: PatientIdentifierStatus;
   effective_from?: string | null;
   effective_to?: string | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
 };
 
 export type UpdatePatientIdentifierDTO = {

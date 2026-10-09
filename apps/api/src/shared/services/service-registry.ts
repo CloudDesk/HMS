@@ -1,3 +1,4 @@
+import { DhaPatientRegistryService, DhaEligibilityService, DhaSubBenefitsService, DhaInterventionCoverageService, DhaPreauthorizationReadinessService, DhaPreauthorizationService, DhaHttpClient } from '../../modules/insurance/dha/index.js';
 import { InsuranceClaimService } from '../../modules/insurance/insurance-claim.service.js';
 import { InsuranceClaimRepository } from '../../modules/insurance/insurance-claim.repository.js';
 import { InsuranceIntegrationService } from '../../modules/insurance/insurance-integration.service.js';
@@ -175,7 +176,24 @@ export const createServiceRegistry = (): ServiceRegistry => {
     serviceRepository,
     advancePaymentService,
   );
-
+  const insuranceAuthorizationRepository = new InsuranceAuthorizationRepository();
+  const insuranceRepository = new InsuranceRepository();
+  const insuranceIntegrationRepository = new InsuranceIntegrationRepository();
+  const insuranceServiceInstance = new InsuranceService(insuranceRepository);
+  const dhaHttpClient = new DhaHttpClient();
+  const dhaInterventionCoverageService = new DhaInterventionCoverageService(dhaHttpClient, patientRepository);
+  const dhaPreauthorizationReadinessService = new DhaPreauthorizationReadinessService(
+    insuranceAuthorizationRepository,
+    patientRepository,
+    insuranceRepository,
+    insuranceServiceInstance,
+    insuranceIntegrationRepository,
+    dhaInterventionCoverageService,
+  );
+  const dhaPreauthorizationService = new DhaPreauthorizationService(
+    insuranceAuthorizationRepository,
+    dhaPreauthorizationReadinessService,
+  );
 
   return {
     database: {
@@ -285,9 +303,21 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentService,
     ),
     advancePayment: advancePaymentService,
-    insurance: new InsuranceService(new InsuranceRepository()),
-    insuranceClaims: new InsuranceClaimService(new InsuranceClaimRepository(), new InsuranceIntegrationRepository(), new InsuranceIntegrationService(new InsuranceIntegrationRepository(), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
-    insuranceIntegration: new InsuranceIntegrationService(new InsuranceIntegrationRepository(), new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
-    insuranceAuthorization: new InsuranceAuthorizationService(new InsuranceAuthorizationRepository(), new InsuranceService(new InsuranceRepository())),
+    insurance: insuranceServiceInstance,
+    insuranceClaims: new InsuranceClaimService(
+      new InsuranceClaimRepository(),
+      insuranceIntegrationRepository,
+      new InsuranceIntegrationService(insuranceIntegrationRepository, insuranceAuthorizationRepository, insuranceServiceInstance),
+      insuranceAuthorizationRepository,
+      insuranceServiceInstance,
+    ),
+    insuranceIntegration: new InsuranceIntegrationService(insuranceIntegrationRepository, insuranceAuthorizationRepository, insuranceServiceInstance),
+    insuranceAuthorization: new InsuranceAuthorizationService(insuranceAuthorizationRepository, insuranceServiceInstance),
+    dhaPatientRegistry: new DhaPatientRegistryService(dhaHttpClient, patientRepository),
+    dhaEligibility: new DhaEligibilityService(dhaHttpClient, patientRepository),
+    dhaSubBenefits: new DhaSubBenefitsService(dhaHttpClient, patientRepository),
+    dhaInterventionCoverage: dhaInterventionCoverageService,
+    dhaPreauthorizationReadiness: dhaPreauthorizationReadinessService,
+    dhaPreauthorization: dhaPreauthorizationService,
   };
 };

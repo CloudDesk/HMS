@@ -94,6 +94,9 @@ const toPatientIdentifier = (identifier: PatientIdentifierFields): PatientIdenti
   status: identifier.status,
   effective_from: identifier.effectiveFrom ?? null,
   effective_to: identifier.effectiveTo ?? null,
+  source_environment: identifier.sourceEnvironment ?? null,
+  verified_at: identifier.verifiedAt ?? null,
+  verified_by: identifier.verifiedBy ? identifier.verifiedBy.toString() : null,
   created_at: identifier.createdAt,
   updated_at: identifier.updatedAt,
 });
@@ -728,6 +731,9 @@ export class PatientRepository {
       status,
       effectiveFrom: data.effective_from ? new Date(data.effective_from) : null,
       effectiveTo: data.effective_to ? new Date(data.effective_to) : null,
+      sourceEnvironment: data.source_environment ?? null,
+      verifiedAt: data.verified_at ?? null,
+      verifiedBy: data.verified_by ? new Types.ObjectId(data.verified_by) : null,
       createdAt: now,
       updatedAt: now,
     };

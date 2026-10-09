@@ -37,6 +37,12 @@ import type { SurgeryService } from '../../modules/surgery/surgery.service.js';
 import type { EmergencyService } from '../../modules/emergency/emergency.service.js';
 import type { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
 import type { InsuranceService } from '../../modules/insurance/insurance.service.js';
+import type { DhaPatientRegistryService } from '../../modules/insurance/dha/dha-patient-registry.service.js';
+import type { DhaEligibilityService } from '../../modules/insurance/dha/dha-eligibility.service.js';
+import type { DhaSubBenefitsService } from '../../modules/insurance/dha/dha-sub-benefits.service.js';
+import type { DhaInterventionCoverageService } from '../../modules/insurance/dha/dha-intervention-coverage.service.js';
+import type { DhaPreauthorizationReadinessService } from '../../modules/insurance/dha/dha-preauthorization-readiness.service.js';
+import type { DhaPreauthorizationService } from '../../modules/insurance/dha/dha-preauthorization.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -80,4 +86,10 @@ export type ServiceRegistry = {
   insuranceIntegration: InsuranceIntegrationService;
   insuranceClaims: InsuranceClaimService;
   insuranceAuthorization: InsuranceAuthorizationService;
+  dhaPatientRegistry: DhaPatientRegistryService;
+  dhaEligibility: DhaEligibilityService;
+  dhaSubBenefits: DhaSubBenefitsService;
+  dhaInterventionCoverage: DhaInterventionCoverageService;
+  dhaPreauthorizationReadiness: DhaPreauthorizationReadinessService;
+  dhaPreauthorization: DhaPreauthorizationService;
 };

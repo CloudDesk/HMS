@@ -365,4 +365,160 @@ export const registerInsuranceRoutes = async (app: FastifyInstance, services: Se
     const body = parse(shaMappingDeactivateSchema, request.body);
     return ok(await services.insuranceIntegration.deactivateMapping(parse(authorizationId, params.id), body.version, body.reason, request.user!.id, metadata(request)));
   });
+
+  const dhaPatientVerifyParams = z.object({
+    patientId: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid patient ID format'),
+  });
+  app.post(
+    '/api/insurance/dha/patients/:patientId/verify',
+    { preHandler: requirePermission(services, 'Insurance', 'Eligibility', 'Verify') },
+    async (request) => {
+      const params = parse(dhaPatientVerifyParams, request.params);
+      const user = request.user!;
+      return ok(
+        await services.dhaPatientRegistry.verifyPatient(
+          params.patientId,
+          user.id,
+        ),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/dha/patients/:patientId/sub-benefits',
+    { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'View') },
+    async (request) => {
+      const params = parse(dhaPatientVerifyParams, request.params);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaSubBenefits.getSubBenefits(params.patientId, {
+          actorUserId: user.id,
+          correlationId,
+        }),
+      );
+    },
+  );
+
+  const dhaInterventionsQuery = z.object({
+    subBenefitCode: z.string().min(1, 'subBenefitCode is required'),
+  });
+
+  app.get(
+    '/api/insurance/dha/patients/:patientId/interventions',
+    { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'View') },
+    async (request) => {
+      const params = parse(dhaPatientVerifyParams, request.params);
+      const query = parse(dhaInterventionsQuery, request.query);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaInterventionCoverage.getInterventions(
+          params.patientId,
+          query.subBenefitCode,
+          {
+            actorUserId: user.id,
+            correlationId,
+          },
+        ),
+      );
+    },
+  );
+
+  const dhaPreauthReadinessQuery = z.object({
+    subBenefitCode: z.string().optional(),
+    interventionCode: z.string().optional(),
+    needsPreauth: z.preprocess((val) => {
+      if (val === 'true' || val === true) return true;
+      if (val === 'false' || val === false) return false;
+      return undefined;
+    }, z.boolean().optional()),
+    contractConfirmed: z.preprocess((val) => {
+      if (val === 'true' || val === true) return true;
+      if (val === 'false' || val === false) return false;
+      return undefined;
+    }, z.boolean().optional()),
+  });
+
+  const dhaPreauthReadinessParams = z.object({
+    authorizationId: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid authorization ID format'),
+  });
+
+  app.get(
+    '/api/insurance/dha/authorizations/:authorizationId/readiness',
+    { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'View') },
+    async (request) => {
+      const params = parse(dhaPreauthReadinessParams, request.params);
+      const query = parse(dhaPreauthReadinessQuery, request.query);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaPreauthorizationReadiness.getReadiness(
+          params.authorizationId,
+          {
+            ...query,
+            actorUserId: user.id,
+            correlationId,
+          },
+        ),
+      );
+    },
+  );
+
+  const dhaConsentBodySchema = z
+    .object({
+      otp: z.string().optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/dha/authorizations/:authorizationId/consent',
+    { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'Manage') },
+    async (request) => {
+      const params = parse(dhaPreauthReadinessParams, request.params);
+      const body = request.body ? parse(dhaConsentBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaPreauthorization.processConsent(
+          params.authorizationId,
+          {
+            otp: body?.otp,
+            actorUserId: user.id,
+            correlationId,
+          },
+        ),
+      );
+    },
+  );
+
+  const dhaSubmitPreauthBodySchema = z
+    .object({
+      otp: z.string().optional(),
+      consentReference: z.string().optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/dha/authorizations/:authorizationId/submit',
+    { preHandler: requirePermission(services, 'Insurance', 'Authorization', 'Submit') },
+    async (request) => {
+      const params = parse(dhaPreauthReadinessParams, request.params);
+      const body = request.body ? parse(dhaSubmitPreauthBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaPreauthorization.submitPreauthorization(
+          params.authorizationId,
+          {
+            otp: body?.otp,
+            consentReference: body?.consentReference,
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
 };

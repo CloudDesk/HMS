@@ -380,6 +380,17 @@ export const env = {
     clientId: process.env.DHA_CLIENT_ID ?? '',
     clientSecret: process.env.DHA_CLIENT_SECRET ?? '',
     timeoutMs: parseInteger(process.env.DHA_TIMEOUT_MS, 10000),
+    integrationMode: (process.env.DHA_INTEGRATION_MODE?.trim().toUpperCase() === 'REAL' ? 'REAL' : 'MOCK') as 'MOCK' | 'REAL',
+    mockPreauthDecision: (['APPROVED', 'PARTIALLY_APPROVED', 'REJECTED'].includes(
+      process.env.MOCK_DHA_PREAUTH_DECISION?.trim().toUpperCase() ?? '',
+    )
+      ? process.env.MOCK_DHA_PREAUTH_DECISION!.trim().toUpperCase()
+      : 'APPROVED') as 'APPROVED' | 'PARTIALLY_APPROVED' | 'REJECTED',
+    mockConsentMode: (['VERIFIED', 'DENIED', 'PENDING'].includes(
+      process.env.MOCK_DHA_CONSENT_MODE?.trim().toUpperCase() ?? '',
+    )
+      ? process.env.MOCK_DHA_CONSENT_MODE!.trim().toUpperCase()
+      : 'VERIFIED') as 'VERIFIED' | 'DENIED' | 'PENDING',
   },
 } as const;
 
@@ -390,4 +401,8 @@ if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
 
 if (env.app.environment === 'prod' && env.auth.patientPortalDemoOtp) {
   throw new Error('PATIENT_PORTAL_DEMO_OTP must not be configured in production');
+}
+
+if (env.app.environment === 'prod' && env.dha.integrationMode === 'MOCK') {
+  throw new Error('DHA_INTEGRATION_MODE must not be set to MOCK in production');
 }

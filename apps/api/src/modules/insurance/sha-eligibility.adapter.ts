@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
+import { DhaEligibilityService } from './dha/dha-eligibility.service.js';
 
 export type ShaEligibilityRequest = {
   memberNumber: string;
@@ -11,6 +12,7 @@ export type ShaEligibilityRequest = {
   requestedDate: string;
   facilityCode?: string;
   correlationId: string;
+  patientId?: string;
 };
 
 const SENSITIVE_KEY_REGEX =
@@ -182,8 +184,53 @@ export class HttpShaEligibilityAdapter implements IShaEligibilityAdapter {
   }
 }
 
+export class DhaEligibilityAdapter implements IShaEligibilityAdapter {
+  constructor(
+    private readonly eligibilityService: DhaEligibilityService = new DhaEligibilityService(),
+  ) {}
+
+  async verifyEligibility(request: ShaEligibilityRequest): Promise<ShaEligibilityResponse> {
+    if (!request.patientId) {
+      return {
+        status: 'FAILED',
+        externalReferenceId: null,
+        reasonCode: 'PATIENT_ID_REQUIRED',
+        message: 'Patient ID is required for DHA eligibility check',
+      };
+    }
+
+    try {
+      const result = await this.eligibilityService.checkEligibility({
+        patientId: request.patientId,
+        policyNumber: request.policyNumber,
+        schemeCode: request.schemeCode ?? undefined,
+        correlationId: request.correlationId,
+      });
+
+      return {
+        status: result.status,
+        externalReferenceId: result.externalReferenceId,
+        reasonCode: result.reasonCode,
+        message: result.message,
+        details: result.details,
+      };
+    } catch (error) {
+      const isAppError = typeof error === 'object' && error !== null && 'code' in error && 'message' in error;
+      return {
+        status: 'FAILED',
+        externalReferenceId: null,
+        reasonCode: isAppError ? (error as { code: string }).code : 'DHA_ELIGIBILITY_ERROR',
+        message: error instanceof Error ? error.message : 'DHA eligibility check failed',
+      };
+    }
+  }
+}
+
 export const createShaEligibilityAdapter = (customAdapter?: IShaEligibilityAdapter): IShaEligibilityAdapter => {
   if (customAdapter) return customAdapter;
+  if (env.dha.enabled && env.dha.baseUrl) {
+    return new DhaEligibilityAdapter();
+  }
   if (env.sha.enabled && env.sha.baseUrl) {
     return new HttpShaEligibilityAdapter();
   }
