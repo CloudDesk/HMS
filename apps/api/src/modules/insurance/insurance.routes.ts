@@ -1,4 +1,10 @@
 import { createClaimSchema, listClaimsSchema, validateClaimSchema } from './insurance-claim.schemas.js';
+import {
+  claimLifecycleReportQuerySchema,
+  remittanceReconciliationReportQuerySchema,
+  outstandingWorkReportQuerySchema,
+  claimHistoryParamsSchema,
+} from './dha/dha-claim-reporting.schemas.js';
 import { insuranceEncounterQuery, encounterCoverageSchema, shaMappingSchema, shaMappingListSchema, shaMappingDeactivateSchema } from './insurance-integration.schemas.js';
 import { z } from 'zod';
 import { authorizationId, authorizationRequestSchema, authorizationActionSchema, authorizationCancelSchema, authorizationListSchema } from './insurance-authorization.schemas.js';
@@ -343,6 +349,437 @@ export const registerInsuranceRoutes = async (app: FastifyInstance, services: Se
     const params = parse(idParamsSchema, request.params); const body = parse(validateClaimSchema, request.body);
     return ok(await services.insuranceClaims.validate(parse(authorizationId, params.id), body.version, request.user!.id, metadata(request)));
   });
+
+  const claimSubmitParamsSchema = z.object({
+    claimId: authorizationId,
+  });
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-submit',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimSubmission.mockSubmitClaim(params.claimId, {
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-preview',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimPreview.mockPreviewClaim(params.claimId, {
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-discharge',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimDischarge.mockDischargeClaim(params.claimId, {
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  const claimAdjudicateBodySchema = z
+    .object({
+      decision: z
+        .enum([
+          'MOCK_PENDING',
+          'MOCK_APPROVED',
+          'MOCK_PARTIALLY_APPROVED',
+          'MOCK_REJECTED',
+          'MOCK_QUERY',
+        ])
+        .optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-adjudication',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const body = request.body ? parse(claimAdjudicateBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimAdjudication.mockAdjudicateClaim(params.claimId, {
+          decision: body?.decision,
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  const claimQueryCreateBodySchema = z
+    .object({
+      queryReason: z.string().optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-query',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const body = request.body ? parse(claimQueryCreateBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimQuery.mockCreateQuery(params.claimId, {
+          queryReason: body?.queryReason,
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  const claimQueryRespondParamsSchema = z.object({
+    claimId: authorizationId,
+    queryId: authorizationId,
+  });
+
+  const claimQueryRespondBodySchema = z.object({
+    responseNote: z.string().min(3).max(2000),
+    documentIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).optional(),
+    resolveImmediately: z.boolean().optional(),
+  });
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-query/:queryId/respond',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimQueryRespondParamsSchema, request.params);
+      const body = parse(claimQueryRespondBodySchema, request.body);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimQuery.mockRespondToQuery(
+          params.claimId,
+          params.queryId,
+          body,
+          {
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
+
+  const claimAppealCreateBodySchema = z
+    .object({
+      appealReason: z.string().optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-appeal',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const body = request.body ? parse(claimAppealCreateBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimAppeal.mockCreateAppeal(params.claimId, {
+          appealReason: body?.appealReason,
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  const claimAppealSubmitParamsSchema = z.object({
+    claimId: authorizationId,
+    appealId: authorizationId,
+  });
+
+  const claimAppealSubmitBodySchema = z.object({
+    appealNote: z.string().min(3).max(2000),
+    documentIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).optional(),
+    decision: z.enum(['MOCK_UPHELD', 'MOCK_OVERTURNED', 'SUBMITTED']).optional(),
+    decisionReason: z.string().optional(),
+  });
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-appeal/:appealId/submit',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimAppealSubmitParamsSchema, request.params);
+      const body = parse(claimAppealSubmitBodySchema, request.body);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimAppeal.mockSubmitAppeal(
+          params.claimId,
+          params.appealId,
+          body,
+          {
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-remittance-advice',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimSubmitParamsSchema, request.params);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaRemittanceAdvice.mockGenerateRemittanceAdvice(params.claimId, {
+          actorUserId: user.id,
+          correlationId,
+          metadata: metadata(request),
+        }),
+      );
+    },
+  );
+
+  const claimAllocateParamsSchema = z.object({
+    claimId: authorizationId,
+    remittanceAdviceId: authorizationId,
+  });
+
+  const claimAllocateBodySchema = z.object({
+    amount: z.number().positive(),
+    currency: z.string().min(3).max(3).optional(),
+    idempotencyKey: z.string().min(1).max(100).optional(),
+  });
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-remittance-advice/:remittanceAdviceId/allocate',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimAllocateParamsSchema, request.params);
+      const body = parse(claimAllocateBodySchema, request.body);
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaPaymentAllocation.mockAllocatePayment(
+          params.claimId,
+          params.remittanceAdviceId,
+          body,
+          {
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
+
+  const claimReconcileParamsSchema = z.object({
+    claimId: authorizationId,
+    remittanceAdviceId: authorizationId,
+  });
+
+  const claimReconcileBodySchema = z
+    .object({
+      idempotencyKey: z.string().min(1).max(100).optional(),
+    })
+    .optional();
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-remittance-advice/:remittanceAdviceId/reconcile',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimReconcileParamsSchema, request.params);
+      const body = request.body ? parse(claimReconcileBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaPaymentReconciliation.mockReconcilePayment(
+          params.claimId,
+          params.remittanceAdviceId,
+          body,
+          {
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/claims/:claimId/dha/mock-remittance-advice/:remittanceAdviceId/reconciliations',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const params = parse(claimReconcileParamsSchema, request.params);
+      const user = request.user!;
+      return ok(
+        await services.dhaPaymentReconciliation.getReconciliations(
+          params.claimId,
+          params.remittanceAdviceId,
+          {
+            actorUserId: user.id,
+          },
+        ),
+      );
+    },
+  );
+
+  const claimClosureParamsSchema = z.object({
+    claimId: authorizationId,
+  });
+
+  const claimClosureBodySchema = z
+    .object({
+      reason: z.string().min(1).max(500).optional(),
+      idempotencyKey: z.string().min(1).max(100).optional(),
+    })
+    .optional();
+
+  app.get(
+    '/api/insurance/claims/:claimId/dha/closure-readiness',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const params = parse(claimClosureParamsSchema, request.params);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimClosure.evaluateClosureReadiness(params.claimId, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+  app.post(
+    '/api/insurance/claims/:claimId/dha/mock-close',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'Validate') },
+    async (request) => {
+      const params = parse(claimClosureParamsSchema, request.params);
+      const body = request.body ? parse(claimClosureBodySchema, request.body) : undefined;
+      const user = request.user!;
+      const correlationId = (request.headers['x-correlation-id'] as string) || undefined;
+      return ok(
+        await services.dhaClaimClosure.mockCloseClaim(
+          params.claimId,
+          body,
+          {
+            actorUserId: user.id,
+            correlationId,
+            metadata: metadata(request),
+          },
+        ),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/claims/:claimId/dha/closures',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const params = parse(claimClosureParamsSchema, request.params);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimClosure.getClosures(params.claimId, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+  // ================= REPORTING & AUDIT VIEWS (PHASE 10.8) =================
+  app.get(
+    '/api/insurance/reports/claim-lifecycle',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const query = parse(claimLifecycleReportQuerySchema, request.query);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimReporting.getClaimLifecycleSummary(query, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/reports/remittance-reconciliation',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const query = parse(remittanceReconciliationReportQuerySchema, request.query);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimReporting.getRemittanceReconciliationSummary(query, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/reports/outstanding-work',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const query = parse(outstandingWorkReportQuerySchema, request.query);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimReporting.getOutstandingWorkSummary(query, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+  app.get(
+    '/api/insurance/claims/:claimId/dha/history',
+    { preHandler: requirePermission(services, 'Insurance', 'Claims', 'View') },
+    async (request) => {
+      const params = parse(claimHistoryParamsSchema, request.params);
+      const user = request.user!;
+      return ok(
+        await services.dhaClaimReporting.getClaimAuditHistory(params.claimId, {
+          actorUserId: user.id,
+        }),
+      );
+    },
+  );
+
+
+
   const serviceParams = encounterParams.extend({ serviceId: authorizationId });
   app.get('/api/insurance/encounters/:encounterId/context', { preHandler: requirePermission(services, 'Insurance', 'Benefits', 'View') }, async request => {
     const params = parse(encounterParams, request.params);

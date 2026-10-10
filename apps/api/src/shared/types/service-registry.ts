@@ -43,6 +43,17 @@ import type { DhaSubBenefitsService } from '../../modules/insurance/dha/dha-sub-
 import type { DhaInterventionCoverageService } from '../../modules/insurance/dha/dha-intervention-coverage.service.js';
 import type { DhaPreauthorizationReadinessService } from '../../modules/insurance/dha/dha-preauthorization-readiness.service.js';
 import type { DhaPreauthorizationService } from '../../modules/insurance/dha/dha-preauthorization.service.js';
+import type { DhaClaimSubmissionService } from '../../modules/insurance/dha/dha-claim-submission.service.js';
+import type { DhaClaimPreviewService } from '../../modules/insurance/dha/dha-claim-preview.service.js';
+import type { DhaClaimDischargeService } from '../../modules/insurance/dha/dha-claim-discharge.service.js';
+import type { DhaClaimAdjudicationService } from '../../modules/insurance/dha/dha-claim-adjudication.service.js';
+import type { DhaClaimQueryService } from '../../modules/insurance/dha/dha-claim-query.service.js';
+import type { DhaClaimAppealService } from '../../modules/insurance/dha/dha-claim-appeal.service.js';
+import type { DhaRemittanceAdviceService } from '../../modules/insurance/dha/dha-remittance-advice.service.js';
+import type { DhaPaymentAllocationService } from '../../modules/insurance/dha/dha-payment-allocation.service.js';
+import type { DhaPaymentReconciliationService } from '../../modules/insurance/dha/dha-payment-reconciliation.service.js';
+import type { DhaClaimClosureService } from '../../modules/insurance/dha/dha-claim-closure.service.js';
+import type { DhaClaimReportingService } from '../../modules/insurance/dha/dha-claim-reporting.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -92,4 +103,16 @@ export type ServiceRegistry = {
   dhaInterventionCoverage: DhaInterventionCoverageService;
   dhaPreauthorizationReadiness: DhaPreauthorizationReadinessService;
   dhaPreauthorization: DhaPreauthorizationService;
+  dhaClaimSubmission: DhaClaimSubmissionService;
+  dhaClaimPreview: DhaClaimPreviewService;
+  dhaClaimDischarge: DhaClaimDischargeService;
+  dhaClaimAdjudication: DhaClaimAdjudicationService;
+  dhaClaimQuery: DhaClaimQueryService;
+  dhaClaimAppeal: DhaClaimAppealService;
+  dhaRemittanceAdvice: DhaRemittanceAdviceService;
+  dhaPaymentAllocation: DhaPaymentAllocationService;
+  dhaPaymentReconciliation: DhaPaymentReconciliationService;
+  dhaClaimClosure: DhaClaimClosureService;
+  dhaClaimReporting: DhaClaimReportingService;
 };
+

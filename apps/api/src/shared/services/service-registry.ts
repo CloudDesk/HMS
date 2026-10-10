@@ -1,4 +1,4 @@
-import { DhaPatientRegistryService, DhaEligibilityService, DhaSubBenefitsService, DhaInterventionCoverageService, DhaPreauthorizationReadinessService, DhaPreauthorizationService, DhaHttpClient } from '../../modules/insurance/dha/index.js';
+import { DhaPatientRegistryService, DhaEligibilityService, DhaSubBenefitsService, DhaInterventionCoverageService, DhaPreauthorizationReadinessService, DhaPreauthorizationService, DhaClaimSubmissionService, DhaClaimPreviewService, DhaClaimDischargeService, DhaClaimAdjudicationService, DhaClaimQueryService, DhaClaimAppealService, DhaRemittanceAdviceService, DhaPaymentAllocationService, DhaPaymentReconciliationService, DhaClaimClosureService, DhaClaimReportingService, DhaHttpClient } from '../../modules/insurance/dha/index.js';
 import { InsuranceClaimService } from '../../modules/insurance/insurance-claim.service.js';
 import { InsuranceClaimRepository } from '../../modules/insurance/insurance-claim.repository.js';
 import { InsuranceIntegrationService } from '../../modules/insurance/insurance-integration.service.js';
@@ -194,6 +194,71 @@ export const createServiceRegistry = (): ServiceRegistry => {
     insuranceAuthorizationRepository,
     dhaPreauthorizationReadinessService,
   );
+  const insuranceClaimRepository = new InsuranceClaimRepository();
+  const insuranceIntegrationService = new InsuranceIntegrationService(
+    insuranceIntegrationRepository,
+    insuranceAuthorizationRepository,
+    insuranceServiceInstance,
+  );
+  const insuranceClaimService = new InsuranceClaimService(
+    insuranceClaimRepository,
+    insuranceIntegrationRepository,
+    insuranceIntegrationService,
+    insuranceAuthorizationRepository,
+    insuranceServiceInstance,
+  );
+  const dhaClaimSubmissionService = new DhaClaimSubmissionService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimPreviewService = new DhaClaimPreviewService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimDischargeService = new DhaClaimDischargeService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimAdjudicationService = new DhaClaimAdjudicationService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimQueryService = new DhaClaimQueryService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimAppealService = new DhaClaimAppealService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaRemittanceAdviceService = new DhaRemittanceAdviceService(
+    insuranceClaimRepository,
+    insuranceClaimService,
+    insuranceAuthorizationRepository,
+  );
+  const dhaPaymentAllocationService = new DhaPaymentAllocationService(
+    insuranceClaimRepository,
+    insuranceAuthorizationRepository,
+  );
+  const dhaPaymentReconciliationService = new DhaPaymentReconciliationService(
+    insuranceClaimRepository,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimClosureService = new DhaClaimClosureService(
+    insuranceClaimRepository,
+    insuranceAuthorizationRepository,
+  );
+  const dhaClaimReportingService = new DhaClaimReportingService(
+    insuranceClaimRepository,
+    insuranceAuthorizationRepository,
+  );
+
 
   return {
     database: {
@@ -304,14 +369,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
     ),
     advancePayment: advancePaymentService,
     insurance: insuranceServiceInstance,
-    insuranceClaims: new InsuranceClaimService(
-      new InsuranceClaimRepository(),
-      insuranceIntegrationRepository,
-      new InsuranceIntegrationService(insuranceIntegrationRepository, insuranceAuthorizationRepository, insuranceServiceInstance),
-      insuranceAuthorizationRepository,
-      insuranceServiceInstance,
-    ),
-    insuranceIntegration: new InsuranceIntegrationService(insuranceIntegrationRepository, insuranceAuthorizationRepository, insuranceServiceInstance),
+    insuranceClaims: insuranceClaimService,
+    insuranceIntegration: insuranceIntegrationService,
     insuranceAuthorization: new InsuranceAuthorizationService(insuranceAuthorizationRepository, insuranceServiceInstance),
     dhaPatientRegistry: new DhaPatientRegistryService(dhaHttpClient, patientRepository),
     dhaEligibility: new DhaEligibilityService(dhaHttpClient, patientRepository),
@@ -319,5 +378,18 @@ export const createServiceRegistry = (): ServiceRegistry => {
     dhaInterventionCoverage: dhaInterventionCoverageService,
     dhaPreauthorizationReadiness: dhaPreauthorizationReadinessService,
     dhaPreauthorization: dhaPreauthorizationService,
+    dhaClaimSubmission: dhaClaimSubmissionService,
+    dhaClaimPreview: dhaClaimPreviewService,
+    dhaClaimDischarge: dhaClaimDischargeService,
+    dhaClaimAdjudication: dhaClaimAdjudicationService,
+    dhaClaimQuery: dhaClaimQueryService,
+    dhaClaimAppeal: dhaClaimAppealService,
+    dhaRemittanceAdvice: dhaRemittanceAdviceService,
+    dhaPaymentAllocation: dhaPaymentAllocationService,
+    dhaPaymentReconciliation: dhaPaymentReconciliationService,
+    dhaClaimClosure: dhaClaimClosureService,
+    dhaClaimReporting: dhaClaimReportingService,
   };
 };
+
+
