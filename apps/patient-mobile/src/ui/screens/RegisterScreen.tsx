@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,7 +15,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { BrandLogo } from '../components/BrandLogo';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import { registrationFormSchema, type RegistrationFormValues } from '../../auth/contracts';
 import { latestSelfRegistrationDob } from '../../auth/registration-date';
 import { AppointmentDatePicker } from '../components/AppointmentDatePicker';
@@ -35,6 +36,8 @@ const GENDER_OPTIONS: Array<{ label: string; value: 'MALE' | 'FEMALE' | 'OTHER' 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export function RegisterScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { state, registerPatient, cancelRegistration, setAuthMode, getPublicBranches, clearError } = useAuth();
   const { scrollRef, onInputFocus, ensureVisible, onScroll } = useFocusedInputScroll();
 
@@ -398,7 +401,7 @@ export function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   keyboardView: {
     flex: 1,
     backgroundColor: colors.neutral.background,

@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +19,7 @@ import {
   type DentalQuotationOption,
 } from '../../dental/contracts';
 import { formatInvoiceDate } from '../../billing/contracts';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface DentalQuotationDetailsModalProps {
   visible: boolean;
@@ -37,6 +38,8 @@ export function DentalQuotationDetailsModal({
   onReject,
   onPostpone,
 }: DentalQuotationDetailsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [decisionMode, setDecisionMode] = useState<'view' | 'reject' | 'postpone'>('view');
   const [decisionReason, setDecisionReason] = useState<string>('');
@@ -449,7 +452,7 @@ export function DentalQuotationDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

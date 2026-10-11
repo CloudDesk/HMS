@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   Modal,
@@ -9,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import type { LabResultRecord } from '../../records/contracts';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface LabResultDetailsModalProps {
   result: LabResultRecord | null;
@@ -34,6 +35,7 @@ export function LabResultDetailsModal({
   result,
   onClose,
 }: LabResultDetailsModalProps) {
+  const styles = useThemedStyles(createStyles);
   if (!result) return null;
 
   const testTitle =
@@ -140,7 +142,7 @@ export function LabResultDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',

@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -7,9 +8,11 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../AuthContext';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export function ErrorScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { state, retry, logout } = useAuth();
   const [isBusy, setIsBusy] = useState(false);
 
@@ -72,7 +75,7 @@ export function ErrorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.neutral.background,

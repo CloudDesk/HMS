@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { friendlyError } from '../../api/errors';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import { Avatar } from './Avatar';
 
 interface ProfilePhotoModalProps {
@@ -32,6 +33,8 @@ export function ProfilePhotoModal({
   onUploadPhoto,
   onDeletePhoto,
 }: ProfilePhotoModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedAsset, setSelectedAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -288,7 +291,7 @@ export function ProfilePhotoModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

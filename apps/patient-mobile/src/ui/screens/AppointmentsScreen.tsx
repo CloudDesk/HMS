@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,7 +29,7 @@ import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
 import { friendlyError } from '../../api/errors';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 const getStatusVariant = (status: string): StatusVariant => {
   switch (status.toUpperCase()) {
@@ -54,6 +55,8 @@ interface AppointmentsScreenProps {
 }
 
 export function AppointmentsScreen({ initialAppointmentId }: AppointmentsScreenProps = {}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId, refresh: refreshPatientContext } = usePatient();
 
@@ -411,7 +414,7 @@ export function AppointmentsScreen({ initialAppointmentId }: AppointmentsScreenP
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

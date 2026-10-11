@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   Modal,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import type { ImagingReportRecord } from '../../records/contracts';
 import { formatDateTime } from './LabResultDetailsModal';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface ImagingReportDetailsModalProps {
   report: ImagingReportRecord | null;
@@ -21,6 +22,7 @@ export function ImagingReportDetailsModal({
   report,
   onClose,
 }: ImagingReportDetailsModalProps) {
+  const styles = useThemedStyles(createStyles);
   if (!report) return null;
 
   return (
@@ -115,7 +117,7 @@ export function ImagingReportDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',

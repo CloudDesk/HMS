@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,7 +24,7 @@ import { EmptyState } from '../components/EmptyState';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConsentSignatureModal } from '../components/ConsentSignatureModal';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 type ConsentFilterTab = 'ALL' | 'PENDING' | 'SIGNED';
 
@@ -33,6 +34,8 @@ interface ConsentsScreenProps {
 }
 
 export function ConsentsScreen({ onNavigateBack, initialConsentId }: ConsentsScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { context, selectedPatient, selectedPatientId } = usePatient();
 
@@ -317,7 +320,7 @@ export function ConsentsScreen({ onNavigateBack, initialConsentId }: ConsentsScr
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

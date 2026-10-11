@@ -1,6 +1,7 @@
+import { useTheme } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme';
+import { radius, spacing, typography } from '../theme';
 
 export type StatusVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
@@ -11,6 +12,7 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ label, variant = 'neutral', size = 'md' }: StatusBadgeProps) {
+  const { colors } = useTheme();
   const getStyleForVariant = () => {
     switch (variant) {
       case 'success':

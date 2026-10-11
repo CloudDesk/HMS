@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,7 +24,7 @@ import {
 } from '../../consents/contracts';
 import { formatFileSize } from '../../documents/contracts';
 import { StatusBadge } from './StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface ConsentSignatureModalProps {
   visible: boolean;
@@ -41,6 +42,8 @@ export function ConsentSignatureModal({
   consent,
   onUploadSignature,
 }: ConsentSignatureModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedAsset, setSelectedAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -357,7 +360,7 @@ export function ConsentSignatureModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',

@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,7 +24,7 @@ import { PatientContextSelector } from '../components/PatientContextSelector';
 import { NotificationDetailsModal } from '../components/NotificationDetailsModal';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 
 type FilterMode = 'ALL' | 'UNREAD';
@@ -44,6 +45,8 @@ export function NotificationsScreen({
   onNavigateBack,
   onNavigateTab,
 }: NotificationsScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { context, selectedPatient, selectedPatientId, switchPatient } = usePatient();
 
@@ -340,7 +343,7 @@ export function NotificationsScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

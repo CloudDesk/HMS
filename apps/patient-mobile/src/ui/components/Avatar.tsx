@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
@@ -12,7 +13,7 @@ import { readPublicConfig } from '../../config/config';
 import { getInitials } from '../../portal/formatters';
 import { useAuth } from '../AuthContext';
 import { useAuthenticatedImage } from '../hooks/useAuthenticatedImage';
-import { colors, typography } from '../theme';
+import { typography, type Theme } from '../theme';
 
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 
@@ -45,6 +46,7 @@ export function Avatar({
   style,
   testID,
 }: AvatarProps) {
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const [token, setToken] = useState<string | null>(null);
 
@@ -194,7 +196,7 @@ export function Avatar({
   return content;
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   touchable: {
     alignSelf: 'center',
   },

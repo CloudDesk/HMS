@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   Modal,
@@ -10,9 +11,10 @@ import {
 import { usePatient } from '../../portal/PatientContext';
 import { relationshipLabel } from '../../portal/formatters';
 import { Avatar } from './Avatar';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export function PatientContextSelector() {
+  const styles = useThemedStyles(createStyles);
   const { context, selectedPatient, switchPatient } = usePatient();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -127,7 +129,7 @@ export function PatientContextSelector() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   singleContextBadge: {
     flexDirection: 'row',
     alignItems: 'center',

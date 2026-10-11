@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,7 +29,7 @@ import {
   type SelectedDocumentFile,
   type UploadDocumentInput,
 } from '../../documents/contracts';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export {
   MAX_DOCUMENT_FILE_SIZE_BYTES,
@@ -58,6 +59,8 @@ export function UploadDocumentModal({
   documentsApi,
   onPickFile,
 }: UploadDocumentModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId } = usePatient();
 
@@ -498,7 +501,7 @@ export function UploadDocumentModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',

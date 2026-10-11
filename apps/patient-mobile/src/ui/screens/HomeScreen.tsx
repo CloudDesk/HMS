@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,7 @@ import { NotificationsApi } from '../../notifications/notifications-api';
 import { PatientCard } from '../components/PatientCard';
 import { PatientContextSelector } from '../components/PatientContextSelector';
 import { EmptyState } from '../components/EmptyState';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 
 interface HomeScreenProps {
@@ -24,6 +25,8 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { logout, manager } = useAuth();
   const {
     selectedPatient,
@@ -313,7 +316,7 @@ export function HomeScreen({ onNavigateTab }: HomeScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   container: {
     padding: spacing.lg,
     paddingBottom: spacing.xxxl,

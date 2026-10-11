@@ -1,5 +1,6 @@
+import { useThemedStyles } from './src/ui/appearance';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as Network from 'expo-network';
 
@@ -28,8 +29,8 @@ import { ProfileScreen } from './src/ui/screens/ProfileScreen';
 import { ErrorScreen } from './src/ui/screens/ErrorScreen';
 import { BottomNavBar, type MainTab } from './src/ui/components/BottomNavBar';
 import { SwipeTabContainer } from './src/ui/components/SwipeTabContainer';
-import { colors } from './src/ui/theme';
-import { AppearanceProvider, useAppearance } from './src/ui/appearance';
+import { type Theme } from './src/ui/theme';
+import { AppearanceProvider, AppearanceStatusBar } from './src/ui/appearance';
 import { startPushNotifications } from './src/notifications/push-notifications';
 
 export interface NavigationOptions {
@@ -39,6 +40,7 @@ export interface NavigationOptions {
 }
 
 function AuthenticatedApp() {
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const [activeTab, setActiveTab] = useState<MainTab>('home');
   const [navOptions, setNavOptions] = useState<NavigationOptions | null>(null);
@@ -170,7 +172,7 @@ function NavigationRoot() {
 }
 
 function AppContent() {
-  const { resolvedAppearance } = useAppearance();
+  const styles = useThemedStyles(createStyles);
   const sessionManager = useMemo(() => {
     const config = readPublicConfig();
     const transport = new MobileTransport(config);
@@ -195,10 +197,7 @@ function AppContent() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar
-        barStyle={resolvedAppearance === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.neutral.background}
-      />
+      <AppearanceStatusBar />
       <SafeAreaView style={styles.safeArea}>
         <AuthProvider manager={sessionManager}>
           <NavigationRoot />
@@ -216,7 +215,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.neutral.background,

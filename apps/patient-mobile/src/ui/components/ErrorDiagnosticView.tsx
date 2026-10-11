@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -16,7 +17,7 @@ import {
   getDiagnosticId,
   isRetryable,
 } from '../../api/errors';
-import { colors, radius, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export interface ErrorDiagnosticViewProps {
   error: unknown;
@@ -37,6 +38,7 @@ export function ErrorDiagnosticView({
   initiallyExpanded = false,
   containerStyle,
 }: ErrorDiagnosticViewProps) {
+  const styles = useThemedStyles(createStyles);
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [isSharing, setIsSharing] = useState(false);
 
@@ -188,7 +190,7 @@ export function ErrorDiagnosticView({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   container: {
     backgroundColor: colors.status.dangerBg,
     borderColor: colors.status.dangerBorder,

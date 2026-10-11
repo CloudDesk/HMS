@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   Modal,
@@ -10,14 +11,14 @@ import {
   type ColorValue,
 } from 'react-native';
 import type { PrescriptionRecord } from '../../prescriptions/contracts';
-import { colors, typography } from '../theme';
+import { typography, type Theme, type ThemeColors } from '../theme';
 
 interface PrescriptionDetailsModalProps {
   prescription: PrescriptionRecord | null;
   onClose: () => void;
 }
 
-export function prescriptionStatusBadge(status: string): { bg: ColorValue; text: ColorValue; label: string } {
+export function prescriptionStatusBadge(status: string, colors: ThemeColors): { bg: ColorValue; text: ColorValue; label: string } {
   switch (status.toUpperCase()) {
     case 'DISPENSED':
       return { bg: colors.status.successBg, text: colors.status.success, label: 'Dispensed' };
@@ -48,9 +49,11 @@ export function PrescriptionDetailsModal({
   prescription,
   onClose,
 }: PrescriptionDetailsModalProps) {
+  const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
   if (!prescription) return null;
 
-  const status = prescriptionStatusBadge(prescription.status);
+  const status = prescriptionStatusBadge(prescription.status, colors);
   const cleanDoctorName = prescription.doctor_name.replace(/^Dr\.?\s+/i, '');
 
   return (
@@ -180,7 +183,7 @@ export function PrescriptionDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',

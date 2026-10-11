@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,7 +25,7 @@ import {
 } from '../components/PrescriptionDetailsModal';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 const getPrescriptionStatusVariant = (status: string): StatusVariant => {
   switch (status.toUpperCase()) {
@@ -44,6 +45,8 @@ const getPrescriptionStatusVariant = (status: string): StatusVariant => {
 };
 
 export function PrescriptionsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId, overview } = usePatient();
 
@@ -321,7 +324,7 @@ export function PrescriptionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

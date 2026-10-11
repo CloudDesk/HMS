@@ -1,6 +1,7 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface EmptyStateProps {
   icon?: string;
@@ -17,6 +18,7 @@ export function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       <View style={styles.iconCircle}>
@@ -33,7 +35,7 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',

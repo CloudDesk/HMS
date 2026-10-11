@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { Appearance, useColorScheme } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState, Appearance, StatusBar } from 'react-native';
 import { File, Paths } from 'expo-file-system';
+import { getTheme, type Theme } from './theme';
 import {
   parseAppearancePreference,
   resolveAppearance,
@@ -14,6 +15,7 @@ type AppearanceContextValue = {
   preference: AppearancePreference;
   resolvedAppearance: ResolvedAppearance;
   setPreference: (preference: AppearancePreference) => void;
+  theme: Theme;
 };
 
 const preferenceFile = new File(Paths.document, 'hms-appearance.json');
@@ -28,19 +30,39 @@ const readPreference = (): AppearancePreference => {
   }
 };
 
-const initialPreference = readPreference();
-Appearance.setColorScheme(initialPreference === 'system' ? 'unspecified' : initialPreference);
-
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 
 export function AppearanceProvider({ children }: React.PropsWithChildren) {
-  const systemAppearance = useColorScheme();
-  const [preference, setStoredPreference] = useState<AppearancePreference>(initialPreference);
+  const [preference, setStoredPreference] = useState<AppearancePreference>(() => {
+    const saved = readPreference();
+    Appearance.setColorScheme(saved === 'system' ? 'unspecified' : saved);
+    return saved;
+  });
+  const [systemAppearance, setSystemAppearance] = useState(Appearance.getColorScheme);
+
+  useEffect(() => {
+    const syncAppearance = () => setSystemAppearance(Appearance.getColorScheme());
+    const appearanceSubscription = Appearance.addChangeListener(syncAppearance);
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        // Refresh RN's cached snapshot if a system change happened in the background.
+        if (preference === 'system') Appearance.setColorScheme('unspecified');
+        syncAppearance();
+      }
+    });
+    syncAppearance();
+    return () => {
+      appearanceSubscription.remove();
+      appStateSubscription.remove();
+    };
+  }, [preference]);
 
   const setPreference = useCallback((nextPreference: AppearancePreference) => {
     const validatedPreference = parseAppearancePreference(nextPreference);
     Appearance.setColorScheme(validatedPreference === 'system' ? 'unspecified' : validatedPreference);
     setStoredPreference(validatedPreference);
+    // setColorScheme updates RN's snapshot but does not necessarily emit a change event.
+    setSystemAppearance(Appearance.getColorScheme());
     try {
       preferenceFile.write(JSON.stringify({ preference: validatedPreference }));
     } catch {
@@ -48,11 +70,13 @@ export function AppearanceProvider({ children }: React.PropsWithChildren) {
     }
   }, []);
 
+  const resolvedAppearance = resolveAppearance(preference, systemAppearance);
   const value = useMemo<AppearanceContextValue>(() => ({
     preference,
-    resolvedAppearance: resolveAppearance(preference, systemAppearance),
+    resolvedAppearance,
     setPreference,
-  }), [preference, setPreference, systemAppearance]);
+    theme: getTheme(resolvedAppearance),
+  }), [preference, setPreference, resolvedAppearance]);
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }
@@ -61,4 +85,20 @@ export const useAppearance = (): AppearanceContextValue => {
   const value = useContext(AppearanceContext);
   if (!value) throw new Error('useAppearance must be used within AppearanceProvider');
   return value;
+};
+
+export const useTheme = (): Theme => useAppearance().theme;
+
+export function AppearanceStatusBar() {
+  const { resolvedAppearance, theme } = useAppearance();
+  return <StatusBar
+    barStyle={resolvedAppearance === 'dark' ? 'light-content' : 'dark-content'}
+    // Android StatusBar requires a concrete color, not a PlatformColor resource.
+    backgroundColor={theme.colors.neutral.background}
+  />;
+}
+
+export const useThemedStyles = <T,>(createStyles: (theme: Theme) => T): T => {
+  const theme = useTheme();
+  return useMemo(() => createStyles(theme), [createStyles, theme]);
 };

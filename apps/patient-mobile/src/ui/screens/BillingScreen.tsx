@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,7 +25,7 @@ import { InvoiceDetailsModal } from '../components/InvoiceDetailsModal';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 type FilterTab = 'all' | 'outstanding' | 'paid';
 
@@ -51,6 +52,8 @@ const getInvoiceBadgeVariant = (status: string): StatusVariant => {
 };
 
 export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId, overview } = usePatient();
 
@@ -421,7 +424,7 @@ export function BillingScreen({ onNavigateBack, initialInvoiceId }: BillingScree
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

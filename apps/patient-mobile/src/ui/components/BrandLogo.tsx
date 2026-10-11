@@ -1,6 +1,7 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../theme';
+import { spacing, typography, type Theme } from '../theme';
 
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -16,6 +17,7 @@ export function BrandLogo({
   showSubtitle = false,
   showTitle = true,
 }: BrandLogoProps) {
+  const styles = useThemedStyles(createStyles);
   const iconSize = size === 'sm' ? 40 : size === 'lg' ? 80 : 56;
 
   return (
@@ -54,7 +56,7 @@ export function BrandLogo({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',

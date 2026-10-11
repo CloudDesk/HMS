@@ -1,6 +1,7 @@
+import { useThemedStyles } from '../appearance';
 import React, { memo, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from 'react-native';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import { MAIN_SWIPE_TABS } from './SwipeTabContainer';
 
 export type MainTab =
@@ -34,6 +35,7 @@ export const BottomNavBar = memo(function BottomNavBar({
   onTabChange,
   tabPosition,
 }: BottomNavBarProps) {
+  const styles = useThemedStyles(createStyles);
   const [contentWidth, setContentWidth] = useState(0);
   const isMainTab = MAIN_SWIPE_TABS.includes(activeTab);
   const tabWidth = contentWidth / MAIN_SWIPE_TABS.length;
@@ -82,7 +84,7 @@ export const BottomNavBar = memo(function BottomNavBar({
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: colors.neutral.surface,

@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,7 +27,7 @@ import { UploadDocumentModal } from '../components/UploadDocumentModal';
 import { AppHeader } from '../components/AppHeader';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge, type StatusVariant } from '../components/StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 type DocumentFilterTab = 'ALL' | PortalDocumentType;
 
@@ -50,6 +51,8 @@ const getReviewBadgeVariant = (status?: string): StatusVariant => {
 };
 
 export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { manager } = useAuth();
   const { selectedPatient, selectedPatientId } = usePatient();
 
@@ -334,7 +337,7 @@ export function DocumentsScreen({ onNavigateBack }: DocumentsScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,

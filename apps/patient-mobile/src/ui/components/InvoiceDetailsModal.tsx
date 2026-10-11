@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -14,7 +15,7 @@ import {
   getInvoiceStatusLabel,
   type PortalInvoiceDetails,
 } from '../../billing/contracts';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface InvoiceDetailsModalProps {
   visible: boolean;
@@ -33,6 +34,8 @@ export function InvoiceDetailsModal({
   error,
   onRetry,
 }: InvoiceDetailsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const statusStyle = (() => {
     switch (invoice?.status?.toUpperCase()) {
       case 'PAID': return { bg: colors.status.successBg, text: colors.status.success, border: colors.status.successBorder };
@@ -355,7 +358,7 @@ export function InvoiceDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

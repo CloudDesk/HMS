@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,9 +14,11 @@ import {
 import { useAuth } from '../AuthContext';
 import { BrandLogo } from '../components/BrandLogo';
 import { ErrorDiagnosticView } from '../components/ErrorDiagnosticView';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export function OtpScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { state, verifyOtp, requestOtp, backToPhone } = useAuth();
   const [otp, setOtp] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -206,7 +209,7 @@ export function OtpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   keyboardView: {
     flex: 1,
     backgroundColor: colors.neutral.background,

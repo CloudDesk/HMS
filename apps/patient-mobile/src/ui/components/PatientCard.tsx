@@ -1,10 +1,11 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { PortalPatientDetail } from '../../portal/contracts';
 import { calculateAge } from '../../portal/formatters';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface PatientCardProps {
   patient: PortalPatientDetail;
@@ -12,6 +13,7 @@ interface PatientCardProps {
 }
 
 export function PatientCard({ patient, relationship }: PatientCardProps) {
+  const styles = useThemedStyles(createStyles);
   const age = calculateAge(patient.date_of_birth);
   const fullName = `${patient.first_name} ${patient.middle_name ? `${patient.middle_name} ` : ''}${patient.last_name}`;
 
@@ -72,7 +74,7 @@ export function PatientCard({ patient, relationship }: PatientCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   card: {
     backgroundColor: colors.neutral.surface,
     borderRadius: radius.lg,

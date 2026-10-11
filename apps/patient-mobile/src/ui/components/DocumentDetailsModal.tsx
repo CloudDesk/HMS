@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   Modal,
@@ -14,7 +15,7 @@ import {
   getDocumentTypeLabel,
   type PortalDocument,
 } from '../../documents/contracts';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface DocumentDetailsModalProps {
   visible: boolean;
@@ -27,6 +28,8 @@ export function DocumentDetailsModal({
   onClose,
   document,
 }: DocumentDetailsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!document) return null;
 
   const reviewBadge = (() => {
@@ -186,7 +189,7 @@ export function DocumentDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

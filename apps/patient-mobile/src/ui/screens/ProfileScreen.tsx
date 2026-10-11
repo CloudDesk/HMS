@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import { PatientContextSelector } from '../components/PatientContextSelector';
 import { ProfilePhotoModal } from '../components/ProfilePhotoModal';
 import { EmptyState } from '../components/EmptyState';
 import { StatusBadge } from '../components/StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 import type { MainTab } from '../components/BottomNavBar';
 import { useAppearance, type AppearancePreference } from '../appearance';
 
@@ -26,6 +27,8 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { logout } = useAuth();
   const { preference, resolvedAppearance, setPreference } = useAppearance();
   const {
@@ -431,7 +434,7 @@ export function ProfileScreen({ onNavigateTab }: ProfileScreenProps = {}) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   container: {
     padding: spacing.lg,
     paddingBottom: spacing.xxxl,

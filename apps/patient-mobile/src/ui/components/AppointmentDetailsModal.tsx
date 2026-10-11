@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,7 @@ import {
   isAppointmentCheckInEligible,
 } from '../../appointments/date-utils';
 import { StatusBadge, type StatusVariant } from './StatusBadge';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme, type ThemeColors } from '../theme';
 
 interface AppointmentDetailsModalProps {
   appointment: PortalAppointment | null;
@@ -26,7 +27,7 @@ interface AppointmentDetailsModalProps {
   isCheckingIn?: boolean;
 }
 
-export function statusColor(status: PortalAppointment['status']): { bg: ColorValue; text: ColorValue } {
+export function statusColor(status: PortalAppointment['status'], colors: ThemeColors): { bg: ColorValue; text: ColorValue } {
   switch (status) {
     case 'SCHEDULED':
       return { bg: colors.brand.primaryLight, text: colors.brand.primaryDark };
@@ -87,6 +88,8 @@ export function AppointmentDetailsModal({
   onCheckIn,
   isCheckingIn,
 }: AppointmentDetailsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!appointment) return null;
 
   const canReschedule = ['SCHEDULED', 'CONFIRMED', 'NO_SHOW', 'SKIPPED'].includes(
@@ -225,7 +228,7 @@ export function AppointmentDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',

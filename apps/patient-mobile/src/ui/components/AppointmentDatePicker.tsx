@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
@@ -18,7 +19,7 @@ import {
   isSlotSelectable,
   parseFromDateString,
 } from '../../appointments/date-utils';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 export {
   formatAppointmentDate,
@@ -52,6 +53,7 @@ export function AppointmentDatePicker({
   label = 'Change Date',
   disabled = false,
 }: AppointmentDatePickerProps) {
+  const styles = useThemedStyles(createStyles);
   const todayStr = useMemo(() => formatToDateString(new Date()), []);
   const effectiveMinDate = minDate ?? todayStr;
 
@@ -302,7 +304,7 @@ export function AppointmentDatePicker({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   container: {
     marginVertical: spacing.xs,
   },

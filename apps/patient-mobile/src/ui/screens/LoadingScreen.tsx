@@ -1,13 +1,16 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo } from '../components/BrandLogo';
-import { colors, spacing, typography } from '../theme';
+import { spacing, typography, type Theme } from '../theme';
 
 interface LoadingScreenProps {
   message?: string;
 }
 
 export function LoadingScreen({ message = 'Loading your health records...' }: LoadingScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       <View style={styles.content}>
@@ -21,7 +24,7 @@ export function LoadingScreen({ message = 'Loading your health records...' }: Lo
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.neutral.background,

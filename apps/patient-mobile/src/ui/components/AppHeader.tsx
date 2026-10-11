@@ -1,6 +1,7 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface AppHeaderProps {
   title: string;
@@ -10,6 +11,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ title, subtitle, onBack, rightAction }: AppHeaderProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
@@ -41,7 +43,7 @@ export function AppHeader({ title, subtitle, onBack, rightAction }: AppHeaderPro
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   container: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

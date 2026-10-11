@@ -1,3 +1,4 @@
+import { useTheme, useThemedStyles } from '../appearance';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,7 +31,7 @@ import {
   isSlotSelectable,
 } from './AppointmentDatePicker';
 import { ErrorDiagnosticView } from './ErrorDiagnosticView';
-import { colors, radius, shadows, spacing, typography } from '../theme';
+import { radius, spacing, typography, type Theme } from '../theme';
 
 interface RescheduleAppointmentModalProps {
   appointment: PortalAppointment | null;
@@ -49,6 +50,8 @@ export function RescheduleAppointmentModal({
   onClose,
   onRescheduled,
 }: RescheduleAppointmentModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { manager } = useAuth();
   const appointmentsApi = useMemo(() => new AppointmentsApi(manager), [manager]);
@@ -404,7 +407,7 @@ export function RescheduleAppointmentModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, shadows }: Theme) => StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },

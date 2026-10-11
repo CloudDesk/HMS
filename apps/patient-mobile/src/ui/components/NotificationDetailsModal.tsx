@@ -1,3 +1,4 @@
+import { useThemedStyles } from '../appearance';
 import React from 'react';
 import {
   Modal,
@@ -15,7 +16,7 @@ import {
   type PortalNotification,
 } from '../../notifications/contracts';
 import type { MainTab } from '../components/BottomNavBar';
-import { colors, typography } from '../theme';
+import { typography, type Theme } from '../theme';
 
 interface NotificationDetailsModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function NotificationDetailsModal({
   notification,
   onNavigateTab,
 }: NotificationDetailsModalProps) {
+  const styles = useThemedStyles(createStyles);
   if (!notification) return null;
 
   const typeIcon = getNotificationTypeIcon(notification.type);
@@ -129,7 +131,7 @@ export function NotificationDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors }: Theme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',

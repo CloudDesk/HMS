@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, type ComponentProps, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AppointmentDatePicker } from './AppointmentDatePicker';
+import { AppointmentDatePicker as ThemedAppointmentDatePicker } from './AppointmentDatePicker';
+import { AppearanceProvider } from '../appearance';
 import { latestSelfRegistrationDob } from '../../auth/registration-date';
 import { focusedInputScrollDelta } from '../useFocusedInputScroll';
 
@@ -18,8 +19,20 @@ vi.mock('react-native', () => {
     PlatformColor: (resource: string) => resource,
     DynamicColorIOS: ({ light }: { light: string }) => light,
     Keyboard: { dismiss: vi.fn() }, TextInput: {},
+    Appearance: {
+      getColorScheme: () => 'light', setColorScheme: vi.fn(),
+      addChangeListener: () => ({ remove: vi.fn() }),
+    },
+    AppState: { addEventListener: () => ({ remove: vi.fn() }) },
   };
 });
+vi.mock('expo-file-system', () => ({
+  Paths: { document: 'documents' },
+  File: class { exists = false; },
+}));
+function AppointmentDatePicker(props: ComponentProps<typeof ThemedAppointmentDatePicker>) {
+  return createElement(AppearanceProvider, null, createElement(ThemedAppointmentDatePicker, props));
+}
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {

@@ -1,4 +1,5 @@
-import { DynamicColorIOS, Platform, PlatformColor, type ColorValue } from 'react-native';
+import { Platform } from 'react-native';
+import type { ResolvedAppearance } from './appearance-preference';
 
 /**
  * HMS Patient Mobile — Centralized Design System & Theme Tokens
@@ -10,67 +11,61 @@ import { DynamicColorIOS, Platform, PlatformColor, type ColorValue } from 'react
  * - High readability and contrast
  */
 
-const adaptiveColor = (resource: string, light: string, dark: string): ColorValue => {
-  if (Platform.OS === 'ios') return DynamicColorIOS({ light, dark });
-  if (Platform.OS === 'android') return PlatformColor(`@color/${resource}`);
-  return light;
-};
-
-export const colors = {
+const createColors = (appearance: ResolvedAppearance) => ({
   // Brand Palette
   brand: {
-    primary: adaptiveColor('hms_brand_primary', '#0284C7', '#38BDF8'),
-    primaryDark: adaptiveColor('hms_brand_primary_dark', '#0369A1', '#7DD3FC'),
-    primaryDeep: adaptiveColor('hms_brand_primary_deep', '#0C4A6E', '#BAE6FD'),
-    primaryLight: adaptiveColor('hms_brand_primary_light', '#E0F2FE', '#123247'),
-    primarySubtle: adaptiveColor('hms_brand_primary_subtle', '#F0F9FF', '#0D2637'),
-    accent: adaptiveColor('hms_brand_accent', '#38BDF8', '#38BDF8'),
+    primary: (appearance === 'dark' ? '#38BDF8' : '#0284C7'),
+    primaryDark: (appearance === 'dark' ? '#7DD3FC' : '#0369A1'),
+    primaryDeep: (appearance === 'dark' ? '#BAE6FD' : '#0C4A6E'),
+    primaryLight: (appearance === 'dark' ? '#123247' : '#E0F2FE'),
+    primarySubtle: (appearance === 'dark' ? '#0D2637' : '#F0F9FF'),
+    accent: (appearance === 'dark' ? '#38BDF8' : '#38BDF8'),
   },
 
   // Neutral Palette
   neutral: {
-    background: adaptiveColor('hms_neutral_background', '#F8FAFC', '#0B1220'),
-    surface: adaptiveColor('hms_neutral_surface', '#FFFFFF', '#111827'),
-    surfaceSubtle: adaptiveColor('hms_neutral_surface_subtle', '#F1F5F9', '#1E293B'),
-    surfaceMuted: adaptiveColor('hms_neutral_surface_muted', '#E2E8F0', '#334155'),
+    background: (appearance === 'dark' ? '#0B1220' : '#F8FAFC'),
+    surface: (appearance === 'dark' ? '#111827' : '#FFFFFF'),
+    surfaceSubtle: (appearance === 'dark' ? '#1E293B' : '#F1F5F9'),
+    surfaceMuted: (appearance === 'dark' ? '#334155' : '#E2E8F0'),
   },
 
   // Text Hierarchy
   text: {
-    primary: adaptiveColor('hms_text_primary', '#0F172A', '#F8FAFC'),
-    secondary: adaptiveColor('hms_text_secondary', '#475569', '#CBD5E1'),
-    muted: adaptiveColor('hms_text_muted', '#94A3B8', '#94A3B8'),
-    inverse: adaptiveColor('hms_text_inverse', '#FFFFFF', '#08111F'),
-    brand: adaptiveColor('hms_text_brand', '#0284C7', '#7DD3FC'),
+    primary: (appearance === 'dark' ? '#F8FAFC' : '#0F172A'),
+    secondary: (appearance === 'dark' ? '#CBD5E1' : '#475569'),
+    muted: (appearance === 'dark' ? '#94A3B8' : '#94A3B8'),
+    inverse: (appearance === 'dark' ? '#08111F' : '#FFFFFF'),
+    brand: (appearance === 'dark' ? '#7DD3FC' : '#0284C7'),
   },
 
   // Border & Dividers
   border: {
-    default: adaptiveColor('hms_border_default', '#E2E8F0', '#334155'),
-    subtle: adaptiveColor('hms_border_subtle', '#F1F5F9', '#1E293B'),
-    focused: adaptiveColor('hms_border_focused', '#0284C7', '#38BDF8'),
-    error: adaptiveColor('hms_border_error', '#FCA5A5', '#F87171'),
+    default: (appearance === 'dark' ? '#334155' : '#E2E8F0'),
+    subtle: (appearance === 'dark' ? '#1E293B' : '#F1F5F9'),
+    focused: (appearance === 'dark' ? '#38BDF8' : '#0284C7'),
+    error: (appearance === 'dark' ? '#F87171' : '#FCA5A5'),
   },
 
   // Semantic Status Colors
   status: {
-    success: adaptiveColor('hms_status_success', '#16A34A', '#4ADE80'),
-    successBg: adaptiveColor('hms_status_success_bg', '#DCFCE7', '#123421'),
-    successBorder: adaptiveColor('hms_status_success_border', '#86EFAC', '#166534'),
+    success: (appearance === 'dark' ? '#4ADE80' : '#16A34A'),
+    successBg: (appearance === 'dark' ? '#123421' : '#DCFCE7'),
+    successBorder: (appearance === 'dark' ? '#166534' : '#86EFAC'),
 
-    warning: adaptiveColor('hms_status_warning', '#D97706', '#FBBF24'),
-    warningBg: adaptiveColor('hms_status_warning_bg', '#FEF3C7', '#3B2A0A'),
-    warningBorder: adaptiveColor('hms_status_warning_border', '#FDE68A', '#92400E'),
+    warning: (appearance === 'dark' ? '#FBBF24' : '#D97706'),
+    warningBg: (appearance === 'dark' ? '#3B2A0A' : '#FEF3C7'),
+    warningBorder: (appearance === 'dark' ? '#92400E' : '#FDE68A'),
 
-    danger: adaptiveColor('hms_status_danger', '#DC2626', '#F87171'),
-    dangerBg: adaptiveColor('hms_status_danger_bg', '#FEE2E2', '#3F171B'),
-    dangerBorder: adaptiveColor('hms_status_danger_border', '#FCA5A5', '#991B1B'),
+    danger: (appearance === 'dark' ? '#F87171' : '#DC2626'),
+    dangerBg: (appearance === 'dark' ? '#3F171B' : '#FEE2E2'),
+    dangerBorder: (appearance === 'dark' ? '#991B1B' : '#FCA5A5'),
 
-    info: adaptiveColor('hms_status_info', '#2563EB', '#60A5FA'),
-    infoBg: adaptiveColor('hms_status_info_bg', '#DBEAFE', '#172554'),
-    infoBorder: adaptiveColor('hms_status_info_border', '#BFDBFE', '#1E40AF'),
+    info: (appearance === 'dark' ? '#60A5FA' : '#2563EB'),
+    infoBg: (appearance === 'dark' ? '#172554' : '#DBEAFE'),
+    infoBorder: (appearance === 'dark' ? '#1E40AF' : '#BFDBFE'),
   },
-} as const;
+});
 
 export const spacing = {
   xxs: 2,
@@ -255,7 +250,7 @@ export const typography = {
   },
 };
 
-export const shadows = {
+const createShadows = (appearance: ResolvedAppearance) => ({
   none: {
     shadowColor: 'transparent',
     shadowOffset: { width: 0, height: 0 },
@@ -264,24 +259,32 @@ export const shadows = {
     elevation: 0,
   },
   subtle: {
-    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
+    shadowColor: (appearance === 'dark' ? '#000000' : '#0F172A'),
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
   card: {
-    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
+    shadowColor: (appearance === 'dark' ? '#000000' : '#0F172A'),
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
   modal: {
-    shadowColor: adaptiveColor('hms_shadow', '#0F172A', '#000000'),
+    shadowColor: (appearance === 'dark' ? '#000000' : '#0F172A'),
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 6,
   },
+});
+
+export type ThemeColors = ReturnType<typeof createColors>;
+export type Theme = { colors: ThemeColors; shadows: ReturnType<typeof createShadows> };
+const themes: Record<ResolvedAppearance, Theme> = {
+  light: { colors: createColors('light'), shadows: createShadows('light') },
+  dark: { colors: createColors('dark'), shadows: createShadows('dark') },
 };
+export const getTheme = (appearance: ResolvedAppearance): Theme => themes[appearance];
