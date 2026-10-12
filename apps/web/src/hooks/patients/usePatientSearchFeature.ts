@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { usePatientsList, useUpdatePatient } from './usePatients';
 import { type ApiPatientGender, type ApiPatientStatus } from '../../api/patients';
 
@@ -9,7 +9,7 @@ export function usePatientSearchFeature({ appliedFilters, currentPage }: { appli
   const [sortColumn] = useState<SortColumn | null>('created_at');
   const [sortDirection] = useState<SortDirection>('desc');
 
-  const { data: patientsList, isLoading: loading, error: loadError } = usePatientsList({
+  const { data: patientsList, isFetching: loading, error: loadError, refetch } = usePatientsList({
     search: appliedFilters.searchTerms || undefined,
     status: appliedFilters.status || undefined,
     gender: appliedFilters.gender || undefined,
@@ -30,6 +30,9 @@ export function usePatientSearchFeature({ appliedFilters, currentPage }: { appli
       meta,
       loading,
       loadError,
+    },
+    actions: {
+      retry: refetch,
     },
     mutations: {
       updatePatient,

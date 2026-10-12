@@ -37,6 +37,8 @@ export type PatientResponse = {
   registration_branch_id: string | null;
   blood_group: string | null;
   status: ApiPatientStatus;
+  photo_document_id?: string | null;
+  photo_url?: string | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
