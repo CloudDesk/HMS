@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { DentalEpisodeRepository } from '../src/modules/opd/dental-episode.repository.js';
+import { OpdVisitRepository } from '../src/modules/opd/opd-visit.repository.js';
 import { Types } from 'mongoose';
 import { setupTestDatabase, teardownTestDatabase } from './setup.js';
 import { createObjectId } from './factories.js';
@@ -366,6 +368,7 @@ describe('Phase 4A: Dental Imaging Foundation Integration Tests', () => {
 
     const appInstance = await buildApp();
     app = appInstance.app;
+    app.log.level = 'silent';
     await app.ready();
   });
 
@@ -634,5 +637,119 @@ describe('Phase 4A: Dental Imaging Foundation Integration Tests', () => {
       url: `/api/imaging/orders/${createdDentalOrderId}/report`,
     });
     expect(unauthRes.statusCode).toBe(401);
+  });
+
+  it.each([
+    ['GET', 'report'],
+    ['POST', 'attachments'],
+    ['GET', `attachments/${createObjectId()}/download`],
+  ] as const)('C2 rejects wrong-department doctors on %s %s without episode fallback', async (method, path) => {
+    const episodeLookup = vi.spyOn(DentalEpisodeRepository.prototype, 'getById');
+    try {
+      const response = await app.inject({ method, url: `/api/imaging/orders/${createdDentalOrderId}/${path}`,
+        headers: { authorization: `Bearer ${generalDoctorToken}` } });
+      expect(response.statusCode).toBe(404);
+      expect(response.json().error.code).toBe('IMAGING_ORDER_NOT_FOUND');
+      expect(episodeLookup).not.toHaveBeenCalled();
+    } finally {
+      episodeLookup.mockRestore();
+    }
+  });
+
+  it('C2 independently authorizes episode-only orders and preserves Imaging staff access', async () => {
+    await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { visitId: null } });
+    try {
+      for (const [token, expected] of [[dentistToken, 200], [generalDoctorToken, 404], [radiologistToken, 200]] as const) {
+        const response = await app.inject({ method: 'GET', url: `/api/imaging/orders/${createdDentalOrderId}/report`,
+          headers: { authorization: `Bearer ${token}` } });
+        expect(response.statusCode).toBe(expected);
+      }
+    } finally {
+      await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { visitId: dentalVisitId } });
+    }
+  });
+
+  it('C2 rejects a different doctor in the same department', async () => {
+    await OpdVisitModel.updateOne({ _id: dentalVisitId }, { $set: { doctorId: radiologistDocId } });
+    const episodeLookup = vi.spyOn(DentalEpisodeRepository.prototype, 'getById');
+    try {
+      const response = await app.inject({ method: 'GET', url: `/api/imaging/orders/${createdDentalOrderId}/report`,
+        headers: { authorization: `Bearer ${dentistToken}` } });
+      expect(response.statusCode).toBe(404);
+      expect(episodeLookup).not.toHaveBeenCalled();
+    } finally {
+      episodeLookup.mockRestore();
+      await OpdVisitModel.updateOne({ _id: dentalVisitId }, { $set: { doctorId: dentistDocId } });
+    }
+  });
+
+  it('C2 propagates unexpected visit failures without trying episode authorization', async () => {
+    const visitLookup = vi.spyOn(OpdVisitRepository.prototype, 'getById').mockRejectedValue(new Error('Unavailable'));
+    const episodeLookup = vi.spyOn(DentalEpisodeRepository.prototype, 'getById');
+    try {
+      const response = await app.inject({ method: 'GET', url: `/api/imaging/orders/${createdDentalOrderId}/report`,
+        headers: { authorization: `Bearer ${dentistToken}` } });
+      expect(response.statusCode).toBe(500);
+      expect(episodeLookup).not.toHaveBeenCalled();
+    } finally {
+      visitLookup.mockRestore();
+      episodeLookup.mockRestore();
+    }
+  });
+
+  it.each(['missing-visit', 'missing-context', 'missing-episode', 'other-patient', 'unlinked-visit', 'other-department'])(
+    'C2 fails closed for %s even with a dental episode identifier', async (scenario) => {
+      const otherId = new Types.ObjectId();
+      const original = await DentalTreatmentEpisodeModel.findById(episodeId).lean().orFail();
+      const episodeLookup = vi.spyOn(DentalEpisodeRepository.prototype, 'getById');
+      try {
+        if (scenario === 'missing-visit') {
+          await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { visitId: otherId } });
+        } else if (scenario === 'missing-context') {
+          await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { visitId: null, dentalContext: null } });
+        } else if (scenario === 'missing-episode') {
+          await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { 'dentalContext.treatmentEpisodeId': otherId } });
+        } else if (scenario === 'other-patient') {
+          const other = await DentalTreatmentEpisodeModel.create({ ...original, _id: otherId,
+            episodeNumber: 'DTE-C2-OTHER', patientId: otherId });
+          await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { 'dentalContext.treatmentEpisodeId': other._id } });
+        } else if (scenario === 'unlinked-visit') {
+          await DentalTreatmentEpisodeModel.updateOne({ _id: episodeId }, { $set: { originatingVisitId: otherId, visitIds: [] } });
+        } else {
+          await DentalTreatmentEpisodeModel.updateOne({ _id: episodeId }, { $set: { departmentId: generalDeptId } });
+        }
+        const response = await app.inject({ method: 'GET', url: `/api/imaging/orders/${createdDentalOrderId}/report`,
+          headers: { authorization: `Bearer ${dentistToken}` } });
+        expect(response.statusCode).toBe(404);
+        expect(response.json().error.code).toBe('IMAGING_ORDER_NOT_FOUND');
+        if (scenario === 'missing-visit') expect(episodeLookup).not.toHaveBeenCalled();
+      } finally {
+        episodeLookup.mockRestore();
+        await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: {
+          visitId: dentalVisitId,
+          dentalContext: { treatmentEpisodeId: episodeId, treatmentStageId: stageId, toothNumber: 16 },
+        } });
+        await DentalTreatmentEpisodeModel.updateOne({ _id: episodeId }, { $set: {
+          originatingVisitId: original.originatingVisitId, visitIds: original.visitIds, departmentId: original.departmentId,
+        } });
+        await DentalTreatmentEpisodeModel.deleteOne({ _id: otherId });
+      }
+    },
+  );
+
+  it('C2 preserves scoped visit-only access and rejects malformed report identifiers', async () => {
+    await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: { dentalContext: null } });
+    try {
+      const response = await app.inject({ method: 'GET', url: `/api/imaging/orders/${createdDentalOrderId}/report`,
+        headers: { authorization: `Bearer ${dentistToken}` } });
+      expect(response.statusCode).toBe(200);
+      const malformed = await app.inject({ method: 'GET', url: '/api/imaging/orders/invalid/report',
+        headers: { authorization: `Bearer ${dentistToken}` } });
+      expect(malformed.statusCode).toBe(400);
+    } finally {
+      await OpdClinicalOrderModel.updateOne({ _id: createdDentalOrderId }, { $set: {
+        dentalContext: { treatmentEpisodeId: episodeId, treatmentStageId: stageId, toothNumber: 16 },
+      } });
+    }
   });
 });

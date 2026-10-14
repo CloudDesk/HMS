@@ -216,6 +216,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     notificationRepository,
     new PushNotificationService(deviceService),
   );
+  patientService.setNotificationService(notificationService);
   const dentalLabOrderService = new DentalLabOrderService(
     dentalLabOrderRepository,
     dentalStageRepository,
@@ -238,6 +239,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     settingsRepository,
     dentalQuotationRepository,
     dentalEpisodeRepository,
+    notificationService,
   );
 
   const dentalQuotationService = new DentalQuotationService(
@@ -259,6 +261,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     opdConsultationRepository,
     sequenceService,
     notificationService,
+    billingService,
   );
 
   return {
@@ -286,6 +289,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdVitalsRepository,
       patientRepository,
       appointmentRepository,
+      opdDentalExaminationService,
+      billingService,
     ),
     opdDentalExaminations: opdDentalExaminationService,
     dentalChairsideImages: dentalChairsideImageService,
@@ -319,12 +324,18 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdClinicalOrderRepository,
       laboratoryRepository,
       serviceRepository,
+      notificationService,
     ),
-    imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository, patientDocumentStorageService),
+    imaging: new ImagingService(
+      opdClinicalOrderRepository,
+      imagingRepository,
+      patientDocumentStorageService,
+      notificationService,
+    ),
     billing: billingService,
     settings: settingsService,
     notification: notificationService,
-    pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
+    pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository, notificationService),
     patientPortal: new PatientPortalService(
       new PatientPortalRepository(),
       userService,

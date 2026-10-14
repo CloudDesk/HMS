@@ -6,6 +6,7 @@ import type { ClinicalOrderRequestMetadata, OpdClinicalOrder } from '../opd/opd-
 import type { ServiceRepository } from '../services/service.repository.js';
 import type { LaboratoryRepository } from './laboratory.repository.js';
 import type { LaboratoryOrderListQuery, SaveLaboratoryResultDTO, UpdateLaboratoryStatusDTO } from './laboratory.types.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 const transitions: Partial<Record<OpdClinicalOrder['status'], UpdateLaboratoryStatusDTO['status']>> = {
   SUBMITTED: 'RECEIVED', RECEIVED: 'SAMPLE_COLLECTED', SAMPLE_COLLECTED: 'IN_PROGRESS',
@@ -23,6 +24,7 @@ export class LaboratoryService {
     private readonly orderRepository: OpdClinicalOrderRepository,
     private readonly repository: LaboratoryRepository,
     private readonly serviceRepository: ServiceRepository,
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async list(query: LaboratoryOrderListQuery, actorUserId: string) {
@@ -58,7 +60,7 @@ export class LaboratoryService {
     metadata: ClinicalOrderRequestMetadata,
   ) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    return executeTransaction(() => mongoose.startSession(), async (session) => {
+    const updated = await executeTransaction(() => mongoose.startSession(), async (session) => {
       const order = await this.orderRepository.getOperationalById(id, 'LABORATORY', scope, session);
       if (!order) throw new AppError('Laboratory order not found', 404, 'LABORATORY_ORDER_NOT_FOUND');
       this.assertMutable(order);
@@ -81,6 +83,25 @@ export class LaboratoryService {
       }, session);
       return updated;
     });
+
+    if (data.status === 'VERIFIED' && this.notificationService) {
+      try {
+        const result = await this.repository.getResult(id);
+        if (result) {
+          await this.notificationService.notifyPatient({
+            patientId: updated.patient_id,
+            type: 'LAB_RESULT',
+            title: 'Laboratory Result Available',
+            message: 'Your laboratory report has been verified and is ready for your review.',
+            relatedEntityId: result.id,
+          });
+        }
+      } catch {
+        // Safe non-blocking error handling
+      }
+    }
+
+    return updated;
   }
 
   async enterResult(id: string, data: SaveLaboratoryResultDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {

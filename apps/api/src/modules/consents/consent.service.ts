@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import type { ConsentRepository } from './consent.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type {
@@ -142,25 +143,55 @@ export class ConsentService {
     return template;
   }
 
-  async publish(id: string, branchId: string, actor: string, metadata: ConsentRequestMetadata) {
+  async publish(id: string, branchId: string, actor: string, metadata?: ConsentRequestMetadata) {
     await this.authorize(actor, branchId);
     const existing = await this.repository.get(id, branchId);
     if (!existing) throw new AppError('Consent template not found', 404, 'CONSENT_TEMPLATE_NOT_FOUND');
+
+    if (existing.status === 'INACTIVE') {
+      throw new AppError('Archived consent templates cannot be published. Create a new version.', 400, 'CANNOT_PUBLISH_INACTIVE_TEMPLATE');
+    }
 
     if (!existing.form_definition || existing.form_definition.sections.length === 0) {
       throw new AppError('Cannot publish consent template without at least one configured section', 400, 'FORM_DEFINITION_REQUIRED');
     }
 
-    const published = await this.repository.publish(id, branchId, actor);
-    if (!published) throw new AppError('Failed to publish consent template', 500, 'PUBLISH_FAILED');
+    try {
+      const published = await executeTransaction(
+        this.repository,
+        async (session) => {
+          const result = await this.repository.publish(id, branchId, actor, session);
+          if (!result) return null;
 
-    await this.repository.audit('consent.template.published', actor, metadata, {
-      templateId: id,
-      branchId,
-      code: published.code,
-      version: published.version,
-    });
-    return published;
+          await this.repository.audit(
+            'consent.template.published',
+            actor,
+            metadata,
+            {
+              templateId: id,
+              branchId,
+              code: result.code,
+              version: result.version,
+            },
+            session,
+          );
+
+          return result;
+        },
+        { requireTransaction: true },
+      );
+      if (!published) throw new AppError('Failed to publish consent template', 500, 'PUBLISH_FAILED');
+      return published;
+    } catch (error) {
+      if (this.repository.isConflict(error)) {
+        throw new AppError(
+          'A concurrent publishing operation is already activating a consent template for this code',
+          409,
+          'CONCURRENT_PUBLISH_CONFLICT',
+        );
+      }
+      throw error;
+    }
   }
 
   async createNextVersion(id: string, branchId: string, actor: string, metadata: ConsentRequestMetadata) {

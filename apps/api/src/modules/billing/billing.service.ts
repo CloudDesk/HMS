@@ -30,6 +30,7 @@ import type { AdvancePaymentService } from '../advance-payment/advance-payment.s
 import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { DentalQuotationRepository } from '../opd/dental-quotation.repository.js';
 import type { DentalEpisodeRepository } from '../opd/dental-episode.repository.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 import { ServiceModel } from '../services/service.model.js';
 
@@ -78,7 +79,34 @@ export class BillingService {
     private readonly settingsRepository?: SettingsRepository,
     private readonly dentalQuotationRepository?: DentalQuotationRepository,
     private readonly dentalEpisodeRepository?: DentalEpisodeRepository,
+    private readonly notificationService?: NotificationService,
   ) {}
+
+  async notifyPendingInvoiceSafely(invoice: {
+    id: string;
+    patient_id: string;
+    invoice_number: string;
+    balance_amount: number;
+    status: string;
+  }) {
+    if (
+      this.notificationService &&
+      invoice.balance_amount > 0 &&
+      ['PENDING', 'PARTIALLY_PAID'].includes(invoice.status)
+    ) {
+      try {
+        await this.notificationService.notifyPatient({
+          patientId: invoice.patient_id,
+          type: 'INVOICE_PENDING',
+          title: 'Pending Invoice',
+          message: `Invoice ${invoice.invoice_number} has an outstanding balance of ${invoice.balance_amount}.`,
+          relatedEntityId: invoice.id,
+        });
+      } catch {
+        // Safe non-blocking error handling
+      }
+    }
+  }
 
   async createAcceptedDentalQuotationInvoice(
     quotationId: string,
@@ -167,7 +195,7 @@ export class BillingService {
       }
     }
 
-    return executeTransaction(() => mongoose.startSession(), async (session) => {
+    const invoice = await executeTransaction(() => mongoose.startSession(), async (session) => {
       const concurrent = await this.repository.getInvoiceByOriginatingOrderId(quotationId, scope, session);
       if (concurrent) return concurrent;
       const items: ResolvedBillingItem[] = option.items.map((item, index) => ({
@@ -210,6 +238,8 @@ export class BillingService {
       }, session);
       return created;
     });
+    void this.notifyPendingInvoiceSafely(invoice);
+    return invoice;
   }
 
   async listDentalTreatmentBillingStates(
@@ -349,7 +379,9 @@ export class BillingService {
       invoiceId = concurrent.id;
     }
 
-    return this.getById(invoiceId, actorUserId);
+    const invoice = await this.getById(invoiceId, actorUserId);
+    void this.notifyPendingInvoiceSafely(invoice);
+    return invoice;
   }
 
   async list(query: BillingInvoiceListQuery, actorUserId: string, session?: import('mongoose').ClientSession) {
@@ -462,6 +494,10 @@ export class BillingService {
     };
 
     const invoice = await this.repository.createInvoice(createRecord, [item], actorUserId, session);
+    if (totalAmount > 0) {
+      await this.repository.updateInvoice(invoice.id, { status: 'PENDING' }, actorUserId, session);
+      invoice.status = 'PENDING';
+    }
     await this.repository.linkContext(invoice.id, data.patient_id, data.branch_id, 'PROCEDURE_BOOKING', data.booking_id, actorUserId);
     await this.repository.audit('billing.invoice.created', actorUserId, metadata, {
       invoiceId: invoice.id,
@@ -471,6 +507,9 @@ export class BillingService {
       branchId: data.branch_id,
       totalAmount,
     }, session);
+    if (!session) {
+      await this.notifyPendingInvoiceSafely(invoice);
+    }
     return invoice;
   }
 
@@ -505,7 +544,9 @@ export class BillingService {
       }, session);
       return created.id;
     });
-    return this.getById(createdId, actorUserId);
+    const invoice = await this.getById(createdId, actorUserId);
+    void this.notifyPendingInvoiceSafely(invoice);
+    return invoice;
   }
 
   async update(
@@ -556,7 +597,9 @@ export class BillingService {
       }, session);
       return updated;
     });
-    return this.getById(id, actorUserId);
+    const invoice = await this.getById(id, actorUserId);
+    void this.notifyPendingInvoiceSafely(invoice);
+    return invoice;
   }
 
   async cancel(id: string, actorUserId: string, metadata: BillingRequestMetadata) {

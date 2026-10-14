@@ -101,6 +101,9 @@ patientSchema.index({ firstName: 1, lastName: 1 });
 patientSchema.index({ phone: 1 });
 patientSchema.index({ email: 1 });
 patientSchema.index({ status: 1 });
+// Status is optional on list queries; keep it out of the default sort prefix.
+patientSchema.index({ registrationBranchId: 1, deletedAt: 1, createdAt: -1 }, { name: 'patients_branch_live_created' });
+patientSchema.index({ deletedAt: 1, createdAt: -1 }, { name: 'patients_live_created' });
 
 export type PatientDocumentMetadataFields = {
   patientId: Types.ObjectId;

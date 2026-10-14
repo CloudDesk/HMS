@@ -5,13 +5,19 @@ export interface SessionCapableRepository {
   session(): Promise<ClientSession>;
 }
 
+export interface ExecuteTransactionOptions {
+  requireTransaction?: boolean;
+}
+
 /**
  * Executes an operation inside a MongoDB transaction on replica sets / mongos,
- * or safely falls back to executing without a transaction on standalone MongoDB instances.
+ * or safely falls back to executing without a transaction on standalone MongoDB instances
+ * unless requireTransaction is explicitly requested.
  */
 export async function executeTransaction<T>(
   repositoryOrSessionProvider: SessionCapableRepository | (() => Promise<ClientSession>),
   operation: (session?: ClientSession) => Promise<T>,
+  options?: ExecuteTransactionOptions,
 ): Promise<T> {
   let session: ClientSession | null = null;
   try {
@@ -30,15 +36,23 @@ export async function executeTransaction<T>(
       throw error;
     }
     const msg = error instanceof Error ? error.message.toLowerCase() : '';
-    if (
+    const isTopologyUnsupported =
       msg.includes('transaction numbers are only allowed') ||
       msg.includes('standalone') ||
       msg.includes('replica set') ||
       msg.includes('sharded cluster') ||
       msg.includes('does not support retryable writes') ||
       msg.includes('retrywrites=false') ||
-      (typeof error === 'object' && error !== null && 'code' in error && (error.code === 20 || error.code === 'IllegalOperation'))
-    ) {
+      (typeof error === 'object' && error !== null && 'code' in error && (error.code === 20 || error.code === 'IllegalOperation'));
+
+    if (isTopologyUnsupported) {
+      if (options?.requireTransaction) {
+        throw new AppError(
+          'Multi-document transaction guarantees are required for this operation but unavailable on this database topology',
+          503,
+          'TRANSACTION_UNAVAILABLE',
+        );
+      }
       return await operation(undefined);
     }
     throw error;

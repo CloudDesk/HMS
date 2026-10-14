@@ -19,7 +19,7 @@ const patientAccessGrantSchema = new Schema<PatientAccessGrantFields>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     relationship: { type: String, enum: ['SELF', 'PARENT', 'LEGAL_GUARDIAN'], required: true },
-    status: { type: String, enum: ['PENDING', 'VERIFIED', 'REJECTED', 'REVOKED'], default: 'VERIFIED', required: true },
+    status: { type: String, enum: ['PENDING', 'VERIFIED', 'REJECTED', 'REVOKED'], default: 'PENDING', required: true },
     isPrimary: { type: Boolean, default: false },
     verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     verifiedAt: { type: Date, default: null },

@@ -53,5 +53,9 @@ notificationSchema.index({ recipientRole: 1, recipientBranchId: 1, isRead: 1 });
 notificationSchema.index({ recipientUserId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, patientId: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
+notificationSchema.index(
+  { recipientUserId: 1, relatedEntityId: 1, type: 1 },
+  { unique: true, partialFilterExpression: { relatedEntityId: { $type: 'objectId' } } },
+);
 
 export const NotificationModel = mongoose.model<NotificationDocumentFields>('Notification', notificationSchema);

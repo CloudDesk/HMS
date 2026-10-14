@@ -28,7 +28,12 @@ type DepartmentRecord = {
 };
 
 const escapedRegex = (value: string) => new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-const branchIds = (record: DepartmentRecord) => record.branchIds ?? (record.branchId ? [record.branchId] : []);
+const branchIds = (record: DepartmentRecord) => {
+  if (record.branchIds && record.branchIds.length > 0) {
+    return record.branchIds;
+  }
+  return record.branchId ? [record.branchId] : [];
+};
 const toDepartment = (record: DepartmentRecord): Department => ({
   id: record._id.toString(),
   code: record.code,
@@ -53,15 +58,22 @@ export class DepartmentRepository {
     if (typeof query.isClinical === 'boolean') filter.isClinical = query.isClinical;
     const andClauses: Record<string, unknown>[] = [];
     if (query.branch_id) {
-      const bId = new Types.ObjectId(query.branch_id);
-      andClauses.push({
-        $or: [
+      const branchIdStr = query.branch_id.trim();
+      if (branchIdStr) {
+        const isOid = Types.ObjectId.isValid(branchIdStr);
+        const bId = isOid ? new Types.ObjectId(branchIdStr) : branchIdStr;
+        const branchConditions: Record<string, unknown>[] = [
           { branchIds: bId },
           { branchId: bId },
-          { branchIds: { $exists: false } },
-          { branchIds: { $size: 0 } },
-        ],
-      });
+        ];
+        if (isOid) {
+          branchConditions.push(
+            { branchIds: branchIdStr },
+            { branchId: branchIdStr },
+          );
+        }
+        andClauses.push({ $or: branchConditions });
+      }
     }
     if (query.search) {
       const search = escapedRegex(query.search);

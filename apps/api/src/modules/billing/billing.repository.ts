@@ -288,10 +288,15 @@ export class BillingRepository {
     return invoice ? toInvoice(invoice) : null;
   }
 
-    async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
+  async hasUnresolvedInvoicesForEncounter(encounterId: string, session?: ClientSession) {
+    const objectEncounterId = objectId(encounterId);
     const unresolvedCount = await BillingInvoiceModel.countDocuments({
-      encounterId: objectId(encounterId),
+      $or: [
+        { encounterId: objectEncounterId },
+        { visitId: objectEncounterId },
+      ],
       status: { $in: ['DRAFT', 'PENDING', 'PARTIALLY_PAID'] },
+      balanceAmount: { $gt: 0 },
       deletedAt: null,
     }).session(session ?? null);
 
@@ -422,7 +427,7 @@ export class BillingRepository {
       appointmentId: data.appointmentId ? objectId(data.appointmentId) : null,
       branchId: objectId(data.branchId),
       invoiceDate: data.invoiceDate,
-      status: 'DRAFT',
+      status: (data.totalAmount === 0 || data.balanceAmount === 0) ? 'PAID' : 'DRAFT',
       subtotal: data.subtotal,
       discountAmount: data.discountAmount,
       taxAmount: data.taxAmount,

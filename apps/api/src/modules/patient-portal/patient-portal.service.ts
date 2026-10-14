@@ -1,4 +1,6 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+import { env } from '../../config/env.js';
+import { AuthRateLimitRepository } from '../auth/auth-rate-limit.repository.js';
 import type { ClientSession } from 'mongoose';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -153,6 +155,7 @@ export class PatientPortalService {
     private readonly patients: PatientService,
     private readonly otp: PatientOtpService,
     private readonly opdVisits: OpdVisitService,
+    private readonly dependentLinkRateLimits = new AuthRateLimitRepository(),
   ) {}
 
   async listPublicBranches(query: { page: number; limit: number; search?: string }) {
@@ -645,18 +648,29 @@ export class PatientPortalService {
   async linkExistingDependent(
     userId: string,
     input: { patientNumber: string; dateOfBirth: string; relationship: 'PARENT' | 'LEGAL_GUARDIAN'; legalConsentAccepted: boolean },
+    metadata: RequestMetadata,
   ) {
+    const now = new Date();
+    const hashKey = (key: string) => createHmac('sha256', env.auth.accessTokenSecret).update(key).digest('hex');
+    const allowed = await Promise.all([
+      this.dependentLinkRateLimits.consume('dependent-link-account', hashKey(userId), 5, 900, now),
+      this.dependentLinkRateLimits.consume('dependent-link-ip', hashKey(metadata.ipAddress ?? 'unknown'), 20, 900, now),
+    ]);
+    if (allowed.some((value) => !value)) {
+      throw new AppError('Too many linking requests. Try again later.', 429, 'AUTH_RATE_LIMITED');
+    }
     const context = await this.context(userId);
     if (context.account.type !== 'GUARDIAN') throw new AppError('A guardian account is required to link a dependent', 403, 'GUARDIAN_ACCOUNT_REQUIRED');
     if (!input.legalConsentAccepted) throw new AppError('Guardian confirmation and consent are required', 400, 'GUARDIAN_CONSENT_REQUIRED');
     const patient = await this.repository.findPatientToLinkAsDependent(input);
-    if (!patient) throw new AppError('MRN and date of birth do not match an active patient record', 404, 'PATIENT_IDENTITY_NOT_MATCHED');
-
-    await this.executePortalTransaction(async (session) => {
-      await this.repository.ensureAccessGrant(userId, String(patient._id), input.relationship, session);
-      await this.repository.auditGuardianLink(userId, String(patient._id), input.relationship, session);
-    });
-    return { patientId: String(patient._id), patientNumber: input.patientNumber.trim().toUpperCase() };
+    if (patient) {
+      await this.executePortalTransaction(async (session) => {
+        await this.repository.requestDependentAccess(userId, String(patient._id), input.relationship, session);
+      });
+    }
+    // Static demographics and self-attested consent are not proof of authority.
+    // Never disclose whether a matching patient or an existing grant was found.
+    return { status: 'PENDING' as const, message: 'Access requires independent verification. Contact hospital staff.' };
   }
 
   async updatePatientProfile(userId: string, patientId: string, input: UpdatePatientProfileInput) {

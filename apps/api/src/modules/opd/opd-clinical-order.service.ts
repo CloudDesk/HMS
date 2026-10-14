@@ -13,6 +13,8 @@ import type { OpdClinicalOrder } from './opd-clinical-order.types.js';
 import { isDentalClinicalContext } from './opd-dental-examination.service.js';
 import { isValidFdiTooth } from './opd-dental-examination.schemas.js';
 import { dentalImagingDraftSchema } from './opd-clinical-order.schemas.js';
+import { DentalEpisodeRepository } from './dental-episode.repository.js';
+import { PermissionRepository } from '../permissions/permission.repository.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -24,6 +26,8 @@ export class OpdClinicalOrderService {
     private readonly patientRepository: PatientRepository,
     private readonly serviceRepository: ServiceRepository,
     private readonly departmentRepository: DepartmentRepository,
+    private readonly episodeRepository = new DentalEpisodeRepository(),
+    private readonly permissionRepository = new PermissionRepository(),
   ) {}
 
   async getByVisitAndType(visitId: string, orderType: ClinicalOrderType, userId: string) {
@@ -137,27 +141,43 @@ export class OpdClinicalOrderService {
     return this.repository.listByEpisode(episodeId, orderType);
   }
 
-  async authorizeDentalImagingReport(orderId: string, userId: string) {
+  async authorizeDentalImagingReport(orderId: string, userId: string, action: 'View' | 'Edit' = 'View') {
+    const denied = () => new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
+    if (!Types.ObjectId.isValid(orderId) || !Types.ObjectId.isValid(userId)) throw denied();
+    if (!(await this.permissionRepository.userHasPermission(userId, 'OPD', 'OPD Clinical Orders', action))) {
+      throw denied();
+    }
     const scope = await this.repository.resolveBranchScope(userId);
     const order = await this.repository.getOperationalById(orderId, 'IMAGING', scope);
-    if (!order) {
-      throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
-    }
-    if (order.visit_id) {
+    if (!order) throw denied();
+    // A present visit is authoritative. Its denial must never trigger another path.
+    const getAuthorizedVisit = async (visitId: string) => {
       try {
-        const visit = await this.getVisit(order.visit_id, userId, 'IMAGING');
-        if ((await this.isDental(visit)) && order.patient_id === visit.patient_id &&
-            order.branch_id === visit.branch_id && order.doctor_id === visit.doctor_id) {
-          return;
-        }
-      } catch {
-        // Fall through to episode check
+        return await this.getVisit(visitId, userId, 'IMAGING');
+      } catch (error) {
+        // Conceal context existence, but retain unexpected failures as failures.
+        if (error instanceof AppError && [400, 401, 403, 404].includes(error.statusCode)) throw denied();
+        throw error;
       }
+    };
+    let visit = order.visit_id ? await getAuthorizedVisit(order.visit_id) : null;
+    const episodeId = order.dental_context?.treatment_episode_id;
+    if (episodeId) {
+      if (!Types.ObjectId.isValid(episodeId)) throw denied();
+      const episode = await this.episodeRepository.getById(episodeId);
+      if (!episode || episode.patient_id !== order.patient_id || episode.branch_id !== order.branch_id) throw denied();
+      if (visit && !episode.visit_ids.includes(visit.id) && episode.originating_visit_id !== visit.id) throw denied();
+      if (!visit) {
+        visit = await getAuthorizedVisit(episode.originating_visit_id);
+        if (episode.primary_doctor_id !== visit.doctor_id) throw denied();
+      }
+      if (episode.patient_id !== visit.patient_id || episode.branch_id !== visit.branch_id ||
+          episode.department_id !== visit.department_id) throw denied();
     }
-    if (order.dental_context?.treatment_episode_id) {
-      return;
+    if (!visit || !(await this.isDental(visit)) || order.patient_id !== visit.patient_id ||
+        order.branch_id !== visit.branch_id || order.doctor_id !== visit.doctor_id) {
+      throw denied();
     }
-    throw new AppError('Dental imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
   }
 
   async authorizeDentalLaboratoryResult(orderId: string, userId: string) {

@@ -27,19 +27,25 @@ export class SurgeryRepository {
   constructor(private readonly sequenceService: SequenceService) {}
   session() { return mongoose.startSession(); }
 
-  async acquireConcurrencyLock(doctorId: string, serviceId: string, session?: ClientSession) {
-    const locks = [
-      { type: 'Doctor', id: doctorId },
-      { type: 'Service', id: serviceId }
-    ].sort((a, b) => a.id.localeCompare(b.id));
+  async acquireConcurrencyLock(doctorId: string, serviceId: string, session?: ClientSession, patientId?: string) {
+    const locks: Array<{ type: 'Doctor' | 'Service' | 'Patient'; id: string }> = [];
+    if (doctorId) locks.push({ type: 'Doctor', id: doctorId });
+    if (serviceId) locks.push({ type: 'Service', id: serviceId });
+    if (patientId) locks.push({ type: 'Patient', id: patientId });
+
+    locks.sort((a, b) => a.id.localeCompare(b.id) || a.type.localeCompare(b.type));
 
     for (const lock of locks) {
       if (lock.type === 'Doctor') {
         const q = DoctorModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
         if (session) q.session(session);
         await q;
-      } else {
+      } else if (lock.type === 'Service') {
         const q = ServiceModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
+        if (session) q.session(session);
+        await q;
+      } else if (lock.type === 'Patient') {
+        const q = PatientModel.updateOne({ _id: oid(lock.id) }, { $set: { updatedAt: new Date() } });
         if (session) q.session(session);
         await q;
       }
@@ -102,6 +108,8 @@ export class SurgeryRepository {
   async countServiceOverlap(serviceId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { serviceId: oid(serviceId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.countDocuments(filter); if (session) q.session(session); return q; }
   async hasDoctorOverlap(doctorId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { doctorId: oid(doctorId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.exists(filter); if (session) q.session(session); return Boolean(await q); }
   async hasAppointmentOverlap(doctorId: string, dateOnly: Date, startTime: string, endTime: string, session?: ClientSession) { const q = AppointmentModel.exists({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, startTime: { $lt: endTime }, endTime: { $gt: startTime }, deletedAt: null }); if (session) q.session(session); return Boolean(await q); }
+  async hasPatientAppointmentOverlap(patientId: string, dateOnly: Date, startTime: string, endTime: string, session?: ClientSession) { const q = AppointmentModel.exists({ patientId: oid(patientId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, startTime: { $lt: endTime }, endTime: { $gt: startTime }, deletedAt: null }); if (session) q.session(session); return Boolean(await q); }
+  async hasPatientProcedureOverlap(patientId: string, start: Date, end: Date, excludeId?: string, session?: ClientSession) { const filter: Record<string, unknown> = { patientId: oid(patientId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $lt: end }, scheduledEnd: { $gt: start } }; if (excludeId) filter._id = { $ne: oid(excludeId) }; const q = ProcedureBookingModel.exists(filter); if (session) q.session(session); return Boolean(await q); }
   async listDoctorAppointments(doctorId: string, dateOnly: Date, session?: ClientSession) { const q = AppointmentModel.find({ doctorId: oid(doctorId), appointmentDate: dateOnly, status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] }, deletedAt: null }).lean(); if (session) q.session(session); return q; }
   async listDoctorSurgeries(doctorId: string, dateOnly: Date, session?: ClientSession) { const nextDay = new Date(dateOnly.getTime() + 24 * 60 * 60 * 1000); const q = ProcedureBookingModel.find({ doctorId: oid(doctorId), status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] }, scheduledStart: { $gte: dateOnly, $lt: nextDay } }).lean(); if (session) q.session(session); return q; }
   async validateHold(holdId: string, patientId: string, branchId: string, session?: ClientSession) {

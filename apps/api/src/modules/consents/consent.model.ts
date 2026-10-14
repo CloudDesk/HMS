@@ -37,5 +37,9 @@ const consentTemplateSchema = new Schema<ConsentTemplateFields>({
 
 consentTemplateSchema.index({ branchId: 1, code: 1, version: 1 }, { unique: true });
 consentTemplateSchema.index({ branchId: 1, contextType: 1, status: 1 });
+consentTemplateSchema.index(
+  { branchId: 1, code: 1 },
+  { unique: true, partialFilterExpression: { status: 'ACTIVE' } },
+);
 
 export const ConsentTemplateModel = mongoose.model<ConsentTemplateFields>('ConsentTemplate', consentTemplateSchema);

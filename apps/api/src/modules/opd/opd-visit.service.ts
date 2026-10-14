@@ -61,6 +61,10 @@ const appointmentVisitType = (appointment: Appointment) => {
   return 'NEW_CONSULTATION';
 };
 
+export type OpdBillingClosureService = {
+  isEncounterFinanciallyClosed(encounterId: string, session?: ClientSession): Promise<boolean>;
+};
+
 export class OpdVisitService {
   constructor(
     private readonly repository: OpdVisitRepository,
@@ -70,6 +74,7 @@ export class OpdVisitService {
     private readonly consultationRepository: OpdConsultationRepository,
     private readonly sequenceService: SequenceService,
     private readonly notificationService: NotificationService,
+    private readonly billingService?: OpdBillingClosureService,
   ) {}
 
   async list(query: OpdVisitListQuery, userId?: string) {
@@ -158,6 +163,17 @@ export class OpdVisitService {
       const consultation = await this.consultationRepository.getByVisit(existing.id);
       if (consultation?.status !== 'COMPLETED') {
         throw new AppError('Complete the clinical consultation before closing the OPD visit', 400, 'CONSULTATION_NOT_COMPLETED');
+      }
+
+      if (this.billingService) {
+        const isFinanciallyClosed = await this.billingService.isEncounterFinanciallyClosed(existing.id);
+        if (!isFinanciallyClosed) {
+          throw new AppError(
+            'Billing closure is required before completing the OPD visit while charges remain unresolved',
+            409,
+            'OPD_BILLING_CLOSURE_REQUIRED',
+          );
+        }
       }
     }
 

@@ -289,6 +289,7 @@ export class DentalQuotationService {
         const grants = await PatientAccessGrantModel.find({
           patientId: new Types.ObjectId(updated.patient_id),
           status: 'VERIFIED',
+          revokedAt: null,
         }).select('userId').lean();
 
         const userDocs = await UserModel.find({
@@ -944,6 +945,7 @@ export class DentalQuotationService {
             userId: user._id,
             patientId: new Types.ObjectId(patientId),
             status: 'VERIFIED',
+            revokedAt: null,
           }),
         );
 
@@ -1043,6 +1045,7 @@ export class DentalQuotationService {
             userId: user._id,
             patientId: new Types.ObjectId(quotation.patient_id),
             status: 'VERIFIED',
+            revokedAt: null,
           }),
         );
 

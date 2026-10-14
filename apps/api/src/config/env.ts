@@ -246,6 +246,16 @@ assertPatientDocumentStorageConfiguration({
 });
 
 export const env = {
+  initialSettings: {
+    hospitalName: process.env.HMS_INITIAL_HOSPITAL_NAME,
+    phone: process.env.HMS_INITIAL_HOSPITAL_PHONE,
+    email: process.env.HMS_INITIAL_HOSPITAL_EMAIL,
+    address: process.env.HMS_INITIAL_HOSPITAL_ADDRESS,
+    country: process.env.HMS_INITIAL_COUNTRY,
+    timezone: process.env.HMS_INITIAL_TIMEZONE,
+    currency: process.env.HMS_INITIAL_CURRENCY,
+    currencySymbol: process.env.HMS_INITIAL_CURRENCY_SYMBOL,
+  },
   app: {
     name: process.env.APP_NAME ?? 'hms-api',
     environment: appEnvironment as AppEnv,

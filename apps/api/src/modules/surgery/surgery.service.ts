@@ -137,15 +137,16 @@ export class SurgeryService {
   async createBooking(data: CreateProcedureBookingDTO, actor: string, metadata: SurgeryMetadata) {
     await this.authorize(actor, data.branch_id);
     try {
-      return await executeTransaction(this.repository, async (session) => {
+      let createdDepositInvoice: Awaited<ReturnType<BillingService['createProcedureBookingInvoice']>> | null = null;
+      const result = await executeTransaction(this.repository, async (session) => {
         const recommendation = await this.repository.getActiveRecommendationRecord(data.recommendation_id, data.branch_id, session);
         if (!recommendation) throw new AppError('Active unbooked procedure recommendation not found', 409, 'PROCEDURE_RECOMMENDATION_NOT_ACTIVE');
         const refs = await this.repository.bookingReferences(recommendation, data.doctor_id, session);
         if (!refs.service || !refs.service.defaultDurationMinutes || !refs.service.bookingCapacity) throw new AppError('Procedure service configuration is incomplete', 409, 'PROCEDURE_SERVICE_CONFIGURATION_INVALID');
         if (!refs.doctor) throw new AppError('Active procedure doctor not found in the selected branch and department', 404, 'DOCTOR_NOT_FOUND');
-        await this.repository.acquireConcurrencyLock(refs.doctor._id.toString(), refs.service._id.toString(), session);
+        await this.repository.acquireConcurrencyLock(refs.doctor._id.toString(), refs.service._id.toString(), session, recommendation.patientId.toString());
         const win = parseScheduleWindow(data.scheduled_start, refs.service.defaultDurationMinutes);
-        await this.validateSchedule(refs.doctor._id.toString(), win, refs.service._id.toString(), refs.service.bookingCapacity, undefined, session);
+        await this.validateSchedule(refs.doctor._id.toString(), win, refs.service._id.toString(), refs.service.bookingCapacity, undefined, session, recommendation.patientId.toString());
 
         const result = await this.repository.createBooking(data, recommendation, { doctorName: refs.doctor.displayName, duration: refs.service.defaultDurationMinutes }, actor, session);
 
@@ -168,6 +169,7 @@ export class SurgeryService {
           );
           if (invoice) {
             result.deposit_invoice_id = invoice.id;
+            createdDepositInvoice = invoice;
           }
         }
 
@@ -177,6 +179,12 @@ export class SurgeryService {
         await this.repository.audit('surgery.booking.created', actor, metadata, { bookingId: result.id, recommendationId: data.recommendation_id, patientId: recommendation.patientId.toString(), branchId: data.branch_id, scheduledStart: win.startDate, scheduledEnd: win.endDate }, session);
         return result;
       });
+
+      if (createdDepositInvoice) {
+        await this.billing.notifyPendingInvoiceSafely(createdDepositInvoice);
+      }
+
+      return result;
     } catch (error) {
       return duplicate(error);
     }
@@ -190,7 +198,7 @@ export class SurgeryService {
       const refs = await this.repository.bookingReferences(bookingRecommendation(booking), booking.doctorId.toString(), session);
       if (!recommendation || !refs.service || !refs.service.bookingCapacity) throw new AppError('Procedure booking context is no longer active', 409, 'PROCEDURE_BOOKING_CONTEXT_INVALID');
       const win = parseScheduleWindow(booking.scheduledStart.toISOString(), refs.service.defaultDurationMinutes ?? booking.durationMinutes);
-      await this.validateSchedule(booking.doctorId.toString(), win, booking.serviceId.toString(), refs.service.bookingCapacity, id, session);
+      await this.validateSchedule(booking.doctorId.toString(), win, booking.serviceId.toString(), refs.service.bookingCapacity, id, session, booking.patientId.toString());
       const holdId = data.hold_id ?? booking.holdId?.toString() ?? null;
       if (refs.service.requiresBed && (!holdId || !await this.repository.validateHold(holdId, booking.patientId.toString(), branchId, session))) throw new AppError('An active bed hold for this patient is required', 409, 'PROCEDURE_BED_HOLD_REQUIRED');
       const consentId = data.consent_document_id ?? booking.consentDocumentId?.toString() ?? null;
@@ -215,8 +223,9 @@ export class SurgeryService {
       const doctorId = data.doctor_id ?? booking.doctorId.toString();
       const refs = await this.repository.bookingReferences(bookingRecommendation(booking), doctorId, session);
       if (!refs.service || !refs.service.bookingCapacity || !refs.doctor) throw new AppError('Procedure booking context is no longer active', 409, 'PROCEDURE_BOOKING_CONTEXT_INVALID');
+      await this.repository.acquireConcurrencyLock(doctorId, booking.serviceId.toString(), session, booking.patientId.toString());
       const win = parseScheduleWindow(data.scheduled_start, booking.durationMinutes);
-      await this.validateSchedule(doctorId, win, booking.serviceId.toString(), refs.service.bookingCapacity, id, session);
+      await this.validateSchedule(doctorId, win, booking.serviceId.toString(), refs.service.bookingCapacity, id, session, booking.patientId.toString());
       const holdId = data.hold_id ?? booking.holdId?.toString() ?? null;
       if (refs.service.requiresBed && (!holdId || !await this.repository.validateHold(holdId, booking.patientId.toString(), branchId, session))) throw new AppError('An active bed hold for this patient is required', 409, 'PROCEDURE_BED_HOLD_REQUIRED');
       if (data.hold_id && booking.holdId && data.hold_id !== booking.holdId.toString()) {
@@ -377,6 +386,7 @@ export class SurgeryService {
     capacity: number,
     excludeId?: string,
     session?: import('mongoose').ClientSession,
+    patientId?: string,
   ): Promise<void>;
   private async validateSchedule(
     doctorId: string,
@@ -386,6 +396,7 @@ export class SurgeryService {
     capacity: number,
     excludeId?: string,
     session?: import('mongoose').ClientSession,
+    patientId?: string,
   ): Promise<void>;
   private async validateSchedule(
     doctorId: string,
@@ -394,13 +405,15 @@ export class SurgeryService {
     serviceIdOrCapacity?: string | number,
     capacityOrExcludeId?: number | string,
     excludeIdOrSession?: string | import('mongoose').ClientSession,
-    session?: import('mongoose').ClientSession,
+    sessionOrPatientId?: import('mongoose').ClientSession | string,
+    patientId?: string,
   ) {
     let win: ReturnType<typeof parseScheduleWindow>;
     let serviceId: string;
     let cap: number;
     let excId: string | undefined;
     let sess: import('mongoose').ClientSession | undefined;
+    let targetPatientId: string | undefined;
 
     if (startOrWin instanceof Date) {
       const start = startOrWin;
@@ -408,7 +421,8 @@ export class SurgeryService {
       serviceId = serviceIdOrCapacity as string;
       cap = capacityOrExcludeId as number;
       excId = excludeIdOrSession as string | undefined;
-      sess = session;
+      sess = sessionOrPatientId as import('mongoose').ClientSession | undefined;
+      targetPatientId = patientId;
 
       if (!Number.isFinite(start.getTime()) || start.getTime() <= Date.now()) {
         throw new AppError('Procedure start must be a valid future date and time', 400, 'INVALID_PROCEDURE_SCHEDULE');
@@ -444,6 +458,7 @@ export class SurgeryService {
       cap = serviceIdOrCapacity as number;
       excId = capacityOrExcludeId as string | undefined;
       sess = excludeIdOrSession as import('mongoose').ClientSession | undefined;
+      targetPatientId = sessionOrPatientId as string | undefined;
 
       if (win.startMinutes < 0 || win.endMinutes > 24 * 60) {
         throw new AppError('Procedure cannot cross midnight', 400, 'INVALID_PROCEDURE_SCHEDULE');
@@ -471,6 +486,14 @@ export class SurgeryService {
     }
     if (await this.repository.countServiceOverlap(serviceId, win.startDate, win.endDate, excId, sess) >= cap) {
       throw new AppError('Procedure service capacity is full for the selected interval', 409, 'PROCEDURE_CAPACITY_CONFLICT');
+    }
+    if (targetPatientId) {
+      if (await this.repository.hasPatientAppointmentOverlap(targetPatientId, win.dateOnly, win.startTime, win.endTime, sess)) {
+        throw new AppError(`Patient has an overlapping appointment between ${formatTime12h(win.startTime)} and ${formatTime12h(win.endTime)}`, 409, 'PATIENT_APPOINTMENT_CONFLICT');
+      }
+      if (await this.repository.hasPatientProcedureOverlap(targetPatientId, win.startDate, win.endDate, excId, sess)) {
+        throw new AppError('Patient has an overlapping procedure booking', 409, 'PATIENT_PROCEDURE_CONFLICT');
+      }
     }
   }
 

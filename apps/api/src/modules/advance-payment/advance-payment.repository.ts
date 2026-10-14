@@ -39,53 +39,68 @@ export class AdvancePaymentRepository {
     userId: string,
     session?: ClientSession,
   ): Promise<AdvancePaymentRecord> {
+    if (data.required_amount < 0) {
+      throw new Error('Required amount cannot be negative');
+    }
 
     const doc = await AdvancePaymentModel.findOneAndUpdate(
       { source_type: data.source_type, source_id: data.source_id },
-      {
-        $set: {
-          patient_id: data.patient_id,
-          branch_id: data.branch_id,
-          required_amount: data.required_amount,
-          requirement_status: data.requirement_status,
-          updated_by: userId,
+      [
+        {
+          $set: {
+            patient_id: data.patient_id,
+            source_type: data.source_type,
+            source_id: data.source_id,
+            branch_id: data.branch_id,
+            required_amount: data.required_amount,
+            requirement_status: data.requirement_status,
+            updated_by: userId,
+            paid_amount: { $ifNull: ['$paid_amount', 0] },
+            created_by: { $ifNull: ['$created_by', userId] },
+            created_at: { $ifNull: ['$created_at', '$$NOW'] },
+            updated_at: '$$NOW',
+          },
         },
-        $setOnInsert: {
-          paid_amount: 0,
-          payment_status: 'PENDING',
-          created_by: userId,
+        {
+          $set: {
+            balance_amount: {
+              $max: [0, { $subtract: [data.required_amount, '$paid_amount'] }],
+            },
+            payment_status: {
+              $cond: {
+                if: { $eq: [{ $ifNull: ['$payment_status', 'PENDING'] }, 'CANCELLED'] },
+                then: 'CANCELLED',
+                else: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $gt: [data.required_amount, 0] },
+                        { $gte: ['$paid_amount', data.required_amount] },
+                      ],
+                    },
+                    then: 'PAID',
+                    else: {
+                      $cond: {
+                        if: { $gt: ['$paid_amount', 0] },
+                        then: 'PARTIALLY_PAID',
+                        else: 'PENDING',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
-      },
-      { returnDocument: 'after', upsert: true, session },
+      ],
+      { returnDocument: 'after', upsert: true, session, updatePipeline: true },
     ).lean<AdvancePaymentLean>();
 
     if (!doc) {
       throw new Error('Failed to sync advance payment requirement');
     }
 
-    // Recalculate balance and payment status if it was just updated or created
-    const paid = doc.paid_amount;
-    const required = doc.required_amount;
-    const balance = Math.max(0, required - paid);
-    let payment_status = doc.payment_status;
-
-    if (payment_status !== 'CANCELLED') {
-      if (paid >= required && required > 0) {
-        payment_status = 'PAID';
-      } else if (paid > 0 && paid < required) {
-        payment_status = 'PARTIALLY_PAID';
-      } else {
-        payment_status = 'PENDING';
-      }
-    }
-
-    const updatedDoc = await AdvancePaymentModel.findOneAndUpdate(
-      { _id: doc._id },
-      { $set: { balance_amount: balance, payment_status } },
-      { returnDocument: 'after', session },
-    ).lean<AdvancePaymentLean>();
-
-    return toRecord(updatedDoc!);
+    return toRecord(doc);
   }
 
   async addPayment(

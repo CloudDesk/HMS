@@ -10,6 +10,7 @@ import { ServiceModel } from '../src/modules/services/service.model.js';
 import { DepartmentModel } from '../src/modules/departments/department.model.js';
 import { BranchModel } from '../src/modules/branches/branch.model.js';
 import { ProcedureRecommendationModel, ProcedureBookingModel } from '../src/modules/surgery/surgery.model.js';
+import { PatientModel } from '../src/modules/patients/patient.model.js';
 
 describe('Surgery Concurrency Double-Booking Prevention', () => {
   let repository: SurgeryRepository;
@@ -273,5 +274,367 @@ describe('Surgery Concurrency Double-Booking Prevention', () => {
 
     const bookings = await ProcedureBookingModel.find({ serviceId: serviceId, status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] } });
     expect(bookings.length).toBe(2);
+  });
+
+  describe('Surgery Rescheduling Concurrency & Validation', () => {
+    const setupBooking = async (
+      status = 'BOOKED',
+      scheduledStart = new Date(Date.now() + 86400000),
+      docId = doctorId,
+      servId = serviceId,
+    ) => {
+      const patientId = createObjectId();
+      const rec = await ProcedureRecommendationModel.create({
+        recommendationNumber: 'REC-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
+        patientId,
+        patientNumber: 'P-1',
+        patientName: 'Patient Test',
+        branchId,
+        departmentId,
+        departmentName: 'Surgery',
+        recommendingDoctorId: docId,
+        recommendingDoctorName: 'Dr. Surgeon',
+        serviceId: servId,
+        serviceName: 'Appendectomy',
+        encounterType: 'OPD_VISIT',
+        encounterId: createObjectId(),
+        clinicalReason: 'Clinical Reason',
+        status: 'BOOKED',
+        createdBy: actorId,
+        updatedBy: actorId,
+      });
+      const duration = 60;
+      const booking = await ProcedureBookingModel.create({
+        bookingNumber: 'B-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
+        recommendationId: rec._id,
+        patientId,
+        patientNumber: 'P-1',
+        patientName: 'Patient Test',
+        branchId,
+        departmentId,
+        departmentName: 'Surgery',
+        doctorId: docId,
+        doctorName: 'Dr. Surgeon',
+        serviceId: servId,
+        serviceName: 'Appendectomy',
+        scheduledStart,
+        scheduledEnd: new Date(scheduledStart.getTime() + duration * 60000),
+        durationMinutes: duration,
+        status,
+        createdBy: actorId,
+        updatedBy: actorId,
+      });
+      return booking;
+    };
+
+    beforeEach(async () => {
+      await ServiceModel.create({
+        _id: serviceId,
+        name: 'Appendectomy',
+        code: 'APP',
+        departmentId: departmentId,
+        serviceType: 'PROCEDURE',
+        standardPrice: 1000,
+        defaultDurationMinutes: 60,
+        bookingCapacity: 1,
+        status: 'ACTIVE',
+      });
+    });
+
+    it('A valid reschedule succeeds and updates booking time and history', async () => {
+      const initialStart = new Date(Date.now() + 86400000);
+      initialStart.setSeconds(0, 0);
+      const booking = await setupBooking('BOOKED', initialStart);
+      const newStart = new Date(Date.now() + 2 * 86400000);
+      newStart.setSeconds(0, 0);
+
+      const result = await service.rescheduleBooking(
+        booking._id.toString(),
+        branchId,
+        {
+          scheduled_start: newStart.toISOString(),
+          reason: 'Patient requested new date',
+        },
+        actorId,
+        {} as unknown as import('mongoose').ClientSession,
+      );
+
+      expect(result).toBeDefined();
+      expect(new Date(result.scheduled_start).toISOString()).toBe(newStart.toISOString());
+      expect(result.schedule_history.length).toBe(1);
+      expect(result.schedule_history[0].reason).toBe('Patient requested new date');
+
+      const persisted = await ProcedureBookingModel.findById(booking._id);
+      expect(persisted!.scheduledStart.toISOString()).toBe(newStart.toISOString());
+    });
+
+    it('A conflicting reschedule is rejected with DOCTOR_PROCEDURE_CONFLICT', async () => {
+      const slotTime = new Date(Date.now() + 86400000);
+      slotTime.setSeconds(0, 0);
+      await setupBooking('BOOKED', slotTime);
+
+      const otherTime = new Date(Date.now() + 2 * 86400000);
+      otherTime.setSeconds(0, 0);
+      const bookingToReschedule = await setupBooking('BOOKED', otherTime);
+
+      await expect(
+        service.rescheduleBooking(
+          bookingToReschedule._id.toString(),
+          branchId,
+          {
+            scheduled_start: slotTime.toISOString(),
+            reason: 'Attempt conflict',
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+      ).rejects.toThrow(AppError);
+
+      const persisted = await ProcedureBookingModel.findById(bookingToReschedule._id);
+      expect(persisted!.scheduledStart.toISOString()).toBe(otherTime.toISOString());
+    });
+
+    it('Concurrent rescheduling attempts cannot both claim the same slot', async () => {
+      const targetTime = new Date(Date.now() + 3 * 86400000);
+      targetTime.setSeconds(0, 0);
+
+      const startA = new Date(Date.now() + 86400000);
+      startA.setSeconds(0, 0);
+      const startB = new Date(Date.now() + 2 * 86400000);
+      startB.setSeconds(0, 0);
+
+      const bookingA = await setupBooking('BOOKED', startA);
+      const bookingB = await setupBooking('BOOKED', startB);
+
+      const results = await Promise.allSettled([
+        service.rescheduleBooking(
+          bookingA._id.toString(),
+          branchId,
+          {
+            scheduled_start: targetTime.toISOString(),
+            reason: 'Booking A moves to target',
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+        service.rescheduleBooking(
+          bookingB._id.toString(),
+          branchId,
+          {
+            scheduled_start: targetTime.toISOString(),
+            reason: 'Booking B moves to target',
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+      ]);
+
+      const successes = results.filter((r) => r.status === 'fulfilled');
+      const failures = results.filter((r) => r.status === 'rejected');
+
+      expect(successes.length).toBe(1);
+      expect(failures.length).toBe(1);
+
+      const failure = failures[0] as PromiseRejectedResult;
+      expect(failure.reason).toBeInstanceOf(AppError);
+      expect(['DOCTOR_PROCEDURE_CONFLICT', 'PROCEDURE_CAPACITY_CONFLICT']).toContain(failure.reason.code);
+
+      const bookedAtTarget = await ProcedureBookingModel.find({
+        doctorId,
+        scheduledStart: targetTime,
+        status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+      });
+      expect(bookedAtTarget.length).toBe(1);
+    });
+
+    it('Lock acquisition failure prevents reschedule from proceeding and leaves state intact', async () => {
+      const initialStart = new Date(Date.now() + 86400000);
+      initialStart.setSeconds(0, 0);
+      const booking = await setupBooking('BOOKED', initialStart);
+      const targetTime = new Date(Date.now() + 2 * 86400000);
+      targetTime.setSeconds(0, 0);
+
+      const lockSpy = vi.spyOn(repository, 'acquireConcurrencyLock').mockRejectedValueOnce(
+        new Error('Database write conflict simulation'),
+      );
+
+      await expect(
+        service.rescheduleBooking(
+          booking._id.toString(),
+          branchId,
+          {
+            scheduled_start: targetTime.toISOString(),
+            reason: 'Attempt with broken lock',
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+      ).rejects.toThrow('Database write conflict simulation');
+
+      expect(lockSpy).toHaveBeenCalledWith(doctorId, serviceId, expect.anything(), booking.patientId.toString());
+
+      const persisted = await ProcedureBookingModel.findById(booking._id);
+      expect(persisted!.scheduledStart.toISOString()).toBe(booking.scheduledStart.toISOString());
+    });
+
+    it('Validation failure rolls back and subsequent valid reschedule succeeds without deadlock', async () => {
+      const start1 = new Date(Date.now() + 86400000);
+      start1.setSeconds(0, 0);
+      const existing = await setupBooking('BOOKED', start1);
+
+      const start2 = new Date(Date.now() + 2 * 86400000);
+      start2.setSeconds(0, 0);
+      const booking = await setupBooking('BOOKED', start2);
+
+      await expect(
+        service.rescheduleBooking(
+          booking._id.toString(),
+          branchId,
+          {
+            scheduled_start: existing.scheduledStart.toISOString(),
+            reason: 'Fails validation',
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+      ).rejects.toThrow(AppError);
+
+      const validTime = new Date(Date.now() + 4 * 86400000);
+      validTime.setSeconds(0, 0);
+      const successResult = await service.rescheduleBooking(
+        booking._id.toString(),
+        branchId,
+        {
+          scheduled_start: validTime.toISOString(),
+          reason: 'Valid new slot',
+        },
+        actorId,
+        {} as unknown as import('mongoose').ClientSession,
+      );
+
+      expect(successResult).toBeDefined();
+      expect(new Date(successResult.scheduled_start).toISOString()).toBe(validTime.toISOString());
+    });
+
+    it('Two concurrent surgery bookings for the same patient with different doctors cannot both succeed', async () => {
+      const doc2 = createObjectId();
+      await DoctorModel.create({
+        _id: doc2,
+        branchId,
+        departmentId,
+        doctorNumber: 'DOC-99',
+        firstName: 'Second',
+        lastName: 'Surgeon',
+        displayName: 'Dr. Second',
+        specialization: 'General',
+        status: 'ACTIVE',
+      });
+
+      const service2Id = createObjectId();
+      await ServiceModel.create({
+        _id: service2Id,
+        name: 'Biopsy',
+        code: 'BIO',
+        departmentId,
+        serviceType: 'PROCEDURE',
+        standardPrice: 1500,
+        defaultDurationMinutes: 60,
+        bookingCapacity: 1,
+        status: 'ACTIVE',
+      });
+
+      const commonPatientId = createObjectId();
+      await PatientModel.create({
+        _id: commonPatientId,
+        patientNumber: 'P-SHARED',
+        firstName: 'Shared',
+        lastName: 'Patient',
+        gender: 'OTHER',
+        dateOfBirth: new Date('1990-01-01'),
+        status: 'ACTIVE',
+      });
+      const rec1 = await ProcedureRecommendationModel.create({
+        recommendationNumber: 'REC-P1',
+        patientId: commonPatientId,
+        patientNumber: 'P-SHARED',
+        patientName: 'Shared Patient',
+        branchId,
+        departmentId,
+        departmentName: 'Surgery',
+        recommendingDoctorId: doctorId,
+        recommendingDoctorName: 'Dr. Surgeon',
+        serviceId,
+        serviceName: 'Appendectomy',
+        encounterType: 'OPD_VISIT',
+        encounterId: createObjectId(),
+        clinicalReason: 'Reason 1',
+        status: 'ACTIVE',
+        createdBy: actorId,
+        updatedBy: actorId,
+      });
+
+      const rec2 = await ProcedureRecommendationModel.create({
+        recommendationNumber: 'REC-P2',
+        patientId: commonPatientId,
+        patientNumber: 'P-SHARED',
+        patientName: 'Shared Patient',
+        branchId,
+        departmentId,
+        departmentName: 'Surgery',
+        recommendingDoctorId: doc2,
+        recommendingDoctorName: 'Dr. Second',
+        serviceId: service2Id,
+        serviceName: 'Biopsy',
+        encounterType: 'OPD_VISIT',
+        encounterId: createObjectId(),
+        clinicalReason: 'Reason 2',
+        status: 'ACTIVE',
+        createdBy: actorId,
+        updatedBy: actorId,
+      });
+
+      const startTime = new Date(Date.now() + 5 * 86400000).toISOString();
+
+      const results = await Promise.allSettled([
+        service.createBooking(
+          {
+            recommendation_id: rec1._id.toString(),
+            branch_id: branchId,
+            department_id: departmentId,
+            doctor_id: doctorId,
+            scheduled_start: startTime,
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+        service.createBooking(
+          {
+            recommendation_id: rec2._id.toString(),
+            branch_id: branchId,
+            department_id: departmentId,
+            doctor_id: doc2,
+            scheduled_start: startTime,
+          },
+          actorId,
+          {} as unknown as import('mongoose').ClientSession,
+        ),
+      ]);
+
+      const successes = results.filter((r) => r.status === 'fulfilled');
+      const failures = results.filter((r) => r.status === 'rejected');
+
+      expect(successes.length).toBe(1);
+      expect(failures.length).toBe(1);
+
+      const failure = failures[0] as PromiseRejectedResult;
+      expect(failure.reason).toBeInstanceOf(AppError);
+      expect(failure.reason.code).toBe('PATIENT_PROCEDURE_CONFLICT');
+
+      const bookings = await ProcedureBookingModel.find({
+        patientId: commonPatientId,
+        status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+      });
+      expect(bookings.length).toBe(1);
+    });
   });
 });

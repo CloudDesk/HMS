@@ -108,6 +108,8 @@ invoiceSchema.index({ admissionId: 1 });
 invoiceSchema.index({ procedureId: 1 });
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ branchId: 1, invoiceDate: -1, status: 1 });
+// Default branch list sorts by createdAt plus _id, not invoiceDate.
+invoiceSchema.index({ branchId: 1, deletedAt: 1, createdAt: -1, _id: -1 }, { name: 'invoices_branch_live_created' });
 invoiceSchema.index(
   { contextType: 1, contextId: 1 },
   {

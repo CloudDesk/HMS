@@ -6,6 +6,7 @@ import type { BillingSourceType } from '../billing/billing.types.js';
 import type { PharmacyDispensingFields, PharmacyDispensingItemFields } from './pharmacy-dispensing.model.js';
 import type { PharmacyDispensingRepository } from './pharmacy-dispensing.repository.js';
 import type { PharmacyDispensingListQuery, PharmacyRequestMetadata, SavePharmacyDispensingDTO } from './pharmacy-dispensing.types.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -83,7 +84,10 @@ export function assertDispensingCanBeConfirmed<T extends Pick<PharmacyDispensing
 }
 
 export class PharmacyDispensingService {
-  constructor(private readonly repository: PharmacyDispensingRepository) {}
+  constructor(
+    private readonly repository: PharmacyDispensingRepository,
+    private readonly notificationService?: NotificationService,
+  ) {}
 
   private async context(prescriptionId: string, actor: string, session?: mongoose.ClientSession) {
     const prescription = await this.repository.getPrescription(prescriptionId, session);
@@ -152,8 +156,17 @@ export class PharmacyDispensingService {
   }
 
   async confirm(prescriptionId: string, version: number, key: string, actor: string, metadata: PharmacyRequestMetadata) {
+    const pendingNotificationRef: {
+      current: {
+        patientId: string;
+        invoiceId: string;
+        invoiceNumber: string;
+        balanceAmount: number;
+      } | null;
+    } = { current: null };
+
     try {
-      return await executeTransaction(() => mongoose.startSession(), async (session) => {
+      const result = await executeTransaction(() => mongoose.startSession(), async (session) => {
         const { prescription, visit, billingVisit } = await this.context(prescriptionId, actor, session);
         if (prescription.status !== 'SUBMITTED') throw new AppError('Prescription is not actionable', 409, 'PRESCRIPTION_NOT_ACTIONABLE');
         if (prescription.sourceType === 'PROCEDURE_BOOKING' && (!prescription.procedureId || !prescription.encounterId || !await this.repository.hasActiveProcedureContext(prescription.procedureId.toString(), prescription.patientId.toString(), prescription.branchId.toString(), prescription.encounterId.toString(), session))) throw new AppError('Procedure booking is no longer active for dispensing', 409, 'PROCEDURE_CONTEXT_NOT_ACTIVE');
@@ -195,8 +208,34 @@ export class PharmacyDispensingService {
         const prescriptionStatus = await this.repository.getPrescriptionRepository().updateStatusIf(prescriptionId, 'SUBMITTED', 'DISPENSED', actor, session);
         if (!prescriptionStatus) throw new AppError('Prescription changed; retry', 409, 'INVALID_STATE_TRANSITION');
         await this.repository.audit('pharmacy.dispensing.confirmed', actor, metadata, { dispensingId: dispensing._id.toString(), prescriptionId, invoiceId: invoice.id, stockItemCount: dispensing.items.length }, session);
+
+        if (total > 0) {
+          pendingNotificationRef.current = {
+            patientId: prescription.patientId.toString(),
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoice_number,
+            balanceAmount: total,
+          };
+        }
+
         return this.repository.getByPrescription(prescriptionId, session);
       });
+
+      if (pendingNotificationRef.current && this.notificationService) {
+        try {
+          await this.notificationService.notifyPatient({
+            patientId: pendingNotificationRef.current.patientId,
+            type: 'INVOICE_PENDING',
+            title: 'Pending Invoice',
+            message: `Invoice ${pendingNotificationRef.current.invoiceNumber} has an outstanding balance of ${pendingNotificationRef.current.balanceAmount}.`,
+            relatedEntityId: pendingNotificationRef.current.invoiceId,
+          });
+        } catch {
+          // Safe non-blocking error handling
+        }
+      }
+
+      return result;
     } catch (error) {
       if (isDuplicateDispensingConfirmation(error, key)) {
         throw new AppError(

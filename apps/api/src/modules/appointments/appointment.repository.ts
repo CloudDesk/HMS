@@ -1,6 +1,7 @@
 import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
 import { DentalTreatmentStageModel } from '../opd/dental-stage.model.js';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
+import { ProcedureBookingModel } from '../surgery/surgery.model.js';
 import { PatientPreConsultationModel, type PatientPreConsultationFields } from './patient-pre-consultation.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -8,6 +9,8 @@ import { executeTransaction } from '../../shared/database/transaction.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
+import { PatientModel } from '../patients/patient.model.js';
 import type {
   Appointment,
   AppointmentDashboardSummary,
@@ -224,6 +227,36 @@ const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
 });
 
 export class AppointmentRepository {
+  session() {
+    return mongoose.startSession();
+  }
+
+  async acquireConcurrencyLock(doctorId: string, session?: ClientSession, patientId?: string) {
+    const locks: Array<{ type: 'Doctor' | 'Patient'; id: string }> = [];
+    if (doctorId) locks.push({ type: 'Doctor', id: doctorId });
+    if (patientId) locks.push({ type: 'Patient', id: patientId });
+
+    locks.sort((a, b) => a.id.localeCompare(b.id) || a.type.localeCompare(b.type));
+
+    for (const lock of locks) {
+      if (lock.type === 'Doctor') {
+        const q = DoctorModel.updateOne(
+          { _id: toObjectId(lock.id) },
+          { $set: { updatedAt: new Date() } },
+        );
+        if (session) q.session(session);
+        await q;
+      } else if (lock.type === 'Patient') {
+        const q = PatientModel.updateOne(
+          { _id: toObjectId(lock.id) },
+          { $set: { updatedAt: new Date() } },
+        );
+        if (session) q.session(session);
+        await q;
+      }
+    }
+  }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds').lean();
@@ -382,11 +415,17 @@ export class AppointmentRepository {
     return toAppointment(created.toObject<AppointmentLean>());
   }
 
-  async update(id: string, data: AppointmentUpdateRecord, userId: string, branchIds?: string[]): Promise<Appointment | undefined> {
+  async update(
+    id: string,
+    data: AppointmentUpdateRecord,
+    userId: string,
+    branchIds?: string[],
+    session?: ClientSession,
+  ): Promise<Appointment | undefined> {
     const appointment = await AppointmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
       { $set: buildUpdatePayload(data, userId) },
-      { returnDocument: 'after', lean: true },
+      { returnDocument: 'after', lean: true, session },
     ).lean<AppointmentLean>();
 
     return appointment ? toAppointment(appointment) : undefined;
@@ -434,6 +473,7 @@ export class AppointmentRepository {
     excludeAppointmentId?: string,
     utcStart?: Date,
     utcEnd?: Date,
+    session?: ClientSession,
   ) {
     const timeFilter = utcStart && utcEnd ? {
       $or: [
@@ -467,8 +507,62 @@ export class AppointmentRepository {
       filter._id = { $ne: toObjectId(excludeAppointmentId) };
     }
 
-    const appointment = await AppointmentModel.findOne(filter).lean<AppointmentLean>();
+    const query = AppointmentModel.findOne(filter);
+    if (session) query.session(session);
+    const appointment = await query.lean<AppointmentLean>();
     return appointment ? toAppointment(appointment) : undefined;
+  }
+
+  async findDoctorSurgeryConflict(
+    doctorId: string,
+    appointmentDate: Date,
+    startTime: string,
+    endTime: string,
+    utcStart?: Date,
+    utcEnd?: Date,
+    session?: ClientSession,
+  ): Promise<{ id: string; booking_number: string } | null> {
+    const start = utcStart ?? new Date(`${appointmentDate.toISOString().slice(0, 10)}T${startTime}:00.000Z`);
+    const end = utcEnd ?? new Date(`${appointmentDate.toISOString().slice(0, 10)}T${endTime}:00.000Z`);
+
+    const filter: Record<string, unknown> = {
+      doctorId: toObjectId(doctorId),
+      status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+      scheduledStart: { $lt: end },
+      scheduledEnd: { $gt: start },
+    };
+
+    const query = ProcedureBookingModel.findOne(filter).select('_id bookingNumber').lean();
+    if (session) query.session(session);
+    const booking = await query;
+
+    return booking ? { id: booking._id.toString(), booking_number: booking.bookingNumber } : null;
+  }
+
+  async findPatientSurgeryConflict(
+    patientId: string,
+    appointmentDate: Date,
+    startTime: string,
+    endTime: string,
+    utcStart?: Date,
+    utcEnd?: Date,
+    session?: ClientSession,
+  ): Promise<{ id: string; booking_number: string } | null> {
+    const start = utcStart ?? new Date(`${appointmentDate.toISOString().slice(0, 10)}T${startTime}:00.000Z`);
+    const end = utcEnd ?? new Date(`${appointmentDate.toISOString().slice(0, 10)}T${endTime}:00.000Z`);
+
+    const filter: Record<string, unknown> = {
+      patientId: toObjectId(patientId),
+      status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+      scheduledStart: { $lt: end },
+      scheduledEnd: { $gt: start },
+    };
+
+    const query = ProcedureBookingModel.findOne(filter).select('_id bookingNumber').lean();
+    if (session) query.session(session);
+    const booking = await query;
+
+    return booking ? { id: booking._id.toString(), booking_number: booking.bookingNumber } : null;
   }
 
 async listActiveWindows(doctorId: string, appointmentDate: Date) {
@@ -519,6 +613,7 @@ async findPatientConflict(
   excludeAppointmentId?: string,
   utcStart?: Date,
   utcEnd?: Date,
+  session?: ClientSession,
 ) {
   const timeFilter = utcStart && utcEnd ? {
     $or: [
@@ -552,7 +647,9 @@ async findPatientConflict(
     filter._id = { $ne: toObjectId(excludeAppointmentId) };
   }
 
-  const appointment = await AppointmentModel.findOne(filter).lean<AppointmentLean>();
+  const query = AppointmentModel.findOne(filter);
+  if (session) query.session(session);
+  const appointment = await query.lean<AppointmentLean>();
   return appointment ? toAppointment(appointment) : undefined;
 }
 
@@ -709,14 +806,40 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     return created;
   }
 
-  async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
-    await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
-      appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
-      reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
-        startTime: previous.start_time, durationMinutes: previous.duration_minutes },
-      next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
-        startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
-    } });
+  async auditRescheduled(
+    previous: Appointment,
+    appointment: Appointment,
+    reason: string,
+    actorUserId: string,
+    session?: ClientSession,
+  ) {
+    await AuditLogModel.create(
+      [
+        {
+          actorUserId,
+          eventType: 'appointment.rescheduled',
+          metadataJson: {
+            appointmentId: appointment.id,
+            appointmentNumber: appointment.appointment_number,
+            patientId: appointment.patient_id,
+            reason,
+            previous: {
+              doctorId: previous.doctor_id,
+              appointmentDate: previous.appointment_date,
+              startTime: previous.start_time,
+              durationMinutes: previous.duration_minutes,
+            },
+            next: {
+              doctorId: appointment.doctor_id,
+              appointmentDate: appointment.appointment_date,
+              startTime: appointment.start_time,
+              durationMinutes: appointment.duration_minutes,
+            },
+          },
+        },
+      ],
+      session ? { session } : undefined,
+    );
   }
 
   async nextAppointmentSequence(session?: ClientSession) {

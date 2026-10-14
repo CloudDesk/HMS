@@ -1,4 +1,4 @@
-import mongoose, { Types } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
 import { env } from '../../config/env.js';
@@ -229,58 +229,66 @@ export class AppointmentService {
       data.duration_minutes,
       original.visit_type,
     );
-    await this.validateDoctorConflict(
-      doctor.id,
-      appointmentDate,
-      data.start_time,
-      endTimeStr,
-      original.id,
-      utcDateTime,
-      utcEndTime,
-    );
-    await this.validatePatientConflict(
-      original.patient_id,
-      appointmentDate,
-      data.start_time,
-      endTimeStr,
-      original.id,
-      utcDateTime,
-      utcEndTime,
-    );
-
     try {
-      const updated = await this.repository.update(
-        original.id,
-        {
-          doctor_id: doctor.id,
-          doctorName: doctor.display_name,
-          doctorSpecialization: doctor.specialization,
-          branchId: doctor.branch_id,
-          departmentId: doctor.department_id,
+      return await executeTransaction(this.repository, async (session) => {
+        await this.repository.acquireConcurrencyLock(doctor.id, session, original.patient_id);
+        await this.validateDoctorConflict(
+          doctor.id,
+          appointmentDate,
+          data.start_time,
+          endTimeStr,
+          original.id,
           utcDateTime,
           utcEndTime,
+          session,
+        );
+        await this.validatePatientConflict(
+          original.patient_id,
           appointmentDate,
-          startTime: data.start_time,
-          endTime: endTimeStr,
-          duration_minutes: data.duration_minutes,
-          status: 'SCHEDULED',
-          rescheduledAt: new Date(),
-        },
-        userId,
-      );
+          data.start_time,
+          endTimeStr,
+          original.id,
+          utcDateTime,
+          utcEndTime,
+          session,
+        );
 
-      if (!updated) {
-        throw new AppError('Appointment not found', 404, 'NOT_FOUND');
-      }
+        const updated = await this.repository.update(
+          original.id,
+          {
+            doctor_id: doctor.id,
+            doctorName: doctor.display_name,
+            doctorSpecialization: doctor.specialization,
+            branchId: doctor.branch_id,
+            departmentId: doctor.department_id,
+            utcDateTime,
+            utcEndTime,
+            appointmentDate,
+            startTime: data.start_time,
+            endTime: endTimeStr,
+            duration_minutes: data.duration_minutes,
+            status: 'SCHEDULED',
+            rescheduledAt: new Date(),
+          },
+          userId,
+          undefined,
+          session,
+        );
 
-      await this.repository.auditRescheduled(
-        original,
-        updated,
-        'Rescheduled via Patient Portal',
-        userId,
-      );
+        if (!updated) {
+          throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+        }
 
-      return updated;
+        await this.repository.auditRescheduled(
+          original,
+          updated,
+          'Rescheduled via Patient Portal',
+          userId,
+          session,
+        );
+
+        return updated;
+      });
     } catch (error) {
       const databaseError = error as { code?: unknown; keyPattern?: Record<string, unknown> };
       if (databaseError.code === 11000 && databaseError.keyPattern?.activeSlotKey) {
@@ -370,26 +378,29 @@ export class AppointmentService {
       data.duration_minutes,
       data.visit_type,
     );
-    await this.validateDoctorConflict(
-      doctor.id,
-      appointmentDate,
-      startTimeStr,
-      endTime,
-      undefined,
-      appointmentUtc,
-      utcEndTime,
-    );
-    await this.validatePatientConflict(
-      patient.id,
-      appointmentDate,
-      startTimeStr,
-      endTime,
-      undefined,
-      appointmentUtc,
-      utcEndTime,
-    );
+    return executeTransaction(this.repository, async (session) => {
+      await this.repository.acquireConcurrencyLock(doctor.id, session, patient.id);
+      await this.validateDoctorConflict(
+        doctor.id,
+        appointmentDate,
+        startTimeStr,
+        endTime,
+        undefined,
+        appointmentUtc,
+        utcEndTime,
+        session,
+      );
+      await this.validatePatientConflict(
+        patient.id,
+        appointmentDate,
+        startTimeStr,
+        endTime,
+        undefined,
+        appointmentUtc,
+        utcEndTime,
+        session,
+      );
 
-    return executeTransaction(() => mongoose.startSession(), async (session) => {
       const appointmentSequence = await this.sequenceService.getNextSequence(
         'appointment',
         session,
@@ -527,24 +538,66 @@ export class AppointmentService {
       durationMinutes,
       data.visit_type ?? existing.visit_type,
     );
-    await this.validateDoctorConflict(
-      doctor.id,
-      appointmentDate,
-      startTimeStr,
-      endTime,
-      id,
-      appointmentUtc,
-      utcEndTime,
-    );
-    await this.validatePatientConflict(
-      existing.patient_id,
-      appointmentDate,
-      startTimeStr,
-      endTime,
-      id,
-      appointmentUtc,
-      utcEndTime,
-    );
+    if (scheduleChanged) {
+      return executeTransaction(this.repository, async (session) => {
+        await this.repository.acquireConcurrencyLock(doctor.id, session, existing.patient_id);
+        await this.validateDoctorConflict(
+          doctor.id,
+          appointmentDate,
+          startTimeStr,
+          endTime,
+          id,
+          appointmentUtc,
+          utcEndTime,
+          session,
+        );
+        await this.validatePatientConflict(
+          existing.patient_id,
+          appointmentDate,
+          startTimeStr,
+          endTime,
+          id,
+          appointmentUtc,
+          utcEndTime,
+          session,
+        );
+
+        const appointment = await this.repository.update(
+          id,
+          {
+            ...data,
+            doctor_id: doctor.id,
+            doctorName: doctor.display_name,
+            doctorSpecialization: doctor.specialization,
+            branchId: doctor.branch_id,
+            departmentId: doctor.department_id,
+            utcDateTime: appointmentUtc,
+            utcEndTime,
+            appointmentDate,
+            startTime: startTimeStr,
+            endTime,
+            duration_minutes: durationMinutes,
+          },
+          userId,
+          scope,
+          session,
+        );
+
+        if (!appointment) {
+          throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+        }
+
+        await this.repository.auditRescheduled(
+          existing,
+          appointment,
+          data.reschedule_reason!.trim(),
+          userId,
+          session,
+        );
+
+        return appointment;
+      });
+    }
 
     const appointment = await this.repository.update(
       id,
@@ -568,15 +621,6 @@ export class AppointmentService {
 
     if (!appointment) {
       throw new AppError('Appointment not found', 404, 'NOT_FOUND');
-    }
-
-    if (scheduleChanged) {
-      await this.repository.auditRescheduled(
-        existing,
-        appointment,
-        data.reschedule_reason!.trim(),
-        userId,
-      );
     }
 
     return appointment;
@@ -819,16 +863,29 @@ export class AppointmentService {
     excludeAppointmentId?: string,
     utcStart?: Date,
     utcEnd?: Date,
+    session?: ClientSession,
   ) {
-    const conflict = await this.repository.findDoctorConflict(
-      doctorId,
-      appointmentDate,
-      startTime,
-      endTime,
-      excludeAppointmentId,
-      utcStart,
-      utcEnd,
-    );
+    const [conflict, surgeryConflict] = await Promise.all([
+      this.repository.findDoctorConflict(
+        doctorId,
+        appointmentDate,
+        startTime,
+        endTime,
+        excludeAppointmentId,
+        utcStart,
+        utcEnd,
+        session,
+      ),
+      this.repository.findDoctorSurgeryConflict(
+        doctorId,
+        appointmentDate,
+        startTime,
+        endTime,
+        utcStart,
+        utcEnd,
+        session,
+      ),
+    ]);
 
     if (conflict) {
       throw new AppError(
@@ -837,6 +894,17 @@ export class AppointmentService {
         'APPOINTMENT_SLOT_CONFLICT',
         {
           appointment_number: conflict.appointment_number,
+        },
+      );
+    }
+
+    if (surgeryConflict) {
+      throw new AppError(
+        'Doctor has an overlapping surgery/procedure booking in this time slot',
+        409,
+        'DOCTOR_PROCEDURE_CONFLICT',
+        {
+          booking_number: surgeryConflict.booking_number,
         },
       );
     }
@@ -850,16 +918,30 @@ export class AppointmentService {
     excludeAppointmentId?: string,
     utcStart?: Date,
     utcEnd?: Date,
+    session?: ClientSession,
   ) {
-    const conflict = await this.repository.findPatientConflict(
-      patientId,
-      appointmentDate,
-      startTime,
-      endTime,
-      excludeAppointmentId,
-      utcStart,
-      utcEnd,
-    );
+    const [conflict, surgeryConflict] = await Promise.all([
+      this.repository.findPatientConflict(
+        patientId,
+        appointmentDate,
+        startTime,
+        endTime,
+        excludeAppointmentId,
+        utcStart,
+        utcEnd,
+        session,
+      ),
+      this.repository.findPatientSurgeryConflict(
+        patientId,
+        appointmentDate,
+        startTime,
+        endTime,
+        utcStart,
+        utcEnd,
+        session,
+      ),
+    ]);
+
     if (conflict) {
       throw new AppError(
         'Patient already has an appointment in this time slot',
@@ -867,6 +949,17 @@ export class AppointmentService {
         'PATIENT_APPOINTMENT_CONFLICT',
         {
           appointment_number: conflict.appointment_number,
+        },
+      );
+    }
+
+    if (surgeryConflict) {
+      throw new AppError(
+        'Patient has an overlapping surgery/procedure booking in this time slot',
+        409,
+        'PATIENT_PROCEDURE_CONFLICT',
+        {
+          booking_number: surgeryConflict.booking_number,
         },
       );
     }

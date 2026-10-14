@@ -1,6 +1,9 @@
 import { ServiceModel } from './service.model.js';
 import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/surgery.model.js';
+import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
+import { OpdDentalExaminationModel } from '../opd/opd-dental-examination.model.js';
 import type {
   Service,
   ServiceListQuery,
@@ -283,12 +286,142 @@ const byType: Record<Service['service_type'], number> = {
     return { total, active, inactive, addedThisMonth, departmentsCovered, byType };
   }
 
-  async softDelete(id: string, actorUserId: string) {
-    return ServiceModel.findOneAndUpdate(
+  async hasActiveDependencies(serviceId: string, session?: ClientSession): Promise<boolean> {
+    const isOid = Types.ObjectId.isValid(serviceId);
+    const oid = isOid ? new Types.ObjectId(serviceId) : null;
+
+    const queries: Promise<unknown>[] = [];
+
+    if (oid) {
+      queries.push(
+        ProcedureBookingModel.exists({
+          serviceId: oid,
+          status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+        }).session(session ?? null),
+        ProcedureRecommendationModel.exists({
+          serviceId: oid,
+          status: 'ACTIVE',
+        }).session(session ?? null),
+        OpdClinicalOrderModel.exists({
+          'items.serviceId': oid,
+          status: { $ne: 'COMPLETED' },
+          deletedAt: null,
+        }).session(session ?? null),
+      );
+    }
+
+    queries.push(
+      OpdDentalExaminationModel.exists({
+        deletedAt: null,
+        treatmentPlanItems: {
+          $elemMatch: {
+            serviceId: isOid ? { $in: [serviceId, oid] } : serviceId,
+            status: { $in: ['PROPOSED', 'ACCEPTED', 'IN_PROGRESS'] },
+          },
+        },
+      }).session(session ?? null),
+    );
+
+    const results = await Promise.all(queries);
+    return results.some((res) => Boolean(res));
+  }
+
+  async findServicesWithActiveDependencies(
+    serviceIds: string[],
+    session?: ClientSession,
+  ): Promise<string[]> {
+    if (serviceIds.length === 0) return [];
+
+    const targetIdSet = new Set(serviceIds.map(String));
+    const objectIds = serviceIds
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+
+    const activeSet = new Set<string>();
+    const queries: Promise<void>[] = [];
+
+    if (objectIds.length > 0) {
+      queries.push(
+        ProcedureBookingModel.distinct('serviceId', {
+          serviceId: { $in: objectIds },
+          status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+        ProcedureRecommendationModel.distinct('serviceId', {
+          serviceId: { $in: objectIds },
+          status: 'ACTIVE',
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+        OpdClinicalOrderModel.distinct('items.serviceId', {
+          'items.serviceId': { $in: objectIds },
+          status: { $ne: 'COMPLETED' },
+          deletedAt: null,
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+      );
+    }
+
+    queries.push(
+      OpdDentalExaminationModel.find({
+        deletedAt: null,
+        treatmentPlanItems: {
+          $elemMatch: {
+            status: { $in: ['PROPOSED', 'ACCEPTED', 'IN_PROGRESS'] },
+            $or: [
+              { serviceId: { $in: serviceIds } },
+              { serviceId: { $in: objectIds } },
+            ],
+          },
+        },
+      })
+        .select('treatmentPlanItems')
+        .session(session ?? null)
+        .lean()
+        .then((exams) => {
+          for (const exam of exams) {
+            for (const item of exam.treatmentPlanItems ?? []) {
+              if (
+                item.serviceId &&
+                targetIdSet.has(String(item.serviceId)) &&
+                ['PROPOSED', 'ACCEPTED', 'IN_PROGRESS'].includes(item.status ?? 'PROPOSED')
+              ) {
+                activeSet.add(String(item.serviceId));
+              }
+            }
+          }
+        }),
+    );
+
+    await Promise.all(queries);
+    return Array.from(activeSet);
+  }
+
+  async softDelete(id: string, actorUserId: string, session?: ClientSession) {
+    const query = ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
       { returnDocument: 'after', lean: true },
     );
+    if (session) query.session(session);
+    return query;
   }
 
   async findForBulkDelete(ids: string[], departmentId: string, session?: ClientSession) {

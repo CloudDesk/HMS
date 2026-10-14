@@ -8,6 +8,7 @@ import type { SaveOpdConsultationDTO } from './opd-consultation.types.js';
 import type { OpdVitalsRepository } from './opd-vitals.repository.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import type { OpdBillingClosureService } from './opd-visit.service.js';
 import { OpdDentalExaminationRepository } from './opd-dental-examination.repository.js';
 import { OpdDentalExaminationService } from './opd-dental-examination.service.js';
 
@@ -29,6 +30,7 @@ export class OpdConsultationService {
       repository,
       patientRepository,
     ),
+    private readonly billingService?: OpdBillingClosureService,
   ) {}
 
   async getByVisit(visitId: string, userId: string) {
@@ -79,6 +81,17 @@ export class OpdConsultationService {
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
     if (!await areVitalsOptional(visit)) await this.ensureVitalsRecorded(visit.id);
+
+    if (this.billingService) {
+      const isFinanciallyClosed = await this.billingService.isEncounterFinanciallyClosed(visit.id);
+      if (!isFinanciallyClosed) {
+        throw new AppError(
+          'Billing closure is required before completing the OPD visit while charges remain unresolved',
+          409,
+          'OPD_BILLING_CLOSURE_REQUIRED',
+        );
+      }
+    }
 
     if (visit.status === 'READY_FOR_CONSULTATION') {
       await this.visitRepository.updateStatus(

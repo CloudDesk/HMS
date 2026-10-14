@@ -792,8 +792,8 @@ export const registerPatientPortalRoutes = async (app: FastifyInstance, services
     const result = await services.patientPortal.linkExistingDependent(request.user!.id, {
       patientNumber: parsed.data.patient_number, dateOfBirth: parsed.data.date_of_birth,
       relationship: parsed.data.relationship, legalConsentAccepted: parsed.data.legal_consent_accepted,
-    });
-    return reply.status(201).send(ok(result));
+    }, metadataFromRequest(request));
+    return reply.status(202).send(ok(result));
   });
 
   app.post<{ Body: BookAppointmentBody }>('/api/patient-portal/appointments', { preHandler: authenticate(services) }, async (request, reply) => {

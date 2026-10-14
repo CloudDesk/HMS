@@ -147,4 +147,96 @@ describe('AdvancePaymentService', () => {
     expect(req3.balance_amount).toBe(0);
     expect(req3.payment_status).toBe('PAID');
   });
+
+  it('Concurrent payment and requirement sync maintains accurate balance and status', async () => {
+    const sourceId = createObjectId();
+    const patientId = createObjectId();
+    const branchId = createObjectId();
+    const user1 = createObjectId();
+    const user2 = createObjectId();
+
+    // Initial setup with requirement of 10000
+    await service.syncRequirement({
+      patient_id: patientId,
+      branch_id: branchId,
+      source_type: 'PROCEDURE_BOOKING',
+      source_id: sourceId,
+      required_amount: 10000,
+      requirement_status: 'REQUIRED',
+    }, user1);
+
+    // Fire concurrent operations:
+    // 1. Payment of 2500
+    // 2. Sync requirement change to 12000
+    // 3. Payment of 3500
+    await Promise.all([
+      service.processPayment('PROCEDURE_BOOKING', sourceId, 2500, user2),
+      service.syncRequirement({
+        patient_id: patientId,
+        branch_id: branchId,
+        source_type: 'PROCEDURE_BOOKING',
+        source_id: sourceId,
+        required_amount: 12000,
+        requirement_status: 'REQUIRED',
+      }, user1),
+      service.processPayment('PROCEDURE_BOOKING', sourceId, 3500, user2),
+    ]);
+
+    const finalRecord = await service.getBySource('PROCEDURE_BOOKING', sourceId);
+    expect(finalRecord).not.toBeNull();
+    expect(finalRecord!.required_amount).toBe(12000);
+    expect(finalRecord!.paid_amount).toBe(6000); // 2500 + 3500
+    expect(finalRecord!.balance_amount).toBe(6000); // 12000 - 6000
+    expect(finalRecord!.payment_status).toBe('PARTIALLY_PAID');
+    expect(finalRecord!.created_by).toBe(user1);
+  });
+
+  it('Preserves CANCELLED status on syncRequirement and rejects negative required amounts', async () => {
+    const sourceId = createObjectId();
+    const patientId = createObjectId();
+    const branchId = createObjectId();
+    const userId = createObjectId();
+
+    // Rejects negative requirement
+    await expect(
+      service.syncRequirement({
+        patient_id: patientId,
+        branch_id: branchId,
+        source_type: 'ADMISSION_REQUEST',
+        source_id: sourceId,
+        required_amount: -500,
+        requirement_status: 'REQUIRED',
+      }, userId),
+    ).rejects.toThrow('Required amount cannot be negative');
+
+    // Create record and cancel it
+    await service.syncRequirement({
+      patient_id: patientId,
+      branch_id: branchId,
+      source_type: 'ADMISSION_REQUEST',
+      source_id: sourceId,
+      required_amount: 5000,
+      requirement_status: 'REQUIRED',
+    }, userId);
+
+    // Manually mark CANCELLED to test status preservation
+    const { AdvancePaymentModel } = await import('../src/modules/advance-payment/advance-payment.model.js');
+    await AdvancePaymentModel.updateOne(
+      { source_type: 'ADMISSION_REQUEST', source_id: sourceId },
+      { $set: { payment_status: 'CANCELLED' } },
+    );
+
+    // Syncing requirement should not un-cancel it
+    const afterSync = await service.syncRequirement({
+      patient_id: patientId,
+      branch_id: branchId,
+      source_type: 'ADMISSION_REQUEST',
+      source_id: sourceId,
+      required_amount: 8000,
+      requirement_status: 'REQUIRED',
+    }, userId);
+
+    expect(afterSync.payment_status).toBe('CANCELLED');
+    expect(afterSync.required_amount).toBe(8000);
+  });
 });

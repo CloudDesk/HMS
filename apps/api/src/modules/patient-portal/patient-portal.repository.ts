@@ -860,12 +860,27 @@ export class PatientPortalRepository {
     return String(patient._id);
   }
 
+  async requestDependentAccess(userId: string, patientId: string, relationship: Exclude<PatientAccessRelationship, 'SELF'>, session?: ClientSession) {
+    // Insert only: retries cannot promote pending grants, revive revoked grants,
+    // change relationships, or downgrade existing independently verified access.
+    await PatientAccessGrantModel.updateOne(
+      { userId: objectId(userId), patientId: objectId(patientId) },
+      { $setOnInsert: { relationship, status: 'PENDING', isPrimary: false, verifiedAt: null, verifiedBy: null } },
+      { upsert: true, session },
+    );
+    await AuditLogModel.create([{
+      eventType: 'patient_portal.guardian.link_requested',
+      actorUserId: userId,
+      metadataJson: { patientId, relationship },
+    }], { session });
+  }
+
   async ensureAccessGrant(userId: string, patientId: string, relationship: PatientAccessRelationship, session?: ClientSession) {
     try {
       // The unique user/patient index prevents this upsert from converting an
       // existing relationship, including when two different relationships race.
       await PatientAccessGrantModel.updateOne(
-        { userId: objectId(userId), patientId: objectId(patientId), relationship },
+        { userId: objectId(userId), patientId: objectId(patientId), relationship, status: 'VERIFIED', revokedAt: null },
         { $set: { status: 'VERIFIED', isPrimary: relationship === 'SELF', verifiedAt: new Date(), revokedAt: null } },
         { upsert: true, session },
       );

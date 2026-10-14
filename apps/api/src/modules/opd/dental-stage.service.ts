@@ -389,6 +389,7 @@ export class DentalStageService {
             userId: user._id,
             patientId: new Types.ObjectId(patientId),
             status: 'VERIFIED',
+            revokedAt: null,
           }),
         );
 

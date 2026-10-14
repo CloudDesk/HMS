@@ -115,10 +115,12 @@ import { UserModel } from '../users/user.model.js';
 import { DoctorModel } from '../doctors/doctor.model.js';
 import { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { isValidPhoneNumber } from '../../utils/phone.js';
 import { env } from '../../config/env.js';
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { PatientRepository } from './patient.repository.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 import type {
   CreatePatientDTO,
   CreatePatientDocumentDTO,
@@ -136,18 +138,21 @@ const isValidDate = (value: string) => {
   return !Number.isNaN(date.getTime());
 };
 
-const isValidAfricanPhone = (phone: string): boolean => {
-  if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s()-]/g, '');
-  return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
-};
-
 export class PatientService {
+  private notificationService?: NotificationService;
+
   constructor(
     private readonly repository: PatientRepository,
     private readonly documentStorage: PatientDocumentStorageService,
     private readonly sequenceService: SequenceService,
-  ) {}
+    notificationService?: NotificationService,
+  ) {
+    this.notificationService = notificationService;
+  }
+
+  setNotificationService(notificationService: NotificationService) {
+    this.notificationService = notificationService;
+  }
 
   async list(query: PatientListQuery, userId?: string) {
     const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
@@ -170,8 +175,8 @@ export class PatientService {
     if (!data.phone || !data.phone.trim()) {
       throw new AppError('Phone number is required', 400, 'VALIDATION_ERROR');
     }
-    if (!isValidAfricanPhone(data.phone)) {
-      throw new AppError('Phone number must be a valid African regional phone number', 400, 'VALIDATION_ERROR');
+    if (!isValidPhoneNumber(data.phone)) {
+      throw new AppError('Phone number must be a valid international or regional phone number', 400, 'VALIDATION_ERROR');
     }
 
     const user = await this.repository.findUserById(userId);
@@ -214,6 +219,12 @@ export class PatientService {
 
     if (data.date_of_birth && !isValidDate(data.date_of_birth)) {
       throw new AppError('Date of birth is invalid', 400, 'VALIDATION_ERROR');
+    }
+
+    if (data.phone !== undefined && data.phone !== null) {
+      if (!data.phone.trim() || !isValidPhoneNumber(data.phone)) {
+        throw new AppError('Phone number must be a valid international or regional phone number', 400, 'VALIDATION_ERROR');
+      }
     }
 
     const patient = await this.repository.update(id, data, userId, scope);
@@ -477,6 +488,20 @@ export class PatientService {
         patientId: id, documentId: document.id, consentTemplateId: document.consent_template_id,
         contextType: document.context_type, contextId: document.context_id, status: document.consent_status,
       });
+
+      if (document.consent_status !== 'SIGNED' && this.notificationService) {
+        try {
+          await this.notificationService.notifyPatient({
+            patientId: id,
+            type: 'CONSENT_REQUIRED',
+            title: 'Consent Signature Required',
+            message: `${document.title} requires your review and signature.`,
+            relatedEntityId: document.id,
+          });
+        } catch {
+          // Non-blocking notification
+        }
+      }
     }
     return document;
   }
@@ -1056,6 +1081,20 @@ export class PatientService {
         contextId,
       },
     );
+
+    if (createdDoc.consent_status !== 'SIGNED' && this.notificationService) {
+      try {
+        await this.notificationService.notifyPatient({
+          patientId,
+          type: 'CONSENT_REQUIRED',
+          title: 'Consent Signature Required',
+          message: `${createdDoc.title} requires your review and signature.`,
+          relatedEntityId: createdDoc.id,
+        });
+      } catch {
+        // Non-blocking notification
+      }
+    }
 
     return createdDoc;
   }

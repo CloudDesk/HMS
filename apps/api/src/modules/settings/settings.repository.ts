@@ -1,11 +1,10 @@
 import { Types } from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { UserModel } from '../users/user.model.js';
 import {
   defaultGeneralSettings,
-  defaultHospitalSettings,
-  defaultLocalizationSettings,
-  defaultSystemSettings,
+  getInitialSystemSettings,
   defaultUserPreferenceSettings,
 } from './settings.defaults.js';
 import { SystemSettingsModel } from './settings.model.js';
@@ -103,10 +102,12 @@ const describeEvent = (eventType: string) =>
 
 export class SettingsRepository {
   async get(): Promise<SystemSettings> {
+    const existing = await SystemSettingsModel.findOne({ key: 'system' }).lean();
+    if (existing) return toSettings(existing);
     const settings = await SystemSettingsModel.findOneAndUpdate(
       { key: 'system' },
-      { $setOnInsert: { key: 'system', ...defaultSystemSettings } },
-      { upsert: true, returnDocument: 'after', lean: true },
+      { $setOnInsert: { key: 'system', ...getInitialSystemSettings() } },
+      { upsert: true, returnDocument: 'after', lean: true, runValidators: true },
     );
 
     return toSettings(settings as unknown as SettingsRecord);
@@ -133,10 +134,15 @@ export class SettingsRepository {
   }
 
   async resetSection(section: SettingsSection, actorUserId: string): Promise<SystemSettings> {
+    if (section === 'hospital' || section === 'localization') {
+      throw new AppError(
+        'Hospital identity and localization have no universal defaults. Edit this section explicitly.',
+        409,
+        'SETTINGS_EXPLICIT_CONFIGURATION_REQUIRED',
+      );
+    }
     const defaults = {
       general: defaultGeneralSettings,
-      hospital: defaultHospitalSettings,
-      localization: defaultLocalizationSettings,
       userPreferences: defaultUserPreferenceSettings,
     };
 

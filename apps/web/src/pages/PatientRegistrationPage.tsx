@@ -10,6 +10,7 @@ import { MedicalSpinner } from '../components/ui/MedicalLoader';
 import { usePatientRegistrationFeature } from '../hooks/patients/usePatientRegistrationFeature';
 import { navigate } from '../routing/navigation';
 import { getPatientErrorMessage, patientFullName } from './patient-utils';
+import { isValidPhoneNumber } from '../utils/phone';
 
 type PatientFormState = {
   firstName: string;
@@ -76,12 +77,6 @@ const emptyPatientForm: PatientFormState = {
 const nullable = (value: string) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
-};
-
-const isValidAfricanPhone = (phone: string): boolean => {
-  if (!phone || !phone.trim()) return true;
-  const cleaned = phone.replace(/[\s\-()]/g, '');
-  return /^(\+?(?:2[0-9]{2}|27|20|21[0-9]|22[0-9]|23[0-9]|24[0-9]|25[0-9]|26[0-9]|29[0-9])|0)?[0-9]{8,12}$/.test(cleaned);
 };
 
 const toPatientPayload = (form: PatientFormState): SavePatientPayload => ({
@@ -196,8 +191,8 @@ export function PatientRegistrationPage({
     }
     if (!form.phone.trim()) {
       errs.phone = 'Phone number is required';
-    } else if (!isValidAfricanPhone(form.phone)) {
-      errs.phone = 'Please enter a valid African phone number (e.g. +233 24 123 4567 or 0241234567)';
+    } else if (!isValidPhoneNumber(form.phone)) {
+      errs.phone = 'Please enter a valid phone number (e.g. +91 98765 43210 or 9876543210)';
     }
     if (!form.consent) {
       errs.consent = 'Patient consent is required before registration';
@@ -430,7 +425,7 @@ export function PatientRegistrationPage({
                     setForm({ ...form, phone: event.target.value });
                     if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: undefined });
                   }}
-                  placeholder="e.g. +233 24 123 4567"
+                  placeholder="e.g. +91 98765 43210"
                   type="tel"
                   value={form.phone}
                 />

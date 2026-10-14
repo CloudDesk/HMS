@@ -1,7 +1,7 @@
 import type { NotificationRepository } from './notification.repository.js';
 import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
-import type { CreateNotificationDTO, NotificationListQuery } from './notification.types.js';
+import type { CreateNotificationDTO, NotificationListQuery, NotificationType } from './notification.types.js';
 import type { PushNotificationService } from './push-notification.service.js';
 
 export class NotificationService {
@@ -11,11 +11,42 @@ export class NotificationService {
   ) {}
 
   async createNotification(data: CreateNotificationDTO, session?: ClientSession) {
+    if (data.recipient_role === 'PATIENT' && data.patient_id && data.recipient_user_id &&
+        !(await this.repository.canReceivePatientNotification(data.recipient_user_id, data.patient_id))) {
+      throw new AppError('Patient notification recipient is not authorized', 403, 'NOTIFICATION_RECIPIENT_FORBIDDEN');
+    }
     const notification = await this.repository.create(data, session);
     if (!session && notification.recipient_user_id) {
       void this.push?.sendToUser(notification.recipient_user_id, notification);
     }
     return notification;
+  }
+
+  async notifyPatient(
+    data: {
+      patientId: string;
+      type: NotificationType;
+      title: string;
+      message: string;
+      relatedEntityId: string;
+    },
+    session?: ClientSession,
+  ) {
+    try {
+      const notifications = await this.repository.createPatientNotifications(data, session);
+      if (!session) {
+        for (const n of notifications) {
+          if (n.recipient_user_id && await this.repository.canReceivePatientNotification(n.recipient_user_id, data.patientId)) {
+            void this.push?.sendToUser(n.recipient_user_id, n);
+          }
+        }
+      }
+      return notifications;
+    } catch {
+      // Fixed text only: never log database errors, patient IDs, or payloads.
+      console.warn('Patient notification persistence failed; delivery is not queued for retry.');
+      return [];
+    }
   }
 
   async createGlobalNotification(data: CreateNotificationDTO, actorUserId: string) {

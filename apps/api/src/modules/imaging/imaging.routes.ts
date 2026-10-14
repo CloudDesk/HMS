@@ -52,7 +52,7 @@ export const registerImagingRoutes = async (app: FastifyInstance, services: Serv
           await services.permissions.auditDeniedAccess(request.user!.id, 'Imaging', 'Orders', 'EnterReport', metadata(request));
           throw new AppError('Permission required', 403, 'PERMISSION_REQUIRED');
         }
-        await services.opdClinicalOrders.authorizeDentalImagingReport(id, request.user!.id);
+        await services.opdClinicalOrders.authorizeDentalImagingReport(id, request.user!.id, 'Edit');
       }
       const file = await request.file();
       if (!file) throw new AppError('Attachment file is required', 400, 'VALIDATION_ERROR');
@@ -64,10 +64,10 @@ export const registerImagingRoutes = async (app: FastifyInstance, services: Serv
       }, request.user!.id);
       return reply.status(201).send(ok(result));
     });
-  app.get('/api/imaging/orders/:id/attachments/:attachmentId/download', { preHandler: authenticate(services) },
+  app.get<{ Params: { id: string; attachmentId: string } }>('/api/imaging/orders/:id/attachments/:attachmentId/download', { preHandler: authenticate(services) },
     async (request, reply) => {
-      const id = parseImagingParams(request.params).id;
-      const attachmentId = (request.params as { attachmentId: string }).attachmentId;
+      const id = parseImagingParams({ id: request.params.id }).id;
+      const attachmentId = request.params.attachmentId;
       if (!attachmentId) throw new AppError('Attachment id is required', 400, 'VALIDATION_ERROR');
       if (!(await services.permissions.userHasPermission(request.user!.id, 'Imaging', 'Orders', 'View'))) {
         if (!(await services.permissions.userHasPermission(request.user!.id, 'OPD', 'OPD Clinical Orders', 'View'))) {

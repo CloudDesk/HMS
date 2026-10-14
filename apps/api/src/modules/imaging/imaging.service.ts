@@ -6,6 +6,7 @@ import type { ClinicalOrderRequestMetadata, OpdClinicalOrder } from '../opd/opd-
 import type { PatientDocumentStorageService } from '../../shared/storage/patient-document-storage.service.js';
 import type { ImagingRepository } from './imaging.repository.js';
 import type { ImagingOrderListQuery, SaveImagingAttachmentDTO, SaveImagingReportDTO, UpdateImagingStatusDTO } from './imaging.types.js';
+import type { NotificationService } from '../notifications/notification.service.js';
 
 const transitions: Partial<Record<OpdClinicalOrder['status'], UpdateImagingStatusDTO['status']>> = {
   SUBMITTED: 'RECEIVED', RECEIVED: 'IN_PROGRESS', REPORT_ENTERED: 'VERIFIED', VERIFIED: 'COMPLETED',
@@ -27,6 +28,7 @@ export class ImagingService {
     private readonly orderRepository: OpdClinicalOrderRepository,
     private readonly repository: ImagingRepository,
     private readonly storageService?: PatientDocumentStorageService,
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async list(query: ImagingOrderListQuery, actorUserId: string) {
@@ -55,7 +57,7 @@ export class ImagingService {
 
   async updateStatus(id: string, data: UpdateImagingStatusDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {
     const scope = await this.orderRepository.resolveBranchScope(actorUserId);
-    return executeTransaction(() => mongoose.startSession(), async (session) => {
+    const updated = await executeTransaction(() => mongoose.startSession(), async (session) => {
       const order = await this.orderRepository.getOperationalById(id, 'IMAGING', scope, session);
       if (!order) throw new AppError('Imaging order not found', 404, 'IMAGING_ORDER_NOT_FOUND');
       this.assertMutable(order);
@@ -78,6 +80,25 @@ export class ImagingService {
       }, session);
       return updated;
     });
+
+    if (data.status === 'VERIFIED' && this.notificationService) {
+      try {
+        const report = await this.repository.getReport(id);
+        if (report) {
+          await this.notificationService.notifyPatient({
+            patientId: updated.patient_id,
+            type: 'IMAGING_REPORT',
+            title: 'Imaging Scan Available',
+            message: 'Your imaging scan report has been verified and is ready for viewing.',
+            relatedEntityId: report.id,
+          });
+        }
+      } catch {
+        // Safe non-blocking error handling
+      }
+    }
+
+    return updated;
   }
 
   async enterReport(id: string, data: SaveImagingReportDTO, actorUserId: string, metadata: ClinicalOrderRequestMetadata) {

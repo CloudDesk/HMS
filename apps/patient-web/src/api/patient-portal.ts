@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { apiClient } from './client';
 import {
   appointmentCreatedSchema,
@@ -208,9 +208,9 @@ export const patientPortalApi = {
     relationship: 'PARENT' | 'LEGAL_GUARDIAN';
     legal_consent_accepted: true;
   }) {
-    return apiClient.request<{ patientId: string; patientNumber: string }>(
+    return apiClient.request<{ status: 'PENDING'; message: string }>(
       '/patient-portal/dependents/link',
-      { method: 'POST', body: input, schema: patientSavedSchema as z.ZodType<{ patientId: string; patientNumber: string }> },
+      { method: 'POST', body: input, schema: z.object({ status: z.literal('PENDING'), message: z.string() }) },
     );
   },
   updatePatient(patientId: string, input: PortalPatientUpdateInput) {
