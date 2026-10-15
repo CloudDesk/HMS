@@ -120,4 +120,54 @@ export const branchesApi = {
       method: 'DELETE',
     });
   },
+
+  getIdentifiers(id: string) {
+    return apiClient.request<ApiBranchIdentifier[]>(`/branches/${encodeURIComponent(id)}/identifiers`);
+  },
+
+  addIdentifier(id: string, payload: AddBranchIdentifierPayload) {
+    return apiClient.request<ApiBranchIdentifier>(`/branches/${encodeURIComponent(id)}/identifiers`, {
+      body: payload,
+      method: 'POST',
+    });
+  },
+
+  updateIdentifierStatus(id: string, identifierId: string, payload: UpdateBranchIdentifierStatusPayload) {
+    return apiClient.request<ApiBranchIdentifier>(
+      `/branches/${encodeURIComponent(id)}/identifiers/${encodeURIComponent(identifierId)}/status`,
+      {
+        body: payload,
+        method: 'PUT',
+      },
+    );
+  },
 };
+
+export type ApiBranchIdentifierStatus = 'ACTIVE' | 'INACTIVE' | 'REVOKED';
+
+export type ApiBranchIdentifier = {
+  id: string;
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status: ApiBranchIdentifierStatus;
+  effective_from: string | null;
+  effective_to: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+};
+
+export type AddBranchIdentifierPayload = {
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status?: ApiBranchIdentifierStatus;
+  effective_from?: string | null;
+  effective_to?: string | null;
+};
+
+export type UpdateBranchIdentifierStatusPayload = {
+  status: ApiBranchIdentifierStatus;
+  effective_to?: string | null;
+};
+

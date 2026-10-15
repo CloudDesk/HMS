@@ -17,7 +17,59 @@ export type PatientEmergencyContact = {
   phone?: string | null;
 };
 
+export type PatientIdentifierStatus = 'ACTIVE' | 'INACTIVE';
+
+export type PatientIdentifier = {
+  id: string;
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status: PatientIdentifierStatus;
+  effective_from: Date | null;
+  effective_to: Date | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type DhaPatientVerificationResult = {
+  matched: boolean;
+  externalSystem: string;
+  externalIdentifierType: string;
+  mappingAvailable: boolean;
+  reused?: boolean;
+  message?: string;
+};
+
+export type AddPatientIdentifierDTO = {
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status?: PatientIdentifierStatus;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
+};
+
+export type UpdatePatientIdentifierDTO = {
+  status?: PatientIdentifierStatus;
+  effective_to?: string | null;
+};
+
+export type ShaPatientIdentifierReadiness = {
+  status: 'SHA_PATIENT_IDENTIFIER_AVAILABLE' | 'SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE' | 'SHA_IDENTIFIER_SYSTEM_UNCONFIGURED';
+  identifierSystemConfigured: boolean;
+  identifierAvailable: boolean;
+  identifierSystem: string | null;
+  identifierType: string | null;
+};
+
 export type Patient = {
+
   id: string;
   patient_number: string;
   first_name: string | null;
@@ -167,8 +219,11 @@ export type ReviewPatientDocumentDTO = {
 export type PatientTimelineEventType =
   | 'REGISTRATION'
   | 'PROFILE_UPDATED'
+  | 'PATIENT_IDENTIFIER_ADDED'
+  | 'PATIENT_IDENTIFIER_UPDATED'
   | 'APPOINTMENT_CREATED'
   | 'DOCUMENT_ADDED'
+
   | 'DOCUMENT_DELETED'
   | 'DOCUMENT_REVIEWED'
   | 'CONSENT_ADDED'

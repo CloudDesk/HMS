@@ -14,6 +14,7 @@ import { PatientCardModal } from '../components/patients/PatientCardModal';
 import { PatientDocumentUploadModal } from '../components/patients/PatientDocumentUploadModal';
 import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
 import { PatientProfileTabContent } from '../components/patients/PatientProfileTabContent';
+import { PatientAvatar } from '../components/patients/PatientAvatar';
 import { PrintBillingModal } from '../components/print/PrintBillingModal';
 import { PrintImagingOrderModal } from '../components/print/PrintImagingOrderModal';
 import { PrintLabOrderModal } from '../components/print/PrintLabOrderModal';
@@ -286,9 +287,12 @@ export function PatientProfilePage() {
         {/* Hero Banner */}
         <section className="profile-hero-card">
           <div className="profile-hero-left">
-            <div className="profile-hero-avatar">
-              <span>{patientInitials(patient)}</span>
-            </div>
+            <PatientAvatar
+              className="profile-hero-avatar"
+              fullName={patientFullName(patient)}
+              photoUrl={patient.photo_url}
+              size="hero"
+            />
             <div className="profile-hero-info">
               <div className="profile-hero-title">
                 <h2>{patientFullName(patient)}</h2>

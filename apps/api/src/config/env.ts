@@ -133,13 +133,7 @@ export const assertPatientPortalDemoOtpConfiguration = (input: {
 assertPatientPortalDemoOtpConfiguration({
   enabled: patientPortalDemoOtpEnabled,
   otp: patientPortalDemoOtp,
-  production: productionEnvironment,
-});
-
-assertPatientPortalDemoOtpConfiguration({
-  enabled: patientPortalDemoOtpEnabled,
-  otp: patientPortalDemoOtp,
-  production: productionEnvironment,
+  production: appEnvironment === 'prod',
 });
 
 export const resolveAllowedCorsOrigins = (origins: string[]): string[] => {
@@ -370,7 +364,36 @@ export const env = {
     url: process.env.SMS_GATEWAY_URL ?? '',
     apiKey: process.env.SMS_GATEWAY_API_KEY ?? '',
   },
+  sha: {
+    enabled: parseBoolean(process.env.SHA_INTEGRATION_ENABLED, false),
+    baseUrl: process.env.SHA_API_BASE_URL ?? '',
+    apiKey: process.env.SHA_API_KEY ?? '',
+    facilityCode: process.env.SHA_FACILITY_CODE ?? '',
+    timeoutMs: parseInteger(process.env.SHA_TIMEOUT_MS, 10000),
+    patientIdentifierSystem: process.env.SHA_PATIENT_IDENTIFIER_SYSTEM ?? '',
+    facilityIdentifierSystem: process.env.SHA_FACILITY_IDENTIFIER_SYSTEM ?? process.env.DHA_FACILITY_IDENTIFIER_SYSTEM ?? '',
+  },
+  dha: {
+    enabled: parseBoolean(process.env.DHA_INTEGRATION_ENABLED, false),
+    baseUrl: process.env.DHA_BASE_URL ?? '',
+    tokenUrl: process.env.DHA_TOKEN_URL ?? '',
+    clientId: process.env.DHA_CLIENT_ID ?? '',
+    clientSecret: process.env.DHA_CLIENT_SECRET ?? '',
+    timeoutMs: parseInteger(process.env.DHA_TIMEOUT_MS, 10000),
+    integrationMode: (process.env.DHA_INTEGRATION_MODE?.trim().toUpperCase() === 'REAL' ? 'REAL' : 'MOCK') as 'MOCK' | 'REAL',
+    mockPreauthDecision: (['APPROVED', 'PARTIALLY_APPROVED', 'REJECTED'].includes(
+      process.env.MOCK_DHA_PREAUTH_DECISION?.trim().toUpperCase() ?? '',
+    )
+      ? process.env.MOCK_DHA_PREAUTH_DECISION!.trim().toUpperCase()
+      : 'APPROVED') as 'APPROVED' | 'PARTIALLY_APPROVED' | 'REJECTED',
+    mockConsentMode: (['VERIFIED', 'DENIED', 'PENDING'].includes(
+      process.env.MOCK_DHA_CONSENT_MODE?.trim().toUpperCase() ?? '',
+    )
+      ? process.env.MOCK_DHA_CONSENT_MODE!.trim().toUpperCase()
+      : 'VERIFIED') as 'VERIFIED' | 'DENIED' | 'PENDING',
+  },
 } as const;
+
 
 if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
   throw new Error('JWT_ACCESS_TOKEN_SECRET and JWT_REFRESH_TOKEN_SECRET are required');
@@ -378,4 +401,8 @@ if (!env.auth.accessTokenSecret || !env.auth.refreshTokenSecret) {
 
 if (env.app.environment === 'prod' && env.auth.patientPortalDemoOtp) {
   throw new Error('PATIENT_PORTAL_DEMO_OTP must not be configured in production');
+}
+
+if (env.app.environment === 'prod' && env.dha.integrationMode === 'MOCK') {
+  throw new Error('DHA_INTEGRATION_MODE must not be set to MOCK in production');
 }

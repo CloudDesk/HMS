@@ -34,6 +34,16 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/billing': [{ module: 'Billing', screen: 'Invoices' }],
   '/billing/workspace': [{ module: 'Billing', screen: 'Invoices' }],
   '/billing/history': [{ module: 'Billing', screen: 'Invoices' }],
+  '/insurance': [
+    { module: 'Insurance', screen: 'Configuration' },
+    { module: 'Insurance', screen: 'Benefits' },
+  ],
+  '/insurance/payers': [{ module: 'Insurance', screen: 'Configuration' }],
+  '/insurance/schemes': [{ module: 'Insurance', screen: 'Configuration' }],
+  '/insurance/policies': [{ module: 'Insurance', screen: 'Configuration' }],
+  '/insurance/members': [{ module: 'Insurance', screen: 'Configuration' }],
+  '/insurance/benefits': [{ module: 'Insurance', screen: 'Benefits' }],
+  '/insurance/sha-mappings': [{ module: 'Insurance', screen: 'Benefits' }],
   '/administration/branches': [{ module: 'Administration', screen: 'Branches' }],
   '/administration/settings': [{ module: 'Administration', screen: 'Settings' }],
   '/administration/consent-templates': [{ module: 'Administration', screen: 'Consent Templates' }],
@@ -110,7 +120,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/emergency/workspace': [{ module: 'Emergency', screen: 'Encounters' }],
 };
 
-const anyPermissionRoutes = new Set(['/surgery']);
+const anyPermissionRoutes = new Set(['/surgery', '/insurance']);
 
 const normalize = (value: string) => value.trim().toLowerCase().replaceAll(/[_\s-]+/g, ' ');
 const pathnameOnly = (value: string) => {
