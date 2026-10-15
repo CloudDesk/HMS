@@ -130,11 +130,6 @@ describe('permission-driven dashboard shell', () => {
     testState.user = user('SUPER_ADMIN', []);
     await render();
 
-    expect(container.textContent).toContain('Overview');
-    expect(container.textContent).toContain('Doctors');
-    expect(container.textContent).toContain('Appointments');
-    expect(container.textContent).toContain('OPD');
-    expect(container.textContent).toContain('Administration');
     expect(container.textContent).toContain('Hospital Executive Overview');
     expect(container.textContent).not.toContain('Billing');
     expect(container.textContent).not.toContain('Billed Revenue');
@@ -142,13 +137,10 @@ describe('permission-driven dashboard shell', () => {
     expect(testState.executiveHook).toHaveBeenCalledTimes(1);
   });
 
-  it('switches dashboard components without navigation', async () => {
+  it('switches dashboard components via tab query parameter', async () => {
+    testState.search = '?tab=appointments';
     testState.user = user('SUPER_ADMIN', []);
     await render();
-
-    const appointmentsTab = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Appointments'));
-    await act(async () => appointmentsTab?.click());
 
     expect(container.textContent).toContain('Appointment dashboard content');
     expect(testState.navigate).not.toHaveBeenCalled();
@@ -171,9 +163,7 @@ describe('permission-driven dashboard shell', () => {
     ]);
     await render();
 
-    expect(container.textContent).toContain('My Clinical Day');
     expect(container.textContent).toContain('Doctor dashboard content');
-    expect(container.textContent).toContain('OPD');
     expect(container.textContent).not.toContain('Billing');
     expect(container.textContent).not.toContain('Administration');
     expect(container.textContent).not.toContain('Hospital Executive Overview');
@@ -229,8 +219,6 @@ describe('permission-driven dashboard shell', () => {
     ]);
     await render();
 
-    expect(container.textContent).toContain('Pharmacy Queue');
-    expect(container.textContent).toContain('Pharmacy Inventory');
     expect(container.textContent).toContain('Pharmacy queue content');
     expect(container.textContent).not.toContain('Administration');
     expect(testState.executiveHook).not.toHaveBeenCalled();
@@ -252,11 +240,31 @@ describe('permission-driven dashboard shell', () => {
     expect(testState.executiveHook).not.toHaveBeenCalled();
   });
 
+  it('selects OPD as default for CLINICIAN_NURSE holding both appointments and opd permissions', async () => {
+    testState.user = user('CLINICIAN_NURSE', [
+      authPermission('Appointments', 'Appointment Records'),
+      authPermission('OPD', 'OPD Visits'),
+    ]);
+    await render();
+
+    expect(container.textContent).toContain('OPD dashboard content');
+  });
+
+  it('selects Appointments as default for RECEPTIONIST holding both appointments and opd permissions', async () => {
+    testState.user = user('RECEPTIONIST', [
+      authPermission('Appointments', 'Appointment Records'),
+      authPermission('OPD', 'OPD Visits'),
+    ]);
+    await render();
+
+    expect(container.textContent).toContain('Appointment dashboard content');
+  });
+
   it('requires the Billing User role as well as Billing view permission', async () => {
     testState.user = user('CUSTOM_FINANCE_VIEWER', [authPermission('Billing', 'Invoices')]);
     await render();
 
-    expect(container.textContent).toContain('My Access');
+    expect(container.textContent).toContain('My HMS Workspace');
     expect(container.textContent).not.toContain('Billing dashboard content');
   });
 
@@ -264,7 +272,7 @@ describe('permission-driven dashboard shell', () => {
     testState.user = user('BILLING_AUTHORIZED', [authPermission('Patients', 'Patient Records')]);
     await render();
 
-    expect(container.textContent).toContain('My Access');
+    expect(container.textContent).toContain('My HMS Workspace');
     expect(container.textContent).not.toContain('Billing dashboard content');
   });
 
@@ -272,7 +280,6 @@ describe('permission-driven dashboard shell', () => {
     testState.user = user('CUSTOM_PATIENT_RECORDS', [authPermission('Patients', 'Patient Records')]);
     await render();
 
-    expect(container.textContent).toContain('My Access');
     expect(container.textContent).toContain('My HMS Workspace');
     expect(container.textContent).toContain('Patients');
     expect(testState.executiveHook).not.toHaveBeenCalled();

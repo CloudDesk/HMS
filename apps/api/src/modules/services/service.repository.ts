@@ -1,6 +1,8 @@
 import { ServiceModel } from './service.model.js';
-import { Types, type ClientSession } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/surgery.model.js';
+import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
 import type {
   Service,
   ServiceListQuery,
@@ -17,6 +19,8 @@ type ServiceRecord = {
   category?: string | null;
   sampleType?: string | null;
   description?: string | null;
+  referenceVideoUrl?: string | null;
+  referenceVideoTitle?: string | null;
   departmentId: unknown;
   standardPrice: number;
   defaultDurationMinutes?: number | null;
@@ -48,6 +52,8 @@ const toService = (service: ServiceRecord): Service => ({
   category: service.category ?? null,
   sample_type: service.sampleType ?? null,
   description: service.description ?? null,
+  reference_video_url: service.referenceVideoUrl ?? null,
+  reference_video_title: service.referenceVideoTitle ?? null,
   department_id: String(service.departmentId),
   standard_price: service.standardPrice,
   default_duration_minutes: service.defaultDurationMinutes ?? null,
@@ -72,6 +78,8 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
       category: data.category,
       sampleType: data.sample_type,
       description: data.description,
+      referenceVideoUrl: data.reference_video_url,
+      referenceVideoTitle: data.reference_video_title,
       departmentId: data.department_id,
       standardPrice: data.standard_price,
       defaultDurationMinutes: data.default_duration_minutes,
@@ -87,6 +95,10 @@ const toPersistence = (data: CreateServiceDTO | UpdateServiceDTO) =>
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export class ServiceRepository {
+  async session() {
+    return mongoose.startSession();
+  }
+
   async getActiveBillingServices(ids: string[]) {
     return ServiceModel.find({
       _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
@@ -188,13 +200,15 @@ export class ServiceRepository {
     return service ? toService(service) : undefined;
   }
 
-  async getActiveProcedure(id: string) {
+  async getActiveProcedure(id: string, session?: ClientSession) {
     const service = await ServiceModel.findOne({
       _id: id,
       serviceType: 'PROCEDURE',
       status: 'ACTIVE',
       deletedAt: null,
-    }).lean();
+    })
+      .session(session ?? null)
+      .lean();
     return service ? toService(service) : undefined;
   }
 
@@ -271,12 +285,120 @@ const byType: Record<Service['service_type'], number> = {
     return { total, active, inactive, addedThisMonth, departmentsCovered, byType };
   }
 
-  async softDelete(id: string, actorUserId: string) {
-    return ServiceModel.findOneAndUpdate(
+  async hasActiveDependencies(serviceId: string, session?: ClientSession): Promise<boolean> {
+    const isOid = Types.ObjectId.isValid(serviceId);
+    const oid = isOid ? new Types.ObjectId(serviceId) : null;
+
+    const queries: Promise<unknown>[] = [];
+
+    if (oid) {
+      queries.push(
+        ProcedureBookingModel.exists({
+          serviceId: oid,
+          status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+        }).session(session ?? null),
+        ProcedureRecommendationModel.exists({
+          serviceId: oid,
+          status: 'ACTIVE',
+        }).session(session ?? null),
+        OpdClinicalOrderModel.exists({
+          'items.serviceId': oid,
+          status: { $ne: 'COMPLETED' },
+          deletedAt: null,
+        }).session(session ?? null),
+      );
+    }
+
+    const results = await Promise.all(queries);
+    return results.some((res) => Boolean(res));
+  }
+
+  async findServicesWithActiveDependencies(
+    serviceIds: string[],
+    session?: ClientSession,
+  ): Promise<string[]> {
+    if (serviceIds.length === 0) return [];
+
+    const targetIdSet = new Set(serviceIds.map(String));
+    const objectIds = serviceIds
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+
+    const activeSet = new Set<string>();
+    const queries: Promise<void>[] = [];
+
+    if (objectIds.length > 0) {
+      queries.push(
+        ProcedureBookingModel.distinct('serviceId', {
+          serviceId: { $in: objectIds },
+          status: { $in: ['PENDING_CONFIRMATION', 'BOOKED'] },
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+        ProcedureRecommendationModel.distinct('serviceId', {
+          serviceId: { $in: objectIds },
+          status: 'ACTIVE',
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+        OpdClinicalOrderModel.distinct('items.serviceId', {
+          'items.serviceId': { $in: objectIds },
+          status: { $ne: 'COMPLETED' },
+          deletedAt: null,
+        })
+          .session(session ?? null)
+          .then((ids) => {
+            for (const id of ids) {
+              const str = String(id);
+              if (targetIdSet.has(str)) activeSet.add(str);
+            }
+          }),
+      );
+    }
+
+    await Promise.all(queries);
+    return Array.from(activeSet);
+  }
+
+  async softDelete(id: string, actorUserId: string, session?: ClientSession) {
+    const query = ServiceModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
       { returnDocument: 'after', lean: true },
     );
+    if (session) query.session(session);
+    return query;
+  }
+
+  async findForBulkDelete(ids: string[], departmentId: string, session?: ClientSession) {
+    const query = ServiceModel.find({ _id: { $in: ids }, departmentId, deletedAt: null })
+      .select('_id code serviceType').lean();
+    if (session) query.session(session);
+    const services = await query;
+    return services.map((service) => ({
+      id: String(service._id),
+      code: service.code,
+      serviceType: service.serviceType ?? 'GENERAL',
+    }));
+  }
+
+  async bulkSoftDelete(ids: string[], departmentId: string, actorUserId: string, session?: ClientSession) {
+    const result = await ServiceModel.updateMany(
+      { _id: { $in: ids }, departmentId, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      session ? { session } : {},
+    );
+    return result.modifiedCount;
   }
 
   async audit(
@@ -284,13 +406,14 @@ const byType: Record<Service['service_type'], number> = {
     actorUserId: string,
     metadata: ServiceRequestMetadata,
     details: Record<string, unknown>,
+    session?: ClientSession,
   ) {
-    await AuditLogModel.create({
+    await AuditLogModel.create([{
       eventType,
       actorUserId,
       ipAddress: metadata.ipAddress,
       userAgent: metadata.userAgent,
       metadataJson: details,
-    });
+    }], session ? { session } : {});
   }
 }

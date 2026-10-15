@@ -4,7 +4,8 @@ import {
   usersApi,
   type UserListParams,
   type SaveUserPayload,
-  type ApiUserStatus
+  type ApiUserStatus,
+  type ReassignDepartmentUsersPayload,
 } from '../../api/users';
 
 export const usersKeys = {
@@ -91,6 +92,23 @@ export function useUpdateUserStatus() {
   });
 }
 
+export function useReassignDepartmentUsers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: ReassignDepartmentUsersPayload) => usersApi.reassignDepartment(payload),
+    onSuccess: async (_, payload) => {
+      toast.success(`${payload.user_ids.length} user(s) reassigned successfully`);
+      await queryClient.invalidateQueries({ queryKey: usersKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: usersKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: usersKeys.details() });
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to reassign selected users');
+    },
+  });
+}
+
 export function useResetPassword() {
   return useMutation({
     mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) => usersApi.resetPassword(id, newPassword),
@@ -102,3 +120,16 @@ export function useResetPassword() {
     }
   });
 }
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => usersApi.delete(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: usersKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: usersKeys.summaries() });
+    },
+  });
+}
+

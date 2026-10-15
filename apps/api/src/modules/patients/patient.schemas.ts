@@ -208,3 +208,111 @@ export const patientListResponseSchema = apiResponseSchema({
   },
 });
 
+export const patientIdentifierIdParamsSchema = {
+  type: 'object',
+  required: ['id', 'identifierId'],
+  properties: {
+    id: { type: 'string', minLength: 1 },
+    identifierId: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+export const addPatientIdentifierBodySchema = {
+  type: 'object',
+  required: ['identifier_type', 'value', 'issuing_authority'],
+  additionalProperties: false,
+  properties: {
+    identifier_type: { type: 'string', minLength: 1, maxLength: 50 },
+    value: { type: 'string', minLength: 1, maxLength: 100 },
+    issuing_authority: { type: 'string', minLength: 1, maxLength: 100 },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_from: { type: ['string', 'null'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const updatePatientIdentifierStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: {
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const patientIdentifierDataSchema = {
+  type: 'object',
+  required: ['id', 'identifier_type', 'value', 'issuing_authority', 'status', 'effective_from', 'effective_to', 'created_at', 'updated_at'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    identifier_type: { type: 'string' },
+    value: { type: 'string' },
+    issuing_authority: { type: 'string' },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
+    effective_from: { type: ['string', 'null'] },
+    effective_to: { type: ['string', 'null'] },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+  },
+} as const;
+
+export const patientIdentifierResponseSchema = apiResponseSchema(patientIdentifierDataSchema);
+export const patientIdentifierListResponseSchema = apiResponseSchema({
+  type: 'array',
+  items: patientIdentifierDataSchema,
+});
+
+export const attachConsentTemplateBodySchema = {
+  type: 'object',
+  required: ['template_id'],
+  additionalProperties: false,
+  properties: {
+    template_id: { type: 'string', minLength: 1 },
+    title: { type: ['string', 'null'], maxLength: 200 },
+    context_type: { type: 'string', enum: ['PATIENT', 'PROCEDURE', 'ADMISSION', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
+    context_id: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'], maxLength: 1000 },
+    consent_status: { type: 'string', enum: ['PENDING', 'ATTACHED', 'SIGNED'] },
+    valid_until: { type: ['string', 'null'] },
+    branch_id: { type: ['string', 'null'] },
+    form_responses: { type: 'object' },
+    visit_id: { type: ['string', 'null'] },
+    procedure_id: { type: ['string', 'null'] },
+    admission_id: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const submitStructuredConsentBodySchema = {
+  type: 'object',
+  required: ['template_id'],
+  additionalProperties: false,
+  properties: {
+    template_id: { type: 'string', minLength: 1 },
+    context_type: { type: 'string', enum: ['PATIENT', 'PROCEDURE', 'ADMISSION', 'INPATIENT_ADMISSION', 'PROCEDURE_BOOKING'] },
+    context_id: { type: ['string', 'null'] },
+    branch_id: { type: ['string', 'null'] },
+    visit_id: { type: ['string', 'null'] },
+    procedure_id: { type: ['string', 'null'] },
+    admission_id: { type: ['string', 'null'] },
+    form_responses: { type: 'object' },
+    signatures: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['signer_type', 'signer_name', 'signature_data'],
+        properties: {
+          signer_type: { type: 'string' },
+          signer_name: { type: 'string' },
+          signature_data: { type: 'string' },
+          signed_at: { type: 'string' },
+        },
+      },
+    },
+    declaration_accepted: { type: 'boolean' },
+    notes: { type: ['string', 'null'] },
+  },
+} as const;
+
+

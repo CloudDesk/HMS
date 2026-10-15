@@ -75,6 +75,7 @@ const editableDoctorProperties = {
   phone: { type: ['string', 'null'] },
   email: { type: ['string', 'null'] },
   notes: { type: ['string', 'null'] },
+  signature_data: { type: ['string', 'null'] },
 } as const;
 
 export const createDoctorBodySchema = {
@@ -218,5 +219,10 @@ export const availableSlotsQuerySchema = {
   type: 'object',
   required: ['date'],
   additionalProperties: false,
-  properties: { date: { type: 'string', pattern: dateOnlyPattern } },
+  properties: {
+    date: { type: 'string', pattern: dateOnlyPattern },
+    duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
+    patient_id: { type: 'string', minLength: 1 },
+    exclude_appointment_id: { type: 'string', minLength: 1 },
+  },
 } as const;

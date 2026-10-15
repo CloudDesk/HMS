@@ -1,5 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import type { ConsentContextType, ConsentTemplateStatus } from './consent.types.js';
+import type { ConsentContextType, ConsentFormDefinition, ConsentTemplateStatus } from './consent.types.js';
 
 export type ConsentTemplateFields = {
   branchId: Types.ObjectId;
@@ -10,6 +10,9 @@ export type ConsentTemplateFields = {
   mandatory: boolean;
   version: number;
   status: ConsentTemplateStatus;
+  formDefinition?: ConsentFormDefinition | null;
+  publishedAt?: Date | null;
+  publishedBy?: Types.ObjectId | null;
   createdBy: Types.ObjectId;
   updatedBy: Types.ObjectId;
   createdAt: Date;
@@ -24,12 +27,19 @@ const consentTemplateSchema = new Schema<ConsentTemplateFields>({
   contextType: { type: String, enum: ['PATIENT', 'PROCEDURE', 'ADMISSION'], required: true },
   mandatory: { type: Boolean, default: false, required: true },
   version: { type: Number, min: 1, default: 1, required: true },
-  status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE', required: true },
+  status: { type: String, enum: ['DRAFT', 'ACTIVE', 'INACTIVE'], default: 'DRAFT', required: true },
+  formDefinition: { type: Schema.Types.Mixed, default: null },
+  publishedAt: { type: Date, default: null },
+  publishedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
 consentTemplateSchema.index({ branchId: 1, code: 1, version: 1 }, { unique: true });
 consentTemplateSchema.index({ branchId: 1, contextType: 1, status: 1 });
+consentTemplateSchema.index(
+  { branchId: 1, code: 1 },
+  { unique: true, partialFilterExpression: { status: 'ACTIVE' } },
+);
 
 export const ConsentTemplateModel = mongoose.model<ConsentTemplateFields>('ConsentTemplate', consentTemplateSchema);

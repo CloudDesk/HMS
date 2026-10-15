@@ -1,5 +1,23 @@
 export type DepartmentStatus = 'ACTIVE' | 'INACTIVE';
 
+export const departmentModuleKeys = [
+  'patients',
+  'doctors',
+  'appointments',
+  'opd',
+  'emergency',
+  'admissions',
+  'surgery',
+  'pharmacy',
+  'laboratory',
+  'imaging',
+  'billing',
+  'reports',
+  'administration',
+] as const;
+
+export type DepartmentModuleKey = (typeof departmentModuleKeys)[number];
+
 export type Department = {
   id: string;
   code: string;
@@ -8,6 +26,7 @@ export type Department = {
   branch_ids: string[];
   status: DepartmentStatus;
   isClinical: boolean;
+  hiddenModules: DepartmentModuleKey[];
   created_by: string | null;
   updated_by: string | null;
   created_at: Date;
@@ -32,6 +51,7 @@ export type CreateDepartmentDTO = {
   description?: string | null;
   status?: DepartmentStatus;
   isClinical?: boolean;
+  hiddenModules?: DepartmentModuleKey[];
 };
 
 export type UpdateDepartmentDTO = Partial<CreateDepartmentDTO>;

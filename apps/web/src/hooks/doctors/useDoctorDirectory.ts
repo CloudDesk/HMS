@@ -38,7 +38,7 @@ export type DoctorDirectoryFilters = {
   search: string;
   status: ApiDoctorStatus | '';
   branchId: string;
-  departmentId: string;
+  departmentId?: string;
   page: number;
   sortColumn: DoctorDirectorySortColumn | null;
   sortDirection: DoctorDirectorySortDirection;

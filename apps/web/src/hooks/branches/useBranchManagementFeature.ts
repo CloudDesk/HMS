@@ -4,6 +4,7 @@ import { hasPermission } from '../../auth/access-control';
 import type { ApiBranchStatus, BranchListResponse, BranchSummary } from '../../api/branches';
 import {
   useBranchesList,
+  useBranchDeletePreview,
   useBranchSummary,
   useCreateBranch,
   useUpdateBranch,
@@ -15,6 +16,18 @@ import { ApiError } from '../../api/api-error';
 
 export type SortColumn = 'code' | 'name' | 'created_at';
 export type SortDirection = 'asc' | 'desc';
+
+export function useBranchDeleteFeature(id: string, usersPage: number, enabled: boolean) {
+  const previewQuery = useBranchDeletePreview(id, usersPage, enabled);
+  const preview = previewQuery.data;
+  const hasAssignments = Boolean(preview?.user_meta.total || preview?.departments || preview?.doctors);
+  const activeBranchesQuery = useBranchesList(
+    { status: 'ACTIVE', page: 1, limit: 100 },
+    enabled && hasAssignments,
+  );
+
+  return { previewQuery, activeBranchesQuery, hasAssignments };
+}
 
 export function useBranchManagementFeature() {
   const { user } = useAuth();

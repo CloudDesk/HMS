@@ -365,4 +365,34 @@ describe('user privilege protection', () => {
       statusCode: 400,
     });
   });
+
+  it('updates status when editing a user and rejects deleting active users', async () => {
+    const targetUser = await createUser('manageable-staff', [lowRoleId]);
+    const targetUserId = targetUser._id.toString();
+
+    // 1. Deleting an active user must fail
+    await expect(
+      service.delete(targetUserId, actorId, metadata),
+    ).rejects.toMatchObject({
+      code: 'USER_MUST_BE_INACTIVE_TO_DELETE',
+      statusCode: 400,
+    });
+
+    // 2. Updating status to inactive via update method succeeds
+    const updated = await service.update(
+      targetUserId,
+      { status: 'inactive' },
+      actorId,
+      metadata,
+    );
+    expect(updated.status).toBe('inactive');
+
+    // 3. Deleting an inactive user succeeds
+    const deleteResult = await service.delete(targetUserId, actorId, metadata);
+    expect(deleteResult).toEqual({ ok: true });
+
+    // Verify user is soft-deleted
+    const deletedUser = await UserModel.findById(targetUserId).lean();
+    expect(deletedUser?.deletedAt).toBeInstanceOf(Date);
+  });
 });

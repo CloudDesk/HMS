@@ -8,8 +8,19 @@ import {
   listBranchesQuerySchema,
   updateBranchBodySchema,
   updateBranchStatusBodySchema,
+  branchIdentifierIdParamsSchema,
+  addBranchIdentifierBodySchema,
+  updateBranchIdentifierStatusBodySchema,
+  branchDeletePreviewQuerySchema,
+  deleteBranchBodySchema,
 } from './branch.schemas.js';
-import type { BranchListQuery, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
+import type {
+  BranchListQuery,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+  AddBranchIdentifierDTO,
+  UpdateBranchIdentifierDTO,
+} from './branch.types.js';
 
 type BranchIdParams = {
   id: string;
@@ -99,17 +110,76 @@ export const registerBranchRoutes = async (app: FastifyInstance, services: Servi
     async (request) => ok(await services.branches.updateStatus(request.params.id, request.body.status, request.user!.id, metadataFromRequest(request))),
   );
 
-  app.delete<{ Params: BranchIdParams }>(
+  app.get<{ Params: BranchIdParams; Querystring: { page?: number; limit?: number } }>(
+    '/api/branches/:id/delete-preview',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Delete'),
+      schema: { params: branchIdParamsSchema, querystring: branchDeletePreviewQuerySchema },
+    },
+    async (request) => ok(await services.branches.deletePreview(request.params.id, request.query.page, request.query.limit)),
+  );
+
+  app.delete<{ Params: BranchIdParams; Body: { reassign_to_branch_id?: string } }>(
     '/api/branches/:id',
     {
       preHandler: requirePermission(services, 'Administration', 'Branches', 'Delete'),
       schema: {
         params: branchIdParamsSchema,
+        body: deleteBranchBodySchema,
       },
     },
-    async (request) => {
-      await services.branches.delete(request.params.id, request.user!.id, metadataFromRequest(request));
-      return ok({ success: true });
+    async (request) => ok(await services.branches.delete(request.params.id, request.user!.id, metadataFromRequest(request), request.body?.reassign_to_branch_id)),
+  );
+
+  app.get<{ Params: BranchIdParams }>(
+    '/api/branches/:id/identifiers',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'View'),
+      schema: {
+        params: branchIdParamsSchema,
+      },
     },
+    async (request) => ok(await services.branches.getIdentifiers(request.params.id)),
+  );
+
+  app.post<{ Params: BranchIdParams; Body: AddBranchIdentifierDTO }>(
+    '/api/branches/:id/identifiers',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Edit'),
+      schema: {
+        params: branchIdParamsSchema,
+        body: addBranchIdentifierBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const identifier = await services.branches.addIdentifier(
+        request.params.id,
+        request.body,
+        request.user!.id,
+        metadataFromRequest(request),
+      );
+      return reply.status(201).send(ok(identifier));
+    },
+  );
+
+  app.put<{ Params: { id: string; identifierId: string }; Body: UpdateBranchIdentifierDTO }>(
+    '/api/branches/:id/identifiers/:identifierId/status',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Edit'),
+      schema: {
+        params: branchIdentifierIdParamsSchema,
+        body: updateBranchIdentifierStatusBodySchema,
+      },
+    },
+    async (request) =>
+      ok(
+        await services.branches.updateIdentifierStatus(
+          request.params.id,
+          request.params.identifierId,
+          request.body,
+          request.user!.id,
+          metadataFromRequest(request),
+        ),
+      ),
   );
 };

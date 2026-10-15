@@ -2,9 +2,11 @@ import mongoose, { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
 import { createCsvStream } from '../../shared/http/csv.js';
+import { formatInTimeZone } from 'date-fns-tz';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { BranchRepository } from '../branches/branch.repository.js';
 import type { DepartmentRepository } from '../departments/department.repository.js';
+import type { SettingsRepository } from '../settings/settings.repository.js';
 import type { UserRepository } from '../users/user.repository.js';
 import type { UserService } from '../users/user.service.js';
 import type { DoctorRepository } from './doctor.repository.js';
@@ -73,6 +75,7 @@ export class DoctorService {
     private readonly userRepository: UserRepository,
     private readonly userService: UserService,
     private readonly appointmentRepository: AppointmentRepository,
+    private readonly settingsRepository?: SettingsRepository,
   ) {}
 
   async list(query: DoctorListQuery, userId?: string) {
@@ -363,11 +366,9 @@ export class DoctorService {
       return result;
     }
 
+    const tz = (await this.settingsRepository?.get())?.localization?.timezone || 'Africa/Nairobi';
     const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${yyyy}-${mm}-${dd}`;
+    const todayStr = formatInTimeZone(now, tz, 'yyyy-MM-dd');
     const isToday = query.date === todayStr;
     const isPastDate = query.date < todayStr;
 
@@ -376,7 +377,9 @@ export class DoctorService {
       return result;
     }
 
-    const currentMinutesNow = now.getHours() * 60 + now.getMinutes();
+    const currentMinutesNow =
+      parseInt(formatInTimeZone(now, tz, 'HH'), 10) * 60 +
+      parseInt(formatInTimeZone(now, tz, 'mm'), 10);
 
     const exception = await this.repository.getExceptionByDate(id, date);
     const recurring = doctor.availability.find((item) => item.day_of_week === dayNames[date.getUTCDay()]);
@@ -392,8 +395,17 @@ export class DoctorService {
     }
 
     const appointments = await this.appointmentRepository.listActiveWindows(id, date);
+    const patientAppointments = query.patient_id
+      ? await this.appointmentRepository.listPatientActiveWindows(
+          query.patient_id,
+          date,
+          query.exclude_appointment_id,
+        )
+      : [];
+
     const slots = schedule.working_blocks.flatMap((block) => {
-      const duration = block.slot_duration_minutes;
+      const duration = query.duration_minutes && query.duration_minutes > 0 ? query.duration_minutes : block.slot_duration_minutes;
+      const step = block.slot_duration_minutes;
       const blockSlots: Array<{
         start_time: string;
         end_time: string;
@@ -402,15 +414,25 @@ export class DoctorService {
         is_available: boolean;
         reason?: string;
       }> = [];
-      for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += duration) {
+      for (let current = toMinutes(block.start_time); current + duration <= toMinutes(block.end_time); current += step) {
         const isPast = isToday && current <= currentMinutesNow;
         const startTime = toTime(current);
         const endTime = toTime(current + duration);
-        const conflict = appointments.some(
+        const doctorConflict = appointments.some(
           (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
         );
+        const patientConflict = patientAppointments.some(
+          (appointment) => startTime < appointment.end_time && endTime > appointment.start_time,
+        );
+        const conflict = doctorConflict || patientConflict;
         const available = !isPast && !conflict;
-        const reason = conflict ? 'Booked' : isPast ? 'Time passed' : undefined;
+        const reason = doctorConflict
+          ? 'Booked'
+          : patientConflict
+          ? 'Patient has conflicting appointment'
+          : isPast
+          ? 'Time passed'
+          : undefined;
         blockSlots.push({
           start_time: startTime,
           end_time: endTime,

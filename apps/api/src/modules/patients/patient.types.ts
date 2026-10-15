@@ -17,7 +17,59 @@ export type PatientEmergencyContact = {
   phone?: string | null;
 };
 
+export type PatientIdentifierStatus = 'ACTIVE' | 'INACTIVE';
+
+export type PatientIdentifier = {
+  id: string;
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status: PatientIdentifierStatus;
+  effective_from: Date | null;
+  effective_to: Date | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type DhaPatientVerificationResult = {
+  matched: boolean;
+  externalSystem: string;
+  externalIdentifierType: string;
+  mappingAvailable: boolean;
+  reused?: boolean;
+  message?: string;
+};
+
+export type AddPatientIdentifierDTO = {
+  identifier_type: string;
+  value: string;
+  issuing_authority: string;
+  status?: PatientIdentifierStatus;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  source_environment?: string | null;
+  verified_at?: Date | null;
+  verified_by?: string | null;
+};
+
+export type UpdatePatientIdentifierDTO = {
+  status?: PatientIdentifierStatus;
+  effective_to?: string | null;
+};
+
+export type ShaPatientIdentifierReadiness = {
+  status: 'SHA_PATIENT_IDENTIFIER_AVAILABLE' | 'SHA_PATIENT_IDENTIFIER_NOT_AVAILABLE' | 'SHA_IDENTIFIER_SYSTEM_UNCONFIGURED';
+  identifierSystemConfigured: boolean;
+  identifierAvailable: boolean;
+  identifierSystem: string | null;
+  identifierType: string | null;
+};
+
 export type Patient = {
+
   id: string;
   patient_number: string;
   first_name: string | null;
@@ -77,6 +129,42 @@ export type PatientDocumentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED
 export type PatientConsentStatus = 'SIGNED' | 'PENDING' | 'EXPIRED' | 'REJECTED' | 'ATTACHED' | 'VERIFIED';
 export type PatientConsentContextType = 'INPATIENT_ADMISSION' | 'PROCEDURE_BOOKING' | 'PATIENT' | 'PROCEDURE' | 'ADMISSION';
 
+export type ConsentDigitalSignature = {
+  signer_type: 'PATIENT' | 'GUARDIAN' | 'DOCTOR' | 'WITNESS';
+  signer_name: string;
+  signature_data: string;
+  signed_at?: string;
+};
+
+export type SubmitStructuredConsentDTO = {
+  branch_id?: string;
+  template_id: string;
+  context_type?: PatientConsentContextType;
+  context_id?: string;
+  visit_id?: string | null;
+  procedure_id?: string | null;
+  admission_id?: string | null;
+  form_responses?: Record<string, unknown>;
+  signatures: ConsentDigitalSignature[];
+  declaration_accepted?: boolean;
+  notes?: string | null;
+};
+
+export type AttachConsentTemplateDTO = {
+  template_id: string;
+  title?: string;
+  context_type?: PatientConsentContextType;
+  context_id?: string | null;
+  description?: string | null;
+  consent_status?: PatientConsentStatus;
+  valid_until?: string | null;
+  branch_id?: string;
+  form_responses?: Record<string, unknown>;
+  visit_id?: string | null;
+  procedure_id?: string | null;
+  admission_id?: string | null;
+};
+
 export type PatientDocument = {
   id: string;
   patient_id: string;
@@ -116,6 +204,8 @@ export type PatientDocument = {
   verified_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: ConsentDigitalSignature[] | null;
 };
 
 export type CreatePatientDocumentDTO = {
@@ -143,6 +233,8 @@ export type CreatePatientDocumentDTO = {
   review_status?: PatientDocumentReviewStatus;
   document_date?: string | null;
   provider_name?: string | null;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: ConsentDigitalSignature[] | null;
 };
 
 export type PatientDocumentListQuery = {
@@ -167,8 +259,11 @@ export type ReviewPatientDocumentDTO = {
 export type PatientTimelineEventType =
   | 'REGISTRATION'
   | 'PROFILE_UPDATED'
+  | 'PATIENT_IDENTIFIER_ADDED'
+  | 'PATIENT_IDENTIFIER_UPDATED'
   | 'APPOINTMENT_CREATED'
   | 'DOCUMENT_ADDED'
+
   | 'DOCUMENT_DELETED'
   | 'DOCUMENT_REVIEWED'
   | 'CONSENT_ADDED'

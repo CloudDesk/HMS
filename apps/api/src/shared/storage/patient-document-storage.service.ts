@@ -50,6 +50,12 @@ export class PatientDocumentStorageService {
     return { storageKey };
   }
 
+  async updatePatientDocument(storageKey: string, data: Buffer, _contentType?: string) {
+    const storagePath = this.resolveStoragePath(storageKey);
+    await mkdir(path.dirname(storagePath), { recursive: true });
+    await writeFile(storagePath, data);
+  }
+
   async download(storageKey: string): Promise<DownloadedPatientDocument> {
     const storagePath = this.resolveStoragePath(storageKey);
     const data = await readFile(storagePath).catch((error: unknown) => {

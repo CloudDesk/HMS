@@ -19,7 +19,7 @@ export type DoctorScheduleViewMode = 'day' | 'week' | 'month';
 
 interface UseDoctorScheduleOptions {
   initialDoctorId: string;
-  departmentId: string;
+  departmentId?: string;
   visitType: ApiAppointmentVisitType | '';
   status: ApiAppointmentStatus | '';
   scheduleDate: string;

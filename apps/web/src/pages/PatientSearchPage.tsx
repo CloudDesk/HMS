@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   type ApiPatientGender,
   type ApiPatientStatus,
@@ -13,18 +12,17 @@ import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import { useAuth } from '../auth/useAuth';
 import { hasPermission, isSuperAdministrator } from '../auth/access-control';
-import { patientInitials } from './opd-utils';
 import { formatDate, patientFullName, calculatePatientAge } from './patient-utils';
+import { PatientAvatar } from '../components/patients/PatientAvatar';
 import { executePrintPatientCard } from '../components/patients/PatientPrintHelper';
 import { useHospitalSettings } from '../hooks/settings/useSettings';
-
+import { PatientRegistrationPage } from './PatientRegistrationPage';
+import { PatientEditModal, updatePatientSchema, type UpdatePatientForm } from '../components/patients/PatientEditModal';
 
 type ColumnVisibility = {
   gender: boolean;
   age: boolean;
   phone: boolean;
-  lastVisit: boolean;
-  registeredDate: boolean;
   status: boolean;
 };
 
@@ -32,26 +30,34 @@ const defaultColumns: ColumnVisibility = {
   gender: true,
   age: true,
   phone: true,
-  lastVisit: true,
-  registeredDate: true,
   status: true,
 };
 
-const updatePatientSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  gender: z.enum(['UNKNOWN', 'MALE', 'FEMALE', 'OTHER']),
-  bloodGroup: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email format').or(z.literal('')),
-  addressLine1: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'DECEASED']),
-  notes: z.string().optional(),
-});
-type UpdatePatientForm = z.infer<typeof updatePatientSchema>;
+type SortField = 'mrn' | 'name' | 'gender' | 'age' | 'phone' | 'status' | null;
+type SortDir = 'asc' | 'desc';
+
+/** Build pagination page-number array with ellipsis markers */
+function buildPageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+/** Sort icon component */
+function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) {
+    return <i className="ph ph-arrows-down-up th-sort-icon" aria-hidden="true" />;
+  }
+  return sortDir === 'asc'
+    ? <i className="ph ph-arrow-up th-sort-icon" aria-hidden="true" />
+    : <i className="ph ph-arrow-down th-sort-icon" aria-hidden="true" />;
+}
 
 export function PatientSearchPage() {
   const { user } = useAuth();
@@ -70,161 +76,171 @@ export function PatientSearchPage() {
 
   const location = useAppLocation();
   const initialParams = new URLSearchParams(location.search);
-  const [currentPage, setCurrentPage] = useState(1);
+  const pageParam = Number(initialParams.get('page') ?? '1');
+  const currentPage = Number.isSafeInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+  const setCurrentPage = (page: number) => {
+    const params = new URLSearchParams(location.search);
+    params.set('page', String(page));
+    navigate(`${location.pathname}?${params}`);
+  };
 
-  // Toggle for Advanced Filters
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-
-  // 5 Basic Filter Fields (Input state)
+  // Filter Fields (Input state)
   const [mrnInput, setMrnInput] = useState(initialParams.get('mrn') ?? '');
   const [nameInput, setNameInput] = useState(initialParams.get('search') ?? '');
-  const [mobileInput, setMobileInput] = useState('');
+  const [mobileInput, setMobileInput] = useState(initialParams.get('mobile') ?? '');
   const [genderFilter, setGenderFilter] = useState<ApiPatientGender | ''>(
-    (initialParams.get('gender') as ApiPatientGender | null) ?? '',
+    initialParams.get('gender') === 'MALE' ? 'MALE' : initialParams.get('gender') === 'FEMALE' ? 'FEMALE' : initialParams.get('gender') === 'OTHER' ? 'OTHER' : initialParams.get('gender') === 'UNKNOWN' ? 'UNKNOWN' : '',
   );
   const [statusFilter, setStatusFilter] = useState<ApiPatientStatus | ''>(
-    (initialParams.get('status') as ApiPatientStatus | null) ?? '',
+    initialParams.get('status') === 'ACTIVE' ? 'ACTIVE' : initialParams.get('status') === 'INACTIVE' ? 'INACTIVE' : initialParams.get('status') === 'DECEASED' ? 'DECEASED' : '',
   );
 
-  // 5 Advanced Filter Fields (Input state)
-  const [nationalIdInput, setNationalIdInput] = useState('');
-  const [dobInput, setDobInput] = useState('');
-  const [bloodGroupFilter, setBloodGroupFilter] = useState('');
-  const [, setPatientTypeFilter] = useState('');
-  const [regDateInput, setRegDateInput] = useState('');
+  // Applied query state survives pagination, refresh and browser history.
+  const urlGender = initialParams.get('gender');
+  const urlStatus = initialParams.get('status');
+  const appliedFilters: { searchTerms: string; status: ApiPatientStatus | ''; gender: ApiPatientGender | '' } = {
+    searchTerms: ['mrn', 'search', 'mobile'].map((key) => initialParams.get(key) ?? '').filter(Boolean).join(' ').trim(),
+    status: urlStatus === 'ACTIVE' || urlStatus === 'INACTIVE' || urlStatus === 'DECEASED' ? urlStatus : '',
+    gender: urlGender === 'MALE' || urlGender === 'FEMALE' || urlGender === 'OTHER' || urlGender === 'UNKNOWN' ? urlGender : '',
+  };
 
-  // Applied Filters State (triggers query)
-  const [appliedFilters, setAppliedFilters] = useState({
-    searchTerms: [mrnInput, nameInput].filter(Boolean).join(' '),
-    status: statusFilter,
-    gender: genderFilter,
-  });
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setMrnInput(params.get('mrn') ?? '');
+    setNameInput(params.get('search') ?? '');
+    setMobileInput(params.get('mobile') ?? '');
+    const gender = params.get('gender');
+    const status = params.get('status');
+    setGenderFilter(gender === 'MALE' || gender === 'FEMALE' || gender === 'OTHER' || gender === 'UNKNOWN' ? gender : '');
+    setStatusFilter(status === 'ACTIVE' || status === 'INACTIVE' || status === 'DECEASED' ? status : '');
+  }, [location.search]);
 
   // Column Selector Dropdown state
   const [showColumnSelector] = useState(false);
   const [columns, setColumns] = useState<ColumnVisibility>(defaultColumns);
 
+  // Sort state (client-side, within current page)
+  const [sortField, setSortField] = useState<SortField>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
   // Actions context menu state
   const [, setActiveMenuId] = useState<string | null>(null);
   // Edit Patient Modal State
   const [editingPatient, setEditingPatient] = useState<PatientResponse | null>(null);
-  const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    gender: 'MALE' as ApiPatientGender,
-    phone: '',
-    email: '',
-    addressLine1: '',
-    city: '',
-    postalCode: '',
-    bloodGroup: '',
-    status: 'ACTIVE' as ApiPatientStatus,
-    notes: '',
-  });
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [editFormError, setEditFormError] = useState('');
-  
-  
-  
+  const editForm = useForm<UpdatePatientForm>({
+    resolver: zodResolver(updatePatientSchema),
+  });
+
   const [cardPatient, setCardPatient] = useState<PatientResponse | null>(null);
   const { hospitalName, phone: hospitalPhone, address: hospitalAddress, logoUrl: hospitalLogoUrl } = useHospitalSettings();
   const hospitalSubText = [hospitalAddress, hospitalPhone].filter(Boolean).join(' · ') || 'Hospital Management System';
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<UpdatePatientForm>({
-    resolver: zodResolver(updatePatientSchema),
-  });
+  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient }, actions: { retry } } = usePatientSearchFeature({ appliedFilters, currentPage });
 
+  // Client-side sort of the current page's patients
+  const sortedPatients = useMemo(() => {
+    if (!sortField || patients.length === 0) return patients;
+    return [...patients].sort((a, b) => {
+      let aVal = '';
+      let bVal = '';
+      switch (sortField) {
+        case 'mrn':    aVal = a.patient_number; bVal = b.patient_number; break;
+        case 'name':   aVal = patientFullName(a).toLowerCase(); bVal = patientFullName(b).toLowerCase(); break;
+        case 'gender': aVal = a.gender; bVal = b.gender; break;
+        case 'age':    aVal = a.date_of_birth ?? ''; bVal = b.date_of_birth ?? ''; break;
+        case 'phone':  aVal = a.phone ?? ''; bVal = b.phone ?? ''; break;
+        case 'status': aVal = a.status; bVal = b.status; break;
+      }
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+      // For age: ascending = youngest first (larger date = younger)
+      return sortField === 'age'
+        ? (sortDir === 'asc' ? -cmp : cmp)
+        : (sortDir === 'asc' ? cmp : -cmp);
+    });
+  }, [patients, sortField, sortDir]);
 
   const printPatientCard = (p: PatientResponse) => { executePrintPatientCard(p); };
 
   const openEditModal = (patient: PatientResponse) => {
     setEditingPatient(patient);
-    setEditForm({
+    editForm.reset({
       firstName: patient.first_name ?? '',
-      lastName: patient.last_name ?? '',
+      lastName: patient.last_name,
       dateOfBirth: patient.date_of_birth ? patient.date_of_birth.slice(0, 10) : '',
-      gender: patient.gender ?? 'MALE',
       phone: patient.phone ?? '',
       email: patient.email ?? '',
+      status: patient.status,
+      gender: patient.gender,
+      bloodGroup: patient.blood_group ?? '',
       addressLine1: patient.address?.line1 ?? '',
       city: patient.address?.city ?? '',
       postalCode: patient.address?.postal_code ?? '',
-      bloodGroup: patient.blood_group ?? '',
-      status: patient.status,
       notes: patient.notes ?? '',
     });
-    setEditFormError('');
   };
 
-  const onSubmitEdit = async () => {
+  const onSubmitEdit = async (data: UpdatePatientForm) => {
     if (!editingPatient) return;
     try {
-      const updatePayload: Record<string, unknown> = {
-        phone: editForm.phone.trim() || null,
-        email: editForm.email.trim() || null,
-        status: editForm.status,
-        notes: editForm.notes.trim() || null,
-        address: {
-          line1: editForm.addressLine1.trim() || null,
-          city: editForm.city.trim() || null,
-          postal_code: editForm.postalCode.trim() || null,
+      setEditSubmitting(true);
+      await updatePatient({
+        id: editingPatient.id,
+        payload: {
+          first_name: (data.firstName || '').trim(),
+          last_name: (data.lastName || '').trim(),
+          date_of_birth: data.dateOfBirth,
+          phone: data.phone?.trim() || null,
+          email: data.email?.trim() || null,
+          status: data.status,
+          gender: data.gender,
+          blood_group: data.bloodGroup?.trim() || null,
+          address: {
+            line1: data.addressLine1?.trim() || null,
+            city: data.city?.trim() || null,
+            postal_code: data.postalCode?.trim() || null,
+          },
+          notes: data.notes?.trim() || null,
         },
-      };
-
-      if (canEditAllDetails) {
-        if (!editForm.lastName.trim()) {
-          setEditFormError('Last name is required.');
-          setEditSubmitting(false);
-          return;
-        }
-        if (!editForm.dateOfBirth) {
-          setEditFormError('Date of birth is required.');
-          setEditSubmitting(false);
-          return;
-        }
-        updatePayload.first_name = editForm.firstName.trim() || null;
-        updatePayload.last_name = editForm.lastName.trim();
-        updatePayload.date_of_birth = editForm.dateOfBirth;
-        updatePayload.gender = editForm.gender;
-        updatePayload.blood_group = editForm.bloodGroup || null;
-      }
-
-      await updatePatient({ id: editingPatient.id, payload: updatePayload });
+      });
       setEditingPatient(null);
-      console.log('Patient updated successfully.');
     } catch (error) {
-      setEditFormError(String(error));
-      console.log(String(error), 'error');
+      console.error(error);
     } finally {
       setEditSubmitting(false);
     }
   };
 
-  const { state: { patients, meta, loading, loadError }, mutations: { updatePatient } } = usePatientSearchFeature({ appliedFilters, currentPage });
-
   const handleApplyFilters = () => {
-    setCurrentPage(1);
-    setAppliedFilters({
-      searchTerms: [mrnInput, nameInput, mobileInput, nationalIdInput].filter(Boolean).join(' ').trim(),
-      status: statusFilter,
-      gender: genderFilter,
+    const params = new URLSearchParams(location.search);
+    const filters = { mrn: mrnInput, search: nameInput, mobile: mobileInput, status: statusFilter, gender: genderFilter };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
     });
+    params.set('page', '1');
+    navigate(`${location.pathname}?${params}`);
   };
 
   const handleResetFilters = () => {
     setMrnInput('');
-    setNationalIdInput('');
     setNameInput('');
     setMobileInput('');
-    setDobInput('');
     setGenderFilter('');
-    setBloodGroupFilter('');
-    setPatientTypeFilter('');
-    setRegDateInput('');
     setStatusFilter('');
-    setCurrentPage(1);
-    setAppliedFilters({ searchTerms: '', status: '', gender: '' });
+    const params = new URLSearchParams(location.search);
+    ['mrn', 'search', 'mobile', 'nationalId', 'status', 'gender', 'page'].forEach((key) => params.delete(key));
+    navigate(`${location.pathname}${params.size ? `?${params}` : ''}`);
   };
 
   const exportCsv = () => {
@@ -250,19 +266,22 @@ export function PatientSearchPage() {
     URL.revokeObjectURL(url);
   };
 
+  const totalCols = 2 + (columns.gender ? 1 : 0) + (columns.age ? 1 : 0) + (columns.phone ? 1 : 0) + (columns.status ? 1 : 0) + 1;
+  const pageNumbers = buildPageNumbers(currentPage, meta.totalPages);
+
   return (
-    <div className="appointment-page full-height-layout" onClick={() => setActiveMenuId(null)}>
-      {/* Patient Search Form Card (Compact 5 Basic Filters + Advanced Toggle) */}
-      <section className="doc-card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
+    <div className="appointment-page full-height-layout patient-directory-page" onClick={() => setActiveMenuId(null)}>
+      {/* Patient Search Form Card */}
+      <section className="doc-card patient-search-card">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleApplyFilters();
           }}
         >
-          {/* Main Search & Filters Row with Inline Actions */}
-          <div className="patient-search-top-grid">
-            <div className="patient-search-compact-field">
+          <div className="patient-search-form-grid">
+            {/* Row 1: Primary Demographic Inputs */}
+            <div className="doc-field patient-search-compact-field">
               <label htmlFor="search-mrn">MRN / Patient ID</label>
               <input
                 id="search-mrn"
@@ -272,7 +291,7 @@ export function PatientSearchPage() {
                 value={mrnInput}
               />
             </div>
-            <div className="patient-search-compact-field">
+            <div className="doc-field patient-search-compact-field">
               <label htmlFor="search-name">Patient Name</label>
               <input
                 id="search-name"
@@ -282,7 +301,7 @@ export function PatientSearchPage() {
                 value={nameInput}
               />
             </div>
-            <div className="patient-search-compact-field">
+            <div className="doc-field patient-search-compact-field">
               <label htmlFor="search-mobile">Mobile Number</label>
               <input
                 id="search-mobile"
@@ -292,7 +311,9 @@ export function PatientSearchPage() {
                 value={mobileInput}
               />
             </div>
-            <div className="patient-search-compact-field">
+
+            {/* Row 2: Secondary Filters & Action Buttons */}
+            <div className="doc-field patient-search-compact-field">
               <label htmlFor="search-gender">Gender</label>
               <select
                 id="search-gender"
@@ -303,9 +324,10 @@ export function PatientSearchPage() {
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
+                {genderFilter === 'UNKNOWN' ? <option value="UNKNOWN">Unknown</option> : null}
               </select>
             </div>
-            <div className="patient-search-compact-field">
+            <div className="doc-field patient-search-compact-field">
               <label htmlFor="search-status">Status</label>
               <select
                 id="search-status"
@@ -315,103 +337,44 @@ export function PatientSearchPage() {
                 <option value="">All Statuses</option>
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
+                {statusFilter === 'DECEASED' ? <option value="DECEASED">Deceased</option> : null}
               </select>
             </div>
 
             <div className="patient-search-actions-group">
               <button
-                className="patient-search-btn-secondary"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                title={showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
-                type="button"
-              >
-                <i className="ph ph-funnel" aria-hidden="true" />
-                {showAdvancedFilters ? 'Less' : 'Filters'}
-              </button>
-              <button
-                className="patient-search-btn-secondary"
+                aria-label="Reset filters"
+                className="doc-btn"
                 onClick={handleResetFilters}
-                title="Reset Filters"
                 type="button"
               >
-                <i className="ph ph-arrow-counter-clockwise" aria-hidden="true" />
+                <i className="ph ph-x" aria-hidden="true" />
                 Reset
               </button>
-              <button className="patient-search-btn-search" type="submit">
+              <button className="doc-btn primary" type="submit">
                 <i className="ph ph-magnifying-glass" aria-hidden="true" />
                 Search
               </button>
             </div>
           </div>
-
-          {/* Expanded Advanced Filters Row */}
-          {showAdvancedFilters ? (
-            <div className="doc-form-grid" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.65rem', marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
-              <div className="patient-search-compact-field">
-                <label htmlFor="search-natid">National ID / Passport</label>
-                <input
-                  id="search-natid"
-                  onChange={(e) => setNationalIdInput(e.target.value)}
-                  placeholder="ID or passport"
-                  type="text"
-                  value={nationalIdInput}
-                />
-              </div>
-              <div className="patient-search-compact-field">
-                <label htmlFor="search-dob">Date of Birth</label>
-                <input
-                  id="search-dob"
-                  onChange={(e) => setDobInput(e.target.value)}
-                  type="date"
-                  value={dobInput}
-                />
-              </div>
-              <div className="patient-search-compact-field">
-                <label htmlFor="search-blood">Blood Group</label>
-                <select
-                  id="search-blood"
-                  onChange={(e) => setBloodGroupFilter(e.target.value)}
-                  value={bloodGroupFilter}
-                >
-                  <option value="">All Blood Groups</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                  <option value="AB+">AB+</option>
-                </select>
-              </div>
-              <div className="patient-search-compact-field">
-                <label htmlFor="search-regdate">Registration Date</label>
-                <input
-                  id="search-regdate"
-                  onChange={(e) => setRegDateInput(e.target.value)}
-                  type="date"
-                  value={regDateInput}
-                />
-              </div>
-            </div>
-          ) : null}
         </form>
       </section>
 
       {/* Patient Directory Table Card */}
       <section className="doc-card patient-directory-full-card">
-        <div className="doc-card-header" style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid #e2e8f0' }}>
+        <div className="doc-card-header patient-directory-header">
           <div>
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Patient Directory</h3>
-            <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.82rem' }}>
-              {meta.total} patients found
+            <h3>Patient Directory</h3>
+            <p aria-live="polite">
+              {loading ? 'Loading patients...' : loadError ? 'Patient count unavailable' : `${meta.total} patients found`}
             </p>
           </div>
           {/* Table toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', position: 'relative' }}>
+          <div className="patient-directory-toolbar">
             {canCreatePatient ? (
               <button
                 className="doc-btn primary"
-                onClick={() => navigate('/patients/register')}
+                onClick={() => setRegistrationOpen(true)}
                 type="button"
               >
                 <i className="ph ph-plus" aria-hidden="true" />
@@ -441,25 +404,77 @@ export function PatientSearchPage() {
           </div>
         </div>
 
-        <div className="table-responsive">
-          <table className="data-table responsive-table">
+        <div className="table-responsive" tabIndex={0} role="region" aria-label="Patient directory" aria-busy={loading}>
+          <table className="data-table patient-directory-table">
+            {/* colgroup ensures fixed column widths — prevents horizontal scroll */}
+            <colgroup>
+              <col className="col-mrn" />
+              <col className="col-name" />
+              {columns.gender ? <col className="col-gender" /> : null}
+              {columns.age ? <col className="col-age" /> : null}
+              {columns.phone ? <col className="col-phone" /> : null}
+              {columns.status ? <col className="col-status" /> : null}
+              <col className="col-actions" />
+            </colgroup>
             <thead>
               <tr>
-                <th>MRN</th>
-                <th>PATIENT NAME</th>
-                {columns.gender ? <th>GENDER</th> : null}
-                {columns.age ? <th>AGE</th> : null}
-                {columns.phone ? <th>PHONE</th> : null}
-                {columns.lastVisit ? <th>LAST VISIT</th> : null}
-                {columns.registeredDate ? <th>REGISTERED DATE</th> : null}
-                {columns.status ? <th>STATUS</th> : null}
-                <th className="align-right">ACTIONS</th>
+                <th
+                  className={`sortable${sortField === 'mrn' ? ` sort-${sortDir}` : ''}`}
+                  onClick={() => handleSort('mrn')}
+                  aria-sort={sortField === 'mrn' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  MRN <SortIcon field="mrn" sortField={sortField} sortDir={sortDir} />
+                </th>
+                <th
+                  className={`sortable${sortField === 'name' ? ` sort-${sortDir}` : ''}`}
+                  onClick={() => handleSort('name')}
+                  aria-sort={sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  Patient Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
+                </th>
+                {columns.gender ? (
+                  <th
+                    className={`sortable${sortField === 'gender' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('gender')}
+                    aria-sort={sortField === 'gender' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Gender <SortIcon field="gender" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.age ? (
+                  <th
+                    className={`sortable${sortField === 'age' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('age')}
+                    aria-sort={sortField === 'age' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Age <SortIcon field="age" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.phone ? (
+                  <th
+                    className={`sortable${sortField === 'phone' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('phone')}
+                    aria-sort={sortField === 'phone' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Phone <SortIcon field="phone" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                {columns.status ? (
+                  <th
+                    className={`sortable${sortField === 'status' ? ` sort-${sortDir}` : ''}`}
+                    onClick={() => handleSort('status')}
+                    aria-sort={sortField === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
+                  </th>
+                ) : null}
+                <th className="align-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: '2rem 1rem' }}>
+                  <td colSpan={totalCols} style={{ padding: '2rem 1rem' }}>
                     <MedicalLoader
                       text="Searching patient directory..."
                       subtext="Retrieving patient demographic & encounter records"
@@ -468,18 +483,18 @@ export function PatientSearchPage() {
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={11}>
-                    Failed to load patient directory.
+                  <td className="um-state-cell" colSpan={totalCols}>
+                    Failed to load patient directory. <button className="doc-btn" type="button" onClick={() => void retry()}>Retry</button>
                   </td>
                 </tr>
-              ) : patients.length === 0 ? (
+              ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td className="um-state-cell" colSpan={11}>
+                  <td className="um-state-cell" colSpan={totalCols}>
                     No patient records found.
                   </td>
                 </tr>
               ) : (
-                patients.map((patient) => {
+                sortedPatients.map((patient) => {
                   const fullName = patientFullName(patient);
                   const age = calculatePatientAge(patient.date_of_birth);
 
@@ -489,22 +504,33 @@ export function PatientSearchPage() {
                       onClick={() => navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td className="emp-id" data-label="MRN">{patient.patient_number}</td>
-                      <td data-label="Patient name">
-                        <div className="user-cell-info">
-                          <strong style={{ color: '#0f172a' }}>{fullName}</strong>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            {patient.email || 'Email not recorded'}
-                          </span>
+                      <td className="col-mrn-cell" data-label="MRN" title={patient.patient_number}>
+                        {patient.patient_number}
+                      </td>
+                      <td className="patient-dir-name-cell" data-label="Patient name">
+                        <div className="patient-dir-name-wrap">
+                          <PatientAvatar
+                            patientId={patient.id}
+                            fullName={fullName}
+                            photoUrl={patient.photo_url}
+                            size="table"
+                          />
+                          <span className="patient-dir-name-text" title={fullName}>{fullName}</span>
                         </div>
                       </td>
-                      {columns.gender ? <td data-label="Gender">{patient.gender}</td> : null}
-                      {columns.age ? <td data-label="Age">{age}</td> : null}
-                      {columns.phone ? <td data-label="Phone">{patient.phone || 'Not recorded'}</td> : null}
-                      {columns.lastVisit ? <td data-label="Last visit">Not available</td> : null}
-                      {columns.registeredDate ? <td data-label="Registered date">{formatDate(patient.created_at)}</td> : null}
+                      {columns.gender ? (
+                        <td className="col-gender-cell" data-label="Gender">{patient.gender}</td>
+                      ) : null}
+                      {columns.age ? (
+                        <td className="col-age-cell" data-label="Age">{age}</td>
+                      ) : null}
+                      {columns.phone ? (
+                        <td className="col-phone-cell" data-label="Phone" title={patient.phone || 'Not recorded'}>
+                          {patient.phone || 'Not recorded'}
+                        </td>
+                      ) : null}
                       {columns.status ? (
-                        <td data-label="Status">
+                        <td className="col-status-cell" data-label="Status">
                           <span
                             className={`doc-status ${
                               patient.status === 'ACTIVE' ? 'active' : patient.status === 'DECEASED' ? 'deceased' : 'inactive'
@@ -514,15 +540,15 @@ export function PatientSearchPage() {
                           </span>
                         </td>
                       ) : null}
-                      <td className="align-right" data-label="Actions">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                      <td className="col-actions-cell align-right" data-label="Actions">
+                        <div className="patient-directory-actions" onClick={(e) => e.stopPropagation()}>
                           {canEditAllDetails ? (
                             <button
                               className="doc-btn"
                               onClick={() => openEditModal(patient)}
                               type="button"
                               title="Edit Patient"
-                              style={{ padding: '0.3rem 0.5rem' }}
+                              aria-label="Edit Patient"
                             >
                               <i className="ph ph-pencil-simple" aria-hidden="true" />
                             </button>
@@ -533,7 +559,7 @@ export function PatientSearchPage() {
                               onClick={() => navigate(`/appointments/book?patient=${encodeURIComponent(patient.id)}`)}
                               type="button"
                               title="Book Appointment"
-                              style={{ padding: '0.3rem 0.5rem' }}
+                              aria-label="Book Appointment"
                             >
                               <i className="ph ph-calendar-plus" aria-hidden="true" />
                             </button>
@@ -543,7 +569,7 @@ export function PatientSearchPage() {
                             onClick={() => setCardPatient(patient)}
                             type="button"
                             title="View Patient Card"
-                            style={{ padding: '0.3rem 0.5rem' }}
+                            aria-label="View Patient Card"
                           >
                             <i className="ph ph-identification-card" aria-hidden="true" />
                           </button>
@@ -557,28 +583,59 @@ export function PatientSearchPage() {
           </table>
         </div>
 
-        {/* Pagination anchored at bottom */}
-        <div className="um-pagination" style={{ borderTop: '1px solid #e2e8f0' }}>
-          <span>
-            Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
-            {Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients
+        {/* Pagination footer */}
+        <div className="um-pagination patient-directory-pagination">
+          <span aria-live="polite">
+            {loading
+              ? 'Loading patients...'
+              : loadError
+              ? 'Results unavailable'
+              : <>
+                  Showing {patients.length === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+                  {patients.length === 0 ? 0 : Math.min(meta.page * meta.limit, meta.total)} of {meta.total} patients
+                </>
+            }
           </span>
-          <div className="um-page-controls">
+          <div className="um-page-controls" role="navigation" aria-label="Patient pagination">
+            {/* Previous */}
             <button
               className="pg-btn"
-              disabled={meta.page <= 1 || loading}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              aria-label="Previous page"
+              disabled={currentPage <= 1 || loading}
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               type="button"
             >
               <i className="ph ph-caret-left" aria-hidden="true" />
             </button>
-            <button className="pg-btn active" disabled type="button">
-              {meta.page}
-            </button>
+
+            {/* Page numbers with ellipsis */}
+            {meta.totalPages > 1
+              ? pageNumbers.map((p, idx) =>
+                  p === '…' ? (
+                    <span key={`ellipsis-${idx}`} className="pg-btn pg-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      className={`pg-btn${p === currentPage ? ' active' : ''}`}
+                      aria-label={`Page ${p}`}
+                      aria-current={p === currentPage ? 'page' : undefined}
+                      disabled={loading}
+                      onClick={() => setCurrentPage(p as number)}
+                      type="button"
+                    >
+                      {p}
+                    </button>
+                  )
+                )
+              : <span className="pg-btn active" aria-current="page" aria-label={`Page ${currentPage}`}>{currentPage}</span>
+            }
+
+            {/* Next */}
             <button
               className="pg-btn"
-              disabled={meta.page >= meta.totalPages || loading}
-              onClick={() => setCurrentPage((page) => page + 1)}
+              aria-label="Next page"
+              disabled={currentPage >= meta.totalPages || loading || Boolean(loadError)}
+              onClick={() => setCurrentPage(currentPage + 1)}
               type="button"
             >
               <i className="ph ph-caret-right" aria-hidden="true" />
@@ -587,196 +644,41 @@ export function PatientSearchPage() {
         </div>
       </section>
 
-      {/* Edit Patient Modal */}
-      <Modal onClose={() => setEditingPatient(null)} open={Boolean(editingPatient)} size="large" title="Edit Patient">
-        {editingPatient ? (
-          <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSubmit(onSubmitEdit)}>
-            {editFormError ? <div className="form-error-banner" role="alert">{editFormError}</div> : null}
-
-            {canEditAllDetails ? (
-              <div className="locked-notice-banner" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
-                <i className="ph ph-shield-check" aria-hidden="true" style={{ color: '#16a34a' }} />
-                <span>
-                  Administrator Access: You have full permissions to edit patient identity attributes, demographics, address, and status.
-                </span>
-              </div>
-            ) : (
-              <div className="locked-notice-banner">
-                <i className="ph ph-lock-key" aria-hidden="true" />
-                <span>
-                  Core identity attributes (Name, Date of Birth, Gender, Blood Group) are locked to preserve clinical record integrity.
-                </span>
-              </div>
-            )}
-
-            <section className="doctor-onboarding-section">
-              <header>
-                <span><i className="ph ph-user" aria-hidden="true" /></span>
-                <div>
-                  <h3>Identity Information</h3>
-                  <p>{canEditAllDetails ? 'Patient identification and demographic attributes.' : 'Immutable patient identification and demographic attributes.'}</p>
-                </div>
-              </header>
-              <div className="form-grid">
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-first">
-                    First name {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-first"
-                    onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    value={editForm.firstName}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-last">
-                    Last name {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-last"
-                    onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    required={canEditAllDetails}
-                    value={editForm.lastName}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-dob">
-                    Date of birth {canEditAllDetails ? <span className="required-asterisk" style={{ color: '#ef4444' }}>*</span> : <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <input
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-dob"
-                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                    readOnly={!canEditAllDetails}
-                    required={canEditAllDetails}
-                    type="date"
-                    value={editForm.dateOfBirth}
-                  />
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-gender">
-                    Gender {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  <select
-                    disabled={!canEditAllDetails || editSubmitting}
-                    id="search-edit-gender"
-                    onChange={(e) => setEditForm({ ...editForm, gender: e.target.value as ApiPatientGender })}
-                    value={editForm.gender}
-                  >
-                    <option value="UNKNOWN">Unknown</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-                <div className={`form-group${canEditAllDetails ? '' : ' locked'}`}>
-                  <label htmlFor="search-edit-blood">
-                    Blood group {!canEditAllDetails && <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span>}
-                  </label>
-                  {canEditAllDetails ? (
-                    <select
-                      disabled={editSubmitting}
-                      id="search-edit-blood"
-                      onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
-                      value={editForm.bloodGroup}
-                    >
-                      <option value="">Select Blood Group</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                    </select>
-                  ) : (
-                    <input disabled id="search-edit-blood" readOnly value={editForm.bloodGroup || 'Not recorded'} />
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="doctor-onboarding-section">
-              <header>
-                <span><i className="ph ph-phone" aria-hidden="true" /></span>
-                <div>
-                  <h3>Contact &amp; Address Details</h3>
-                  <p>Editable communication details, physical address, status, and clinical notes.</p>
-                </div>
-              </header>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="search-edit-phone">Phone</label>
-                  <input disabled={isSubmitting} id="search-edit-phone" {...register('phone')} />
-                  {errors.phone && <span className="field-error">{errors.phone.message}</span>}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-email">Email</label>
-                  <input disabled={isSubmitting} id="search-edit-email" type="email" {...register('email')} />
-                  {errors.email && <span className="field-error">{errors.email.message}</span>}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-status">Status</label>
-                  <select disabled={isSubmitting} id="search-edit-status" {...register('status')}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                    <option value="DECEASED">Deceased</option>
-                  </select>
-                  {errors.status && <span className="field-error">{errors.status.message}</span>}
-                </div>
-                <div className="form-group full-width">
-                  <label htmlFor="search-edit-address">Address / Street</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-address"
-                    onChange={(event) => setEditForm({ ...editForm, addressLine1: event.target.value })}
-                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
-                    value={editForm.addressLine1}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-city">City</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-city"
-                    onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}
-                    placeholder="City"
-                    value={editForm.city}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="search-edit-postal">Postal Code</label>
-                  <input
-                    disabled={editSubmitting}
-                    id="search-edit-postal"
-                    onChange={(event) => setEditForm({ ...editForm, postalCode: event.target.value })}
-                    placeholder="Postal Code"
-                    value={editForm.postalCode}
-                  />
-                </div>
-                <div className="form-group full-width">
-                  <label htmlFor="search-edit-notes">Registration Notes</label>
-                  <textarea disabled={editSubmitting} id="search-edit-notes" onChange={(event) => setEditForm({ ...editForm, notes: event.target.value })} rows={2} value={editForm.notes} />
-                </div>
-              </div>
-            </section>
-
-            <div className="modal-actions">
-              <button className="secondary-action" disabled={isSubmitting} onClick={() => setEditingPatient(null)} type="button">
-                Cancel
-              </button>
-              <button className="primary-action" disabled={isSubmitting} type="submit">
-                {isSubmitting ? 'Saving...' : 'Save Profile'}
-              </button>
-            </div>
-          </form>
+      <Modal
+        className="patient-registration-modal"
+        onClose={() => setRegistrationOpen(false)}
+        open={registrationOpen}
+        size="xlarge"
+        title={
+          <div className="patient-reg-modal-header centered">
+            <h3 className="patient-reg-modal-title">Register Patient</h3>
+          </div>
+        }
+      >
+        {registrationOpen ? (
+          <PatientRegistrationPage
+            embedded
+            onCancel={() => setRegistrationOpen(false)}
+            onRegistered={(patient) => {
+              setRegistrationOpen(false);
+              navigate(`/patients/profile?id=${encodeURIComponent(patient.id)}`);
+            }}
+          />
         ) : null}
       </Modal>
+
+      {/* Edit Patient Modal */}
+      {editingPatient ? (
+        <PatientEditModal
+          canEditAllDetails={canEditAllDetails}
+          form={editForm}
+          onClose={() => setEditingPatient(null)}
+          onSubmit={onSubmitEdit}
+          open={Boolean(editingPatient)}
+          patient={editingPatient}
+          submitting={editSubmitting}
+        />
+      ) : null}
 
       {/* Print Patient Card - preview modal */}
       {cardPatient ? (
@@ -798,9 +700,11 @@ export function PatientSearchPage() {
                 </div>
                 <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', padding: '3px 8px', borderRadius: '20px', textTransform: 'uppercase' }}>Patient ID</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '3px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-                    {patientInitials(patientFullName(cardPatient))}
-                  </div>
+                  <PatientAvatar
+                    fullName={patientFullName(cardPatient)}
+                    photoUrl={cardPatient.photo_url}
+                    size="card"
+                  />
                   <div>
                     <div style={{ color: '#fff', fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{patientFullName(cardPatient)}</div>
                     <span style={{ marginTop: '4px', display: 'inline-block', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '12px' }}>{cardPatient.patient_number}</span>
@@ -857,4 +761,3 @@ export function PatientSearchPage() {
     </div>
   );
 }
-

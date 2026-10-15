@@ -9,6 +9,7 @@ import './domains/emergency.css';
 import './domains/surgery.css';
 import './domains/inpatient.css';
 import './domains/admin.css';
+import './domains/insurance.css';
 import './features/patient.css';
 import './features/appointments.css';
 import './features/clinical.css';

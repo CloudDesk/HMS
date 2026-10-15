@@ -20,6 +20,7 @@ type DepartmentRecord = {
   branchId?: Types.ObjectId;
   status: 'ACTIVE' | 'INACTIVE';
   isClinical: boolean;
+  hiddenModules?: Department['hiddenModules'];
   createdBy?: Types.ObjectId | null;
   updatedBy?: Types.ObjectId | null;
   createdAt: Date;
@@ -27,7 +28,12 @@ type DepartmentRecord = {
 };
 
 const escapedRegex = (value: string) => new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-const branchIds = (record: DepartmentRecord) => record.branchIds ?? (record.branchId ? [record.branchId] : []);
+const branchIds = (record: DepartmentRecord) => {
+  if (record.branchIds && record.branchIds.length > 0) {
+    return record.branchIds;
+  }
+  return record.branchId ? [record.branchId] : [];
+};
 const toDepartment = (record: DepartmentRecord): Department => ({
   id: record._id.toString(),
   code: record.code,
@@ -36,6 +42,7 @@ const toDepartment = (record: DepartmentRecord): Department => ({
   branch_ids: branchIds(record).map((id) => id.toString()),
   status: record.status,
   isClinical: record.isClinical,
+  hiddenModules: record.hiddenModules ?? [],
   created_by: record.createdBy?.toString() ?? null,
   updated_by: record.updatedBy?.toString() ?? null,
   created_at: record.createdAt,
@@ -51,15 +58,22 @@ export class DepartmentRepository {
     if (typeof query.isClinical === 'boolean') filter.isClinical = query.isClinical;
     const andClauses: Record<string, unknown>[] = [];
     if (query.branch_id) {
-      const bId = new Types.ObjectId(query.branch_id);
-      andClauses.push({
-        $or: [
+      const branchIdStr = query.branch_id.trim();
+      if (branchIdStr) {
+        const isOid = Types.ObjectId.isValid(branchIdStr);
+        const bId = isOid ? new Types.ObjectId(branchIdStr) : branchIdStr;
+        const branchConditions: Record<string, unknown>[] = [
           { branchIds: bId },
           { branchId: bId },
-          { branchIds: { $exists: false } },
-          { branchIds: { $size: 0 } },
-        ],
-      });
+        ];
+        if (isOid) {
+          branchConditions.push(
+            { branchIds: branchIdStr },
+            { branchId: branchIdStr },
+          );
+        }
+        andClauses.push({ $or: branchConditions });
+      }
     }
     if (query.search) {
       const search = escapedRegex(query.search);
@@ -111,6 +125,7 @@ export class DepartmentRepository {
       description: data.description ?? undefined,
       status: data.status ?? 'ACTIVE',
       isClinical: data.isClinical ?? false,
+      hiddenModules: data.hiddenModules ?? [],
       createdBy: new Types.ObjectId(createdBy),
       updatedBy: new Types.ObjectId(createdBy),
     });
@@ -122,6 +137,7 @@ export class DepartmentRepository {
       branchIds: department.branchIds,
       status: department.status,
       isClinical: department.isClinical,
+      hiddenModules: department.hiddenModules,
       createdBy: department.createdBy,
       updatedBy: department.updatedBy,
       createdAt: department.createdAt,
@@ -137,6 +153,7 @@ export class DepartmentRepository {
     if (data.description !== undefined) updatePayload.description = data.description;
     if (data.status !== undefined) updatePayload.status = data.status;
     if (data.isClinical !== undefined) updatePayload.isClinical = data.isClinical;
+    if (data.hiddenModules !== undefined) updatePayload.hiddenModules = data.hiddenModules;
 
     const record = await DepartmentModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
@@ -165,6 +182,24 @@ export class DepartmentRepository {
       UserModel.countDocuments({ departmentIds: id, deletedAt: null }),
     ]);
     return { services, users };
+  }
+
+  async deletePreview(id: string, page = 1, limit = 25) {
+    const offset = (page - 1) * limit;
+    const [services, users, serviceCount, userCount] = await Promise.all([
+      ServiceModel.find({ departmentId: id, deletedAt: null })
+        .select('_id code name serviceType status').sort({ name: 1 }).skip(offset).limit(limit).lean(),
+      UserModel.find({ departmentIds: id, deletedAt: null })
+        .select('_id employeeCode fullName username jobTitle status').sort({ fullName: 1 }).skip(offset).limit(limit).lean(),
+      ServiceModel.countDocuments({ departmentId: id, deletedAt: null }),
+      UserModel.countDocuments({ departmentIds: id, deletedAt: null }),
+    ]);
+    return {
+      services: services.map((service) => ({ id: String(service._id), code: service.code, name: service.name, type: service.serviceType, status: service.status })),
+      users: users.map((user) => ({ id: String(user._id), employee_code: user.employeeCode ?? null, name: user.fullName || user.username, job_title: user.jobTitle ?? null, status: user.status })),
+      service_meta: { page, limit, total: serviceCount },
+      user_meta: { page, limit, total: userCount },
+    };
   }
 
   async softDelete(id: string, actorUserId: string) {

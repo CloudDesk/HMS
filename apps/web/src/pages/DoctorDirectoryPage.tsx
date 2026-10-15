@@ -104,7 +104,7 @@ const doctorFormSchema = z
     ) {
       context.addIssue({
         code: 'custom',
-        message: 'Every available day must contain at least one working block.',
+        message: 'Every available day must contain at least one working slot.',
         path: ['availability'],
       });
     }
@@ -238,6 +238,48 @@ const parsePositivePage = (value: string | null): number => {
   return Number.isInteger(page) && page > 0 ? page : 1;
 };
 
+type DoctorSortField =
+  | 'doctor'
+  | 'specialization'
+  | 'department'
+  | 'branch'
+  | 'contact'
+  | 'status'
+  | 'created'
+  | null;
+type DoctorSortDir = 'asc' | 'desc';
+
+function buildPageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | '…')[] = [1];
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push('…');
+  pages.push(total);
+  return pages;
+}
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: DoctorSortField;
+  sortField: DoctorSortField;
+  sortDir: DoctorSortDir;
+}) {
+  if (sortField !== field) {
+    return <i className="ph ph-arrows-down-up th-sort-icon" aria-hidden="true" />;
+  }
+  return sortDir === 'asc' ? (
+    <i className="ph ph-arrow-up th-sort-icon" aria-hidden="true" />
+  ) : (
+    <i className="ph ph-arrow-down th-sort-icon" aria-hidden="true" />
+  );
+}
+
 const sortableColumns: DoctorDirectorySortColumn[] = [
   'doctor_number',
   'display_name',
@@ -247,12 +289,6 @@ const sortableColumns: DoctorDirectorySortColumn[] = [
 
 const parseSortColumn = (value: string | null): DoctorDirectorySortColumn | null =>
   sortableColumns.find((column) => column === value) ?? null;
-
-const statusClass = (status: ApiDoctorStatus) => {
-  if (status === 'ACTIVE') return 'status-active';
-  if (status === 'ON_LEAVE') return 'status-warning';
-  return 'status-inactive';
-};
 
 const doctorInitials = (doctor: DoctorResponse) =>
   `${doctor.first_name.charAt(0)}${doctor.last_name.charAt(0)}`.toUpperCase();
@@ -267,9 +303,6 @@ export function DoctorDirectoryPage() {
   const [branchFilter, setBranchFilter] = useState(
     initialParams.get('branch_id') ?? '',
   );
-  const [departmentFilter, setDepartmentFilter] = useState(
-    initialParams.get('department_id') ?? '',
-  );
   const [sortColumn, setSortColumn] = useState<DoctorDirectorySortColumn | null>(
     parseSortColumn(initialParams.get('sortBy')),
   );
@@ -283,13 +316,23 @@ export function DoctorDirectoryPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<DoctorResponse | null>(null);
 
+  const [clientSortField, setClientSortField] = useState<DoctorSortField>(null);
+  const [clientSortDir, setClientSortDir] = useState<DoctorSortDir>('asc');
+
+  const handleClientSort = (field: DoctorSortField) => {
+    if (clientSortField === field) {
+      setClientSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setClientSortField(field);
+      setClientSortDir('asc');
+    }
+  };
 
   const directoryFilters = useMemo(
     () => ({
       search,
       status: statusFilter,
       branchId: branchFilter,
-      departmentId: departmentFilter,
       page: currentPage,
       sortColumn,
       sortDirection,
@@ -297,7 +340,6 @@ export function DoctorDirectoryPage() {
     [
       branchFilter,
       currentPage,
-      departmentFilter,
       search,
       sortColumn,
       sortDirection,
@@ -305,6 +347,46 @@ export function DoctorDirectoryPage() {
     ],
   );
   const directory = useDoctorDirectory(directoryFilters, editingDoctor?.id ?? null);
+
+  const sortedDoctors = useMemo(() => {
+    if (!clientSortField || directory.doctors.length === 0) return directory.doctors;
+    return [...directory.doctors].sort((a, b) => {
+      let aVal = '';
+      let bVal = '';
+      switch (clientSortField) {
+        case 'doctor':
+          aVal = (a.display_name || `${a.first_name} ${a.last_name}`).toLowerCase();
+          bVal = (b.display_name || `${b.first_name} ${b.last_name}`).toLowerCase();
+          break;
+        case 'specialization':
+          aVal = (a.specialization || '').toLowerCase();
+          bVal = (b.specialization || '').toLowerCase();
+          break;
+        case 'department':
+          aVal = (directory.departments.find((d) => d.id === a.department_id)?.name ?? '').toLowerCase();
+          bVal = (directory.departments.find((d) => d.id === b.department_id)?.name ?? '').toLowerCase();
+          break;
+        case 'branch':
+          aVal = (directory.branches.find((b_) => b_.id === a.branch_id)?.name ?? '').toLowerCase();
+          bVal = (directory.branches.find((b_) => b_.id === b.branch_id)?.name ?? '').toLowerCase();
+          break;
+        case 'contact':
+          aVal = (a.phone || a.email || '').toLowerCase();
+          bVal = (b.phone || b.email || '').toLowerCase();
+          break;
+        case 'status':
+          aVal = a.status;
+          bVal = b.status;
+          break;
+        case 'created':
+          aVal = a.created_at || '';
+          bVal = b.created_at || '';
+          break;
+      }
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+      return clientSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [directory.doctors, clientSortField, clientSortDir, directory.departments, directory.branches]);
   const {
     control,
     register,
@@ -329,15 +411,6 @@ export function DoctorDirectoryPage() {
           department.isClinical,
       ),
     [directory.departments, form.branchId],
-  );
-  const departmentsForFilter = useMemo(
-    () =>
-      directory.departments.filter(
-        (department) =>
-          (!branchFilter || department.branch_ids.includes(branchFilter)) &&
-          department.isClinical,
-      ),
-    [branchFilter, directory.departments],
   );
 
   const formError =
@@ -378,18 +451,6 @@ export function DoctorDirectoryPage() {
     reset(emptyForm());
   };
 
-  const handleSort = (column: DoctorDirectorySortColumn) => {
-    setSortColumn((current) => {
-      if (current === column) {
-        setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
-        return current;
-      }
-      setSortDirection('asc');
-      return column;
-    });
-    setCurrentPage(1);
-  };
-
   const handleSave = handleSubmit(async (values) => {
     try {
       if (editingDoctor) {
@@ -423,7 +484,6 @@ export function DoctorDirectoryPage() {
     setSearch('');
     setStatusFilter('');
     setBranchFilter('');
-    setDepartmentFilter('');
     setSortColumn(null);
     setSortDirection('desc');
     setCurrentPage(1);
@@ -435,7 +495,7 @@ export function DoctorDirectoryPage() {
         <section className="doctor-page-header">
           <div className="doctor-page-title">
             <h2>Doctor Directory</h2>
-            <p>Maintain practitioner profiles, branch context, departments, and OPD setup.</p>
+            <p>Manage clinician profiles, branches, departments, and clinical credentials.</p>
           </div>
           <div className="doctor-page-actions">
             {directory.canExport ? (
@@ -468,43 +528,25 @@ export function DoctorDirectoryPage() {
                 setSearch(event.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search name, number, specialization, phone, or email"
+              placeholder="Search by name, ID, specialization, or phone..."
               type="search"
               value={search}
             />
           </div>
-          <div className="doc-field">
+          <div className="doc-field doc-filter-branch">
             <label htmlFor="doctor-branch-filter">Branch</label>
             <select
               disabled={!directory.canViewBranches}
               id="doctor-branch-filter"
               onChange={(event) => {
                 setBranchFilter(event.target.value);
-                setDepartmentFilter('');
                 setCurrentPage(1);
               }}
               value={branchFilter}
             >
-              <option value="">All branches</option>
+              <option value="">All Branches</option>
               {directory.branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="doc-field">
-            <label htmlFor="doctor-department-filter">Department</label>
-            <select
-              disabled={!directory.canViewDepartments}
-              id="doctor-department-filter"
-              onChange={(event) => {
-                setDepartmentFilter(event.target.value);
-                setCurrentPage(1);
-              }}
-              value={departmentFilter}
-            >
-              <option value="">All departments</option>
-              {departmentsForFilter.map((department) => (
-                <option key={department.id} value={department.id}>{department.name}</option>
               ))}
             </select>
           </div>
@@ -518,36 +560,88 @@ export function DoctorDirectoryPage() {
               }}
               value={statusFilter}
             >
-              <option value="">All statuses</option>
+              <option value="">All Statuses</option>
               <option value="ACTIVE">Active</option>
-              <option value="ON_LEAVE">On leave</option>
+              <option value="ON_LEAVE">On Leave</option>
               <option value="INACTIVE">Inactive</option>
             </select>
           </div>
-          {(search || statusFilter || branchFilter || departmentFilter || sortColumn) && (
-            <button className="doc-btn" onClick={resetFilters} type="button">Reset</button>
+          {(search || statusFilter || branchFilter || sortColumn) && (
+            <button className="doc-btn doc-reset-btn" onClick={resetFilters} type="button"><i className="ph ph-x" aria-hidden="true" /> Reset</button>
           )}
         </section>
 
-        <section className="doc-card">
+        <section className="doc-card doctor-directory-card">
           <div className="doc-card-header">
             <div>
               <h3>Doctor Directory</h3>
               <p>{directory.isLoading ? 'Loading doctors...' : `${directory.meta.total} doctor records found`}</p>
             </div>
           </div>
-          <div className="doc-table-wrap">
-            <table className="doc-table responsive-table">
+          <div className="doc-table-wrap table-responsive" tabIndex={0} role="region" aria-label="Doctor directory" aria-busy={directory.isLoading}>
+            <table className="data-table doctor-directory-table">
+              <colgroup>
+                <col className="col-doc" />
+                <col className="col-spec" />
+                <col className="col-dept" />
+                <col className="col-branch" />
+                <col className="col-contact" />
+                <col className="col-status" />
+                <col className="col-created" />
+                <col className="col-actions" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th onClick={() => handleSort('doctor_number')}>Doctor</th>
-                  <th onClick={() => handleSort('specialization')}>Specialization</th>
-                  <th>Department</th>
-                  <th>Branch</th>
-                  <th>Contact</th>
-                  <th>Status</th>
-                  <th onClick={() => handleSort('created_at')}>Created</th>
-                  <th>Actions</th>
+                  <th
+                    className={`sortable${clientSortField === 'doctor' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('doctor')}
+                    aria-sort={clientSortField === 'doctor' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Doctor <SortIcon field="doctor" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'specialization' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('specialization')}
+                    aria-sort={clientSortField === 'specialization' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Specialization <SortIcon field="specialization" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'department' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('department')}
+                    aria-sort={clientSortField === 'department' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Department <SortIcon field="department" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'branch' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('branch')}
+                    aria-sort={clientSortField === 'branch' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Branch <SortIcon field="branch" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'contact' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('contact')}
+                    aria-sort={clientSortField === 'contact' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Contact <SortIcon field="contact" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'status' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('status')}
+                    aria-sort={clientSortField === 'status' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Status <SortIcon field="status" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th
+                    className={`sortable${clientSortField === 'created' ? ` sort-${clientSortDir}` : ''}`}
+                    onClick={() => handleClientSort('created')}
+                    aria-sort={clientSortField === 'created' ? (clientSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    Created <SortIcon field="created" sortField={clientSortField} sortDir={clientSortDir} />
+                  </th>
+                  <th className="align-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -565,51 +659,86 @@ export function DoctorDirectoryPage() {
                     <td className="um-state-cell" colSpan={8}>
                       {directory.loadError}
                       <div>
-                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button">Retry</button>
+                        <button className="doc-btn mt-4" onClick={() => void directory.retry()} type="button">
+                          <i className="ph ph-arrows-clockwise" aria-hidden="true" /> Retry
+                        </button>
                       </div>
                     </td>
                   </tr>
-                ) : directory.doctors.length === 0 ? (
+                ) : sortedDoctors.length === 0 ? (
                   <tr><td className="um-state-cell" colSpan={8}>No doctor records found.</td></tr>
                 ) : (
-                  directory.doctors.map((doctor) => (
-                    <tr key={doctor.id}>
-                      <td data-label="Doctor">
-                        <div className="doc-person">
-                          <span className="doc-avatar">{doctorInitials(doctor)}</span>
-                          <div><strong>{doctor.display_name}</strong><span>{doctor.doctor_number}</span></div>
-                        </div>
-                      </td>
-                      <td data-label="Specialization">{doctor.specialization}</td>
-                      <td data-label="Department">{directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-'}</td>
-                      <td data-label="Branch">{directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-'}</td>
-                      <td data-label="Contact"><strong>{doctor.phone || '-'}</strong><br /><small>{doctor.email || 'No email recorded'}</small></td>
-                      <td data-label="Status"><span className={`status-badge ${statusClass(doctor.status)}`}>{doctor.status.replace('_', ' ')}</span></td>
-                      <td data-label="Created">{formatDate(doctor.created_at)}</td>
-                      <td data-label="Actions">
-                        <div className="doc-actions">
-                          {directory.canEdit ? (
-                            <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" type="button">
-                              <i className="ph ph-pencil-simple" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                          <button className="doc-action" onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)} title="View doctor profile" type="button">
-                            <i className="ph ph-user-circle" aria-hidden="true" />
-                          </button>
-                          {directory.canViewSchedule ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" type="button">
-                              <i className="ph ph-calendar-check" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                          {directory.canViewAvailability ? (
-                            <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" type="button">
-                              <i className="ph ph-clock" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  sortedDoctors.map((doctor) => {
+                    const deptName = directory.departments.find((department) => department.id === doctor.department_id)?.name ?? '-';
+                    const branchName = directory.branches.find((branch) => branch.id === doctor.branch_id)?.name ?? '-';
+
+                    return (
+                      <tr key={doctor.id}>
+                        <td data-label="Doctor" className="col-doc-cell">
+                          <div className="doc-person">
+                            <span className="doc-avatar">{doctorInitials(doctor)}</span>
+                            <div className="doc-person-info">
+                              <strong
+                                className="doc-person-name"
+                                onClick={() => navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate(`/doctors/profile?id=${encodeURIComponent(doctor.id)}`);
+                                  }
+                                }}
+                                title={`View ${doctor.display_name} profile`}
+                              >
+                                {doctor.display_name}
+                              </strong>
+                              <span className="doc-person-id">{doctor.doctor_number}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td data-label="Specialization" className="col-spec-cell" title={doctor.specialization}>
+                          <span className="doc-spec-text">{doctor.specialization}</span>
+                        </td>
+                        <td data-label="Department" className="col-dept-cell" title={deptName}>
+                          <span className="doc-dept-text">{deptName}</span>
+                        </td>
+                        <td data-label="Branch" className="col-branch-cell" title={branchName}>
+                          <span className="doc-branch-text">{branchName}</span>
+                        </td>
+                        <td data-label="Contact" className="col-contact-cell">
+                          <div className="doc-contact-cell">
+                            <span className="doc-contact-phone">{doctor.phone || '-'}</span>
+                          </div>
+                        </td>
+                        <td data-label="Status" className="col-status-cell">
+                          <span className={`doc-status ${doctor.status === 'ACTIVE' ? 'active' : doctor.status === 'ON_LEAVE' ? 'pending' : 'inactive'}`}>
+                            {doctor.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td data-label="Created" className="col-created-cell">{formatDate(doctor.created_at)}</td>
+                        <td data-label="Actions" className="col-actions-cell align-right">
+                          <div className="doc-actions">
+                            {directory.canEdit ? (
+                              <button className="doc-action" onClick={() => openEdit(doctor)} title="Edit doctor" aria-label="Edit doctor" type="button">
+                                <i className="ph ph-pencil-simple" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {directory.canViewSchedule ? (
+                              <button className="doc-action" onClick={() => navigate(`/doctors/schedule?doctor_id=${encodeURIComponent(doctor.id)}`)} title="View schedule" aria-label="View schedule" type="button">
+                                <i className="ph ph-calendar-check" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                            {directory.canViewAvailability ? (
+                              <button className="doc-action" onClick={() => navigate(`/doctors/availability?doctor_id=${encodeURIComponent(doctor.id)}`)} title="Manage availability" aria-label="Manage availability" type="button">
+                                <i className="ph ph-clock" aria-hidden="true" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -617,15 +746,46 @@ export function DoctorDirectoryPage() {
 
           <div className="um-pagination">
             <span>
-              Showing {directory.doctors.length === 0 ? 0 : (directory.meta.page - 1) * directory.meta.limit + 1}-
+              Showing {directory.doctors.length === 0 ? 0 : (directory.meta.page - 1) * directory.meta.limit + 1}–
               {Math.min(directory.meta.page * directory.meta.limit, directory.meta.total)} of {directory.meta.total} doctors
             </span>
-            <div className="um-page-controls">
-              <button className="pg-btn" disabled={directory.meta.page <= 1 || directory.isLoading} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} type="button">
+            <div className="um-page-controls" role="navigation" aria-label="Doctor pagination">
+              <button
+                className="pg-btn"
+                aria-label="Previous page"
+                disabled={directory.meta.page <= 1 || directory.isLoading}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                type="button"
+              >
                 <i className="ph ph-caret-left" aria-hidden="true" />
               </button>
-              <button className="pg-btn active" disabled type="button">{directory.meta.page}</button>
-              <button className="pg-btn" disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading} onClick={() => setCurrentPage((page) => page + 1)} type="button">
+              {directory.meta.totalPages > 1
+                ? buildPageNumbers(directory.meta.page, directory.meta.totalPages).map((p, idx) =>
+                    p === '…' ? (
+                      <span key={`ellipsis-${idx}`} className="pg-btn pg-ellipsis">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        className={`pg-btn${p === currentPage ? ' active' : ''}`}
+                        aria-label={`Page ${p}`}
+                        aria-current={p === currentPage ? 'page' : undefined}
+                        disabled={directory.isLoading}
+                        onClick={() => setCurrentPage(p as number)}
+                        type="button"
+                      >
+                        {p}
+                      </button>
+                    )
+                  )
+                : <span className="pg-btn active" aria-current="page" aria-label={`Page ${currentPage}`}>{currentPage}</span>
+              }
+              <button
+                className="pg-btn"
+                aria-label="Next page"
+                disabled={directory.meta.page >= directory.meta.totalPages || directory.isLoading}
+                onClick={() => setCurrentPage((page) => page + 1)}
+                type="button"
+              >
                 <i className="ph ph-caret-right" aria-hidden="true" />
               </button>
             </div>
@@ -633,8 +793,41 @@ export function DoctorDirectoryPage() {
         </section>
       </div>
 
-      <Modal open={modalOpen} onClose={() => closeModal()} size="large" title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}>
-        <form className="modal-form patient-form doctor-onboarding-form" onSubmit={handleSave}>
+      <Modal
+        className="doctor-editor-modal"
+        open={modalOpen}
+        onClose={() => closeModal()}
+        size="large"
+        title={editingDoctor ? 'Edit Doctor' : 'Onboard Doctor'}
+        footer={
+          <>
+            <button
+              className="btn-secondary"
+              disabled={submitting}
+              onClick={() => closeModal()}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-primary"
+              disabled={submitting}
+              form="doctor-editor-form"
+              type="submit"
+            >
+              {submitting ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                editingDoctor ? 'Save Changes' : 'Save Doctor'
+              )}
+            </button>
+          </>
+        }
+      >
+        <form className="doctor-onboarding-form" id="doctor-editor-form" onSubmit={handleSave}>
           <input {...register('mode')} type="hidden" />
           <input {...register('originalStatus')} type="hidden" />
           {formError ? (
@@ -651,12 +844,12 @@ export function DoctorDirectoryPage() {
               <section className="doctor-onboarding-section">
                 <header>
                   <span><i className="ph ph-stethoscope" aria-hidden="true" /></span>
-                  <div><h3>Doctor Information</h3><p>Clinical identity, assignment, contact details, and operational status.</p></div>
+                  <div><h3>Doctor Information</h3><p>Clinician identity, department assignment, and operational status.</p></div>
                 </header>
                 <div className="form-grid">
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-first-name">
-                      First name <span className="required-asterisk">*</span>
+                      First Name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('firstName')} type="hidden" /> : null}
@@ -669,7 +862,7 @@ export function DoctorDirectoryPage() {
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-last-name">
-                      Last name <span className="required-asterisk">*</span>
+                      Last Name <span className="required-asterisk">*</span>
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('lastName')} type="hidden" /> : null}
@@ -682,7 +875,7 @@ export function DoctorDirectoryPage() {
                   </div>
                   <div className={`form-group ${editingDoctor ? 'locked' : ''}`}>
                     <label htmlFor="doctor-registration-number">
-                      Registration number
+                      Registration Number
                       {editingDoctor ? <span className="locked-field-badge"><i className="ph ph-lock-key" /> Locked</span> : null}
                     </label>
                     {editingDoctor ? <input {...register('registrationNumber')} type="hidden" /> : null}
@@ -698,7 +891,7 @@ export function DoctorDirectoryPage() {
                     <input {...register('qualification')} disabled={submitting} id="doctor-qualification" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-experience">Experience years</label>
+                    <label htmlFor="doctor-experience">Experience (Years)</label>
                     <input {...register('experienceYears')} disabled={submitting} id="doctor-experience" max="80" min="0" type="number" />
                   </div>
                   <div className="form-group">
@@ -714,19 +907,19 @@ export function DoctorDirectoryPage() {
                       disabled={submitting}
                       id="doctor-branch"
                     >
-                      <option value="">Select branch</option>
+                      <option value="">Select Branch</option>
                       {directory.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-department">Department <span className="required-asterisk">*</span></label>
                     <select {...register('departmentId')} disabled={submitting || !form.branchId} id="doctor-department">
-                      <option value="">Select department</option>
+                      <option value="">Select Department</option>
                       {departmentsForForm.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-room">Consultation room</label>
+                    <label htmlFor="doctor-room">Consultation Room</label>
                     <input {...register('consultationRoom')} disabled={submitting} id="doctor-room" />
                   </div>
                   <div className="form-group">
@@ -734,20 +927,20 @@ export function DoctorDirectoryPage() {
                     <input {...register('phone')} disabled={submitting} id="doctor-phone" type="tel" />
                   </div>
                   <div className="form-group">
-                    <label htmlFor="doctor-email">Clinical email</label>
+                    <label htmlFor="doctor-email">Clinical Email</label>
                     <input {...register('email')} disabled={submitting} id="doctor-email" type="email" />
                   </div>
                   <div className="form-group">
                     <label htmlFor="doctor-status">Status</label>
                     <select {...register('status')} disabled={submitting} id="doctor-status">
                       <option value="ACTIVE">Active</option>
-                      <option value="ON_LEAVE">On leave</option>
+                      <option value="ON_LEAVE">On Leave</option>
                       <option value="INACTIVE">Inactive</option>
                     </select>
                   </div>
                   {editingDoctor && form.status !== editingDoctor.status ? (
                     <div className="form-group full-width">
-                      <label htmlFor="doctor-status-reason">Status change reason <span className="required-asterisk">*</span></label>
+                      <label htmlFor="doctor-status-reason">Status Change Reason <span className="required-asterisk">*</span></label>
                       <input {...register('statusReason')} disabled={submitting} id="doctor-status-reason" />
                     </div>
                   ) : null}
@@ -760,7 +953,7 @@ export function DoctorDirectoryPage() {
 
               {!editingDoctor ? (
                 <section className="doctor-onboarding-section">
-                  <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working blocks and appointment slot duration.</p></div></header>
+                  <header><span><i className="ph ph-calendar-dots" aria-hidden="true" /></span><div><h3>Availability</h3><p>Initialize recurring working slots and appointment slot duration.</p></div></header>
                   <Controller
                     control={control}
                     name="availability"
@@ -781,7 +974,7 @@ export function DoctorDirectoryPage() {
                   <div className="doctor-account-toggle">
                     <div>
                       <strong>Create Login Account: {form.createLoginAccount ? 'Yes' : 'No'}</strong>
-                      <p>{directory.canProvisionLogin ? 'Creates and links the User account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p>
+                      <p>{directory.canProvisionLogin ? 'Creates and links the user account in the same transaction.' : 'Additional permission is required to provision login accounts.'}</p>
                     </div>
                     <Controller
                       control={control}
@@ -806,25 +999,25 @@ export function DoctorDirectoryPage() {
                   </div>
                   {form.createLoginAccount ? (
                     <div className="form-grid doctor-account-fields">
-                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
+                      <div className="form-group"><label htmlFor="doctor-employee-code">Employee Code <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-employee-code" {...register('employeeCode')} required /><br />{errors.employeeCode ? <small className="field-error">{errors.employeeCode.message}</small> : null}</div>
                       <div className="form-group"><label htmlFor="doctor-username">Username <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-username" {...register('username')} required /></div>
-                      <div className="form-group"><label htmlFor="doctor-login-email">Login email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
+                      <div className="form-group"><label htmlFor="doctor-login-email">Login Email <span className="required-asterisk">*</span></label><input autoComplete="off" disabled={submitting} id="doctor-login-email" {...register('loginEmail')} required type="email" /></div>
 
                       <div className="form-group">
-                        <label htmlFor="doctor-temporary-password">password <span className="required-asterisk">*</span></label>
+                        <label htmlFor="doctor-temporary-password">Temporary Password <span className="required-asterisk">*</span></label>
                         <input autoComplete="new-password" disabled={submitting} id="doctor-temporary-password" {...register('temporaryPassword')} required type="password" style={{ width: '100%' }} />
                         {errors.temporaryPassword ? <small className="field-error">{errors.temporaryPassword.message}</small> : null}
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="doctor-confirm-password">Confirm password <span className="required-asterisk">*</span></label>
+                        <label htmlFor="doctor-confirm-password">Confirm Password <span className="required-asterisk">*</span></label>
                         <input autoComplete="new-password" disabled={submitting} id="doctor-confirm-password" {...register('confirmTemporaryPassword')} required type="password" style={{ width: '100%' }} />
                         {errors.confirmTemporaryPassword ? <small className="field-error">{errors.confirmTemporaryPassword.message}</small> : null}
                       </div>
-                      <div className="doctor-account-role"><span>Assigned role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
+                      <div className="doctor-account-role"><span>Assigned Role</span><strong>DOCTOR</strong><small>Role selection is fixed and cannot be changed during onboarding.</small></div>
                     </div>
                   ) : (
-                    <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The Doctor will be created without system login access. An authorized administrator can map a legacy account later.</span></div>
+                    <div className="doctor-account-notice"><i className="ph ph-info" aria-hidden="true" /><span>The doctor will be created without direct login access. An administrator can link an account later.</span></div>
                   )}
                 </section>
               ) : directory.canProvisionLogin ? (
@@ -846,19 +1039,6 @@ export function DoctorDirectoryPage() {
             </>
           )}
 
-          <div className="modal-actions">
-            <button className="secondary-action" disabled={submitting} onClick={() => closeModal()} type="button">Cancel</button>
-            <button className="primary-action" disabled={submitting} type="submit">
-              {submitting ? (
-                <>
-                  <MedicalSpinner size="sm" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                'Save Doctor'
-              )}
-            </button>
-          </div>
         </form>
       </Modal>
     </>

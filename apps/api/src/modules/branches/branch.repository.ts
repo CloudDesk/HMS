@@ -1,10 +1,21 @@
-import { BranchModel } from './branch.model.js';
+import mongoose, { Types, type UpdateQuery, type ClientSession } from 'mongoose';
+import { BranchModel, type IBranch, type BranchIdentifierFields } from './branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
-import type { Branch, BranchListQuery, BranchRequestMetadata, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
-import type { IBranch } from './branch.model.js';
-import type { UpdateQuery } from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
+import type {
+  Branch,
+  BranchListQuery,
+  BranchRequestMetadata,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+  BranchIdentifier,
+  AddBranchIdentifierDTO,
+  UpdateBranchIdentifierDTO,
+  BranchIdentifierStatus,
+} from './branch.types.js';
 
 type BranchRecord = {
   _id: unknown;
@@ -42,6 +53,18 @@ const toBranch = (branch: BranchRecord): Branch => ({
   updated_by: branch.updatedBy ? String(branch.updatedBy) : null,
   created_at: branch.createdAt,
   updated_at: branch.updatedAt,
+});
+
+const toBranchIdentifier = (field: BranchIdentifierFields): BranchIdentifier => ({
+  id: field._id.toString(),
+  identifier_type: field.identifierType,
+  value: field.value,
+  issuing_authority: field.issuingAuthority,
+  status: field.status as BranchIdentifierStatus,
+  effective_from: field.effectiveFrom ? field.effectiveFrom.toISOString().slice(0, 10) : null,
+  effective_to: field.effectiveTo ? field.effectiveTo.toISOString().slice(0, 10) : null,
+  verified_at: field.verifiedAt ? field.verifiedAt.toISOString() : null,
+  verified_by: field.verifiedBy ? field.verifiedBy.toString() : null,
 });
 
 const toPersistence = (data: CreateBranchDTO | UpdateBranchDTO) =>
@@ -151,20 +174,268 @@ export class BranchRepository {
     return { total, active, inactive, assignedUsers, cities };
   }
 
-  async dependencies(id: string) {
-    const [departments, users] = await Promise.all([
-      DepartmentModel.countDocuments({ branchId: id, deletedAt: null }),
-      UserModel.countDocuments({ branchIds: id, deletedAt: null }),
+  async dependencies(id: string, session?: ClientSession) {
+    const [departments, users, doctors] = await Promise.all([
+      DepartmentModel.countDocuments({ $or: [{ branchIds: id }, { branchId: id }], deletedAt: null }).session(session ?? null),
+      UserModel.countDocuments({ branchIds: id, deletedAt: null }).session(session ?? null),
+      DoctorModel.countDocuments({ branchId: id, deletedAt: null }).session(session ?? null),
     ]);
-    return { departments, users };
+    return { departments, users, doctors };
   }
 
-  async softDelete(id: string, actorUserId: string) {
+  async deletePreview(id: string, page = 1, limit = 25) {
+    const offset = (page - 1) * limit;
+    const [users, departments, doctors, totalUsers] = await Promise.all([
+      UserModel.find({ branchIds: id, deletedAt: null }).select('_id fullName username jobTitle status').sort({ fullName: 1 }).skip(offset).limit(limit).lean(),
+      DepartmentModel.countDocuments({ $or: [{ branchIds: id }, { branchId: id }], deletedAt: null }),
+      DoctorModel.countDocuments({ branchId: id, deletedAt: null }),
+      UserModel.countDocuments({ branchIds: id, deletedAt: null }),
+    ]);
+    return {
+      users: users.map((user) => ({ id: String(user._id), name: user.fullName || user.username, job_title: user.jobTitle ?? null, status: user.status })),
+      user_meta: { page, limit, total: totalUsers },
+      departments,
+      doctors,
+    };
+  }
+
+  async session() {
+    return mongoose.startSession();
+  }
+
+  async reassignUsers(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const filter = { branchIds: fromBranchId, deletedAt: null };
+    const count = await UserModel.countDocuments(filter).session(session ?? null);
+    const options = session ? { session } : {};
+    await UserModel.updateMany(
+      filter,
+      { $pull: { branchIds: fromBranchId } as any },
+      options,
+    );
+    await UserModel.updateMany(
+      { _id: { $in: await UserModel.find(filter).distinct('_id') } },
+      { $addToSet: { branchIds: toBranchId }, $set: { updatedBy: actorUserId } } as any,
+      options,
+    );
+    return count;
+  }
+
+  async reassignDepartments(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const filter = { $or: [{ branchIds: fromBranchId }, { branchId: fromBranchId }], deletedAt: null };
+    const count = await DepartmentModel.countDocuments(filter).session(session ?? null);
+    const options = session ? { session } : {};
+    await DepartmentModel.updateMany(
+      filter,
+      {
+        $pull: { branchIds: fromBranchId } as any,
+        $set: { branchId: toBranchId, updatedBy: actorUserId },
+      },
+      options,
+    );
+    await DepartmentModel.updateMany(
+      filter,
+      { $addToSet: { branchIds: toBranchId } as any },
+      options,
+    );
+    return count;
+  }
+
+  async reassignDoctors(fromBranchId: string, toBranchId: string, actorUserId: string, session?: ClientSession) {
+    const filter = { branchId: fromBranchId, deletedAt: null };
+    const count = await DoctorModel.countDocuments(filter).session(session ?? null);
+    const options = session ? { session } : {};
+    await DoctorModel.updateMany(
+      filter,
+      { $set: { branchId: toBranchId, updatedBy: actorUserId } },
+      options,
+    );
+    return count;
+  }
+
+  async softDelete(id: string, actorUserId: string, session?: ClientSession) {
+    const options = session ? { session, returnDocument: 'after' as const, lean: true } : { returnDocument: 'after' as const, lean: true };
     return BranchModel.findOneAndUpdate(
       { _id: id, deletedAt: null },
       { $set: { deletedAt: new Date(), deletedBy: actorUserId, updatedBy: actorUserId } },
+      options,
+    );
+  }
+
+  async getIdentifiers(branchId: string): Promise<BranchIdentifier[]> {
+    if (!Types.ObjectId.isValid(branchId)) throw new AppError('Invalid branch ID', 400, 'VALIDATION_ERROR');
+    const branch = await BranchModel.findOne({ _id: branchId, deletedAt: null }).select('identifiers').lean();
+    if (!branch) throw new AppError('Branch not found', 404, 'NOT_FOUND');
+    return (branch.identifiers ?? []).map(toBranchIdentifier);
+  }
+
+  async addIdentifier(
+    branchId: string,
+    data: AddBranchIdentifierDTO,
+    userId: string,
+    metadata?: BranchRequestMetadata,
+  ): Promise<BranchIdentifier> {
+    if (!Types.ObjectId.isValid(branchId)) throw new AppError('Invalid branch ID', 400, 'VALIDATION_ERROR');
+    const branchOid = new Types.ObjectId(branchId);
+
+    const trimmedValue = (data.value ?? '').trim();
+    const trimmedAuthority = (data.issuing_authority ?? '').trim();
+    const trimmedType = (data.identifier_type ?? '').trim();
+
+    if (!trimmedValue || !trimmedAuthority || !trimmedType) {
+      throw new AppError('Identifier type, value, and issuing authority are required', 400, 'VALIDATION_ERROR');
+    }
+
+    const status = data.status ?? 'ACTIVE';
+
+    if (status === 'ACTIVE') {
+      // 1. Conflict check across other branches: cannot have same active (value, issuingAuthority)
+      const existsOther = await BranchModel.exists({
+        _id: { $ne: branchOid },
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            value: trimmedValue,
+            issuingAuthority: trimmedAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsOther) {
+        throw new AppError('Identifier already registered to another branch/facility', 409, 'IDENTIFIER_CONFLICT');
+      }
+
+      // 2. Conflict check within same branch: only 1 active identifier per (identifierType, issuingAuthority)
+      const existsSame = await BranchModel.exists({
+        _id: branchOid,
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            identifierType: trimmedType,
+            issuingAuthority: trimmedAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsSame) {
+        throw new AppError('Branch already has an active identifier for this type and authority', 409, 'ACTIVE_IDENTIFIER_CONFLICT');
+      }
+    }
+
+    const newIdentifierId = new Types.ObjectId();
+    const identifierRecord: BranchIdentifierFields = {
+      _id: newIdentifierId,
+      identifierType: trimmedType,
+      value: trimmedValue,
+      issuingAuthority: trimmedAuthority,
+      status,
+      effectiveFrom: data.effective_from ? new Date(data.effective_from) : null,
+      effectiveTo: data.effective_to ? new Date(data.effective_to) : null,
+      verifiedAt: null,
+      verifiedBy: null,
+    };
+
+    const updated = await BranchModel.findOneAndUpdate(
+      { _id: branchOid, deletedAt: null },
+      {
+        $push: { identifiers: identifierRecord },
+        $set: { updatedBy: new Types.ObjectId(userId) },
+      },
       { returnDocument: 'after', lean: true },
     );
+
+    if (!updated) throw new AppError('Branch not found', 404, 'NOT_FOUND');
+
+    // Audit log - NEVER store raw identifier value!
+    await this.audit('branch.identifier.added', userId, metadata ?? {}, {
+      branchId,
+      identifierId: newIdentifierId.toString(),
+      identifierType: trimmedType,
+      issuingAuthority: trimmedAuthority,
+      status,
+    });
+
+    return toBranchIdentifier(identifierRecord);
+  }
+
+  async updateIdentifierStatus(
+    branchId: string,
+    identifierId: string,
+    data: UpdateBranchIdentifierDTO,
+    userId: string,
+    metadata?: BranchRequestMetadata,
+  ): Promise<BranchIdentifier> {
+    if (!Types.ObjectId.isValid(branchId) || !Types.ObjectId.isValid(identifierId)) {
+      throw new AppError('Invalid branch or identifier ID', 400, 'VALIDATION_ERROR');
+    }
+
+    const branchOid = new Types.ObjectId(branchId);
+    const identifierOid = new Types.ObjectId(identifierId);
+
+    const branch = await BranchModel.findOne({ _id: branchOid, deletedAt: null }).lean();
+    if (!branch) throw new AppError('Branch not found', 404, 'NOT_FOUND');
+
+    const current = (branch.identifiers ?? []).find(id => id._id.toString() === identifierId);
+    if (!current) throw new AppError('Branch identifier not found', 404, 'NOT_FOUND');
+
+    if (data.status === 'ACTIVE' && current.status !== 'ACTIVE') {
+      const existsOther = await BranchModel.exists({
+        _id: { $ne: branchOid },
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            value: current.value,
+            issuingAuthority: current.issuingAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsOther) {
+        throw new AppError('Identifier already registered to another branch/facility', 409, 'IDENTIFIER_CONFLICT');
+      }
+
+      const existsSame = await BranchModel.exists({
+        _id: branchOid,
+        deletedAt: null,
+        identifiers: {
+          $elemMatch: {
+            _id: { $ne: identifierOid },
+            identifierType: current.identifierType,
+            issuingAuthority: current.issuingAuthority,
+            status: 'ACTIVE',
+          },
+        },
+      });
+      if (existsSame) {
+        throw new AppError('Branch already has an active identifier for this type and authority', 409, 'ACTIVE_IDENTIFIER_CONFLICT');
+      }
+    }
+
+    const updateFields: Record<string, unknown> = {
+      'identifiers.$.status': data.status,
+      updatedBy: new Types.ObjectId(userId),
+    };
+    if (data.effective_to !== undefined) {
+      updateFields['identifiers.$.effectiveTo'] = data.effective_to ? new Date(data.effective_to) : null;
+    }
+
+    const updated = await BranchModel.findOneAndUpdate(
+      { _id: branchOid, 'identifiers._id': identifierOid, deletedAt: null },
+      { $set: updateFields },
+      { returnDocument: 'after', lean: true },
+    );
+
+    if (!updated) throw new AppError('Branch identifier update failed', 404, 'NOT_FOUND');
+
+    // Audit log - NEVER store raw identifier value!
+    await this.audit('branch.identifier.updated', userId, metadata ?? {}, {
+      branchId,
+      identifierId,
+      status: data.status,
+      previousStatus: current.status,
+    });
+
+    const updatedField = (updated.identifiers ?? []).find(id => id._id.toString() === identifierId);
+    return toBranchIdentifier(updatedField ?? current);
   }
 
   async audit(eventType: string, actorUserId: string, metadata: BranchRequestMetadata, details: Record<string, unknown>) {

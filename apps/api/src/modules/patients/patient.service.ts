@@ -5,6 +5,7 @@ import type { PatientDocumentStorageService } from '../../shared/storage/patient
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { PatientRepository } from './patient.repository.js';
 import type {
+  AddPatientIdentifierDTO,
   CreatePatientDTO,
   CreatePatientDocumentDTO,
   PatientDocument,
@@ -13,8 +14,126 @@ import type {
   PatientTimelineListQuery,
   ReviewPatientDocumentDTO,
   UpdatePatientDTO,
+  UpdatePatientIdentifierDTO,
   UploadPatientDocumentDTO,
 } from './patient.types.js';
+import { evaluatePatientIdentifierReadiness } from './patient-identifier.utils.js';
+import { ConsentTemplateModel } from '../consents/consent.model.js';
+import { UserModel } from '../users/user.model.js';
+import { DoctorModel } from '../doctors/doctor.model.js';
+
+function generateConsentHtml(data: {
+  patientName: string;
+  patientNumber: string;
+  templateName: string;
+  templateCode: string;
+  templateVersion: number;
+  category: string;
+  contextType: string;
+  contextId: string;
+  sections?: Array<{ title: string; fields?: Array<{ label: string; fieldKey: string }> }>;
+  formResponses: Record<string, unknown>;
+  signatures: Array<{ signer_type: string; signer_name: string; signature_data: string; signed_at?: string }>;
+  declarationAccepted?: boolean;
+  declarationText?: string;
+  signedAt: Date;
+}): string {
+  const sectionsHtml = (data.sections || []).map((sec, sIdx) => {
+    const fieldsHtml = (sec.fields || []).map((f) => {
+      const val = data.formResponses[f.fieldKey];
+      const displayVal = val === undefined || val === null || val === ''
+        ? '<em style="color:#94a3b8">Not answered</em>'
+        : Array.isArray(val)
+        ? val.join(', ')
+        : typeof val === 'boolean'
+        ? (val ? 'Yes' : 'No')
+        : String(val);
+      return `<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase">${f.label}</div>
+        <div style="font-size:14px;color:#0f172a;font-weight:500;margin-top:2px">${displayVal}</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:24px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <h3 style="margin:0 0 12px;font-size:15px;color:#1e293b">${sIdx + 1}. ${sec.title}</h3>
+      ${fieldsHtml}
+    </div>`;
+  }).join('');
+
+  const renderedSigs = (data.signatures || []).map((s) => {
+    const isImg = s.signature_data.startsWith('data:image/') || s.signature_data.startsWith('http') || s.signature_data.startsWith('blob:');
+    return `<div style="flex:1;min-width:220px;padding:14px;background:#fff;border:1px solid #cbd5e1;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">${s.signer_type} SIGNATURE</div>
+      <div style="height:70px;display:flex;align-items:center;margin:8px 0">
+        ${isImg ? `<img src="${s.signature_data}" style="max-height:68px;max-width:200px;object-fit:contain" alt="Signature" />` : `<div style="font-style:italic;font-family:serif;font-size:18px;color:#1e293b">${s.signature_data}</div>`}
+      </div>
+      <div style="border-top:1px solid #cbd5e1;padding-top:6px;font-size:12px;font-weight:600;color:#0f172a">${s.signer_name}</div>
+      <div style="font-size:11px;color:#64748b">${s.signed_at ? new Date(s.signed_at).toLocaleString('en-IN') : data.signedAt.toLocaleString('en-IN')}</div>
+    </div>`;
+  });
+
+  const hasPatientSig = (data.signatures || []).some((s) => s.signer_type === 'PATIENT');
+  if (!hasPatientSig) {
+    renderedSigs.push(`<div style="flex:1;min-width:240px;padding:16px;background:#f8fafc;border:2px dashed #cbd5e1;border-radius:8px;text-align:center">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">PATIENT SIGNATURE</div>
+      <div style="height:65px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:8px 0;color:#94a3b8;font-size:13px;font-style:italic">
+        <span>Awaiting Patient Digital Signature</span>
+        <span style="font-size:11px;color:#64748b;margin-top:4px">Sign via Patient Portal</span>
+      </div>
+      <div style="border-top:1px dashed #cbd5e1;padding-top:6px;font-size:12px;color:#64748b">${data.patientName}</div>
+    </div>`);
+  }
+
+  const sigsHtml = renderedSigs.join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${data.templateName}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px auto; max-width: 820px; color: #1e293b; line-height: 1.5; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <div style="border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end">
+    <div>
+      <div style="font-size:12px;font-weight:700;color:#0284c7;letter-spacing:0.05em;text-transform:uppercase">HMS MEDICAL CONSENT RECORD</div>
+      <h1 style="margin:4px 0 0;font-size:22px;color:#0f172a">${data.templateName}</h1>
+      <div style="font-size:12px;color:#64748b;margin-top:2px">Code: ${data.templateCode} &middot; Version: ${data.templateVersion} &middot; Category: ${data.category}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:13px;font-weight:700;color:#0f172a">${data.patientName}</div>
+      <div style="font-size:12px;color:#64748b">MRN: ${data.patientNumber}</div>
+      <div style="font-size:11px;color:#64748b">Context: ${data.contextType} (${data.contextId})</div>
+    </div>
+  </div>
+
+  ${sectionsHtml}
+
+  ${data.declarationText ? `
+  <div style="margin-bottom:24px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+    <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;margin-bottom:4px">Consent Declaration &amp; Acknowledgment</div>
+    <p style="margin:0;font-size:13px;color:#14532d">${data.declarationText}</p>
+    <div style="margin-top:8px;font-size:12px;font-weight:600;color:#15803d">&#x2713; Confirmed and accepted by signer</div>
+  </div>` : ''}
+
+  <div style="margin-top:28px">
+    <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:10px">Signatures &amp; Verification</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${sigsHtml}
+    </div>
+  </div>
+
+  <div style="margin-top:36px;border-top:1px solid #e2e8f0;padding-top:12px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between">
+    <span>Legally binding electronic consent document captured in HMS</span>
+    <span>Generated: ${data.signedAt.toLocaleString('en-IN')}</span>
+  </div>
+</body>
+</html>`;
+}
+
 
 const isValidDate = (value: string) => {
   const date = new Date(value);
@@ -499,5 +618,401 @@ export class PatientService {
       throw new AppError('Timeline from date must be before to date', 400, 'VALIDATION_ERROR');
     }
   }
+
+  async getIdentifiers(patientId: string, userId?: string) {
+    const scope = userId ? await this.repository.resolveBranchScope(userId) : undefined;
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.getIdentifiers(patientId);
+  }
+
+  async addIdentifier(patientId: string, data: AddPatientIdentifierDTO, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.addIdentifier(patientId, data, userId);
+  }
+
+  async updateIdentifierStatus(patientId: string, identifierId: string, data: UpdatePatientIdentifierDTO, userId: string) {
+    const scope = await this.repository.resolveBranchScope(userId);
+    const patient = await this.repository.getById(patientId, scope);
+    if (!patient) throw new AppError('Patient not found', 404, 'NOT_FOUND');
+    return this.repository.updateIdentifierStatus(patientId, identifierId, data, userId);
+  }
+
+  async evaluateShaIdentifierReadiness(patientId: string, configuredSystem?: string) {
+    const identifiers = await this.repository.getIdentifiers(patientId);
+    return evaluatePatientIdentifierReadiness(
+      identifiers.map((id) => ({
+        identifierType: id.identifier_type,
+        issuingAuthority: id.issuing_authority,
+        status: id.status,
+        value: id.value,
+      })),
+      configuredSystem,
+    );
+  }
+
+  async completeStructuredConsent(
+    patientId: string,
+    data: import('./patient.types.js').SubmitStructuredConsentDTO,
+    userId: string,
+  ) {
+    const patient = await this.getById(patientId, userId);
+    const template = await ConsentTemplateModel.findById(data.template_id).lean();
+    if (!template) {
+      throw new AppError('Consent template not found', 404, 'CONSENT_TEMPLATE_NOT_FOUND');
+    }
+    if (template.status !== 'ACTIVE') {
+      throw new AppError('Only active consent templates can be signed', 400, 'INACTIVE_CONSENT_TEMPLATE');
+    }
+
+    const patientName = [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
+    const primarySignature = data.signatures[0];
+    const signedByName = primarySignature?.signer_name || patientName;
+
+    const summaryHtml = generateConsentHtml({
+      patientName,
+      patientNumber: patient.patient_number,
+      templateName: template.name,
+      templateCode: template.code,
+      templateVersion: template.version,
+      category: template.category,
+      contextType: data.context_type || 'PATIENT',
+      contextId: data.context_id || patient.id,
+      sections: (template.formDefinition as any)?.sections,
+      formResponses: data.form_responses || {},
+      signatures: data.signatures,
+      declarationAccepted: data.declaration_accepted,
+      declarationText: (template.formDefinition as any)?.declaration?.text,
+      signedAt: new Date(),
+    });
+
+    const fileBuffer = Buffer.from(summaryHtml, 'utf8');
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId,
+      data: fileBuffer,
+      mimeType: 'text/html',
+      fileName: `consent-${template.code}-v${template.version}.html`,
+    });
+
+    const createdDoc = await this.repository.createDocument(
+      patientId,
+      {
+        document_type: 'CONSENT',
+        title: `${template.name} (v${template.version})`,
+        file_name: `consent-${template.code}-v${template.version}.html`,
+        mime_type: 'text/html',
+        file_size_bytes: fileBuffer.byteLength,
+        storage_key: storageKey,
+        description: data.notes || `Structured consent signed for ${template.name}`,
+        consent_status: 'SIGNED',
+        consent_template_id: template._id.toString(),
+        consent_category: template.category,
+        consent_version: template.version,
+        context_type: data.context_type || 'PATIENT',
+        context_id: data.context_id || patient.id,
+        visit_id: data.visit_id ?? (data.context_type === 'PROCEDURE' ? data.context_id : null),
+        procedure_id: data.procedure_id ?? (data.context_type === 'PROCEDURE' ? data.context_id : null),
+        admission_id: data.admission_id ?? (data.context_type === 'ADMISSION' ? data.context_id : null),
+        signed_at: new Date().toISOString(),
+        signed_by_name: signedByName,
+        source: 'HOSPITAL',
+        review_status: 'VERIFIED',
+        form_responses: data.form_responses,
+        digital_signatures: data.signatures,
+      },
+      userId,
+    );
+
+    await this.repository.addTimelineEvent(
+      patientId,
+      {
+        event_type: 'CONSENT_VERIFIED',
+        title: 'Consent signed and completed',
+        description: `${template.name} (v${template.version}) completed and verified.`,
+      },
+      userId,
+    );
+
+    await this.repository.auditClinicalEvent(
+      'consent.structured.completed',
+      userId,
+      {
+        patientId,
+        templateId: template._id.toString(),
+        templateVersion: template.version,
+        documentId: createdDoc.id,
+        contextType: data.context_type,
+        contextId: data.context_id,
+      },
+    );
+
+    return createdDoc;
+  }
+
+  async attachConsentTemplate(
+    patientId: string,
+    data: import('./patient.types.js').AttachConsentTemplateDTO,
+    userId: string,
+  ) {
+    const patient = await this.getById(patientId, userId);
+    const template = await ConsentTemplateModel.findById(data.template_id).lean();
+    if (!template) {
+      throw new AppError('Consent template not found', 404, 'CONSENT_TEMPLATE_NOT_FOUND');
+    }
+    if (template.status !== 'ACTIVE') {
+      throw new AppError('Only active consent templates can be assigned', 400, 'INACTIVE_CONSENT_TEMPLATE');
+    }
+
+    const patientName = [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ');
+    const contextType = data.context_type ?? 'PATIENT';
+    const contextId = data.context_id || patient.id;
+
+    let doctorName = 'Attending Physician';
+    let doctorSignatureData: string | null = null;
+    if (userId) {
+      const user = await UserModel.findById(userId).select({ fullName: 1 }).lean<{ fullName: string }>();
+      if (user?.fullName) doctorName = user.fullName;
+      const doctor = await DoctorModel.findOne({ userId: new Types.ObjectId(userId), deletedAt: null }).lean();
+      if (doctor) {
+        doctorName = doctor.displayName || `Dr. ${doctor.firstName} ${doctor.lastName}`;
+        const docWithSig = doctor as typeof doctor & { signatureData?: string | null };
+        if (docWithSig.signatureData) {
+          doctorSignatureData = docWithSig.signatureData;
+        }
+      }
+    }
+
+    const autoFormResponses: Record<string, unknown> = {
+      patient_name: patientName,
+      patient_number: patient.patient_number,
+      date_of_birth: patient.date_of_birth
+        ? new Date(patient.date_of_birth).toLocaleDateString('en-IN')
+        : '',
+      gender: patient.gender,
+      phone: patient.phone || '',
+      doctor_name: doctorName,
+      ...(data.form_responses || {}),
+    };
+
+    const initialSignatures: Array<import('./patient.types.js').ConsentDigitalSignature> = [];
+    const requiredSigs: string[] = (template.formDefinition as any)?.signatures?.requiredSignatures || ['PATIENT'];
+    if (requiredSigs.includes('DOCTOR')) {
+      initialSignatures.push({
+        signer_type: 'DOCTOR',
+        signer_name: doctorName,
+        signature_data: doctorSignatureData || `Digitally Authorized by Dr. ${doctorName}`,
+        signed_at: new Date().toISOString(),
+      });
+    }
+
+    const summaryHtml = generateConsentHtml({
+      patientName,
+      patientNumber: patient.patient_number,
+      templateName: template.name,
+      templateCode: template.code,
+      templateVersion: template.version,
+      category: template.category,
+      contextType,
+      contextId,
+      sections: (template.formDefinition as any)?.sections,
+      formResponses: autoFormResponses,
+      signatures: initialSignatures,
+      declarationAccepted: false,
+      declarationText: (template.formDefinition as any)?.declaration?.text,
+      signedAt: new Date(),
+    });
+
+    const fileBuffer = Buffer.from(summaryHtml, 'utf8');
+    const { storageKey } = await this.documentStorage.uploadPatientDocument({
+      patientId,
+      data: fileBuffer,
+      mimeType: 'text/html',
+      fileName: `consent-${template.code}-v${template.version}.html`,
+    });
+
+    const consentStatus = data.consent_status ?? 'PENDING';
+    const createdDoc = await this.repository.createDocument(
+      patientId,
+      {
+        document_type: 'CONSENT',
+        title: data.title?.trim() || `${template.name} (v${template.version})`,
+        file_name: `consent-${template.code}-v${template.version}.html`,
+        mime_type: 'text/html',
+        file_size_bytes: fileBuffer.byteLength,
+        storage_key: storageKey,
+        description: data.description?.trim() || `Configured consent template form: ${template.name}`,
+        consent_status: consentStatus,
+        consent_template_id: template._id.toString(),
+        consent_category: template.category,
+        consent_version: template.version,
+        context_type: contextType,
+        context_id: contextId,
+        visit_id: data.visit_id ?? (contextType === 'PROCEDURE' ? contextId : null),
+        procedure_id: data.procedure_id ?? (contextType === 'PROCEDURE' ? contextId : null),
+        admission_id: data.admission_id ?? (contextType === 'ADMISSION' ? contextId : null),
+        valid_until: data.valid_until ? (isValidDate(data.valid_until) ? new Date(data.valid_until).toISOString() : null) : null,
+        source: 'HOSPITAL',
+        review_status: 'PENDING',
+        form_responses: autoFormResponses,
+        digital_signatures: initialSignatures,
+      },
+      userId,
+    );
+
+    await this.repository.addTimelineEvent(
+      patientId,
+      {
+        event_type: 'CONSENT_ADDED',
+        title: 'Consent template attached',
+        description: `${template.name} (v${template.version}) assigned to patient.`,
+      },
+      userId,
+    );
+
+    await this.repository.auditClinicalEvent(
+      'consent.template.attached',
+      userId,
+      {
+        patientId,
+        templateId: template._id.toString(),
+        templateVersion: template.version,
+        documentId: createdDoc.id,
+        contextType,
+        contextId,
+      },
+    );
+
+    return createdDoc;
+  }
+
+  async attachConsentSignature(
+    patientId: string,
+    consentDocumentId: string,
+    signatureDocumentId: string,
+    signedByName: string,
+    signedAt: Date = new Date(),
+  ) {
+    return this.repository.attachConsentSignature(
+      patientId,
+      consentDocumentId,
+      signatureDocumentId,
+      signedByName,
+      signedAt,
+    );
+  }
+
+  async attachPatientSignatureToConsent(
+    patientId: string,
+    consentDocumentId: string,
+    signatureDocumentId: string,
+    signedByName: string,
+    signatureData: Buffer,
+    signatureMimeType: string,
+    signedAt: Date = new Date(),
+  ) {
+    const consent = await this.repository.getDocument(patientId, consentDocumentId);
+    if (!consent) {
+      throw new AppError('Consent document not found', 404, 'NOT_FOUND');
+    }
+
+    const dataUri = `data:${signatureMimeType};base64,${signatureData.toString('base64')}`;
+    const digitalSignature: import('./patient.types.js').ConsentDigitalSignature = {
+      signer_type: 'PATIENT',
+      signer_name: signedByName,
+      signature_data: dataUri,
+      signed_at: signedAt.toISOString(),
+    };
+
+    const existingSignatures = (consent.digital_signatures || []).filter(
+      (s) => s.signer_type !== 'PATIENT',
+    );
+    const updatedSignatures = [...existingSignatures, digitalSignature];
+    let finalSignatures = updatedSignatures;
+
+    // If this consent is an HTML document or linked to a template, regenerate the HTML with the embedded signature
+    if (consent.storage_key && (consent.mime_type === 'text/html' || consent.consent_template_id)) {
+      try {
+        const patient = await this.repository.getById(patientId);
+        let template = null;
+        if (consent.consent_template_id) {
+          template = await ConsentTemplateModel.findById(consent.consent_template_id).lean();
+        }
+
+        const patientName = patient
+          ? [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ')
+          : signedByName;
+
+        let doctorName = 'Attending Physician';
+        let doctorSignatureData: string | null = null;
+        const uId = consent.uploaded_by;
+        if (uId) {
+          const docUser = await UserModel.findById(uId).select({ fullName: 1 }).lean<{ fullName: string }>();
+          if (docUser?.fullName) doctorName = docUser.fullName;
+          const doctor = await DoctorModel.findOne({ userId: new Types.ObjectId(uId), deletedAt: null }).lean();
+          if (doctor) {
+            doctorName = doctor.displayName || `Dr. ${doctor.firstName} ${doctor.lastName}`;
+            const docWithSig = doctor as typeof doctor & { signatureData?: string | null };
+            if (docWithSig.signatureData) doctorSignatureData = docWithSig.signatureData;
+          }
+        }
+
+        const autoFormResponses: Record<string, unknown> = {
+          patient_name: patientName,
+          patient_number: patient?.patient_number || '',
+          date_of_birth: patient?.date_of_birth
+            ? new Date(patient.date_of_birth).toLocaleDateString('en-IN')
+            : '',
+          gender: patient?.gender,
+          phone: patient?.phone || '',
+          doctor_name: doctorName,
+          ...(consent.form_responses || {}),
+        };
+
+        finalSignatures = updatedSignatures.map((s) => {
+          if (s.signer_type === 'DOCTOR' && doctorSignatureData) {
+            return { ...s, signature_data: doctorSignatureData, signer_name: doctorName };
+          }
+          return s;
+        });
+
+        const updatedHtml = generateConsentHtml({
+          patientName,
+          patientNumber: patient?.patient_number || '',
+          templateName: template?.name || consent.title,
+          templateCode: template?.code || 'CONSENT',
+          templateVersion: template?.version || consent.consent_version || 1,
+          category: template?.category || consent.consent_category || 'GENERAL',
+          contextType: consent.context_type || 'PATIENT',
+          contextId: consent.context_id || patientId,
+          sections: (template?.formDefinition as any)?.sections,
+          formResponses: autoFormResponses,
+          signatures: finalSignatures,
+          declarationAccepted: true,
+          declarationText: (template?.formDefinition as any)?.declaration?.text,
+          signedAt,
+        });
+
+        await this.documentStorage.updatePatientDocument(
+          consent.storage_key,
+          Buffer.from(updatedHtml, 'utf8'),
+        );
+      } catch (err) {
+        // Continue even if regeneration fails
+      }
+    }
+
+    // Update database record
+    return this.repository.attachConsentSignature(
+      patientId,
+      consentDocumentId,
+      signatureDocumentId,
+      signedByName,
+      signedAt,
+      finalSignatures,
+    );
+  }
 }
+
 

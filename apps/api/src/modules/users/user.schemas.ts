@@ -19,6 +19,23 @@ export const userIdParamsSchema = {
   },
 } as const;
 
+export const reassignDepartmentUsersBodySchema = {
+  type: 'object',
+  required: ['from_department_id', 'to_department_id', 'user_ids'],
+  additionalProperties: false,
+  properties: {
+    from_department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    to_department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    user_ids: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      items: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    },
+  },
+} as const;
+
 export const listUsersQuerySchema = {
   type: 'object',
   additionalProperties: false,
@@ -76,6 +93,7 @@ export const updateUserBodySchema = {
     hireDate: { type: ['string', 'null'] },
     profilePhotoUrl: { type: ['string', 'null'] },
     address: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['active', 'inactive', 'locked'] },
     branches: { type: 'array', minItems: 1, items: assignmentSchema },
     departments: { type: 'array', minItems: 1, items: assignmentSchema },
     roleIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },

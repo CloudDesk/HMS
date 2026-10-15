@@ -221,7 +221,7 @@ describe('System Settings quick-win runtime behavior', () => {
     const clearFailedLogin = vi.spyOn(repository, 'clearFailedLogin').mockResolvedValue(undefined);
     vi.spyOn(repository, 'findUserById').mockResolvedValue({ ...authUser, failedLoginAttempts: 0 });
     vi.spyOn(repository, 'createRefreshToken').mockResolvedValue('refresh-1');
-    vi.spyOn(repository, 'getUserAccessContext').mockResolvedValue({ branches: [], permissions: [], roles: [] });
+    vi.spyOn(repository, 'getUserAccessContext').mockResolvedValue({ branches: [], departments: [], permissions: [], roles: [] });
     vi.spyOn(repository, 'audit').mockResolvedValue(undefined);
 
     const patientOtp = new PatientOtpService(
@@ -269,4 +269,44 @@ describe('System Settings quick-win runtime behavior', () => {
     expect(updated.hospitalName).toBe('HMS Enterprise');
     expect(deleteSpy).toHaveBeenCalledWith('logo-blob-123');
   });
+
+  it('validates localization settings schema with INR, TZS, NGN, and India', async () => {
+    const { SystemSettingsModel } = await import('./settings.model.js');
+    const doc = new SystemSettingsModel({
+      key: 'system',
+      general: {
+        applicationName: 'Test Hospital',
+        version: '1.0.0',
+        defaultLanguage: 'en',
+        dateFormat: 'DD MMM YYYY',
+        timeFormat: '12-hour',
+        sessionTimeoutMinutes: 30,
+        maintenanceMode: false,
+        darkMode: false,
+        auditLogging: true,
+        multiBranchMode: true,
+      },
+      hospital: {
+        hospitalName: 'Test Hospital',
+        phone: '+919999900001',
+        email: 'test@hospital.com',
+        address: 'MG Road, Bengaluru',
+        logoBlobName: null,
+        logoContentType: null,
+      },
+      localization: {
+        country: 'India',
+        timezone: 'Asia/Kolkata',
+        currency: 'INR',
+        currencySymbol: '₹',
+        numberFormat: '1,000.00',
+        firstDayOfWeek: 'Monday',
+      },
+      userPreferences: preferences(),
+    });
+
+    const validationError = doc.validateSync();
+    expect(validationError).toBeUndefined();
+  });
 });
+

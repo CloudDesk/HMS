@@ -52,7 +52,7 @@ const availabilityFormSchema = z
       if (day.is_available && day.working_blocks.length === 0) {
         context.addIssue({
           code: 'custom',
-          message: 'Every available day must contain at least one working block.',
+          message: 'Every available day must contain at least one working slot.',
           path: ['availability'],
         });
       }
@@ -87,7 +87,7 @@ const exceptionFormSchema = z
     if (form.is_available && form.working_blocks.length === 0) {
       context.addIssue({
         code: 'custom',
-        message: 'Custom availability requires a working block.',
+        message: 'Custom availability requires a working slot.',
         path: ['working_blocks'],
       });
     }
@@ -191,8 +191,8 @@ export function DoctorAvailabilityPage() {
     <div className="doctor-page">
       <section className="doctor-page-header">
         <div className="doctor-page-title">
-          <h2>Availability Management</h2>
-          <p>Configure recurring blocks, dated exceptions, and doctor leave.</p>
+          <h2>Doctor Availability</h2>
+          <p>Manage recurring working hours and scheduled leave.</p>
         </div>
         <div className="doctor-page-actions">
           <button
@@ -279,7 +279,7 @@ export function DoctorAvailabilityPage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Recurring Working Hours</h3>
-                  <p>Add multiple non-overlapping blocks for each available day.</p>
+                  <p>Configure weekly working slots and slot duration for appointment booking.</p>
                 </div>
               </div>
               <Controller
@@ -313,7 +313,7 @@ export function DoctorAvailabilityPage() {
               <div className="doc-card-header">
                 <div>
                   <h3>Doctor Leave Management</h3>
-                  <p>Date ranges block all generated appointment slots for this doctor.</p>
+                  <p>Scheduled leave dates automatically block booking slots for this doctor.</p>
                 </div>
               </div>
               <form className="doc-form-grid two" onSubmit={submitLeave} style={{ marginBottom: '1.5rem' }}>

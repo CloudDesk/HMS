@@ -119,14 +119,22 @@ export function AppointmentDashboardPage() {
     <div className="appointment-page">
       <section className="appointment-page-header">
         <div className="appointment-page-title">
-          <h2>Appointment Dashboard</h2>
-          <p>Monitor booking records, arrival readiness, and the front-desk schedule.</p>
+          <h2>Appointments Dashboard</h2>
+          <p>Manage today's appointments and patient registrations</p>
           <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
         <div className="doctor-page-actions">
           {canCreateBooking ? <button className="doc-btn primary" onClick={() => navigate('/appointments/book')} type="button">
             <i className="ph ph-calendar-plus" aria-hidden="true" />
             Book Appointment
+          </button> : null}
+          {canCreateBooking ? <button className="doc-btn" onClick={() => navigate('/appointments/book')} type="button">
+            <i className="ph ph-user-plus" aria-hidden="true" />
+            Walk-in Registration
+          </button> : null}
+          {canViewPatients ? <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
+            <i className="ph ph-magnifying-glass" aria-hidden="true" />
+            Search Patient
           </button> : null}
         </div>
       </section>

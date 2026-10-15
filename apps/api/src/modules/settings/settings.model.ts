@@ -47,9 +47,9 @@ const hospitalSchema = new Schema<HospitalSettings>(
 
 const localizationSchema = new Schema<LocalizationSettings>(
   {
-    country: { type: String, enum: ['Kenya', 'Uganda', 'Tanzania', 'Nigeria'], required: true },
-    timezone: { type: String, enum: ['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo'], required: true },
-    currency: { type: String, enum: ['KES', 'UGX', 'USD'], required: true },
+    country: { type: String, enum: ['Kenya', 'Uganda', 'Tanzania', 'Nigeria', 'India'], required: true },
+    timezone: { type: String, enum: ['Africa/Nairobi', 'Africa/Lagos', 'Africa/Cairo', 'Africa/Kampala', 'Africa/Dar_es_Salaam', 'Asia/Kolkata'], required: true },
+    currency: { type: String, enum: ['KES', 'UGX', 'USD', 'TZS', 'NGN', 'INR'], required: true },
     currencySymbol: { type: String, required: true, trim: true },
     numberFormat: { type: String, enum: ['1,000.00', '1.000,00'], required: true },
     firstDayOfWeek: { type: String, enum: ['Monday', 'Sunday'], required: true },

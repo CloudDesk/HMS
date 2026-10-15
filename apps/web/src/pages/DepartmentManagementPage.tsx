@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useDepartmentManagementFeature, type SortColumn, type SortDirection } from '../hooks/departments/useDepartmentManagementFeature';
+import { useDepartmentDeletePreviewFeature, useDepartmentManagementFeature, type SortColumn, type SortDirection } from '../hooks/departments/useDepartmentManagementFeature';
 import { ApiError } from '../api/api-error';
 import { type BranchResponse } from '../api/branches';
 import {
+  departmentModuleOptions,
   type ApiDepartmentStatus,
   type DepartmentResponse,
 } from '../api/departments';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Toast } from '../components/ui/Toast';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { downloadBlob } from '../utils/download';
@@ -26,8 +27,19 @@ const departmentSchema = z.object({
   description: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   isClinical: z.boolean(),
+  hiddenModules: z.array(z.enum([
+    'patients', 'doctors', 'appointments', 'opd', 'emergency', 'admissions', 'surgery',
+    'pharmacy', 'laboratory', 'imaging', 'billing', 'reports', 'administration',
+  ])),
 });
 type DepartmentFormData = z.infer<typeof departmentSchema>;
+
+const toggleSelection = (current: Set<string>, ids: string[]) => {
+  const next = new Set(current);
+  const select = !ids.every((id) => current.has(id));
+  ids.forEach((id) => select ? next.add(id) : next.delete(id));
+  return next;
+};
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
@@ -168,6 +180,223 @@ function DeptsByBranch({
   );
 }
 
+function DepartmentDeleteDialog({
+  department,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  department: DepartmentResponse;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(new Set());
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [targetDepartmentId, setTargetDepartmentId] = useState('');
+  const [showBulkServiceConfirmation, setShowBulkServiceConfirmation] = useState(false);
+  const preview = useDepartmentDeletePreviewFeature(department.id, page);
+  const assigned = Boolean(preview.data?.service_meta.total || preview.data?.user_meta.total);
+  const deleteDepartmentDisabled = loading || preview.loading || Boolean(preview.error) || assigned;
+  const servicePages = preview.data ? Math.ceil(preview.data.service_meta.total / preview.data.service_meta.limit) : 1;
+  const userPages = preview.data ? Math.ceil(preview.data.user_meta.total / preview.data.user_meta.limit) : 1;
+  const pageCount = Math.max(servicePages, userPages);
+  const pageServices = preview.data?.services ?? [];
+  const pageUsers = preview.data?.users ?? [];
+  const allPageServicesSelected = pageServices.length > 0 && pageServices.every((service) => selectedServiceIds.has(service.id));
+  const allPageUsersSelected = pageUsers.length > 0 && pageUsers.every((user) => selectedUserIds.has(user.id));
+
+  const confirmServiceDelete = async () => {
+    if (!serviceToDelete || !preview.canDeleteService) return;
+    try {
+      await preview.deleteService.mutateAsync(serviceToDelete.id);
+      setServiceToDelete(null);
+      setSelectedServiceIds((selected) => {
+        const next = new Set(selected);
+        next.delete(serviceToDelete.id);
+        return next;
+      });
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to delete assigned service', error);
+    }
+  };
+
+  const deleteSelectedServices = async () => {
+    if (!preview.canDeleteService || selectedServiceIds.size === 0 || selectedServiceIds.size > 100) return;
+    try {
+      await preview.bulkDeleteServices.mutateAsync({
+        department_id: department.id,
+        service_ids: [...selectedServiceIds],
+      });
+      setShowBulkServiceConfirmation(false);
+      setSelectedServiceIds(new Set());
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to delete selected services', error);
+    }
+  };
+
+  const reassignSelectedUsers = async () => {
+    if (!preview.canReassignUsers || !targetDepartmentId || selectedUserIds.size === 0 || selectedUserIds.size > 100) return;
+    try {
+      await preview.reassignUsers.mutateAsync({
+        from_department_id: department.id,
+        to_department_id: targetDepartmentId,
+        user_ids: [...selectedUserIds],
+      });
+      setSelectedUserIds(new Set());
+      setTargetDepartmentId('');
+      setPage(1);
+      await preview.retry();
+    } catch (error) {
+      console.error('Failed to reassign selected users', error);
+    }
+  };
+
+  return (
+    <>
+    <Modal
+      open
+      size="large"
+      title="Delete Department"
+      onClose={() => { if (!loading) onCancel(); }}
+      footer={(
+        <>
+          <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">Cancel</button>
+          <button
+            className="btn-danger department-delete-confirm-button"
+            disabled={deleteDepartmentDisabled}
+            onClick={() => { if (!deleteDepartmentDisabled) onConfirm(); }}
+            title={assigned ? 'Delete assigned services and reassign assigned users before deleting this department.' : undefined}
+            type="button"
+          >
+            {loading ? 'Deleting…' : 'Delete Department'}
+          </button>
+        </>
+      )}
+    >
+      <p className="dialog-message">Delete {department.name}? Delete its assigned services and reassign its users before deleting the department.</p>
+      {preview.loading && <p>Loading assigned services and users…</p>}
+      {preview.error && <div role="alert">Could not load department assignments. <button className="btn-secondary" onClick={() => void preview.retry()} type="button">Retry</button></div>}
+      {preview.data && (
+        <div className="department-delete-preview">
+          <section className="department-delete-section">
+            <h4>Assigned services ({preview.data.service_meta.total})</h4>
+            {preview.data.services.length === 0 ? <p>No services are assigned.</p> : (
+              <>
+              <div className="department-delete-bulk-toolbar">
+                <label className="department-delete-select-all">
+                  <input
+                    checked={allPageServicesSelected}
+                    onChange={() => setSelectedServiceIds((current) => toggleSelection(current, pageServices.map((service) => service.id)))}
+                    type="checkbox"
+                  />
+                Select all services on this page
+                </label>
+                {preview.canDeleteService && <button className="btn-danger" disabled={selectedServiceIds.size === 0 || selectedServiceIds.size > 100 || preview.bulkDeleteServices.isPending} onClick={() => setShowBulkServiceConfirmation(true)} type="button">Delete selected ({selectedServiceIds.size})</button>}
+              </div>
+              {selectedServiceIds.size > 100 && <p role="status">Bulk deletion supports up to 100 services at a time. Deselect services to continue.</p>}
+              <ul className="department-delete-list department-delete-service-list">
+                {preview.data.services.map((service) => (
+                  <li className="department-delete-service-row" key={service.id}>
+                    <input
+                      aria-label={`Select ${service.name}`}
+                      checked={selectedServiceIds.has(service.id)}
+                      onChange={() => setSelectedServiceIds((current) => toggleSelection(current, [service.id]))}
+                      type="checkbox"
+                    />
+                    <div className="department-delete-service-details">
+                      <strong>{service.name}</strong>
+                      <span>{service.code} · {service.type.replaceAll('_', ' ')} · {service.status}</span>
+                    </div>
+                    {preview.canDeleteService && <button className="btn-danger" disabled={preview.deleteService.isPending} onClick={() => setServiceToDelete({ id: service.id, name: service.name })} type="button">Delete service</button>}
+                  </li>
+                ))}
+              </ul>
+              </>
+            )}
+            {!preview.canDeleteService && preview.data.service_meta.total > 0 && <p>You do not have permission to delete services. Ask a user with Service Catalogue delete access.</p>}
+          </section>
+          <section className="department-delete-section">
+            <h4>Assigned users ({preview.data.user_meta.total})</h4>
+            {preview.data.users.length === 0 ? <p>No users are assigned.</p> : (
+              <>
+              <div className="department-delete-bulk-toolbar">
+                <label className="department-delete-select-all">
+                  <input
+                    checked={allPageUsersSelected}
+                    onChange={() => setSelectedUserIds((current) => toggleSelection(current, pageUsers.map((user) => user.id)))}
+                    type="checkbox"
+                  />
+                  Select all users on this page
+                </label>
+                {preview.canReassignUsers && (
+                  <div className="department-delete-user-actions">
+                    <select aria-label="Reassign selected users to department" disabled={preview.targetDepartmentsLoading || preview.reassignUsers.isPending} onChange={(event) => setTargetDepartmentId(event.target.value)} value={targetDepartmentId}>
+                      <option value="">Select target department</option>
+                      {preview.targetDepartments.filter((target) => target.id !== department.id).map((target) => <option key={target.id} value={target.id}>{target.name} ({target.code})</option>)}
+                    </select>
+                    <button className="btn-primary" disabled={selectedUserIds.size === 0 || selectedUserIds.size > 100 || !targetDepartmentId || preview.reassignUsers.isPending || preview.targetDepartmentsLoading || Boolean(preview.targetDepartmentsError)} onClick={() => void reassignSelectedUsers()} type="button">Reassign selected ({selectedUserIds.size})</button>
+                  </div>
+                )}
+              </div>
+              {preview.targetDepartmentsError && preview.canReassignUsers && <p role="alert">Could not load target departments. <button className="btn-secondary" onClick={() => void preview.retryTargetDepartments()} type="button">Retry</button></p>}
+              {!preview.canReassignUsers && <p>Use User Management with user edit access to reassign these accounts.</p>}
+              <ul className="department-delete-list department-delete-user-list">
+                {preview.data.users.map((user) => (
+                  <li className="department-delete-user-row" key={user.id}>
+                    <input aria-label={`Select ${user.name}`} checked={selectedUserIds.has(user.id)} onChange={() => setSelectedUserIds((current) => toggleSelection(current, [user.id]))} type="checkbox" />
+                    <span><strong>{user.name}</strong>{user.employee_code ? ` · ${user.employee_code}` : ''}{user.job_title ? ` · ${user.job_title}` : ''} · {user.status}</span>
+                  </li>
+                ))}
+              </ul>
+              {selectedUserIds.size > 100 && <p role="status">Bulk reassignment supports up to 100 users at a time. Deselect users to continue.</p>}
+              </>
+            )}
+          </section>
+          {pageCount > 1 && (
+            <div className="department-delete-pagination">
+              <button className="btn-secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
+              <span> Page {page} of {pageCount} </span>
+              <button className="btn-secondary" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+            </div>
+          )}
+          {assigned && <p role="status">Delete the assigned services and reassign the assigned users above to enable department deletion.</p>}
+          {!assigned && <p>No assigned services or users. This department is ready to delete.</p>}
+        </div>
+      )}
+    </Modal>
+    {serviceToDelete && (
+      <ConfirmDialog
+        open
+        title="Delete Service"
+        message={`Delete ${serviceToDelete.name}? This will soft-delete it so it no longer blocks department deletion.`}
+        confirmLabel="Delete Service"
+        loading={preview.deleteService.isPending}
+        onCancel={() => { if (!preview.deleteService.isPending) setServiceToDelete(null); }}
+        onConfirm={() => void confirmServiceDelete()}
+      />
+    )}
+    {showBulkServiceConfirmation && (
+      <ConfirmDialog
+        open
+        title="Delete Selected Services"
+        message={`Delete ${selectedServiceIds.size} selected service${selectedServiceIds.size === 1 ? '' : 's'}? They will be soft-deleted and removed from this department's assignments.`}
+        confirmLabel={`Delete ${selectedServiceIds.size} service${selectedServiceIds.size === 1 ? '' : 's'}`}
+        loading={preview.bulkDeleteServices.isPending}
+        onCancel={() => { if (!preview.bulkDeleteServices.isPending) setShowBulkServiceConfirmation(false); }}
+        onConfirm={() => void deleteSelectedServices()}
+      />
+    )}
+    </>
+  );
+}
+
 
 // ─── Main Page Component ───────────────────────────────────────────────────────
 
@@ -189,11 +418,12 @@ export function DepartmentManagementPage() {
   const [activeDept, setActiveDept] = useState<DepartmentResponse | null>(null);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DepartmentResponse | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const deptForm = useForm<DepartmentFormData>({
     resolver: zodResolver(departmentSchema),
     defaultValues: {
-      code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
+      code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false, hiddenModules: []
     }
   });
 
@@ -221,10 +451,11 @@ export function DepartmentManagementPage() {
         description: dept.description || '',
         status: dept.status,
         isClinical: dept.isClinical,
+        hiddenModules: dept.hiddenModules ?? [],
       });
     } else {
       deptForm.reset({
-        code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false
+        code: '', name: '', branch_ids: [], description: '', status: 'ACTIVE', isClinical: false, hiddenModules: []
       });
     }
   };
@@ -253,6 +484,7 @@ export function DepartmentManagementPage() {
         description: values.description?.trim() || null,
         status: values.status,
         isClinical: values.isClinical,
+        hiddenModules: values.hiddenModules,
       };
 
       if (modalMode === 'create') {
@@ -326,7 +558,21 @@ export function DepartmentManagementPage() {
 
   return (
     <>
-      <div className="um-grid">
+      <div className="um-grid department-management-page">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Department Management</h2>
+            <p className="um-page-subtitle">Configure clinical and non-clinical departments, module access, and branch linkages.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Department
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
         <div className="um-kpi-row" aria-label="Department KPIs">
           <div className="kpi-card">
@@ -377,7 +623,7 @@ export function DepartmentManagementPage() {
         </div>
 
         {/* ── Body (Table + Right Panel) ────────────────────────────────────── */}
-        <div className="um-body">
+        <div className={`um-body${showAnalytics ? ' um-body--analytics' : ' um-body--full'}`}>
           {/* Table Section */}
           <div className="um-table-section card">
             {/* Toolbar */}
@@ -432,6 +678,15 @@ export function DepartmentManagementPage() {
                 </select>
                 <button className="um-clear-btn" onClick={resetFilters} type="button">
                   <i className="ph ph-x" aria-hidden="true" /> Clear Filters
+                </button>
+                <button
+                  aria-expanded={showAnalytics}
+                  className="btn-secondary admin-table-action admin-analytics-toggle"
+                  onClick={() => setShowAnalytics((visible) => !visible)}
+                  type="button"
+                >
+                  <i className="ph ph-chart-bar" aria-hidden="true" />
+                  {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
                 </button>
               </div>
             </div>
@@ -620,7 +875,7 @@ export function DepartmentManagementPage() {
           </div>
 
           {/* ── Right Analytics Panel ─────────────────────────────────────── */}
-          <div className="um-right-panel">
+          {showAnalytics ? <div className="um-right-panel">
             {/* Status Donut */}
             <div className="card um-chart-card">
               <div className="card-header">
@@ -649,7 +904,7 @@ export function DepartmentManagementPage() {
               )}
             </div>
 
-          </div>
+          </div> : null}
         </div>
       </div>
 
@@ -676,6 +931,8 @@ export function DepartmentManagementPage() {
             </>
           )
         }
+        className="um-user-modal"
+        size="large"
         onClose={closeModal}
         open={Boolean(modalMode)}
         icon="ph-buildings"
@@ -689,149 +946,295 @@ export function DepartmentManagementPage() {
 
         {(modalMode === 'create' || modalMode === 'edit') && (
           <form id="dept-management-form" onSubmit={(e) => void handleSave(e)}>
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Department Code <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(deptForm.formState.errors.code)}
-                  {...deptForm.register('code')}
-                />
-                {deptForm.formState.errors.code ? <small className="field-error">{deptForm.formState.errors.code.message}</small> : null}
-              </label>
-              <label className="form-field">
-                <span>Department Name <span className="required">*</span></span>
-                <input
-                  disabled={submitting}
-                  aria-invalid={Boolean(deptForm.formState.errors.name)}
-                  {...deptForm.register('name')}
-                />
-                {deptForm.formState.errors.name ? <small className="field-error">{deptForm.formState.errors.name.message}</small> : null}
-              </label>
-            </div>
-
-            <div className="form-section-title">Organisation</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Branch <span className="required">*</span></span>
-                <BranchMultiSelect
-                  branches={branches}
-                  selectedIds={deptForm.watch('branch_ids')}
-                  onChange={(newIds) => {
-                    deptForm.setValue('branch_ids', newIds, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                  }}
-                  disabled={submitting}
-                />
-
-                {deptForm.formState.errors.branch_ids ? (
-                  <small className="field-error">
-                    {deptForm.formState.errors.branch_ids.message}
-                  </small>
-                ) : null}
-              </label>
-              {modalMode === 'edit' && (
-                <label className="form-field">
-                  <span>Status</span>
-                  <select
-                    disabled={submitting}
-                    {...deptForm.register('status')}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
-                </label>
-              )}
-              <label className="form-field um-checkbox-field">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
-                  <Controller
-                    name="isClinical"
-                    control={deptForm.control}
-                    render={({ field }) => (
-                      <input
-                        type="checkbox"
-                        disabled={submitting}
-                        checked={field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                        style={{ width: 'auto' }}
-                      />
-                    )}
-                  />
-                  <span>Is Clinical Department?</span>
+            {/* Section 1: Basic Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Basic Information</span>
                 </div>
-              </label>
+                <span className="um-card-badge">Identification</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-hash" /> Department Code
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(deptForm.formState.errors.code)}
+                        placeholder="e.g. CARDIO, PEDIATRICS"
+                        {...deptForm.register('code')}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                    {deptForm.formState.errors.code ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.code.message}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-first-aid" /> Department Name
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        disabled={submitting}
+                        aria-invalid={Boolean(deptForm.formState.errors.name)}
+                        placeholder="e.g. Cardiology & Vascular"
+                        {...deptForm.register('name')}
+                      />
+                      <i className="ph ph-first-aid um-input-prefix-icon" />
+                    </div>
+                    {deptForm.formState.errors.name ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.name.message}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="form-section-title">Additional Information</div>
-            <div className="form-grid-3">
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea
-                  disabled={submitting}
-                  rows={3}
-                  {...deptForm.register('description')}
-                />
-              </label>
+            {/* Section 2: Organisation & Classification */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-git-branch" />
+                  <span>Organisation &amp; Classification</span>
+                </div>
+                <span className="um-card-badge">Scope &amp; Status</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label">
+                      <span className="um-field-label-text">
+                        <i className="ph ph-map-pin" /> Branch
+                      </span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <BranchMultiSelect
+                      branches={branches}
+                      selectedIds={deptForm.watch('branch_ids')}
+                      onChange={(newIds) => {
+                        deptForm.setValue('branch_ids', newIds, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      disabled={submitting}
+                    />
+                    {deptForm.formState.errors.branch_ids ? (
+                      <span className="um-field-error">
+                        <i className="ph ph-warning-circle" /> {deptForm.formState.errors.branch_ids.message}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {modalMode === 'edit' ? (
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text">
+                          <i className="ph ph-toggle-left" /> Status
+                        </span>
+                      </label>
+                      <div className="um-input-wrap">
+                        <select
+                          disabled={submitting}
+                          {...deptForm.register('status')}
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="INACTIVE">Inactive</option>
+                        </select>
+                        <i className="ph ph-toggle-left um-input-prefix-icon" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="um-field">
+                      <label className="um-field-label">
+                        <span className="um-field-label-text">
+                          <i className="ph ph-toggle-left" /> Status
+                        </span>
+                      </label>
+                      <div className="um-default-status-pill" title="New departments are active upon creation">
+                        <div className="um-status-card-dot active" />
+                        <div className="um-default-status-info">
+                          <span className="um-default-status-title">Active</span>
+                          <span className="um-default-status-hint">Default for newly created hospital departments</span>
+                        </div>
+                        <span className="um-default-status-badge">
+                          <i className="ph ph-check" /> Default
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.65rem 0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer' }}>
+                    <Controller
+                      name="isClinical"
+                      control={deptForm.control}
+                      render={({ field }) => (
+                        <input
+                          type="checkbox"
+                          disabled={submitting}
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                          style={{ width: '16px', height: '16px', margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                        />
+                      )}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a' }}>Is Clinical Department?</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Designates departments that directly manage clinical patients and examinations</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Doctor Module Visibility */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-eye-slash" />
+                  <span>Doctor Module Visibility</span>
+                </div>
+                <span className="um-card-badge">Custom Scope</span>
+              </div>
+              <div className="um-modal-card-body">
+                <p className="dialog-message" style={{ marginTop: 0, marginBottom: '0.85rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Selected modules are hidden only from users with the Doctor role assigned to this department.
+                  Existing role permissions and API authorization are unchanged.
+                </p>
+                <div className="um-role-options" aria-label="Modules hidden from department doctors">
+                  {departmentModuleOptions.map((module) => {
+                    const hiddenModules = deptForm.watch('hiddenModules');
+                    const checked = hiddenModules.includes(module.key);
+                    return (
+                      <label className="um-role-option" key={module.key}>
+                        <input
+                          checked={checked}
+                          disabled={submitting}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...hiddenModules, module.key]
+                              : hiddenModules.filter((key) => key !== module.key);
+                            deptForm.setValue('hiddenModules', next, { shouldDirty: true, shouldValidate: true });
+                          }}
+                          type="checkbox"
+                        />
+                        <span>Hide {module.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Additional Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-text-align-left" />
+                  <span>Additional Information</span>
+                </div>
+                <span className="um-card-badge">Notes</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-field">
+                  <label className="um-field-label">
+                    <span className="um-field-label-text">
+                      <i className="ph ph-info" /> Description &amp; Notes
+                    </span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    disabled={submitting}
+                    placeholder="Provide overview, clinical scope, or department location notes..."
+                    rows={3}
+                    {...deptForm.register('description')}
+                  />
+                </div>
+              </div>
             </div>
           </form>
         )}
 
         {modalMode === 'view' && activeDept ? (
-          <>
-            <div className="form-section-title">Basic Information</div>
-            <div className="form-grid-3">
-              <label className="form-field">
-                <span>Department Code</span>
-                <input readOnly value={activeDept.code} />
-              </label>
-              <label className="form-field">
-                <span>Department Name</span>
-                <input readOnly value={activeDept.name} />
-              </label>
-              <label className="form-field">
-                <span>Status</span>
-                <input readOnly value={activeDept.status === 'ACTIVE' ? 'Active' : 'Inactive'} />
-              </label>
-              <label className="form-field">
-                <span>Clinical Department</span>
-                <input readOnly value={activeDept.isClinical ? 'Yes' : 'No'} />
-              </label>
-              <label className="form-field">
-                <span>Branch</span>
-                <input readOnly value={activeDept.branch_ids.map(getBranchName).join(', ')} />
-              </label>
-              <label className="form-field">
-                <span>Created Date</span>
-                <input readOnly value={formatDateTime(activeDept.created_at)} />
-              </label>
-              <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-                <span>Description</span>
-                <textarea readOnly rows={3} value={activeDept.description || ''} />
-              </label>
+          <div className="um-modal-card">
+            <div className="um-modal-card-header">
+              <div className="um-card-title-wrap">
+                <i className="ph ph-buildings" />
+                <span>Department Details</span>
+              </div>
+              <span className="um-card-badge">Record View</span>
             </div>
-          </>
+            <div className="um-modal-card-body">
+              <div className="um-form-row-2">
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Department Code</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-first-aid" /> Department Name</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.name} /><i className="ph ph-first-aid um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-stethoscope" /> Clinical Department</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.isClinical ? 'Yes' : 'No'} /><i className="ph ph-stethoscope um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> Assigned Branch(es)</span></label>
+                  <div className="um-input-wrap"><input readOnly value={activeDept.branch_ids.map(getBranchName).join(', ')} /><i className="ph ph-map-pin um-input-prefix-icon" /></div>
+                </div>
+                <div className="um-field">
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-calendar" /> Created Date</span></label>
+                  <div className="um-input-wrap"><input readOnly value={formatDateTime(activeDept.created_at)} /><i className="ph ph-calendar um-input-prefix-icon" /></div>
+                </div>
+              </div>
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-text-align-left" /> Description</span></label>
+                <textarea className="um-textarea" readOnly rows={3} value={activeDept.description || '—'} />
+              </div>
+              <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-eye-slash" /> Modules Hidden from Doctors</span></label>
+                <textarea
+                  className="um-textarea"
+                  readOnly
+                  rows={2}
+                  value={activeDept.hiddenModules.length > 0
+                    ? activeDept.hiddenModules.map((key) => departmentModuleOptions.find((option) => option.key === key)?.label ?? key).join(', ')
+                    : 'None (all default modules accessible)'}
+                />
+              </div>
+            </div>
+          </div>
         ) : null}
       </Modal>
 
       {/* ── Delete Confirm ────────────────────────────────────────────────── */}
-      <ConfirmDialog
-        confirmLabel="Delete Department"
-        loading={submitting}
-        message={
-          deleteTarget
-            ? `Delete ${deleteTarget.name}? This will permanently remove the department.`
-            : ''
-        }
-        onCancel={() => {
-          if (!submitting) setDeleteTarget(null);
-        }}
-        onConfirm={() => void handleDelete()}
-        open={Boolean(deleteTarget)}
-        title="Delete Department"
-      />
+      {deleteTarget && <DepartmentDeleteDialog department={deleteTarget} loading={submitting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void handleDelete()} />}
 
       <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </>
