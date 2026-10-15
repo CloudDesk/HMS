@@ -1,4 +1,5 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
+import { AppError } from '../../shared/errors/app-error.js';
 import { OpdConsultationModel, type OpdConsultationFields } from './opd-consultation.model.js';
 import type { OpdConsultation, SaveOpdConsultationDTO } from './opd-consultation.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
@@ -9,9 +10,15 @@ type SaveOpdConsultationRecord = SaveOpdConsultationDTO & {
   status?: OpdConsultation['status'];
   visit: OpdVisit;
   completedAt?: Date | null;
+  currentVersion?: number;
+  currentStatus?: OpdConsultation['status'];
 };
 
 const requiredObjectId = (value: string) => new Types.ObjectId(value);
+const isDuplicateKeyError = (error: unknown) => typeof error === 'object'
+  && error !== null
+  && 'code' in error
+  && error.code === 11000;
 
 const nullableString = (value: string | null | undefined) => {
   const trimmed = value?.trim();
@@ -27,6 +34,7 @@ const toConsultation = (consultation: OpdConsultationLean): OpdConsultation => (
   doctor_id: consultation.doctorId.toString(),
   doctor_name: consultation.doctorName,
   status: consultation.status,
+  version: consultation.version ?? 0,
   chief_complaint: consultation.chiefComplaint ?? null,
   history_present_illness: consultation.historyPresentIllness ?? null,
   past_history: consultation.pastHistory ?? null,
@@ -76,35 +84,60 @@ const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => 
 
 
 export class OpdConsultationRepository {
-  async getByVisit(visitId: string): Promise<OpdConsultation | null> {
-    const consultation = await OpdConsultationModel.findOne({
+  async getByVisit(visitId: string, session?: ClientSession): Promise<OpdConsultation | null> {
+    const query = OpdConsultationModel.findOne({
       visitId: requiredObjectId(visitId),
       deletedAt: null,
-    }).lean<OpdConsultationLean>();
+    });
+    if (session) query.session(session);
+    const consultation = await query.lean<OpdConsultationLean>();
 
     return consultation ? toConsultation(consultation) : null;
   }
 
-  async saveForVisit(data: SaveOpdConsultationRecord, userId: string): Promise<OpdConsultation> {
-    const consultation = await OpdConsultationModel.findOneAndUpdate(
-      { visitId: requiredObjectId(data.visit.id), deletedAt: null },
-      {
-        $set: buildUpdatePayload(data, userId),
-        $setOnInsert: {
+  async saveForVisit(
+    data: SaveOpdConsultationRecord,
+    userId: string,
+    session?: ClientSession,
+  ): Promise<OpdConsultation> {
+    const currentVersion = data.currentVersion ?? 0;
+    const versionFilter = currentVersion === 0
+      ? { $or: [{ version: 0 }, { version: { $exists: false } }] }
+      : { version: currentVersion };
+    const isCreate = data.currentStatus === undefined;
+    let consultation: OpdConsultationLean | null;
+    try {
+      consultation = await OpdConsultationModel.findOneAndUpdate(
+        {
           visitId: requiredObjectId(data.visit.id),
-          patientId: requiredObjectId(data.visit.patient_id),
-          patientNumber: data.visit.patient_number,
-          patientName: data.visit.patient_name,
-          doctorId: requiredObjectId(data.visit.doctor_id),
-          doctorName: data.visit.doctor_name,
-          createdBy: requiredObjectId(userId),
+          deletedAt: null,
+          ...(isCreate ? {} : versionFilter),
+          ...(data.currentStatus ? { status: data.currentStatus } : {}),
         },
-      },
-      { lean: true, returnDocument: 'after', upsert: true },
-    ).lean<OpdConsultationLean>();
+        {
+          $set: buildUpdatePayload(data, userId),
+          $inc: { version: 1 },
+          $setOnInsert: {
+            visitId: requiredObjectId(data.visit.id),
+            patientId: requiredObjectId(data.visit.patient_id),
+            patientNumber: data.visit.patient_number,
+            patientName: data.visit.patient_name,
+            doctorId: requiredObjectId(data.visit.doctor_id),
+            doctorName: data.visit.doctor_name,
+            createdBy: requiredObjectId(userId),
+          },
+        },
+        { lean: true, returnDocument: 'after', upsert: isCreate, session },
+      ).lean<OpdConsultationLean>();
+    } catch (error: unknown) {
+      if (isDuplicateKeyError(error)) {
+        throw new AppError('The consultation changed after it was loaded', 409, 'OPD_CONSULTATION_VERSION_CONFLICT');
+      }
+      throw error;
+    }
 
     if (!consultation) {
-      throw new Error('Consultation upsert failed');
+      throw new AppError('The consultation changed after it was loaded', 409, 'OPD_CONSULTATION_VERSION_CONFLICT');
     }
 
     return toConsultation(consultation);

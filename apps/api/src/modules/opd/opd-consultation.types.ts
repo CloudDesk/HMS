@@ -19,6 +19,7 @@ export type OpdConsultation = {
   doctor_id: string;
   doctor_name: string;
   status: OpdConsultationStatus;
+  version: number;
   chief_complaint: string | null;
   history_present_illness: string | null;
   past_history: string | null;
@@ -37,6 +38,8 @@ export type OpdConsultation = {
 };
 
 export type SaveOpdConsultationDTO = {
+  expected_version?: number;
+  expected_status?: OpdConsultationStatus;
   chief_complaint?: string | null;
   history_present_illness?: string | null;
   past_history?: string | null;

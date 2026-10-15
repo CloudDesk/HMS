@@ -40,6 +40,7 @@ export type OpdClinicalOrder = {
   branch_id: string;
   order_type: ClinicalOrderType;
   status: ClinicalOrderStatus;
+  version: number;
   priority: ClinicalOrderPriority;
   destination: string | null;
   specimen_type: string | null;
@@ -56,6 +57,8 @@ export type OpdClinicalOrder = {
 export type SaveClinicalOrderItemDTO = Omit<ClinicalOrderItem, 'id' | 'service_name'>;
 
 export type SaveOpdClinicalOrderDTO = {
+  expected_version?: number;
+  expected_status?: ClinicalOrderStatus;
   priority: ClinicalOrderPriority;
   destination?: string | null;
   specimen_type?: string | null;

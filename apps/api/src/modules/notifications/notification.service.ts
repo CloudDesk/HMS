@@ -6,8 +6,8 @@ import type { CreateNotificationDTO, NotificationListQuery } from './notificatio
 export class NotificationService {
   constructor(private readonly repository: NotificationRepository) {}
 
-  async createNotification(data: CreateNotificationDTO, session?: ClientSession) {
-    return this.repository.create(data, session);
+  async createNotification(data: CreateNotificationDTO, session?: ClientSession, actorUserId?: string) {
+    return this.repository.create(data, session, actorUserId);
   }
 
   async createGlobalNotification(data: CreateNotificationDTO, actorUserId: string) {

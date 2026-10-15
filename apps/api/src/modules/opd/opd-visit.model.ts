@@ -18,6 +18,7 @@ export type OpdVisitFields = {
   visitType: OpdVisitType;
   priority: OpdVisitPriority;
   status: OpdVisitStatus;
+  version?: number;
   reason?: string | null;
   notes?: string | null;
   inpatientAdmissionId?: Types.ObjectId | null;
@@ -68,6 +69,7 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
       default: 'CHECKED_IN',
       required: true,
     },
+    version: { type: Number, default: 0, min: 0, required: true },
     reason: { type: String, default: null },
     notes: { type: String, default: null },
     inpatientAdmissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },

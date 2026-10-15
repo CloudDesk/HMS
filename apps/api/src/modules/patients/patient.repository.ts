@@ -384,12 +384,22 @@ export class PatientRepository {
     return toTimelineEvent(created.toObject<PatientTimelineEventLean>());
   }
 
-  async auditClinicalEvent(eventType: string, actorUserId: string, details: Record<string, unknown>) {
-    await AuditLogModel.create({
+  async auditClinicalEvent(
+    eventType: string,
+    actorUserId: string,
+    details: Record<string, unknown>,
+    session?: ClientSession,
+  ) {
+    const record = {
       actorUserId,
       eventType,
       metadataJson: details,
-    });
+    };
+    if (session) {
+      await AuditLogModel.create([record], { session });
+      return;
+    }
+    await AuditLogModel.create(record);
   }
 
   async listTimeline(patientId: string, query: PatientTimelineListQuery = {}) {

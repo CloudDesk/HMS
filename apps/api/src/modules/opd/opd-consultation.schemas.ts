@@ -2,6 +2,8 @@ export const opdConsultationVisitParamsSchema = {
   type: 'object',
   required: ['visitId'],
   properties: {
+    expected_version: { type: 'integer', minimum: 0 },
+    expected_status: { type: 'string', enum: ['DRAFT', 'COMPLETED'] },
     visitId: { type: 'string', minLength: 1 },
   },
 } as const;

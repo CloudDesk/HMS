@@ -30,9 +30,15 @@ type SaveClinicalOrderRecord = SaveOpdClinicalOrderDTO & {
   status: OpdClinicalOrder['status'];
   submittedAt?: Date | null;
   visit: OpdVisit;
+  currentVersion: number;
+  currentStatus?: OpdClinicalOrder['status'];
 };
 
 const objectId = (value: string) => new Types.ObjectId(value);
+const isDuplicateKeyError = (error: unknown) => typeof error === 'object'
+  && error !== null
+  && 'code' in error
+  && error.code === 11000;
 
 const sourceTypeForVisit = (visitType: OpdVisitType): ClinicalOrderSourceType => {
   if (visitType === 'EMERGENCY') return 'EMERGENCY_ENCOUNTER';
@@ -71,6 +77,7 @@ export const toClinicalOrder = (record: OpdClinicalOrderLean): OpdClinicalOrder 
   branch_id: record.branchId?.toString() ?? '',
   order_type: record.orderType,
   status: record.status,
+  version: record.version ?? 0,
   priority: record.priority,
   destination: record.destination ?? null,
   specimen_type: record.specimenType ?? null,
@@ -92,12 +99,18 @@ const toItemFields = (item: SaveClinicalOrderItemDTO) => ({
 });
 
 export class OpdClinicalOrderRepository {
-  async getByVisitAndType(visitId: string, orderType: ClinicalOrderType): Promise<OpdClinicalOrder | null> {
-    const record = await OpdClinicalOrderModel.findOne({
+  async getByVisitAndType(
+    visitId: string,
+    orderType: ClinicalOrderType,
+    session?: ClientSession,
+  ): Promise<OpdClinicalOrder | null> {
+    const query = OpdClinicalOrderModel.findOne({
       visitId: objectId(visitId),
       orderType,
       deletedAt: null,
-    }).lean<OpdClinicalOrderLean>();
+    });
+    if (session) query.session(session);
+    const record = await query.lean<OpdClinicalOrderLean>();
 
     return record ? toClinicalOrder(record) : null;
   }
@@ -119,44 +132,67 @@ export class OpdClinicalOrderRepository {
     return record ? toClinicalOrder(record) : null;
   }
 
-  async saveForVisit(data: SaveClinicalOrderRecord, userId: string): Promise<OpdClinicalOrder> {
-    const record = await OpdClinicalOrderModel.findOneAndUpdate(
-      { visitId: objectId(data.visit.id), orderType: data.orderType, deletedAt: null },
-      {
-        $set: {
-          sourceType: sourceTypeForVisit(data.visit.visit_type),
-          sourceId: objectId(data.visit.id),
-          encounterId: objectId(data.visit.id),
-          admissionId: null,
-          procedureId: null,
-          consultationId: objectId(data.consultation.id),
-          branchId: objectId(data.visit.branch_id),
-          patientId: objectId(data.visit.patient_id),
-          patientNumber: data.visit.patient_number,
-          patientName: data.visit.patient_name,
-          doctorId: objectId(data.visit.doctor_id),
-          doctorName: data.visit.doctor_name,
-          status: data.status,
-          priority: data.priority,
-          destination: nullableString(data.destination),
-          specimenType: data.orderType === 'LABORATORY' ? nullableString(data.specimen_type) : null,
-          items: data.items.map(toItemFields),
-          clinicalNotes: nullableString(data.clinical_notes),
-          instructions: nullableString(data.instructions),
-          submittedAt: data.submittedAt ?? (data.status === 'SUBMITTED' ? new Date() : null),
-          updatedBy: objectId(userId),
-        },
-        $setOnInsert: {
+  async saveForVisit(
+    data: SaveClinicalOrderRecord,
+    userId: string,
+    session?: ClientSession,
+  ): Promise<OpdClinicalOrder> {
+    const versionFilter = data.currentVersion === 0
+      ? { $or: [{ version: 0 }, { version: { $exists: false } }] }
+      : { version: data.currentVersion };
+    const isCreate = data.currentStatus === undefined;
+    let record: OpdClinicalOrderLean | null;
+    try {
+      record = await OpdClinicalOrderModel.findOneAndUpdate(
+        {
           visitId: objectId(data.visit.id),
           orderType: data.orderType,
-          createdBy: objectId(userId),
+          deletedAt: null,
+          ...(isCreate ? {} : versionFilter),
+          ...(data.currentStatus ? { status: data.currentStatus } : {}),
         },
-      },
-      { lean: true, returnDocument: 'after', upsert: true },
-    ).lean<OpdClinicalOrderLean>();
+        {
+          $set: {
+            sourceType: sourceTypeForVisit(data.visit.visit_type),
+            sourceId: objectId(data.visit.id),
+            encounterId: objectId(data.visit.id),
+            admissionId: null,
+            procedureId: null,
+            consultationId: objectId(data.consultation.id),
+            branchId: objectId(data.visit.branch_id),
+            patientId: objectId(data.visit.patient_id),
+            patientNumber: data.visit.patient_number,
+            patientName: data.visit.patient_name,
+            doctorId: objectId(data.visit.doctor_id),
+            doctorName: data.visit.doctor_name,
+            status: data.status,
+            priority: data.priority,
+            destination: nullableString(data.destination),
+            specimenType: data.orderType === 'LABORATORY' ? nullableString(data.specimen_type) : null,
+            items: data.items.map(toItemFields),
+            clinicalNotes: nullableString(data.clinical_notes),
+            instructions: nullableString(data.instructions),
+            submittedAt: data.submittedAt ?? (data.status === 'SUBMITTED' ? new Date() : null),
+            updatedBy: objectId(userId),
+          },
+          $setOnInsert: {
+            visitId: objectId(data.visit.id),
+            orderType: data.orderType,
+            createdBy: objectId(userId),
+          },
+          $inc: { version: 1 },
+        },
+        { lean: true, returnDocument: 'after', upsert: isCreate, session },
+      ).lean<OpdClinicalOrderLean>();
+    } catch (error: unknown) {
+      if (isDuplicateKeyError(error)) {
+        throw new AppError('The clinical order changed after it was loaded', 409, 'CLINICAL_ORDER_VERSION_CONFLICT');
+      }
+      throw error;
+    }
 
     if (!record) {
-      throw new AppError('Clinical order could not be saved', 500, 'CLINICAL_ORDER_SAVE_FAILED');
+      throw new AppError('The clinical order changed after it was loaded', 409, 'CLINICAL_ORDER_VERSION_CONFLICT');
     }
 
     return toClinicalOrder(record);
@@ -203,7 +239,7 @@ export class OpdClinicalOrderRepository {
         patientId: objectId(context.patient_id), patientNumber: context.patient_number, patientName: context.patient_name,
         doctorId: objectId(context.doctor_id), doctorName: context.doctor_name, branchId: objectId(context.branch_id),
         orderType, createdBy: objectId(userId),
-      } },
+      }, $inc: { version: 1 } },
       { returnDocument: 'after', upsert: true, runValidators: true, session },
     ).lean<OpdClinicalOrderLean>();
     if (!record) throw new AppError('Context clinical order could not be submitted', 500, 'CLINICAL_ORDER_SAVE_FAILED');
