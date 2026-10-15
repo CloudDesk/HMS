@@ -100,3 +100,20 @@ export const updateBranchIdentifierStatusBodySchema = {
   },
 } as const;
 
+export const branchDeletePreviewQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    page: { type: 'integer', minimum: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100 },
+  },
+} as const;
+
+export const deleteBranchBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    reassign_to_branch_id: { type: 'string', minLength: 1 },
+  },
+} as const;
+

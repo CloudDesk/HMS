@@ -110,6 +110,23 @@ export function useDeleteService() {
     }
   });
 }
+
+export function useBulkDeleteServices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { department_id: string; service_ids: string[] }) => servicesApi.bulkDelete(payload),
+    onSuccess: async (_, payload) => {
+      toast.success(`${payload.service_ids.length} service(s) deleted successfully`);
+      await queryClient.invalidateQueries({ queryKey: servicesKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: servicesKeys.summaries() });
+      await queryClient.invalidateQueries({ queryKey: servicesKeys.details() });
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete selected services');
+    },
+  });
+}
 export function useExportServices() {
   return useMutation({
     mutationFn: (params: ServiceListParams = {}) => servicesApi.export(params),

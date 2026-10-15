@@ -379,22 +379,45 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
-async listActiveWindows(doctorId: string, appointmentDate: Date) {
-  const appointments = await AppointmentModel.find({
-    doctorId: toObjectId(doctorId),
-    appointmentDate,
-    status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
-    deletedAt: null,
-  })
-    .select('startTime endTime')
-    .sort({ startTime: 1 })
-    .lean<Array<{ startTime: string; endTime: string }>>();
+  async listActiveWindows(doctorId: string, appointmentDate: Date) {
+    const appointments = await AppointmentModel.find({
+      doctorId: toObjectId(doctorId),
+      appointmentDate,
+      status: { $in: ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'] },
+      deletedAt: null,
+    })
+      .select('startTime endTime')
+      .sort({ startTime: 1 })
+      .lean<Array<{ startTime: string; endTime: string }>>();
 
-  return appointments.map((appointment) => ({
-    start_time: appointment.startTime,
-    end_time: appointment.endTime,
-  }));
-}
+    return appointments.map((appointment) => ({
+      start_time: appointment.startTime,
+      end_time: appointment.endTime,
+    }));
+  }
+
+  async listPatientActiveWindows(patientId: string, appointmentDate: Date, excludeAppointmentId?: string) {
+    const filter: Record<string, unknown> = {
+      patientId: toObjectId(patientId),
+      appointmentDate,
+      deletedAt: null,
+      status: { $nin: ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'SKIPPED', 'COMPLETED'] },
+    };
+
+    if (excludeAppointmentId) {
+      filter._id = { $ne: toObjectId(excludeAppointmentId) };
+    }
+
+    const appointments = await AppointmentModel.find(filter)
+      .select('startTime endTime')
+      .sort({ startTime: 1 })
+      .lean<Array<{ startTime: string; endTime: string }>>();
+
+    return appointments.map((appointment) => ({
+      start_time: appointment.startTime,
+      end_time: appointment.endTime,
+    }));
+  }
 
 async findPatientConflict(
   patientId: string,

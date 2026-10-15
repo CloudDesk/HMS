@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { hashPassword, verifyPassword } from '../../shared/security/hash.js';
 import { assertPasswordPolicy, getEffectivePasswordPolicy } from '../../shared/security/password-policy.js';
 import { createCsvStream } from '../../shared/http/csv.js';
@@ -41,7 +42,7 @@ type CreateUserInput = {
 
 type NormalizedCreateUserInput = Omit<CreateUserInput, 'roleIds'> & { roleIds: string[] };
 
-type UpdateUserInput = Partial<Omit<CreateUserInput, 'password' | 'status'>> & {
+type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>> & {
   branches?: AssignmentInput[];
   departments?: AssignmentInput[];
 };
@@ -290,7 +291,7 @@ export class UserService {
     return { id: user.id, username: user.username, email: user.email, status: user.status };
   }
 
-  async registerPortalAccount(input: RegisterPortalAccountInput, metadata: RequestMetadata) {
+  async registerPortalAccount(input: RegisterPortalAccountInput, metadata: RequestMetadata, session?: ClientSession) {
     const role = await this.roleRepository.findActiveByCode(input.accountType);
     if (!role) {
       throw new AppError(`Active ${input.accountType} role is required for portal registration`, 409, 'PORTAL_ROLE_NOT_CONFIGURED');
@@ -303,7 +304,7 @@ export class UserService {
     if (!emailPattern.test(email)) throw new AppError('Email format is invalid', 400, 'INVALID_EMAIL');
     if (!phonePattern.test(input.phone) || phone.length < 7) throw new AppError('Mobile number is invalid', 400, 'INVALID_PHONE');
     assertPasswordPolicy(input.password, await this.getPasswordPolicy());
-    await this.assertUniqueFields({ username: email, email, phone });
+    await this.assertUniqueFields({ username: email, email, phone }, session);
 
     const user = await this.repository.create({
       employeeCode: `PORTAL-${randomUUID()}`,
@@ -316,21 +317,25 @@ export class UserService {
       status: 'active',
       passwordHash: await hashPassword(input.password),
       roleIds: [role.id],
-    });
-    await this.repository.replaceAssignments(user.id, [], [], [role.id]);
+    }, session);
+    await this.repository.replaceAssignments(user.id, [], [], [role.id], session);
     await this.repository.audit('patient_portal.account.registered', {
       ...metadata,
       actorUserId: user.id,
       subjectUserId: user.id,
       metadata: { accountType: input.accountType },
-    });
+    }, session);
     return { id: user.id, username: user.username, email: user.email, phone: user.phone, accountType: input.accountType };
   }
 
   async update(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
-    await this.requireUser(id);
+    const current = await this.requireUser(id);
     await this.assertCanManageUser(actorUserId, id);
     const normalized = this.normalizeUpdateInput(input);
+
+    if (normalized.status && normalized.status !== current.status) {
+      await this.updateStatus(id, { status: normalized.status }, actorUserId, metadata);
+    }
 
     if (normalized.username || normalized.email !== undefined || normalized.employeeCode) {
       await this.assertUniqueFields({
@@ -381,6 +386,55 @@ export class UserService {
 
     await this.audit('user.updated', actorUserId, id, metadata);
     return this.getById(id, actorUserId);
+  }
+
+  async reassignDepartmentUsers(
+    input: { user_ids: string[]; from_department_id: string; to_department_id: string },
+    actorUserId: string,
+    metadata: RequestMetadata,
+  ) {
+    const { user_ids: userIds, from_department_id: fromDepartmentId, to_department_id: toDepartmentId } = input;
+    if (userIds.length === 0 || userIds.length > 100 || new Set(userIds).size !== userIds.length) {
+      throw new AppError('Select between 1 and 100 unique users', 400, 'INVALID_USER_SELECTION');
+    }
+    if (fromDepartmentId === toDepartmentId) {
+      throw new AppError('Choose a different department for reassignment', 400, 'INVALID_DEPARTMENT_REASSIGNMENT');
+    }
+
+    await Promise.all(userIds.map(async (id) => {
+      await this.assertCanManageUser(actorUserId, id);
+      const user = await this.getById(id, actorUserId);
+      if (!user.departments.some((department) => department.id === fromDepartmentId)) {
+        throw new AppError('A selected user is no longer assigned to this department. Refresh and try again.', 409, 'STALE_USER_ASSIGNMENTS');
+      }
+      const departments = user.departments.filter((department) => department.id !== fromDepartmentId);
+      if (!departments.some((department) => department.id === toDepartmentId)) {
+        departments.push({ id: toDepartmentId, name: null, isPrimary: false });
+      }
+      await this.validateReferences(user.branches, departments, user.roleIds);
+    }));
+
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const reassigned = await this.repository.reassignDepartmentMemberships(
+        userIds,
+        fromDepartmentId,
+        toDepartmentId,
+        actorUserId,
+        session,
+      );
+      if (reassigned !== userIds.length) {
+        throw new AppError('A selected user assignment changed. Refresh and try again.', 409, 'STALE_USER_ASSIGNMENTS');
+      }
+      await Promise.all(userIds.map((subjectUserId) => this.audit(
+        'user.department_reassigned',
+        actorUserId,
+        subjectUserId,
+        metadata,
+        { fromDepartmentId, toDepartmentId },
+        session,
+      )));
+      return { success: true as const, reassigned: userIds.length };
+    });
   }
 
   async updateProfile(id: string, input: UpdateUserInput, actorUserId: string, metadata: RequestMetadata) {
@@ -473,8 +527,11 @@ export class UserService {
     if (id === actorUserId) {
       throw new AppError('You cannot delete your own account', 409, 'SELF_DELETE_FORBIDDEN');
     }
-    await this.requireUser(id);
+    const user = await this.requireUser(id);
     await this.assertCanManageUser(actorUserId, id);
+    if (user.status !== 'inactive') {
+      throw new AppError('Only inactive users can be deleted. Please set user status to inactive first.', 400, 'USER_MUST_BE_INACTIVE_TO_DELETE');
+    }
     if (await this.repository.isSuperAdmin(id) && await this.repository.countActiveSuperAdmins() <= 1) {
       throw new AppError('The last active Super Admin cannot be deleted', 409, 'LAST_SUPER_ADMIN_REQUIRED');
     }
@@ -619,6 +676,7 @@ export class UserService {
       patientId: user.patientId,
       branches: assignments.branchesByUserId.get(user.id) ?? [],
       departments: assignments.departmentsByUserId.get(user.id) ?? [],
+      patientRegistrationBranch: assignments.patientRegistrationBranchesByUserId?.get(user.id) ?? null,
       roles: assignments.rolesByUserId.get(user.id) ?? [],
       audit: {
         createdAt: user.createdAt,
@@ -666,6 +724,7 @@ export class UserService {
       hireDate: normalizeOptionalText(input.hireDate),
       profilePhotoUrl: normalizeOptionalText(input.profilePhotoUrl),
       address: normalizeOptionalText(input.address),
+      status: input.status,
       branches: input.branches ? this.normalizeAssignments(input.branches, 'branch') : undefined,
       departments: input.departments
         ? this.normalizeAssignments(input.departments, 'department')

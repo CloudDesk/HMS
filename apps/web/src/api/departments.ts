@@ -2,6 +2,24 @@ import { apiClient } from './client';
 
 export type ApiDepartmentStatus = 'ACTIVE' | 'INACTIVE';
 
+export const departmentModuleOptions = [
+  { key: 'patients', label: 'Patients' },
+  { key: 'doctors', label: 'Doctors' },
+  { key: 'appointments', label: 'Appointments' },
+  { key: 'opd', label: 'OPD' },
+  { key: 'emergency', label: 'Emergency' },
+  { key: 'admissions', label: 'Admissions' },
+  { key: 'surgery', label: 'Surgery' },
+  { key: 'pharmacy', label: 'Pharmacy' },
+  { key: 'laboratory', label: 'Laboratory' },
+  { key: 'imaging', label: 'Imaging' },
+  { key: 'billing', label: 'Billing' },
+  { key: 'reports', label: 'Reports' },
+  { key: 'administration', label: 'Administration' },
+] as const;
+
+export type DepartmentModuleKey = (typeof departmentModuleOptions)[number]['key'];
+
 export type DepartmentResponse = {
   id: string;
   code: string;
@@ -10,6 +28,7 @@ export type DepartmentResponse = {
   branch_ids: string[];
   status: ApiDepartmentStatus;
   isClinical: boolean;
+  hiddenModules: DepartmentModuleKey[];
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -44,6 +63,7 @@ export type SaveDepartmentPayload = {
   description?: string | null;
   status?: ApiDepartmentStatus;
   isClinical?: boolean;
+  hiddenModules?: DepartmentModuleKey[];
 };
 
 export type DepartmentSummary = {
@@ -52,6 +72,13 @@ export type DepartmentSummary = {
   inactive: number;
   addedThisMonth: number;
   branchesCovered: number;
+};
+
+export type DepartmentDeletePreview = {
+  services: Array<{ id: string; code: string; name: string; type: string; status: ApiDepartmentStatus }>;
+  users: Array<{ id: string; employee_code: string | null; name: string; job_title: string | null; status: string }>;
+  service_meta: { page: number; limit: number; total: number };
+  user_meta: { page: number; limit: number; total: number };
 };
 
 const toQueryString = (params: DepartmentListParams) => {
@@ -78,6 +105,10 @@ export const departmentsApi = {
 
   summary() {
     return apiClient.request<DepartmentSummary>('/departments/summary');
+  },
+
+  deletePreview(id: string, page = 1, limit = 25) {
+    return apiClient.request<DepartmentDeletePreview>(`/departments/${encodeURIComponent(id)}/delete-preview?page=${page}&limit=${limit}`);
   },
 
   export(params: DepartmentListParams = {}) {

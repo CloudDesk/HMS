@@ -649,7 +649,11 @@ export function PatientSearchPage() {
         onClose={() => setRegistrationOpen(false)}
         open={registrationOpen}
         size="xlarge"
-        title="Register Patient"
+        title={
+          <div className="patient-reg-modal-header centered">
+            <h3 className="patient-reg-modal-title">Register Patient</h3>
+          </div>
+        }
       >
         {registrationOpen ? (
           <PatientRegistrationPage

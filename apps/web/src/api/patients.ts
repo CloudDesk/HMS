@@ -44,6 +44,8 @@ export type PatientResponse = {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: unknown[] | null;
 };
 
 export type PatientListResponse = {
@@ -121,6 +123,8 @@ export type PatientDocumentResponse = {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  form_responses?: Record<string, unknown> | null;
+  digital_signatures?: unknown[] | null;
 };
 
 export type UploadPatientDocumentPayload = {

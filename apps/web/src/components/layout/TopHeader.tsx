@@ -1,4 +1,3 @@
-import { NavLink } from './NavLink';
 import { BranchSelector } from './BranchSelector';
 
 type TopHeaderProps = {
@@ -7,7 +6,7 @@ type TopHeaderProps = {
   onOpenMobileSidebar: () => void;
 };
 
-export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSidebar }: TopHeaderProps) {
+export function TopHeader({ title, onOpenMobileSidebar }: TopHeaderProps) {
   return (
     <header className="top-header">
       <div className="header-left">
@@ -16,22 +15,6 @@ export function TopHeader({ title, breadcrumbs = ['Home', title], onOpenMobileSi
         </button>
         <div className="header-title-area">
           <h1>{title}</h1>
-          <div className="breadcrumbs">
-            {breadcrumbs.map((crumb, index) => {
-              const isLast = index === breadcrumbs.length - 1;
-
-              return (
-                <span className={isLast ? 'current' : undefined} key={`${crumb}-${index}`}>
-                  {index > 0 ? <i className="ph ph-caret-right" aria-hidden="true" /> : null}
-                  {isLast ? (
-                    <span>{crumb}</span>
-                  ) : (
-                    <NavLink href="/dashboard">{crumb}</NavLink>
-                  )}
-                </span>
-              );
-            })}
-          </div>
         </div>
       </div>
 

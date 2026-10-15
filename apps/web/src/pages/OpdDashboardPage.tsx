@@ -32,14 +32,11 @@ export function OpdDashboardPage() {
     <div className="opd-page">
       <section className="opd-page-header">
         <div className="opd-page-title">
-          <h2>OPD Dashboard</h2>
-          <p>Monitor outpatient activity, queues and visit flow</p>
+          <h2>OPD Nursing Dashboard</h2>
+          <p>Manage OPD queue, triage and vital signs</p>
           <small>Branch scope: {branchScope === 'ALL_AUTHORIZED' ? 'All authorized branches' : 'Selected branch'}</small>
         </div>
         <div className="opd-page-actions">
-          {capabilities.canSearchPatients ? <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
-            Patients
-          </button> : null}
           {capabilities.canViewQueue ? <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-queue" aria-hidden="true" />
             Open Queue
@@ -47,6 +44,10 @@ export function OpdDashboardPage() {
           {capabilities.canCheckIn ? <button className="doc-btn primary" onClick={() => navigate('/opd/queue')} type="button">
             <i className="ph ph-sign-in" aria-hidden="true" />
             Check-in Patient
+          </button> : null}
+          {capabilities.canSearchPatients ? <button className="doc-btn" onClick={() => navigate('/patients/search')} type="button">
+            <i className="ph ph-magnifying-glass" aria-hidden="true" />
+            Patients
           </button> : null}
         </div>
       </section>

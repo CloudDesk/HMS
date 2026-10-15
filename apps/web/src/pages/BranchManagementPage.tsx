@@ -9,7 +9,6 @@ import {
   type SaveBranchPayload,
   type UpdateBranchPayload,
 } from '../api/branches';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { Toast } from '../components/ui/Toast';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
@@ -17,7 +16,7 @@ import { BranchWardBedConfiguration } from '../components/branches/BranchWardBed
 import { downloadBlob } from '../utils/download';
 import { useAppLocation } from '../routing/navigation';
 
-import { useBranchManagementFeature, type SortColumn } from '../hooks/branches/useBranchManagementFeature';
+import { useBranchDeleteFeature, useBranchManagementFeature, type SortColumn } from '../hooks/branches/useBranchManagementFeature';
 
 type ModalMode = 'create' | 'edit' | 'view';
 
@@ -36,6 +35,75 @@ const branchSchema = z.object({
   status: z.enum(['active', 'inactive', 'archived'])
 });
 type BranchFormData = z.infer<typeof branchSchema>;
+
+function BranchDeleteDialog({
+  branch,
+  loading,
+  canDelete,
+  onCancel,
+  onConfirm,
+}: {
+  branch: BranchResponse;
+  loading: boolean;
+  canDelete: boolean;
+  onCancel: () => void;
+  onConfirm: (reassignToBranchId?: string) => void;
+}) {
+  const [usersPage, setUsersPage] = useState(1);
+  const [reassignToBranchId, setReassignToBranchId] = useState('');
+  const { previewQuery, activeBranchesQuery, hasAssignments } = useBranchDeleteFeature(branch.id, usersPage, canDelete);
+  const activeBranches = activeBranchesQuery.data?.data ?? [];
+  const hasOtherActiveBranch = activeBranches.some((candidate) => candidate.id !== branch.id);
+
+  return (
+    <Modal
+      open
+      size="large"
+      title="Delete Branch"
+      onClose={() => { if (!loading) onCancel(); }}
+      footer={(
+        <>
+          <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">Cancel</button>
+          <button
+            className="btn-danger"
+            disabled={loading || previewQuery.isLoading || Boolean(previewQuery.error) || branch.status !== 'INACTIVE' || (hasAssignments && (!reassignToBranchId || activeBranchesQuery.isLoading || Boolean(activeBranchesQuery.error) || !hasOtherActiveBranch))}
+            onClick={() => onConfirm(reassignToBranchId || undefined)}
+            type="button"
+          >{loading ? 'Deleting…' : 'Delete Branch'}</button>
+        </>
+      )}
+    >
+      <p className="dialog-message">Delete {branch.name}? Assigned users, doctors, and departments will be reassigned to the selected active branch.</p>
+      {branch.status !== 'INACTIVE' && <p role="alert">Deactivate this branch before deleting it.</p>}
+      {previewQuery.isLoading && <p>Loading branch assignments…</p>}
+      {previewQuery.error && <div role="alert">Could not load assigned users. <button className="btn-secondary" onClick={() => void previewQuery.refetch()} type="button">Retry</button></div>}
+      {previewQuery.data && (
+        <>
+          <h4>Assigned users ({previewQuery.data.user_meta.total})</h4>
+          {previewQuery.data.user_meta.total === 0 ? <p>No users are assigned to this branch.</p> : (
+            <ul className="branch-delete-users">
+              {previewQuery.data.users.map((user) => <li key={user.id}><strong>{user.name}</strong>{user.job_title ? ` · ${user.job_title}` : ''}<span> ({user.status})</span></li>)}
+            </ul>
+          )}
+          {previewQuery.data.user_meta.total > previewQuery.data.user_meta.limit && <div><button className="btn-secondary" disabled={usersPage <= 1} onClick={() => setUsersPage((page) => page - 1)} type="button">Previous users</button><span> Page {previewQuery.data.user_meta.page} of {Math.ceil(previewQuery.data.user_meta.total / previewQuery.data.user_meta.limit)} </span><button className="btn-secondary" disabled={previewQuery.data.user_meta.page >= Math.ceil(previewQuery.data.user_meta.total / previewQuery.data.user_meta.limit)} onClick={() => setUsersPage((page) => page + 1)} type="button">Next users</button></div>}
+          {previewQuery.data.departments > 0 && <p>{previewQuery.data.departments} department(s) will also be reassigned, preserving their service and user links.</p>}
+          {previewQuery.data.doctors > 0 && <p>{previewQuery.data.doctors} doctor record(s) will also be reassigned.</p>}
+          {hasAssignments && (
+            <div className="form-group">
+              <label htmlFor="branch-delete-reassign">Reassign to <span className="required" aria-hidden="true">*</span></label>
+              <select id="branch-delete-reassign" value={reassignToBranchId} onChange={(event) => setReassignToBranchId(event.target.value)} disabled={loading || activeBranchesQuery.isLoading}>
+                <option value="">Select an active branch</option>
+                {activeBranches.filter((candidate) => candidate.id !== branch.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} ({candidate.code})</option>)}
+              </select>
+              {activeBranchesQuery.error && <p role="alert">Could not load active branches. <button className="btn-secondary" onClick={() => void activeBranchesQuery.refetch()} type="button">Retry</button></p>}
+              {!activeBranchesQuery.isLoading && !activeBranchesQuery.error && !hasOtherActiveBranch && <p role="alert">No other active branch is available for reassignment.</p>}
+            </div>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
 
 
 
@@ -89,6 +157,7 @@ export function BranchManagementPage() {
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BranchResponse | null>(null);
   const [configurationBranch, setConfigurationBranch] = useState<BranchResponse | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Status
   const [toastMessage, setToastMessage] = useState('');
@@ -164,10 +233,10 @@ export function BranchManagementPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (reassignToBranchId?: string) => {
     if (!deleteTarget) return;
     try {
-      await mutations.deleteBranch.mutateAsync(deleteTarget.id);
+      await mutations.deleteBranch.mutateAsync({ id: deleteTarget.id, reassignToBranchId: reassignToBranchId || undefined });
       showToast(`${deleteTarget.name} deleted successfully.`);
       setDeleteTarget(null);
       if (branches.length === 1 && currentPage > 1) {
@@ -209,17 +278,31 @@ export function BranchManagementPage() {
 
   return (
     <>
-      <div className="um-kpi-row">
-        {[
-          ['ph-buildings', 'blue', 'Total Branches', summary.total],
-          ['ph-check-circle', 'green', 'Active Branches', summary.active],
-          ['ph-pause-circle', 'orange', 'Inactive Branches', summary.inactive],
-          ['ph-users', 'purple', 'Assigned Users', summary.assignedUsers],
-          ['ph-map-pin', 'red', 'Cities Covered', summary.cities],
-        ].map(([icon, tone, label, value]) => <div className="kpi-card" key={String(label)}><div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div><div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{loading ? '-' : value}</span></div></div>)}
-      </div>
-      <div className="um-grid">
-        <div className="um-body">
+      <div className="um-grid branch-management-page">
+        <div className="um-top-row">
+          <div className="um-top-title-area">
+            <h2 className="um-page-title">Branch Management</h2>
+            <p className="um-page-subtitle">Configure hospital branches, geographic locations, contact information, and wards.</p>
+          </div>
+          <div className="um-top-actions">
+            {canCreate && !forbidden ? (
+              <button className="um-add-btn-top" onClick={() => openModal('create')} type="button">
+                <i className="ph ph-plus" aria-hidden="true" /> Add Branch
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="um-kpi-row">
+          {[
+            ['ph-buildings', 'blue', 'Total Branches', summary.total],
+            ['ph-check-circle', 'green', 'Active Branches', summary.active],
+            ['ph-pause-circle', 'orange', 'Inactive Branches', summary.inactive],
+            ['ph-users', 'purple', 'Assigned Users', summary.assignedUsers],
+            ['ph-map-pin', 'red', 'Cities Covered', summary.cities],
+          ].map(([icon, tone, label, value]) => <div className="kpi-card" key={String(label)}><div className={`kpi-icon ${tone}`}><i className={`ph ${icon}`} /></div><div className="kpi-info"><span className="kpi-label">{label}</span><span className="kpi-value">{loading ? '-' : value}</span></div></div>)}
+        </div>
+        <div className={`um-body${showAnalytics ? ' um-body--analytics' : ' um-body--full'}`}>
           <div className="um-table-section card">
             <div className="um-toolbar">
               <div className="um-toolbar-row1">
@@ -256,6 +339,15 @@ export function BranchManagementPage() {
                     <i className="ph ph-x" aria-hidden="true" /> Clear Filters
                   </button>
                 )}
+                <button
+                  aria-expanded={showAnalytics}
+                  className="btn-secondary admin-table-action admin-analytics-toggle"
+                  onClick={() => setShowAnalytics((visible) => !visible)}
+                  type="button"
+                >
+                  <i className="ph ph-chart-bar" aria-hidden="true" />
+                  {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
+                </button>
               </div>
             </div>
 
@@ -386,7 +478,7 @@ export function BranchManagementPage() {
               </div>
             </div>
           </div>
-          <aside className="um-right-panel" aria-label="Branch analytics">
+          {showAnalytics ? <aside className="um-right-panel" aria-label="Branch analytics">
             <div className="card um-chart-card">
               <div className="card-header"><h3>Branches by Status</h3></div>
               {loading ? <div className="um-panel-loading">Loading status...</div> : (
@@ -403,7 +495,7 @@ export function BranchManagementPage() {
                 <div><span><i className="ph ph-map-pin" /> Cities Covered</span><strong>{loading ? '-' : summary.cities}</strong></div>
               </div>
             </div>
-          </aside>
+          </aside> : null}
         </div>
       </div>
 
@@ -426,150 +518,306 @@ export function BranchManagementPage() {
               </button>
             </>
           )}
+          className="um-user-modal"
+          size="large"
           icon="ph-buildings"
           open={!!modalMode}
           onClose={closeModal}
           title={modalMode === 'create' ? 'Add New Branch' : modalMode === 'view' ? 'Branch Details' : 'Edit Branch'}
         >
           {modalMode === 'view' && activeBranch ? (
-            <div className="form-grid-3">
-              {[
-                ['Branch Code', activeBranch.code], ['Branch Name', activeBranch.name], ['Short Name', activeBranch.short_name || '-'],
-                ['Email', activeBranch.email || '-'], ['Phone', activeBranch.phone || '-'], ['City', activeBranch.city || '-'],
-                ['Country', activeBranch.country || '-'], ['Status', activeBranch.status === 'ACTIVE' ? 'Active' : 'Inactive'],
-              ].map(([label, value]) => <label className="form-field" key={label}><span>{label}</span><input readOnly value={value} /></label>)}
-              <label className="form-field full-width"><span>Address</span><input readOnly value={activeBranch.address || '-'} /></label>
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Branch Details</span>
+                </div>
+                <span className="um-card-badge">Record View</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-3">
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-hash" /> Branch Code</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.code} /><i className="ph ph-hash um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-buildings" /> Branch Name</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.name} /><i className="ph ph-buildings um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-tag" /> Short Name</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.short_name || '—'} /><i className="ph ph-tag um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-envelope-simple" /> Email</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.email || '—'} /><i className="ph ph-envelope-simple um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-phone" /> Phone</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.phone || '—'} /><i className="ph ph-phone um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-3" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> City</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.city || '—'} /><i className="ph ph-map-pin um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-globe" /> Country</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.country || '—'} /><i className="ph ph-globe um-input-prefix-icon" /></div>
+                  </div>
+                  <div className="um-field">
+                    <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span></label>
+                    <div className="um-input-wrap"><input readOnly value={activeBranch.status === 'ACTIVE' ? 'Active' : 'Inactive'} /><i className="ph ph-toggle-left um-input-prefix-icon" /></div>
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label"><span className="um-field-label-text"><i className="ph ph-map-pin" /> Full Address</span></label>
+                  <textarea className="um-textarea" readOnly rows={2} value={activeBranch.address || '—'} />
+                </div>
+              </div>
             </div>
           ) : (
           <form className="modal-form" id="branch-management-form" onSubmit={(e) => { e.stopPropagation(); void branchForm.handleSubmit(handleSave)(e); }}>
             {formError && (
-              <div className="form-error-banner" role="alert">
+              <div className="form-error-banner" role="alert" style={{ marginBottom: '1rem' }}>
                 <i className="ph ph-warning-circle" aria-hidden="true" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <div className="form-section-title">Branch Information</div>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="branch-code">Branch Code <span className="required" aria-hidden="true">*</span></label>
-                <input
-                  id="branch-code"
-                  disabled={submitting}
-                    {...branchForm.register('code')}
-                />
+            {/* Section 1: Basic Information */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-buildings" />
+                  <span>Branch Information</span>
+                </div>
+                <span className="um-card-badge">Identification</span>
               </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-3">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-code">
+                      <span className="um-field-label-text"><i className="ph ph-hash" /> Branch Code</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-code"
+                        disabled={submitting}
+                        placeholder="e.g. BR-MAIN, BR-NORTH"
+                        {...branchForm.register('code')}
+                      />
+                      <i className="ph ph-hash um-input-prefix-icon" />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-name">Branch Name <span className="required" aria-hidden="true">*</span></label>
-                <input
-                  id="branch-name"
-                  disabled={submitting}
-                    {...branchForm.register('name')}
-                />
-              </div>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-name">
+                      <span className="um-field-label-text"><i className="ph ph-buildings" /> Branch Name</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-name"
+                        disabled={submitting}
+                        placeholder="e.g. Main Hospital Campus"
+                        {...branchForm.register('name')}
+                      />
+                      <i className="ph ph-buildings um-input-prefix-icon" />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-short-name">Short Name</label>
-                <input
-                  id="branch-short-name"
-                  disabled={submitting}
-                    {...branchForm.register('shortName')}
-                />
-              </div>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-short-name">
+                      <span className="um-field-label-text"><i className="ph ph-tag" /> Short Name</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-short-name"
+                        disabled={submitting}
+                        placeholder="e.g. Main"
+                        {...branchForm.register('shortName')}
+                      />
+                      <i className="ph ph-tag um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-group">
-                <label htmlFor="branch-email">Email</label>
-                <input
-                  id="branch-email"
-                  disabled={submitting}
-                    {...branchForm.register('email')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-phone">Phone</label>
-                <input
-                  id="branch-phone"
-                  disabled={submitting}
-                    {...branchForm.register('phone')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-city">City</label>
-                <input
-                  id="branch-city"
-                  disabled={submitting}
-                    {...branchForm.register('city')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-state">State</label>
-                <input
-                  id="branch-state"
-                  disabled={submitting}
-                    {...branchForm.register('state')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-postal-code">Postal Code</label>
-                <input
-                  id="branch-postal-code"
-                  disabled={submitting}
-                    {...branchForm.register('postalCode')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-country">Country</label>
-                <input
-                  id="branch-country"
-                  disabled={submitting}
-                    {...branchForm.register('country')}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="branch-status">Status <span className="required" aria-hidden="true">*</span></label>
-                <select
-                  id="branch-status"
-                  disabled={submitting}
-                    {...branchForm.register('status')}
-                >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                </select>
-              </div>
-
-              <div className="form-group full-width">
-                <label htmlFor="branch-address">Address</label>
-                <input
-                  id="branch-address"
-                  disabled={submitting}
-                    {...branchForm.register('address')}
-                />
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-status">
+                      <span className="um-field-label-text"><i className="ph ph-toggle-left" /> Status</span>
+                      <span className="um-required-star">*</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <select
+                        id="branch-status"
+                        disabled={submitting}
+                        {...branchForm.register('status')}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                      <i className="ph ph-toggle-left um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Section 2: Contact Details */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-phone" />
+                  <span>Contact Information</span>
+                </div>
+                <span className="um-card-badge">Communications</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-email">
+                      <span className="um-field-label-text"><i className="ph ph-envelope-simple" /> Email Address</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-email"
+                        type="email"
+                        disabled={submitting}
+                        placeholder="e.g. contact@hospital.org"
+                        {...branchForm.register('email')}
+                      />
+                      <i className="ph ph-envelope-simple um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-phone">
+                      <span className="um-field-label-text"><i className="ph ph-phone" /> Phone Number</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-phone"
+                        disabled={submitting}
+                        placeholder="e.g. +1 (555) 012-3456"
+                        {...branchForm.register('phone')}
+                      />
+                      <i className="ph ph-phone um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Geographic Location & Address */}
+            <div className="um-modal-card">
+              <div className="um-modal-card-header">
+                <div className="um-card-title-wrap">
+                  <i className="ph ph-map-pin" />
+                  <span>Location &amp; Address</span>
+                </div>
+                <span className="um-card-badge">Geographic</span>
+              </div>
+              <div className="um-modal-card-body">
+                <div className="um-form-row-2">
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-city">
+                      <span className="um-field-label-text"><i className="ph ph-buildings" /> City</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-city"
+                        disabled={submitting}
+                        placeholder="e.g. New York"
+                        {...branchForm.register('city')}
+                      />
+                      <i className="ph ph-buildings um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-state">
+                      <span className="um-field-label-text"><i className="ph ph-map-trifold" /> State / Province</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-state"
+                        disabled={submitting}
+                        placeholder="e.g. NY"
+                        {...branchForm.register('state')}
+                      />
+                      <i className="ph ph-map-trifold um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-form-row-2" style={{ marginTop: '0.85rem' }}>
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-postal-code">
+                      <span className="um-field-label-text"><i className="ph ph-envelope" /> Postal Code</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-postal-code"
+                        disabled={submitting}
+                        placeholder="e.g. 10001"
+                        {...branchForm.register('postalCode')}
+                      />
+                      <i className="ph ph-envelope um-input-prefix-icon" />
+                    </div>
+                  </div>
+
+                  <div className="um-field">
+                    <label className="um-field-label" htmlFor="branch-country">
+                      <span className="um-field-label-text"><i className="ph ph-globe" /> Country</span>
+                    </label>
+                    <div className="um-input-wrap">
+                      <input
+                        id="branch-country"
+                        disabled={submitting}
+                        placeholder="e.g. United States"
+                        {...branchForm.register('country')}
+                      />
+                      <i className="ph ph-globe um-input-prefix-icon" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="um-field" style={{ marginTop: '0.85rem' }}>
+                  <label className="um-field-label" htmlFor="branch-address">
+                    <span className="um-field-label-text"><i className="ph ph-map-pin" /> Physical Street Address</span>
+                  </label>
+                  <textarea
+                    className="um-textarea"
+                    id="branch-address"
+                    disabled={submitting}
+                    placeholder="e.g. 123 Healthcare Ave, Suite 400"
+                    rows={2}
+                    {...branchForm.register('address')}
+                  />
+                </div>
+              </div>
+            </div>
           </form>
           )}
         </Modal>
       )}
 
       {deleteTarget && (
-        <ConfirmDialog
-          open={!!deleteTarget}
+        <BranchDeleteDialog
+          branch={deleteTarget}
           loading={submitting}
-          confirmLabel="Delete Branch"
-          message={`Are you sure you want to delete ${deleteTarget.name}? This action cannot be undone.`}
-          onCancel={() => {
-            if (!submitting) setDeleteTarget(null);
-          }}
-          onConfirm={handleDelete}
-          title="Delete Branch"
+          canDelete={canDelete}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(reassignToBranchId) => void handleDelete(reassignToBranchId)}
         />
       )}
 

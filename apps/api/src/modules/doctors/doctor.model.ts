@@ -39,6 +39,7 @@ export type DoctorFields = {
   email?: string | null;
   status: DoctorStatus;
   notes?: string | null;
+  signatureData?: string | null;
   availability: DoctorAvailabilityFields[];
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -93,6 +94,7 @@ const doctorSchema = new Schema<DoctorFields>(
     email: { type: String, default: null },
     status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'ON_LEAVE'], default: 'ACTIVE', required: true },
     notes: { type: String, default: null },
+    signatureData: { type: String, default: null },
     availability: { type: [doctorAvailabilitySchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -106,6 +108,7 @@ const doctorSchema = new Schema<DoctorFields>(
 doctorSchema.index({ userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } });
 doctorSchema.index({ displayName: 1 });
 doctorSchema.index({ branchId: 1, departmentId: 1, status: 1 });
+doctorSchema.index({ deletedAt: 1, status: 1, branchId: 1, departmentId: 1, displayName: 1 });
 doctorSchema.index({ specialization: 1 });
 doctorSchema.index({ registrationNumber: 1 }, { sparse: true });
 doctorSchema.index({ email: 1 }, { sparse: true });

@@ -3,7 +3,6 @@ import { useAppLocation } from '../../routing/navigation';
 import { sidebarModules } from '../../data/ui-foundation';
 import { MobileSidebarBackdrop } from './MobileSidebarBackdrop';
 import { MobileSidebarDrawer } from './MobileSidebarDrawer';
-import { TopHeader } from './TopHeader';
 
 type DashboardLayoutProps = PropsWithChildren<{
   title?: string;
@@ -56,7 +55,7 @@ function useActiveSidebarState() {
   return { activeKey: '', activeHref: pathname };
 }
 
-export function DashboardLayout({ title = 'HMS', breadcrumbs = ['Home', 'Dashboard'], children }: DashboardLayoutProps) {
+export function DashboardLayout({ children }: DashboardLayoutProps) {
   const initialViewportMode = useRef(getViewportMode());
   const [collapsed, setCollapsed] = useState(initialViewportMode.current === 'tablet');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -94,7 +93,11 @@ export function DashboardLayout({ title = 'HMS', breadcrumbs = ['Home', 'Dashboa
       />
       <MobileSidebarBackdrop open={mobileOpen} onClose={() => setMobileOpen(false)} />
       <main className="main-content">
-        <TopHeader breadcrumbs={breadcrumbs} onOpenMobileSidebar={() => setMobileOpen(true)} title={title} />
+        <div className="dashboard-mobile-header">
+          <button className="mobile-menu-btn" onClick={() => setMobileOpen(true)} type="button" aria-label="Open navigation">
+            <i className="ph ph-list" aria-hidden="true" />
+          </button>
+        </div>
         {children}
       </main>
     </div>

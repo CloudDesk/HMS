@@ -9,6 +9,8 @@ export interface IService extends Document {
   category?: string;
   sampleType?: string | null;
   description?: string;
+  referenceVideoUrl?: string | null;
+  referenceVideoTitle?: string | null;
   departmentId: Types.ObjectId;
   standardPrice: number;
   defaultDurationMinutes?: number | null;
@@ -41,6 +43,8 @@ const serviceSchema = new Schema<IService>(
     category: { type: String },
     sampleType: { type: String, default: null },
     description: { type: String },
+    referenceVideoUrl: { type: String, default: null, trim: true },
+    referenceVideoTitle: { type: String, default: null, trim: true },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
     standardPrice: { type: Number, required: true },
     defaultDurationMinutes: { type: Number, min: 5, max: 720, default: null },
@@ -72,6 +76,7 @@ const serviceSchema = new Schema<IService>(
 serviceSchema.index({ name: 1 });
 serviceSchema.index({ departmentId: 1 });
 serviceSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
+serviceSchema.index({ deletedAt: 1, status: 1, departmentId: 1, name: 1 });
 serviceSchema.index({ deletedAt: 1, serviceType: 1, status: 1, departmentId: 1, createdAt: -1 });
 
 export const ServiceModel = mongoose.model<IService>('Service', serviceSchema);

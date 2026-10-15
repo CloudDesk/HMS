@@ -156,6 +156,8 @@ export type PatientDocumentMetadataFields = {
   verifiedAt?: Date | null;
   deletedBy?: Types.ObjectId;
   deletedAt?: Date | null;
+  formResponses?: Record<string, unknown> | null;
+  digitalSignatures?: any[] | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -194,6 +196,8 @@ const patientDocumentSchema = new Schema<PatientDocumentMetadataFields>(
     reviewNotes: { type: String, default: null },
     documentDate: { type: Date, default: null },
     providerName: { type: String, default: null },
+    formResponses: { type: Schema.Types.Mixed, default: null },
+    digitalSignatures: { type: Schema.Types.Mixed, default: null },
     status: { type: String, enum: ['ACTIVE', 'DELETED'], default: 'ACTIVE', required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },

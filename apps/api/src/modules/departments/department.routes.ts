@@ -4,6 +4,7 @@ import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   departmentIdParamsSchema,
+  departmentDeletePreviewQuerySchema,
   createDepartmentBodySchema,
   listDepartmentsQuerySchema,
   updateDepartmentBodySchema,
@@ -49,6 +50,15 @@ export const registerDepartmentRoutes = async (app: FastifyInstance, services: S
       return reply.header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', 'attachment; filename="hms-departments.csv"').send(stream);
     },
+  );
+
+  app.get<{ Params: DepartmentIdParams; Querystring: { page?: number; limit?: number } }>(
+    '/api/departments/:id/delete-preview',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Departments', 'Delete'),
+      schema: { params: departmentIdParamsSchema, querystring: departmentDeletePreviewQuerySchema },
+    },
+    async (request) => ok(await services.departments.deletePreview(request.params.id, request.query.page, request.query.limit)),
   );
 
   app.get<{ Params: DepartmentIdParams }>(

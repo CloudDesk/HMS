@@ -32,7 +32,7 @@ export function ImagingDashboardPage() {
       <section className="appointment-page-header">
         <div className="appointment-page-title">
           <h2>Imaging Dashboard</h2>
-          <p>Live imaging requests, scan progress, and report verification</p>
+          <p>Manage imaging orders and reporting</p>
           <small>Read-only operational summary</small>
         </div>
         {feature.branches.length > 1 ? <label className="pharmacy-dashboard-branch"><span>Branch</span><select aria-label="Imaging dashboard branch" onChange={(event) => feature.updateFilters({ branch_id: event.target.value, page: 1 })} value={feature.filters.selectedBranch}><option value="">All accessible branches</option>{feature.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} — {branch.name}</option>)}</select></label> : null}

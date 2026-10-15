@@ -125,6 +125,8 @@ const toPatientDocument = (
   storage_key: document.storageKey,
   description: document.description ?? null,
   consent_status: document.consentStatus ?? null,
+  form_responses: document.formResponses ?? null,
+  digital_signatures: (document.digitalSignatures as any) ?? null,
 
   consent_kind: document.consentKind ?? null,
   signed_at: document.signedAt ?? null,
@@ -527,6 +529,8 @@ export class PatientRepository {
       reviewStatus: data.review_status ?? 'NOT_REQUIRED',
       documentDate: data.document_date ? new Date(data.document_date) : null,
       providerName: nullableString(data.provider_name),
+      formResponses: data.form_responses ?? null,
+      digitalSignatures: data.digital_signatures ?? null,
       uploadedBy: new Types.ObjectId(userId),
       verifiedBy: null,
       verifiedAt: null,
@@ -659,6 +663,36 @@ export class PatientRepository {
     if (session) query.session(session);
     const document = await query.lean<PatientDocumentLean>();
     return document ? toPatientDocument(document) : null;
+  }
+
+  async attachConsentSignature(
+    patientId: string,
+    consentDocumentId: string,
+    signatureDocumentId: string,
+    signedByName: string,
+    signedAt: Date,
+    digitalSignatures?: any[],
+  ): Promise<PatientDocument | undefined> {
+    const document = await PatientDocumentModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(consentDocumentId),
+        patientId: new Types.ObjectId(patientId),
+        documentType: 'CONSENT',
+        status: 'ACTIVE',
+      },
+      {
+        $set: {
+          consentStatus: 'SIGNED',
+          signedAt,
+          signedByName,
+          reviewStatus: 'PENDING',
+          ...(digitalSignatures ? { digitalSignatures } : {}),
+        },
+      },
+      { returnDocument: 'after', lean: true },
+    ).lean<PatientDocumentLean>();
+
+    return document ? toPatientDocument(document) : undefined;
   }
 
   async getIdentifiers(patientId: string): Promise<PatientIdentifier[]> {

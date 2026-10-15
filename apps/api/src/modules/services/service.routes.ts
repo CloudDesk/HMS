@@ -4,6 +4,7 @@ import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   serviceIdParamsSchema,
+  bulkDeleteServicesBodySchema,
   createServiceBodySchema,
   listServicesQuerySchema,
   updateServiceBodySchema,
@@ -49,6 +50,20 @@ export const registerServiceRoutes = async (app: FastifyInstance, services: Serv
       return reply.header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', 'attachment; filename="hms-services.csv"').send(stream);
     },
+  );
+
+  app.post<{ Body: { department_id: string; service_ids: string[] } }>(
+    '/api/services/bulk-delete',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Services', 'Delete'),
+      schema: { body: bulkDeleteServicesBodySchema },
+    },
+    async (request) => ok(await services.serviceCatalogue.bulkDelete(
+      request.body.service_ids,
+      request.body.department_id,
+      request.user!.id,
+      metadataFromRequest(request),
+    )),
   );
 
   app.get<{ Params: ServiceIdParams }>(

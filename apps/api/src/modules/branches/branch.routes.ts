@@ -11,6 +11,8 @@ import {
   branchIdentifierIdParamsSchema,
   addBranchIdentifierBodySchema,
   updateBranchIdentifierStatusBodySchema,
+  branchDeletePreviewQuerySchema,
+  deleteBranchBodySchema,
 } from './branch.schemas.js';
 import type {
   BranchListQuery,
@@ -108,18 +110,25 @@ export const registerBranchRoutes = async (app: FastifyInstance, services: Servi
     async (request) => ok(await services.branches.updateStatus(request.params.id, request.body.status, request.user!.id, metadataFromRequest(request))),
   );
 
-  app.delete<{ Params: BranchIdParams }>(
+  app.get<{ Params: BranchIdParams; Querystring: { page?: number; limit?: number } }>(
+    '/api/branches/:id/delete-preview',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Delete'),
+      schema: { params: branchIdParamsSchema, querystring: branchDeletePreviewQuerySchema },
+    },
+    async (request) => ok(await services.branches.deletePreview(request.params.id, request.query.page, request.query.limit)),
+  );
+
+  app.delete<{ Params: BranchIdParams; Body: { reassign_to_branch_id?: string } }>(
     '/api/branches/:id',
     {
       preHandler: requirePermission(services, 'Administration', 'Branches', 'Delete'),
       schema: {
         params: branchIdParamsSchema,
+        body: deleteBranchBodySchema,
       },
     },
-    async (request) => {
-      await services.branches.delete(request.params.id, request.user!.id, metadataFromRequest(request));
-      return ok({ success: true });
-    },
+    async (request) => ok(await services.branches.delete(request.params.id, request.user!.id, metadataFromRequest(request), request.body?.reassign_to_branch_id)),
   );
 
   app.get<{ Params: BranchIdParams }>(

@@ -1,8 +1,9 @@
-import type { ClientSession } from 'mongoose';
+import mongoose, { Types, type ClientSession } from 'mongoose';
 import { UserModel } from './user.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { RoleModel } from '../roles/role.model.js';
+import { PatientModel } from '../patients/patient.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type {
   AssignmentInput,
@@ -69,7 +70,18 @@ const mapUser = (user: UserDoc): UserRecord => ({
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+export const buildDepartmentAssignmentFilter = (value?: string) => {
+  if (!value) return undefined;
+  const ids = [...new Set(value.split(',').map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return undefined;
+  return ids.length === 1 ? ids[0] : { $in: ids };
+};
+
 export class UserRepository {
+  async session() {
+    return mongoose.startSession();
+  }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds')
@@ -183,7 +195,7 @@ export class UserRepository {
       filter.branchIds = query.branchId;
     }
     if (query.departmentId) {
-      filter.departmentIds = query.departmentId;
+      filter.departmentIds = buildDepartmentAssignmentFilter(query.departmentId);
     }
     if (query.roleId) {
       filter.roleIds = query.roleId;
@@ -373,17 +385,43 @@ export class UserRepository {
     );
   }
 
+  async reassignDepartmentMemberships(
+    userIds: string[],
+    fromDepartmentId: string,
+    toDepartmentId: string,
+    actorUserId: string,
+    session?: ClientSession,
+  ) {
+    const filter = { _id: { $in: userIds }, departmentIds: fromDepartmentId, deletedAt: null };
+    const matched = await UserModel.countDocuments(filter).session(session ?? null);
+    if (matched !== userIds.length) return matched;
+
+    const options = session ? { session } : {};
+    await UserModel.updateMany(
+      filter,
+      { $addToSet: { departmentIds: new Types.ObjectId(toDepartmentId) }, $set: { updatedBy: new Types.ObjectId(actorUserId) } },
+      options,
+    );
+    await UserModel.updateMany(
+      filter,
+      { $pull: { departmentIds: new Types.ObjectId(fromDepartmentId) } },
+      options,
+    );
+    return matched;
+  }
+
   async getAssignments(userIds: string[]) {
     if (userIds.length === 0) {
       return {
         branchesByUserId: new Map<string, UserAssignment[]>(),
         departmentsByUserId: new Map<string, UserAssignment[]>(),
         rolesByUserId: new Map(),
+        patientRegistrationBranchesByUserId: new Map<string, UserAssignment | null>(),
       };
     }
 
     const users = await UserModel.find({ _id: { $in: userIds } })
-      .select('branchIds departmentIds roleIds')
+      .select('branchIds departmentIds roleIds patientId')
       .populate('branchIds', 'name')
       .populate('departmentIds', 'name')
       .populate('roleIds', 'code name status')
@@ -392,9 +430,31 @@ export class UserRepository {
     const branchesByUserId = new Map<string, UserAssignment[]>();
     const departmentsByUserId = new Map<string, UserAssignment[]>();
     const rolesByUserId = new Map<string, Array<{ id: string; code: string; name: string; status: 'active' | 'inactive' }>>();
+    const patientRegistrationBranchesByUserId = new Map<string, UserAssignment | null>();
+
+    const patientIds = users.flatMap((user) => user.patientId ? [String(user.patientId)] : []);
+    const patients = patientIds.length > 0
+      ? await PatientModel.find({ _id: { $in: patientIds }, deletedAt: null }).select('_id registrationBranchId').lean()
+      : [];
+    const registrationBranchIds = [...new Set(patients.flatMap((patient) =>
+      patient.registrationBranchId ? [String(patient.registrationBranchId)] : []))];
+    const registrationBranches = registrationBranchIds.length > 0
+      ? await BranchModel.find({ _id: { $in: registrationBranchIds }, deletedAt: null }).select('name').lean()
+      : [];
+    const registrationBranchById = new Map(registrationBranches.map((branch) => [String(branch._id), branch.name ?? null]));
+    const patientById = new Map(patients.map((patient) => [String(patient._id), patient]));
 
     for (const user of users) {
       const userIdStr = user._id.toString();
+
+      const linkedPatient = user.patientId ? patientById.get(String(user.patientId)) : undefined;
+      const registrationBranchId = linkedPatient?.registrationBranchId ? String(linkedPatient.registrationBranchId) : null;
+      patientRegistrationBranchesByUserId.set(
+        userIdStr,
+        registrationBranchId
+          ? { id: registrationBranchId, name: registrationBranchById.get(registrationBranchId) ?? null, isPrimary: true }
+          : null,
+      );
       
       const userBranches = ((user.branchIds as unknown as Array<{ _id: unknown; name: string }>) ?? [])
         .filter((b) => Boolean(b && typeof b === 'object' && '_id' in b))
@@ -425,7 +485,7 @@ export class UserRepository {
       rolesByUserId.set(userIdStr, userRoles);
     }
 
-    return { branchesByUserId, departmentsByUserId, rolesByUserId };
+    return { branchesByUserId, departmentsByUserId, rolesByUserId, patientRegistrationBranchesByUserId };
   }
 
   async validateReferences(

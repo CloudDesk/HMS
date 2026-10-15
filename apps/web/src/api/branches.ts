@@ -64,6 +64,13 @@ export type BranchSummary = {
   cities: number;
 };
 
+export type BranchDeletePreview = {
+  users: Array<{ id: string; name: string; job_title: string | null; status: string }>;
+  user_meta: { page: number; limit: number; total: number };
+  departments: number;
+  doctors: number;
+};
+
 const toQueryString = (params: BranchListParams) => {
   const searchParams = new URLSearchParams();
 
@@ -88,6 +95,10 @@ export const branchesApi = {
 
   summary() {
     return apiClient.request<BranchSummary>('/branches/summary');
+  },
+
+  deletePreview(id: string, page = 1, limit = 25) {
+    return apiClient.request<BranchDeletePreview>(`/branches/${encodeURIComponent(id)}/delete-preview?page=${page}&limit=${limit}`);
   },
 
   export(params: BranchListParams = {}) {
@@ -115,8 +126,9 @@ export const branchesApi = {
     });
   },
 
-  delete(id: string) {
-    return apiClient.request<{ success: true }>(`/branches/${encodeURIComponent(id)}`, {
+  delete(id: string, reassignToBranchId?: string) {
+    return apiClient.request<{ success: true; users_reassigned: number; departments_reassigned: number }>(`/branches/${encodeURIComponent(id)}`, {
+      body: reassignToBranchId ? { reassign_to_branch_id: reassignToBranchId } : {},
       method: 'DELETE',
     });
   },

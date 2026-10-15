@@ -9,6 +9,8 @@ export type Service = {
   category: string | null;
   sample_type?: string | null;
   description: string | null;
+  reference_video_url: string | null;
+  reference_video_title: string | null;
   department_id: string;
   standard_price: number;
   default_duration_minutes: number | null;
@@ -50,6 +52,8 @@ export type CreateServiceDTO = {
   category?: string | null;
   sample_type?: string | null;
   description?: string | null;
+  reference_video_url?: string | null;
+  reference_video_title?: string | null;
   status?: ServiceStatus;
 };
 

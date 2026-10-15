@@ -6,6 +6,22 @@ export const serviceIdParamsSchema = {
   },
 } as const;
 
+export const bulkDeleteServicesBodySchema = {
+  type: 'object',
+  required: ['department_id', 'service_ids'],
+  additionalProperties: false,
+  properties: {
+    department_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    service_ids: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 100,
+      uniqueItems: true,
+      items: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' },
+    },
+  },
+} as const;
+
 export const listServicesQuerySchema = {
   type: 'object',
   additionalProperties: false,
@@ -43,6 +59,8 @@ export const createServiceBodySchema = {
     category: { type: ['string', 'null'] },
     sample_type: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
 } as const;
@@ -66,6 +84,8 @@ export const updateServiceBodySchema = {
     category: { type: ['string', 'null'] },
     sample_type: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    reference_video_url: { type: ['string', 'null'], pattern: '^https?://', maxLength: 2000 },
+    reference_video_title: { type: ['string', 'null'], maxLength: 200 },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] },
   },
 } as const;

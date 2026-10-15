@@ -68,6 +68,10 @@ export function PatientProfilePage() {
     isSuperAdministrator(user.roles) ||
     hasPermission(user.permissions, { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' })
   ));
+  const canViewConsent = Boolean(user && (
+    isSuperAdministrator(user.roles) ||
+    hasPermission(user.permissions, { module: 'Patients', screen: 'Consent', action: 'View' })
+  ));
   const { search } = useAppLocation();
   const requestedPatientId = getPatientIdFromSearch(search);
   const searchParams = new URLSearchParams(search);
@@ -353,6 +357,11 @@ export function PatientProfilePage() {
             <button className="doc-btn" onClick={() => setShowCardModal(true)} type="button">
               <i className="ph ph-identification-card" aria-hidden="true" /> View Card
             </button>
+            {canViewConsent ? (
+              <button className="doc-btn" onClick={() => navigate(`/patients/consent?id=${encodeURIComponent(patient.id)}`)} type="button">
+                <i className="ph ph-file-lock" aria-hidden="true" /> Consent Management
+              </button>
+            ) : null}
           </div>
         </section>
 

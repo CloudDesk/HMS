@@ -17,6 +17,7 @@ export const departmentsKeys = {
   detail: (id: string) => [...departmentsKeys.details(), id] as const,
   summaries: () => [...departmentsKeys.all, 'summary'] as const,
   summary: () => [...departmentsKeys.summaries()] as const,
+  deletePreview: (id: string, page: number, limit: number) => [...departmentsKeys.all, 'delete-preview', id, page, limit] as const,
 };
 
 export function useDepartmentsList(params: DepartmentListParams, enabled = true) {
@@ -41,6 +42,14 @@ export function useDepartmentSummary(enabled = true) {
     queryKey: departmentsKeys.summary(),
     queryFn: () => departmentsApi.summary(),
     enabled,
+  });
+}
+
+export function useDepartmentDeletePreview(id: string | null, page: number, enabled = true, limit = 25) {
+  return useQuery({
+    queryKey: id ? departmentsKeys.deletePreview(id, page, limit) : [...departmentsKeys.all, 'delete-preview'],
+    queryFn: () => departmentsApi.deletePreview(id as string, page, limit),
+    enabled: enabled && Boolean(id),
   });
 }
 

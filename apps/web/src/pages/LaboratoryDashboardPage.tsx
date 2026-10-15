@@ -33,7 +33,7 @@ export function LaboratoryDashboardPage() {
       <section className="appointment-page-header">
         <div className="appointment-page-title">
           <h2>Laboratory Dashboard</h2>
-          <p>Live laboratory workload, sample progress, and result verification</p>
+          <p>Manage laboratory orders and sample processing</p>
           <small>Read-only operational summary</small>
         </div>
         {feature.branches.length > 1 ? (

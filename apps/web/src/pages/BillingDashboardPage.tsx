@@ -39,7 +39,7 @@ export function BillingDashboardPage() {
 
   return <div className="pharmacy-dashboard billing-summary-dashboard">
     <section className="appointment-page-header">
-      <div className="appointment-page-title"><h2>Billing Dashboard</h2><p>Invoice activity, collections, and outstanding balances</p><small>Read-only operational summary</small></div>
+      <div className="appointment-page-title"><h2>Billing Dashboard</h2><p>Manage invoicing, collections and settlements</p><small>Read-only operational summary</small></div>
       {branches.length > 1 ? <label className="pharmacy-dashboard-branch"><span>Branch</span><select aria-label="Billing dashboard branch" onChange={(event) => setSelectedBranchId(event.target.value)} value={effectiveBranchId}><option value="">All accessible branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label> : null}
     </section>
 

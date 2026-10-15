@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeTransaction } from '../../shared/database/transaction.js';
 import { createCsvStream } from '../../shared/http/csv.js';
 import type { DepartmentRepository } from '../departments/department.repository.js';
 import type { ServiceRepository } from './service.repository.js';
@@ -83,11 +84,56 @@ export class ServiceCatalogueService {
 
   async delete(id: string, userId: string, metadata: ServiceRequestMetadata) {
     const service = await this.getById(id);
-    await this.repository.softDelete(service.id, userId);
-    await this.repository.audit('service.deleted', userId, metadata, {
-      serviceId: id,
-      code: service.code,
-      serviceType: service.service_type,
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const hasDependencies = await this.repository.hasActiveDependencies(service.id, session);
+      if (hasDependencies) {
+        throw new AppError(
+          'Service cannot be deleted while active procedure bookings, recommendations, or clinical orders reference it',
+          409,
+          'SERVICE_HAS_DEPENDENCIES',
+        );
+      }
+      await this.repository.softDelete(service.id, userId, session);
+      await this.repository.audit('service.deleted', userId, metadata, {
+        serviceId: id,
+        code: service.code,
+        serviceType: service.service_type,
+      }, session);
+    });
+  }
+
+  async bulkDelete(ids: string[], departmentId: string, userId: string, metadata: ServiceRequestMetadata) {
+    if (ids.length === 0 || ids.length > 100 || new Set(ids).size !== ids.length) {
+      throw new AppError('Select between 1 and 100 unique services', 400, 'INVALID_BULK_SERVICE_SELECTION');
+    }
+
+    return executeTransaction(() => this.repository.session(), async (session) => {
+      const services = await this.repository.findForBulkDelete(ids, departmentId, session);
+      if (services.length !== ids.length) {
+        throw new AppError('Some selected services changed. Refresh the assignment list and try again.', 409, 'STALE_SERVICE_ASSIGNMENTS');
+      }
+
+      const blockedServices = await this.repository.findServicesWithActiveDependencies(ids, session);
+      if (blockedServices.length > 0) {
+        throw new AppError(
+          'Some selected services cannot be deleted while active procedure bookings, recommendations, or clinical orders reference them',
+          409,
+          'SERVICE_HAS_DEPENDENCIES',
+          { service_ids: blockedServices },
+        );
+      }
+
+      const deleted = await this.repository.bulkSoftDelete(ids, departmentId, userId, session);
+      if (deleted !== ids.length) {
+        throw new AppError('Some selected services changed. Refresh the assignment list and try again.', 409, 'STALE_SERVICE_ASSIGNMENTS');
+      }
+      await Promise.all(services.map((service) => this.repository.audit('service.deleted', userId, metadata, {
+        serviceId: service.id,
+        code: service.code,
+        serviceType: service.serviceType,
+        source: 'department_delete_dialog',
+      }, session)));
+      return { success: true as const, deleted: services.length };
     });
   }
 

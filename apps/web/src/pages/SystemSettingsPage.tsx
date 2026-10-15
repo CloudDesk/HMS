@@ -85,6 +85,12 @@ export function SystemSettingsPage() {
 
   return (
     <div className="ss-page">
+      <div className="um-top-row" style={{ marginBottom: '0.25rem' }}>
+        <div className="um-top-title-area">
+          <h2 className="um-page-title">System Settings</h2>
+          <p className="um-page-subtitle">Configure hospital parameters, regional localization, user preferences, and audit history.</p>
+        </div>
+      </div>
       <section className="ss-kpi-row" aria-label="System settings summary">
         {[
           ['general', 'ph-sliders', 'blue', 'System Configurations', '24', 'Active settings'],
@@ -113,7 +119,7 @@ export function SystemSettingsPage() {
             <div style={{ padding: '3rem 1rem' }}>
               <MedicalLoader size="medium" text="Loading system settings..." subtext="Retrieving hospital configuration" />
             </div>
-          ) : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button">Try again</button></div> : renderPanel(activeTab)}
+          ) : loadError ? <div className="ss-state ss-state--error" role="alert"><i className="ph ph-warning-circle" aria-hidden="true" /><strong>Settings unavailable</strong><span>{loadError}</span><button className="btn-secondary" onClick={() => void load()} type="button"><i className="ph ph-arrows-clockwise" aria-hidden="true" /> Try again</button></div> : renderPanel(activeTab)}
         </main>
 
         <aside className="ss-right-panel">

@@ -50,8 +50,8 @@ export function PharmacyQueueDashboardPage() {
     <div className="pharmacy-dashboard">
       <section className="appointment-page-header">
         <div className="appointment-page-title">
-          <h2>Pharmacy Queue Dashboard</h2>
-          <p>Live prescription workload and dispensing progress</p>
+          <h2>Pharmacy Dashboard</h2>
+          <p>Manage prescription dispensing and inventory</p>
           <small>Read-only operational summary</small>
         </div>
         {queue.branches.length > 0 ? (

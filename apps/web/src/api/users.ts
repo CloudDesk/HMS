@@ -38,6 +38,8 @@ export type UserResponse = {
   updatedBy: string | null;
   deletedBy: string | null;
   roleIds: string[];
+  patientId?: string | null;
+  patientRegistrationBranch?: UserAssignment | null;
   branches: UserAssignment[];
   departments: UserAssignment[];
   roles: UserRoleAssignment[];
@@ -99,6 +101,12 @@ export type UserSummary = {
   addedThisMonth: number;
 };
 
+export type ReassignDepartmentUsersPayload = {
+  user_ids: string[];
+  from_department_id: string;
+  to_department_id: string;
+};
+
 const toQueryString = (params: UserListParams) => {
   const searchParams = new URLSearchParams();
 
@@ -137,7 +145,7 @@ export const usersApi = {
   },
 
   update(id: string, payload: SaveUserPayload) {
-    const body: Omit<SaveUserPayload, 'password' | 'status'> = {
+    const body: Omit<SaveUserPayload, 'password'> = {
       address: payload.address,
       branches: payload.branches,
       departments: payload.departments,
@@ -150,6 +158,7 @@ export const usersApi = {
       phone: payload.phone,
       profilePhotoUrl: payload.profilePhotoUrl,
       roleIds: payload.roleIds,
+      status: payload.status,
       username: payload.username,
     };
 
@@ -163,6 +172,13 @@ export const usersApi = {
     return apiClient.request<UserResponse>(`/users/${encodeURIComponent(id)}/status`, {
       body: { status },
       method: 'PATCH',
+    });
+  },
+
+  reassignDepartment(payload: ReassignDepartmentUsersPayload) {
+    return apiClient.request<{ success: true; reassigned: number }>('/users/reassign-department', {
+      body: payload,
+      method: 'POST',
     });
   },
 
