@@ -66,3 +66,37 @@ export const updateBranchStatusBodySchema = {
   additionalProperties: false,
   properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
 } as const;
+
+export const branchIdentifierIdParamsSchema = {
+  type: 'object',
+  required: ['id', 'identifierId'],
+  properties: {
+    id: { type: 'string', minLength: 1 },
+    identifierId: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+export const addBranchIdentifierBodySchema = {
+  type: 'object',
+  required: ['identifier_type', 'value', 'issuing_authority'],
+  additionalProperties: false,
+  properties: {
+    identifier_type: { type: 'string', minLength: 1 },
+    value: { type: 'string', minLength: 1 },
+    issuing_authority: { type: 'string', minLength: 1 },
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'REVOKED'] },
+    effective_from: { type: ['string', 'null'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const updateBranchIdentifierStatusBodySchema = {
+  type: 'object',
+  required: ['status'],
+  additionalProperties: false,
+  properties: {
+    status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'REVOKED'] },
+    effective_to: { type: ['string', 'null'] },
+  },
+} as const;
+

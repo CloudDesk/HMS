@@ -8,8 +8,17 @@ import {
   listBranchesQuerySchema,
   updateBranchBodySchema,
   updateBranchStatusBodySchema,
+  branchIdentifierIdParamsSchema,
+  addBranchIdentifierBodySchema,
+  updateBranchIdentifierStatusBodySchema,
 } from './branch.schemas.js';
-import type { BranchListQuery, CreateBranchDTO, UpdateBranchDTO } from './branch.types.js';
+import type {
+  BranchListQuery,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+  AddBranchIdentifierDTO,
+  UpdateBranchIdentifierDTO,
+} from './branch.types.js';
 
 type BranchIdParams = {
   id: string;
@@ -111,5 +120,57 @@ export const registerBranchRoutes = async (app: FastifyInstance, services: Servi
       await services.branches.delete(request.params.id, request.user!.id, metadataFromRequest(request));
       return ok({ success: true });
     },
+  );
+
+  app.get<{ Params: BranchIdParams }>(
+    '/api/branches/:id/identifiers',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'View'),
+      schema: {
+        params: branchIdParamsSchema,
+      },
+    },
+    async (request) => ok(await services.branches.getIdentifiers(request.params.id)),
+  );
+
+  app.post<{ Params: BranchIdParams; Body: AddBranchIdentifierDTO }>(
+    '/api/branches/:id/identifiers',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Edit'),
+      schema: {
+        params: branchIdParamsSchema,
+        body: addBranchIdentifierBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const identifier = await services.branches.addIdentifier(
+        request.params.id,
+        request.body,
+        request.user!.id,
+        metadataFromRequest(request),
+      );
+      return reply.status(201).send(ok(identifier));
+    },
+  );
+
+  app.put<{ Params: { id: string; identifierId: string }; Body: UpdateBranchIdentifierDTO }>(
+    '/api/branches/:id/identifiers/:identifierId/status',
+    {
+      preHandler: requirePermission(services, 'Administration', 'Branches', 'Edit'),
+      schema: {
+        params: branchIdentifierIdParamsSchema,
+        body: updateBranchIdentifierStatusBodySchema,
+      },
+    },
+    async (request) =>
+      ok(
+        await services.branches.updateIdentifierStatus(
+          request.params.id,
+          request.params.identifierId,
+          request.body,
+          request.user!.id,
+          metadataFromRequest(request),
+        ),
+      ),
   );
 };

@@ -118,6 +118,19 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/billing/history', label: 'Billing History' },
     ],
   },
+  {
+    key: 'insurance',
+    label: 'Insurance',
+    icon: 'ph-shield-check',
+    links: [
+      { href: '/insurance/payers', label: 'Payers' },
+      { href: '/insurance/schemes', label: 'Schemes' },
+      { href: '/insurance/policies', label: 'Policies' },
+      { href: '/insurance/members', label: 'Members' },
+      { href: '/insurance/benefits', label: 'Benefit Configuration' },
+      { href: '/insurance/sha-mappings', label: 'SHA Service Mapping' },
+    ],
+  },
   // Inventory module is disabled as per project configuration.
   // {
   //   key: 'inventory',

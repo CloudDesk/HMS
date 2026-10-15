@@ -1,5 +1,15 @@
 export type OpdConsultationStatus = 'DRAFT' | 'COMPLETED';
 
+export type OpdDiagnosisType = 'PRIMARY' | 'SECONDARY';
+
+export type OpdStructuredDiagnosis = {
+  code: string;
+  display: string;
+  codingSystem: string;
+  type: OpdDiagnosisType;
+  notes?: string | null;
+};
+
 export type OpdConsultation = {
   id: string;
   visit_id: string;
@@ -16,6 +26,7 @@ export type OpdConsultation = {
   allergies: string | null;
   physical_examination: string | null;
   assessment: string | null;
+  diagnoses: OpdStructuredDiagnosis[];
   treatment_plan: string | null;
   doctor_notes: string | null;
   completed_at: Date | null;
@@ -33,6 +44,8 @@ export type SaveOpdConsultationDTO = {
   allergies?: string | null;
   physical_examination?: string | null;
   assessment?: string | null;
+  diagnoses?: OpdStructuredDiagnosis[];
   treatment_plan?: string | null;
   doctor_notes?: string | null;
 };
+

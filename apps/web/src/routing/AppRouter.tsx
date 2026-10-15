@@ -37,6 +37,12 @@ const ImagingReportEntryPage = lazy(() => import('../pages/ImagingReportEntryPag
 const ImagingWorkspacePage = lazy(() => import('../pages/ImagingWorkspacePage').then((module) => ({ default: module.ImagingWorkspacePage })));
 const InpatientAdmissionPage = lazy(() => import('../pages/InpatientAdmissionPage').then((module) => ({ default: module.InpatientAdmissionPage })));
 const InpatientWorkspacePage = lazy(() => import('../pages/InpatientWorkspacePage').then((module) => ({ default: module.InpatientWorkspacePage })));
+const InsuranceBenefitsPage = lazy(() => import('../pages/insurance/InsuranceBenefitsPage').then((module) => ({ default: module.InsuranceBenefitsPage })));
+const InsuranceMembersPage = lazy(() => import('../pages/insurance/InsuranceMembersPage').then((module) => ({ default: module.InsuranceMembersPage })));
+const InsurancePayersPage = lazy(() => import('../pages/insurance/InsurancePayersPage').then((module) => ({ default: module.InsurancePayersPage })));
+const InsurancePoliciesPage = lazy(() => import('../pages/insurance/InsurancePoliciesPage').then((module) => ({ default: module.InsurancePoliciesPage })));
+const InsuranceSchemesPage = lazy(() => import('../pages/insurance/InsuranceSchemesPage').then((module) => ({ default: module.InsuranceSchemesPage })));
+const InsuranceShaMappingsPage = lazy(() => import('../pages/insurance/InsuranceShaMappingsPage').then((module) => ({ default: module.InsuranceShaMappingsPage })));
 const LaboratoryQueuePage = lazy(() => import('../pages/LaboratoryQueuePage').then((module) => ({ default: module.LaboratoryQueuePage })));
 const LaboratoryResultEntryPage = lazy(() => import('../pages/LaboratoryResultEntryPage').then((module) => ({ default: module.LaboratoryResultEntryPage })));
 const LaboratoryWorkspacePage = lazy(() => import('../pages/LaboratoryWorkspacePage').then((module) => ({ default: module.LaboratoryWorkspacePage })));
@@ -331,6 +337,30 @@ export function AppRouter() {
     title = 'Emergency Workspace';
     breadcrumbs = ['Home', 'Emergency', 'Emergency Workspace'];
     content = <EmergencyWorkspacePage />;
+  } else if (pathname === '/insurance' || pathname === '/insurance/payers') {
+    title = 'Insurance Payers';
+    breadcrumbs = ['Home', 'Insurance', 'Insurance Payers'];
+    content = <InsurancePayersPage />;
+  } else if (pathname === '/insurance/schemes') {
+    title = 'Insurance Schemes';
+    breadcrumbs = ['Home', 'Insurance', 'Insurance Schemes'];
+    content = <InsuranceSchemesPage />;
+  } else if (pathname === '/insurance/policies') {
+    title = 'Insurance Policies';
+    breadcrumbs = ['Home', 'Insurance', 'Insurance Policies'];
+    content = <InsurancePoliciesPage />;
+  } else if (pathname === '/insurance/members') {
+    title = 'Insurance Members';
+    breadcrumbs = ['Home', 'Insurance', 'Insurance Members'];
+    content = <InsuranceMembersPage />;
+  } else if (pathname === '/insurance/benefits') {
+    title = 'Benefit Configuration';
+    breadcrumbs = ['Home', 'Insurance', 'Benefit Configuration'];
+    content = <InsuranceBenefitsPage />;
+  } else if (pathname === '/insurance/sha-mappings') {
+    title = 'SHA Service Mapping';
+    breadcrumbs = ['Home', 'Insurance', 'SHA Service Mapping'];
+    content = <InsuranceShaMappingsPage />;
   } 
   // 2. All other sidebar routes automatically get a ComingSoonPage stub
   else if (matchedModule && matchedLink) {

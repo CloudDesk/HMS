@@ -165,6 +165,7 @@ export type OpdConsultationResponse = {
   allergies: string | null;
   physical_examination: string | null;
   assessment: string | null;
+  diagnoses?: ApiOpdStructuredDiagnosis[];
   treatment_plan: string | null;
   doctor_notes: string | null;
   completed_at: string | null;
@@ -172,6 +173,16 @@ export type OpdConsultationResponse = {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ApiOpdDiagnosisType = 'PRIMARY' | 'SECONDARY';
+
+export type ApiOpdStructuredDiagnosis = {
+  code: string;
+  display: string;
+  codingSystem: string;
+  type: ApiOpdDiagnosisType;
+  notes?: string | null;
 };
 
 export type SaveOpdConsultationPayload = {
@@ -182,9 +193,11 @@ export type SaveOpdConsultationPayload = {
   allergies?: string | null;
   physical_examination?: string | null;
   assessment?: string | null;
+  diagnoses?: ApiOpdStructuredDiagnosis[];
   treatment_plan?: string | null;
   doctor_notes?: string | null;
 };
+
 
 export type ApiOpdPrescriptionStatus = 'DRAFT' | 'SUBMITTED' | 'DISPENSED';
 
