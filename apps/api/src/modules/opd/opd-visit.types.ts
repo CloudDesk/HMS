@@ -36,6 +36,7 @@ export type OpdVisit = {
   visit_type: OpdVisitType;
   priority: OpdVisitPriority;
   status: OpdVisitStatus;
+  version: number;
   reason: string | null;
   notes: string | null;
   created_by: string | null;
@@ -79,5 +80,7 @@ export type CreateOpdVisitDTO = {
 
 export type UpdateOpdVisitStatusDTO = {
   status: OpdVisitStatus;
+  expected_status?: OpdVisitStatus;
+  expected_version?: number;
   notes?: string | null;
 };

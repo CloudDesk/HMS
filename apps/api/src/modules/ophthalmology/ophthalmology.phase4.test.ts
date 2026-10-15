@@ -1,0 +1,156 @@
+import mongoose, { Types } from 'mongoose';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AuditLogModel } from '../auth/auth.model.js';
+import { BranchModel } from '../branches/branch.model.js';
+import { DepartmentModel } from '../departments/department.model.js';
+import { NotificationRepository } from '../notifications/notification.repository.js';
+import { NotificationService } from '../notifications/notification.service.js';
+import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
+import { OpdVisitModel } from '../opd/opd-visit.model.js';
+import { OpdVisitRepository } from '../opd/opd-visit.repository.js';
+import { PermissionModel } from '../permissions/permission.model.js';
+import { RoleModel } from '../roles/role.model.js';
+import { UserModel } from '../users/user.model.js';
+import { OphthalmologyTestTaskModel } from './ophthalmology-test-task.model.js';
+import { OphthalmologyConfigurationModel, OphthalmologyContextModel, OphthalmologyStationModel, OphthalmologyWorkflowProfileModel } from './ophthalmology.model.js';
+import { OphthalmologyRepository } from './ophthalmology.repository.js';
+import { OphthalmologyService } from './ophthalmology.service.js';
+
+describe('Ophthalmology Phase 4 test queue orchestration', () => {
+  let mongo: MongoMemoryReplSet; const repository = new OphthalmologyRepository();
+  const service = new OphthalmologyService(repository, new OpdVisitRepository(), new NotificationService(new NotificationRepository()));
+  let branchId: string; let departmentId: string; let userId: string; let patientId: string; let visitId: string;
+  let catalogueId: string; let stationId: string;
+
+  beforeAll(async () => {
+    mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri());
+    await Promise.all([OphthalmologyTestTaskModel.init(), OphthalmologyContextModel.init(), OphthalmologyConfigurationModel.init(),
+      OphthalmologyStationModel.init(), OphthalmologyWorkflowProfileModel.init(), OpdVisitModel.init(), OpdClinicalOrderModel.init()]);
+  });
+  beforeEach(async () => {
+    await mongoose.connection.db?.dropDatabase();
+    const branch = await BranchModel.create({ code: 'OPH-P4', name: 'Ophthalmology Phase 4', status: 'ACTIVE' });
+    const department = await DepartmentModel.create({ code: 'OPHTHALMOLOGY', name: 'Ophthalmology', branchIds: [branch._id], status: 'ACTIVE', isClinical: true });
+    const permissions = await PermissionModel.create([{ code: 'OPD.OPH_TEST.START', name: 'Start Ophthalmology Test', module: 'OPD',
+      screen: 'Ophthalmology Test Queue', action: 'Start', type: 'custom', status: 'active' }]);
+    const role = await RoleModel.create({ code: 'OPH_TECH', name: 'Ophthalmology Technician', permissionIds: permissions.map((item) => item._id), status: 'active' });
+    const user = await UserModel.create({ username: 'oph.phase4', email: 'oph.phase4@example.test', fullName: 'Ophthalmology Technician',
+      passwordHash: 'not-used', roleIds: [role._id], branchIds: [branch._id], departmentIds: [department._id], status: 'active' });
+    branchId = branch._id.toString(); departmentId = department._id.toString(); userId = user._id.toString(); patientId = new Types.ObjectId().toString();
+    const doctorId = new Types.ObjectId(); const visit = await OpdVisitModel.create({ visitNumber: 'OPH-P4-001', queueTokenNumber: 1,
+      patientId, patientNumber: 'P-OPH-P4', patientName: 'Phase Four Patient', doctorId, doctorName: 'Dr Ophthalmology',
+      doctorSpecialization: 'Ophthalmology', branchId, departmentId, visitDate: new Date(), checkInTime: new Date(),
+      visitType: 'NEW_CONSULTATION', priority: 'ROUTINE', status: 'CHECKED_IN', version: 0 }); visitId = visit._id.toString();
+    const workflow = await OphthalmologyWorkflowProfileModel.create({ branchId, visitSubtype: 'NEW_CONSULTATION', name: 'Standard', revision: 1,
+      status: 'ACTIVE', stages: [{ code: 'PRELIMINARY', name: 'Preliminary', mode: 'PARALLEL', testCodes: ['VISUAL_ACUITY'], bypassAllowed: false }],
+      version: 0, createdBy: userId, updatedBy: userId });
+    await OphthalmologyContextModel.create({ visitId, patientId, branchId, departmentId, doctorId,
+      visitSubtype: 'NEW_CONSULTATION', affectedEye: 'OU', workflowStatus: 'CHECKED_IN', configurationVersionId: new Types.ObjectId(),
+      workflowProfileVersionId: workflow._id, version: 0, createdBy: userId, updatedBy: userId });
+    const catalogue = await OphthalmologyConfigurationModel.create({ branchId, type: 'TEST_CATALOGUE', code: 'DEFAULT', name: 'Tests', revision: 1,
+      status: 'ACTIVE', values: { tests: [{ code: 'VISUAL_ACUITY', name: 'Visual Acuity', active: true }] }, version: 0, createdBy: userId, updatedBy: userId });
+    catalogueId = catalogue._id.toString();
+    const station = await OphthalmologyStationModel.create({ branchId, departmentId, code: 'VA', name: 'Visual Acuity', status: 'ACTIVE',
+      supportedTestTypes: ['VISUAL_ACUITY'], memberUserIds: [user._id], devices: [{ code: 'ETDRS', name: 'ETDRS Chart', status: 'ACTIVE',
+        calibrationStatus: 'NOT_REQUIRED' }], version: 0, createdBy: userId, updatedBy: userId }); stationId = station._id.toString();
+  });
+  afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
+
+  const create = (key = 'phase4-create-001') => service.createTestTask(visitId, { expected_context_version: 0,
+    test_catalogue_version_id: catalogueId, test_code: 'VISUAL_ACUITY', workflow_stage_code: 'PRELIMINARY', laterality: 'OU',
+    priority: 'ROUTINE', source_type: 'WORKFLOW' }, key, userId);
+
+  it('creates one task idempotently and rejects reuse with a different payload', async () => {
+    const task = await create(); expect(task).toMatchObject({ status: 'ORDERED', test_code: 'VISUAL_ACUITY', version: 0 });
+    const reordered = await service.createTestTask(visitId, { source_type: 'WORKFLOW', priority: 'ROUTINE', laterality: 'OU',
+      workflow_stage_code: 'PRELIMINARY', test_code: 'VISUAL_ACUITY', test_catalogue_version_id: catalogueId, expected_context_version: 0 },
+    'phase4-create-001', userId);
+    expect(reordered.id).toBe(task.id); expect(await OphthalmologyTestTaskModel.countDocuments()).toBe(1);
+    await expect(service.createTestTask(visitId, { expected_context_version: 0, test_catalogue_version_id: catalogueId,
+      test_code: 'VISUAL_ACUITY', workflow_stage_code: 'PRELIMINARY', laterality: 'OD', priority: 'ROUTINE', source_type: 'WORKFLOW' },
+    'phase4-create-001', userId)).rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT' });
+  });
+
+  it('enforces exact versions while assigning, calling, and starting with an eligible device', async () => {
+    const task = await create(); const assigned = await service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
+    await expect(service.assignTestTask(task.id, { expected_status: 'ORDERED', expected_version: 0, station_id: stationId }, userId))
+      .rejects.toMatchObject({ statusCode: 409 });
+    const called = await service.callTestTask(task.id, { expected_status: 'PATIENT_WAITING', expected_version: assigned.version }, userId);
+    const started = await service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version, device_code: 'ETDRS' }, userId);
+    expect(started).toMatchObject({ status: 'IN_PROGRESS', device_code: 'ETDRS', assigned_user_id: userId, version: 3 });
+  });
+
+  it('allows only one concurrent assignment and scopes the queue to station members', async () => {
+    const task = await create(); const attempts = await Promise.allSettled([service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId), service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId)]);
+    expect(attempts.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter((item) => item.status === 'rejected')).toHaveLength(1);
+    expect((await service.listTestTasks({ branch_id: branchId, page: 1, limit: 10 }, userId)).data).toHaveLength(1);
+    const outsider = await UserModel.create({ username: 'oph.phase4.outsider', email: 'oph.phase4.outsider@example.test', fullName: 'Outsider',
+      passwordHash: 'not-used', roleIds: [], branchIds: [branchId], departmentIds: [departmentId], status: 'active' });
+    expect((await service.listTestTasks({ branch_id: branchId }, outsider._id.toString())).data).toHaveLength(0);
+    await expect(service.getTestTask(task.id, outsider._id.toString())).rejects.toMatchObject({ statusCode: 403, code: 'OPHTHALMOLOGY_SCOPE_DENIED' });
+  });
+
+  it('returns a called patient to waiting without inventing a lifecycle status', async () => {
+    const task = await create(); const assigned = await service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
+    const called = await service.callTestTask(task.id, { expected_status: 'PATIENT_WAITING', expected_version: assigned.version }, userId);
+    const waiting = await service.patientUnavailable(task.id,
+      { expected_status: 'PATIENT_CALLED', expected_version: called.version, reason: 'Patient temporarily away' }, userId);
+    expect(waiting.status).toBe('PATIENT_WAITING'); expect(waiting.transition_history.at(-1)?.action).toBe('PATIENT_UNAVAILABLE');
+  });
+
+  it('records unable-to-perform with doctor routing and permits controlled cancellation', async () => {
+    const task = await create(); const assigned = await service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
+    const called = await service.callTestTask(task.id, { expected_status: 'PATIENT_WAITING', expected_version: assigned.version }, userId);
+    const started = await service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version }, userId);
+    const unable = await service.unableTestTask(task.id,
+      { expected_status: 'IN_PROGRESS', expected_version: started.version, reason: 'Patient could not cooperate' }, userId);
+    expect(unable).toMatchObject({ status: 'UNABLE_TO_PERFORM', doctor_review_required: true });
+    expect(unable.routing_history.at(-1)?.target).toBe('OPHTHALMOLOGIST');
+    const cancellable = await create('phase4-create-cancel');
+    const cancelled = await service.cancelTestTask(cancellable.id,
+      { expected_status: 'ORDERED', expected_version: 0, reason: 'Test no longer required' }, userId);
+    expect(cancelled).toMatchObject({ status: 'CANCELLED', version: 1 });
+    const invalid = await create('phase4-create-blank-reason');
+    await expect(service.cancelTestTask(invalid.id, { expected_status: 'ORDERED', expected_version: 0, reason: '   ' }, userId))
+      .rejects.toMatchObject({ statusCode: 400, code: 'OPHTHALMOLOGY_REASON_REQUIRED' });
+  });
+
+  it('atomically routes a completed source to an existing ordered next task', async () => {
+    const source = await create(); const target = await create('phase4-create-next');
+    await OphthalmologyTestTaskModel.updateOne({ _id: source.id }, { $set: { status: 'COMPLETED' } });
+    const routed = await service.routeTestTask(source.id, { expected_status: 'COMPLETED', expected_version: 0, target: 'NEXT_STATION',
+      next_task_id: target.id, station_id: stationId, assigned_user_id: userId, reason: 'Continue configured sequence' }, userId);
+    expect(routed.routing_history.at(-1)).toMatchObject({ target: 'NEXT_STATION', target_task_id: target.id, target_station_id: stationId });
+    expect(await repository.getTestTask(target.id)).toMatchObject({ status: 'PATIENT_WAITING', assigned_user_id: userId, version: 1 });
+  });
+
+  it('atomically marks the original repeat-required and creates one linked waiting task', async () => {
+    const task = await create(); await OphthalmologyTestTaskModel.updateOne({ _id: task.id }, { $set: { status: 'COMPLETED' } });
+    const repeat = await service.repeatTestTask(task.id, { expected_status: 'COMPLETED', expected_version: 0, station_id: stationId,
+      assigned_user_id: userId, reason: 'Result quality insufficient' }, 'phase4-repeat-001', userId);
+    expect(repeat).toMatchObject({ status: 'PATIENT_WAITING', repeat_of_task_id: task.id });
+    expect(await repository.getTestTask(task.id)).toMatchObject({ status: 'REPEAT_REQUIRED', repeat_task_id: repeat.id, version: 1 });
+    expect((await service.repeatTestTask(task.id, { expected_status: 'COMPLETED', expected_version: 0, station_id: stationId,
+      assigned_user_id: userId, reason: 'Result quality insufficient' }, 'phase4-repeat-001', userId)).id).toBe(repeat.id);
+  });
+
+  it('keeps clinical-order linkage read-only and records operational audit history', async () => {
+    const order = await OpdClinicalOrderModel.create({ sourceType: 'OPD_VISIT', sourceId: visitId, visitId, patientId,
+      patientNumber: 'P-OPH-P4', patientName: 'Phase Four Patient', doctorId: new Types.ObjectId(), doctorName: 'Dr Ophthalmology', branchId,
+      orderType: 'IMAGING', status: 'SUBMITTED', priority: 'ROUTINE', items: [{ serviceId: new Types.ObjectId(), serviceName: 'Fundus Image',
+        investigationName: 'Visual Acuity', category: 'Ophthalmology' }], submittedAt: new Date() }); const itemId = order.items[0]!._id.toString();
+    const task = await service.createTestTask(visitId, { expected_context_version: 0, test_catalogue_version_id: catalogueId,
+      test_code: 'VISUAL_ACUITY', laterality: 'OU', priority: 'ROUTINE', source_type: 'CLINICAL_ORDER_ITEM', source_order_id: order._id.toString(),
+      source_order_item_id: itemId }, 'phase4-order-001', userId);
+    expect(task).toMatchObject({ source_order_type: 'IMAGING', source_order_item_id: itemId });
+    expect((await OpdClinicalOrderModel.findById(order._id).lean())?.status).toBe('SUBMITTED');
+    expect(await AuditLogModel.countDocuments({ eventType: 'ophthalmology.test_task.created' })).toBe(1);
+  });
+});

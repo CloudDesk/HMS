@@ -1,5 +1,6 @@
 import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
+import { executeRequiredTransaction } from '../../shared/database/transaction.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdClinicalOrderRepository } from './opd-clinical-order.repository.js';
 import type { ClinicalOrderType, SaveOpdClinicalOrderDTO } from './opd-clinical-order.types.js';
@@ -32,31 +33,36 @@ export class OpdClinicalOrderService {
     const consultation = await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
 
+    this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
+
     if (current && current.status !== 'DRAFT') {
-      throw new AppError('A submitted clinical order cannot be edited', 400, 'CLINICAL_ORDER_SUBMITTED');
+      throw new AppError('A submitted clinical order cannot be edited', 409, 'CLINICAL_ORDER_STATUS_CONFLICT');
     }
 
     this.validateLaboratoryFields(orderType, data);
     const items = await this.normalizeServices(orderType, data);
-    return this.repository.saveForVisit({ ...data, items, consultation, orderType, status: 'DRAFT', visit }, userId);
+    return this.repository.saveForVisit({
+      ...data,
+      items,
+      consultation,
+      orderType,
+      status: 'DRAFT',
+      visit,
+      currentVersion: current?.version ?? 0,
+      currentStatus: current?.status,
+    }, userId);
   }
 
   async submit(visitId: string, orderType: ClinicalOrderType, data: SaveOpdClinicalOrderDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit, true);
-    const consultation = await this.getConsultation(visitId);
+    await this.getConsultation(visitId);
     const current = await this.repository.getByVisitAndType(visitId, orderType);
+
+    this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
 
     if (current && current.status !== 'DRAFT') {
       return current;
-    }
-
-    if (consultation.status !== 'COMPLETED') {
-      throw new AppError(
-        'Complete the consultation before submitting clinical orders',
-        400,
-        'CONSULTATION_NOT_COMPLETED',
-      );
     }
 
     if (data.items.length === 0) {
@@ -65,38 +71,61 @@ export class OpdClinicalOrderService {
 
     this.validateLaboratoryFields(orderType, data);
     const items = await this.normalizeServices(orderType, data);
-    const order = await this.repository.saveForVisit(
-      { ...data, items, consultation, orderType, status: 'SUBMITTED', submittedAt: new Date(), visit },
-      userId,
-    );
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    return executeRequiredTransaction(this.visitRepository, async (session) => {
+      const transactionalVisit = await this.visitRepository.getById(visitId, scope, session);
+      if (!transactionalVisit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+      this.ensureOpenVisit(transactionalVisit, true);
+      const consultation = await this.getConsultation(visitId, session);
+      const transactionalCurrent = await this.repository.getByVisitAndType(visitId, orderType, session);
+      this.assertExpectedState(
+        data,
+        transactionalCurrent?.version ?? 0,
+        transactionalCurrent?.status ?? 'DRAFT',
+      );
+      if (transactionalCurrent && transactionalCurrent.status !== 'DRAFT') return transactionalCurrent;
 
-    const isLaboratory = orderType === 'LABORATORY';
-    const sourceLabel = order.source_type === 'EMERGENCY_ENCOUNTER'
-      ? 'Emergency encounter'
-      : 'OPD encounter';
-    await this.patientRepository.addTimelineEvent(
-      visit.patient_id,
-      {
-        event_type: isLaboratory ? 'OPD_LAB_ORDER_SUBMITTED' : 'OPD_IMAGING_ORDER_SUBMITTED',
-        title: isLaboratory ? 'Laboratory order submitted' : 'Imaging order submitted',
-        description: `${sourceLabel} ${visit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${visit.doctor_name}.`,
-      },
-      userId,
-    );
+      const order = await this.repository.saveForVisit({
+        ...data,
+        items,
+        consultation,
+        orderType,
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        visit: transactionalVisit,
+        currentVersion: transactionalCurrent?.version ?? 0,
+        currentStatus: transactionalCurrent?.status,
+      }, userId, session);
 
-    await this.patientRepository.auditClinicalEvent('opd.clinical_order.submitted', userId, {
-      itemCount: data.items.length,
-      orderId: order.id,
-      orderType,
-      patientId: visit.patient_id,
-      visitId: visit.id,
-      sourceType: order.source_type,
-      encounterId: order.visit_id ?? order.source_id,
-      admissionId: null,
-      procedureId: null,
+      const isLaboratory = orderType === 'LABORATORY';
+      const sourceLabel = order.source_type === 'EMERGENCY_ENCOUNTER' ? 'Emergency encounter' : 'OPD encounter';
+      await this.patientRepository.addTimelineEvent(
+        transactionalVisit.patient_id,
+        {
+          event_type: isLaboratory ? 'OPD_LAB_ORDER_SUBMITTED' : 'OPD_IMAGING_ORDER_SUBMITTED',
+          title: isLaboratory ? 'Laboratory order submitted' : 'Imaging order submitted',
+          description: `${sourceLabel} ${transactionalVisit.visit_number}: ${data.items.length} ${isLaboratory ? 'laboratory' : 'imaging'} investigation${data.items.length === 1 ? '' : 's'} ordered by ${transactionalVisit.doctor_name}.`,
+        },
+        userId,
+        session,
+      );
+      await this.patientRepository.auditClinicalEvent('opd.clinical_order.submitted', userId, {
+        itemCount: data.items.length,
+        orderId: order.id,
+        orderType,
+        patientId: transactionalVisit.patient_id,
+        visitId: transactionalVisit.id,
+        sourceType: order.source_type,
+        encounterId: order.visit_id ?? order.source_id,
+        admissionId: null,
+        procedureId: null,
+        previousStatus: transactionalCurrent?.status ?? null,
+        previousVersion: transactionalCurrent?.version ?? 0,
+        resultingStatus: order.status,
+        resultingVersion: order.version,
+      }, session);
+      return order;
     });
-
-    return order;
   }
 
   async getForContext(
@@ -136,8 +165,8 @@ export class OpdClinicalOrderService {
     return visit;
   }
 
-  private async getConsultation(visitId: string) {
-    const consultation = await this.consultationRepository.getByVisit(visitId);
+  private async getConsultation(visitId: string, session?: ClientSession) {
+    const consultation = await this.consultationRepository.getByVisit(visitId, session);
     if (!consultation) {
       throw new AppError('Start the consultation before creating clinical orders', 400, 'CONSULTATION_REQUIRED');
     }
@@ -165,10 +194,7 @@ export class OpdClinicalOrderService {
       throw new AppError('A service can only be added once to an order', 400, 'DUPLICATE_SERVICE');
     }
     const serviceType = orderType === 'LABORATORY' ? 'LAB_TEST' : 'IMAGING_SERVICE';
-    let services: Array<{ _id: unknown; name: string }> = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
-    if (services.length !== ids.length) {
-      services = await this.serviceRepository.getActiveBillingServices(ids);
-    }
+    const services: Array<{ _id: unknown; name: string }> = await this.serviceRepository.getActiveClinicalOrderServices(ids, serviceType);
     if (services.length !== ids.length) {
       throw new AppError(
         `All order items must reference active ${serviceType === 'LAB_TEST' ? 'laboratory' : 'imaging'} services`,
@@ -181,6 +207,19 @@ export class OpdClinicalOrderService {
       ...item,
       investigation_name: names.get(item.service_id) || item.investigation_name,
     }));
+  }
+
+  private assertExpectedState(
+    data: SaveOpdClinicalOrderDTO,
+    currentVersion: number,
+    currentStatus: OpdClinicalOrder['status'],
+  ) {
+    if (data.expected_version !== undefined && data.expected_version !== currentVersion) {
+      throw new AppError('The clinical order changed after it was loaded', 409, 'CLINICAL_ORDER_VERSION_CONFLICT');
+    }
+    if (data.expected_status !== undefined && data.expected_status !== currentStatus) {
+      throw new AppError('The clinical order status changed after it was loaded', 409, 'CLINICAL_ORDER_STATUS_CONFLICT');
+    }
   }
 
   private sameClinicalOrder(current: OpdClinicalOrder, data: SaveOpdClinicalOrderDTO) {

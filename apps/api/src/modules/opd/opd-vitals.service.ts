@@ -48,14 +48,20 @@ export class OpdVitalsService {
     );
 
     if (visit.status === 'CHECKED_IN' || visit.status === 'WAITING_FOR_VITALS') {
-      await this.visitRepository.updateStatus(
+      const updatedVisit = await this.visitRepository.updateStatusIf(
         visit.id,
+        [visit.status],
         {
           notes: 'Vitals recorded and patient ready for doctor consultation.',
           status: 'READY_FOR_CONSULTATION',
         },
         userId,
+        undefined,
+        visit.version,
       );
+      if (!updatedVisit) {
+        throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_VERSION_CONFLICT');
+      }
     }
 
     await this.patientRepository.addTimelineEvent(

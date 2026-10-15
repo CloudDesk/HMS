@@ -85,6 +85,8 @@ import { AdvancePaymentRepository } from '../../modules/advance-payment/advance-
 import { AdvancePaymentService } from '../../modules/advance-payment/advance-payment.service.js';
 import { InsuranceRepository } from '../../modules/insurance/insurance.repository.js';
 import { InsuranceService } from '../../modules/insurance/insurance.service.js';
+import { OphthalmologyRepository } from '../../modules/ophthalmology/ophthalmology.repository.js';
+import { OphthalmologyService } from '../../modules/ophthalmology/ophthalmology.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -102,6 +104,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdPrescriptionRepository = new OpdPrescriptionRepository();
   const opdFollowUpRepository = new OpdFollowUpRepository();
   const opdReferralRepository = new OpdReferralRepository();
+  const ophthalmologyRepository = new OphthalmologyRepository();
   const patientRepository = new PatientRepository();
   const serviceRepository = new ServiceRepository();
   const medicineRepository = new MedicineRepository();
@@ -112,6 +115,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const notificationRepository = new NotificationRepository();
+  const notificationService = new NotificationService(notificationRepository);
   const pharmacyDispensingRepository = new PharmacyDispensingRepository(
     pharmacyInventoryRepository,
     billingRepository,
@@ -285,7 +289,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       doctorRepository,
       opdConsultationRepository,
       sequenceService,
-      new NotificationService(notificationRepository),
+      notificationService,
     ),
     opdVitals: new OpdVitalsService(opdVitalsRepository, opdVisitRepository, patientRepository),
     opdConsultations: new OpdConsultationService(
@@ -311,9 +315,10 @@ export const createServiceRegistry = (): ServiceRegistry => {
       doctorRepository,
       appointmentService,
       patientRepository,
-      new NotificationService(notificationRepository),
+      notificationService,
       userRepository,
     ),
+    ophthalmology: new OphthalmologyService(ophthalmologyRepository, opdVisitRepository, notificationService),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
     medicines: new MedicineService(medicineRepository, pharmacyInventoryRepository),
     pharmacyInventory: new PharmacyInventoryService(pharmacyInventoryRepository),
@@ -325,7 +330,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     imaging: new ImagingService(opdClinicalOrderRepository, imagingRepository),
     billing: billingService,
     settings: settingsService,
-    notification: new NotificationService(notificationRepository),
+    notification: notificationService,
     pharmacyDispensing: new PharmacyDispensingService(pharmacyDispensingRepository),
     patientPortal: new PatientPortalService(
       new PatientPortalRepository(),

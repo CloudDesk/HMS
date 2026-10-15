@@ -70,6 +70,8 @@ export const updateOpdVisitStatusBodySchema = {
   additionalProperties: false,
   properties: {
     status: { type: 'string', enum: opdVisitStatusEnum },
+    expected_status: { type: 'string', enum: opdVisitStatusEnum },
+    expected_version: { type: 'integer', minimum: 0 },
     notes: { type: ['string', 'null'] },
   },
 } as const;

@@ -9,6 +9,7 @@ export type OpdConsultationFields = {
   doctorId: Types.ObjectId;
   doctorName: string;
   status: OpdConsultationStatus;
+  version?: number;
   chiefComplaint?: string | null;
   historyPresentIllness?: string | null;
   pastHistory?: string | null;
@@ -48,6 +49,7 @@ const opdConsultationSchema = new Schema<OpdConsultationFields>(
     doctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
     doctorName: { type: String, required: true },
     status: { type: String, enum: ['DRAFT', 'COMPLETED'], default: 'DRAFT', required: true },
+    version: { type: Number, default: 0, min: 0, required: true },
     chiefComplaint: { type: String, default: null },
     historyPresentIllness: { type: String, default: null },
     pastHistory: { type: String, default: null },

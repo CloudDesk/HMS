@@ -30,6 +30,7 @@ export type OpdClinicalOrderFields = {
   branchId: Types.ObjectId;
   orderType: ClinicalOrderType;
   status: ClinicalOrderStatus;
+  version?: number;
   priority: ClinicalOrderPriority;
   destination?: string | null;
   specimenType?: string | null;
@@ -92,6 +93,7 @@ const opdClinicalOrderSchema = new Schema<OpdClinicalOrderFields>(
       default: 'DRAFT',
       required: true,
     },
+    version: { type: Number, default: 0, min: 0, required: true },
     priority: {
       type: String,
       enum: ['ROUTINE', 'URGENT', 'STAT'],

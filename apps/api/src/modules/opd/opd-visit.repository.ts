@@ -55,6 +55,7 @@ const toVisit = (visit: OpdVisitLean): OpdVisit => ({
   visit_type: visit.visitType,
   priority: visit.priority,
   status: visit.status,
+  version: visit.version ?? 0,
   reason: visit.reason ?? null,
   notes: visit.notes ?? null,
   created_by: visit.createdBy?.toString() ?? null,
@@ -238,12 +239,14 @@ export class OpdVisitRepository {
     }, follow_ups: row?.followUps ?? 0, walk_ins: row?.walkIns ?? 0, urgent: row?.urgent ?? 0 };
   }
 
-  async getById(id: string, branchIds?: string[]): Promise<OpdVisit | undefined> {
-    const visit = await OpdVisitModel.findOne({
+  async getById(id: string, branchIds?: string[], session?: ClientSession): Promise<OpdVisit | undefined> {
+    const query = OpdVisitModel.findOne({
       _id: id,
       deletedAt: null,
       ...(branchIds ? { branchId: { $in: branchIds.map(requiredObjectId) } } : {}),
-    }).lean<OpdVisitLean>();
+    });
+    if (session) query.session(session);
+    const visit = await query.lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
   }
 
@@ -305,10 +308,37 @@ export class OpdVisitRepository {
           ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
           updatedBy: optionalObjectId(userId),
         },
+        $inc: { version: 1 },
       },
       { returnDocument: 'after', lean: true },
     ).lean<OpdVisitLean>();
 
+    return visit ? toVisit(visit) : undefined;
+  }
+
+  async updateStatusIf(
+    id: string,
+    expectedStatuses: OpdVisit['status'][],
+    data: UpdateOpdVisitStatusDTO,
+    userId: string,
+    session?: ClientSession,
+    expectedVersion?: number,
+  ): Promise<OpdVisit | undefined> {
+    const versionFilter = expectedVersion === 0
+      ? { $or: [{ version: 0 }, { version: { $exists: false } }] }
+      : expectedVersion === undefined ? {} : { version: expectedVersion };
+    const visit = await OpdVisitModel.findOneAndUpdate(
+      { _id: id, status: { $in: expectedStatuses }, deletedAt: null, ...versionFilter },
+      {
+        $set: {
+          status: data.status,
+          ...(data.notes !== undefined ? { notes: nullableString(data.notes) } : {}),
+          updatedBy: optionalObjectId(userId),
+        },
+        $inc: { version: 1 },
+      },
+      { returnDocument: 'after', lean: true, session },
+    ).lean<OpdVisitLean>();
     return visit ? toVisit(visit) : undefined;
   }
 

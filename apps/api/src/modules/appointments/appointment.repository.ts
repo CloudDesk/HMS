@@ -281,11 +281,13 @@ export class AppointmentRepository {
     }, follow_ups: row?.followUps ?? 0, urgent: row?.urgent ?? 0 };
   }
 
-  async getById(id: string, branchIds?: string[]): Promise<Appointment | undefined> {
-    const appointment = await AppointmentModel.findOne({
+  async getById(id: string, branchIds?: string[], session?: ClientSession): Promise<Appointment | undefined> {
+    const query = AppointmentModel.findOne({
       _id: id, deletedAt: null,
       ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}),
-    }).lean<AppointmentLean>();
+    });
+    if (session) query.session(session);
+    const appointment = await query.lean<AppointmentLean>();
     return appointment ? toAppointment(appointment) : undefined;
   }
 

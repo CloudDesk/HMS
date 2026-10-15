@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import type { ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
-import { executeTransaction } from '../../shared/database/transaction.js';
+import { executeRequiredTransaction, executeTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
@@ -118,55 +118,81 @@ export class OpdVisitService {
   async updateStatus(id: string, data: UpdateOpdVisitStatusDTO, userId: string) {
     const existing = await this.getById(id, userId);
     const scope = await this.repository.resolveBranchScope(userId, existing.branch_id);
+    this.assertExpectedVisitState(data, existing);
 
-    if (!this.isStatusTransitionAllowed(existing.status, data.status)) {
-      throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
-    }
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const current = await this.repository.getById(id, scope, session);
+      if (!current) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+      this.assertExpectedVisitState(data, current);
 
-    if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
-      throw new AppError('A reason is required for this OPD visit status', 400, 'STATUS_REASON_REQUIRED');
-    }
-
-    if (data.status === 'COMPLETED') {
-      const consultation = await this.consultationRepository.getByVisit(existing.id);
-      if (consultation?.status !== 'COMPLETED') {
-        throw new AppError('Complete the clinical consultation before closing the OPD visit', 400, 'CONSULTATION_NOT_COMPLETED');
+      if (!this.isStatusTransitionAllowed(current.status, data.status)) {
+        throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
       }
-    }
+      if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
+        throw new AppError('A reason is required for this OPD visit status', 400, 'STATUS_REASON_REQUIRED');
+      }
+      if (data.status === 'COMPLETED') {
+        const consultation = await this.consultationRepository.getByVisit(current.id, session);
+        if (consultation?.status !== 'COMPLETED') {
+          throw new AppError('Complete the clinical consultation before closing the OPD visit', 400, 'CONSULTATION_NOT_COMPLETED');
+        }
+      }
 
-    const visit = await this.repository.updateStatus(id, data, userId, scope);
-    if (!visit) {
-      throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
-    }
-
-    if (existing.status !== visit.status) {
-      await this.repository.auditStatusTransition(visit, existing.status, userId);
-    }
-
-    await this.patientRepository.addTimelineEvent(
-      visit.patient_id,
-      {
-        event_type: 'OPD_VISIT_STATUS_UPDATED',
-        title: 'OPD visit status updated',
-        description: `${visit.visit_number} moved to ${visit.status.replaceAll('_', ' ').toLowerCase()}.`,
-      },
-      userId,
-    );
-
-    if ((data.status === 'COMPLETED' || data.status === 'NO_SHOW') && visit.appointment_id) {
-      const previousAppointment = await this.appointmentRepository.getById(visit.appointment_id, scope);
-      const updatedAppointment = await this.appointmentRepository.updateStatus(
-        visit.appointment_id,
-        { status: data.status, notes: data.notes },
+      const visit = await this.repository.updateStatusIf(
+        id,
+        [current.status],
+        data,
         userId,
-        scope,
+        session,
+        current.version,
       );
-      if (previousAppointment && updatedAppointment && previousAppointment.status !== updatedAppointment.status) {
-        await this.appointmentRepository.auditStatusTransition(updatedAppointment, previousAppointment.status, userId);
-      }
-    }
+      if (!visit) throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_VERSION_CONFLICT');
 
-    return visit;
+      if (current.status !== visit.status) {
+        await this.repository.auditStatusTransition(visit, current.status, userId, session);
+      }
+      await this.patientRepository.addTimelineEvent(
+        visit.patient_id,
+        {
+          event_type: 'OPD_VISIT_STATUS_UPDATED',
+          title: 'OPD visit status updated',
+          description: `${visit.visit_number} moved to ${visit.status.replaceAll('_', ' ').toLowerCase()}.`,
+        },
+        userId,
+        session,
+      );
+
+      if ((data.status === 'COMPLETED' || data.status === 'NO_SHOW') && visit.appointment_id) {
+        const previousAppointment = await this.appointmentRepository.getById(visit.appointment_id, scope, session);
+        if (!previousAppointment) throw new AppError('Linked appointment not found', 409, 'OPD_APPOINTMENT_CONFLICT');
+        const updatedAppointment = await this.appointmentRepository.updateStatus(
+          visit.appointment_id,
+          { status: data.status, notes: data.notes },
+          userId,
+          scope,
+          session,
+        );
+        if (!updatedAppointment) throw new AppError('Linked appointment changed after it was loaded', 409, 'OPD_APPOINTMENT_CONFLICT');
+        if (previousAppointment.status !== updatedAppointment.status) {
+          await this.appointmentRepository.auditStatusTransition(
+            updatedAppointment,
+            previousAppointment.status,
+            userId,
+            session,
+          );
+        }
+      }
+      return visit;
+    });
+  }
+
+  private assertExpectedVisitState(data: UpdateOpdVisitStatusDTO, visit: OpdVisit) {
+    if (data.expected_version !== undefined && data.expected_version !== visit.version) {
+      throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_VERSION_CONFLICT');
+    }
+    if (data.expected_status !== undefined && data.expected_status !== visit.status) {
+      throw new AppError('The OPD visit status changed after it was loaded', 409, 'OPD_VISIT_STATUS_CONFLICT');
+    }
   }
 
   async callNextPatient(id: string, userId: string) {

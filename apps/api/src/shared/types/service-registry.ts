@@ -54,6 +54,7 @@ import type { DhaPaymentAllocationService } from '../../modules/insurance/dha/dh
 import type { DhaPaymentReconciliationService } from '../../modules/insurance/dha/dha-payment-reconciliation.service.js';
 import type { DhaClaimClosureService } from '../../modules/insurance/dha/dha-claim-closure.service.js';
 import type { DhaClaimReportingService } from '../../modules/insurance/dha/dha-claim-reporting.service.js';
+import type { OphthalmologyService } from '../../modules/ophthalmology/ophthalmology.service.js';
 
 export type ServiceRegistry = {
   administrationDashboard: AdministrationDashboardService;
@@ -77,6 +78,7 @@ export type ServiceRegistry = {
   opdPrescriptions: OpdPrescriptionService;
   opdFollowUps: OpdFollowUpService;
   opdReferrals: OpdReferralService;
+  ophthalmology: OphthalmologyService;
   serviceCatalogue: ServiceCatalogueService;
   medicines: MedicineService;
   pharmacyInventory: PharmacyInventoryService;

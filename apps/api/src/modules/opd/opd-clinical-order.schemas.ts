@@ -4,6 +4,11 @@ export const clinicalOrderParamsSchema = {
   type: 'object',
   required: ['visitId', 'orderType'],
   properties: {
+    expected_version: { type: 'integer', minimum: 0 },
+    expected_status: {
+      type: 'string',
+      enum: ['DRAFT', 'SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'RESULT_ENTERED', 'REPORT_ENTERED', 'VERIFIED', 'COMPLETED'],
+    },
     visitId: { type: 'string', minLength: 1 },
     orderType: { type: 'string', enum: ['LABORATORY', 'IMAGING'] },
   },
