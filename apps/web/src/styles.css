@@ -1,3 +1,5 @@
+@import './styles/dashboard-system.css';
+
 :root {
   --primary: #0046c0;
   --primary-hover: #003699;
@@ -38,11 +40,33 @@
   --bp-xl: 1280px;
   color: var(--text-main);
   background: var(--bg-main);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-family-base, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+h1 { font-size: var(--font-size-page-heading); }
+h2 { font-size: var(--font-size-heading); }
+h3, h4 { font-size: var(--font-size-subheading); }
+
+body.dashboard-open,
+body.dashboard-open #root {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.modal-open {
+  overflow: hidden;
 }
 
 /* Patient portal */
@@ -1727,10 +1751,47 @@ p {
   background: #dc2626;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global Table Design System — HMS Standard
+   This is the canonical table style for the entire HMS web application.
+   All tables should use .data-table within .table-responsive.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Table design tokens */
+:root {
+  --table-header-bg: #f8fafc;
+  --table-header-color: #475569;
+  --table-header-font-size: 0.72rem;
+  --table-header-font-weight: 700;
+  --table-row-border: #f1f5f9;
+  --table-row-hover-bg: #f8fafc;
+  --table-row-selected-bg: #eff6ff;
+  --table-cell-padding-v: 0.75rem;
+  --table-cell-padding-h: 1rem;
+  --table-cell-font-size: 0.875rem;
+  --table-cell-color: #334155;
+  --table-sort-icon-color: #94a3b8;
+  --table-sort-active-color: #2563eb;
+}
+
 .table-responsive,
 .table-scroll {
   width: 100%;
   overflow-x: auto;
+  /* Hide scrollbar when not needed */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 4px;
+}
+.table-responsive::-webkit-scrollbar-track {
+  background: transparent;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .data-table {
@@ -1742,22 +1803,75 @@ p {
 
 .data-table th,
 .data-table td {
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid #edf2f7;
+  padding: var(--table-cell-padding-v) var(--table-cell-padding-h);
+  border-bottom: 1px solid var(--table-row-border);
   text-align: left;
-  font-size: 0.86rem;
+  font-size: var(--table-cell-font-size);
+  color: var(--table-cell-color);
+  vertical-align: middle;
+}
+
+.data-table thead tr {
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .data-table th {
-  background: #f8fafc;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 800;
+  background: var(--table-header-bg);
+  color: var(--table-header-color);
+  font-size: var(--table-header-font-size);
+  font-weight: var(--table-header-font-weight);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
+}
+
+/* Sortable column header */
+.data-table th.sortable {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.data-table th.sortable:hover {
+  color: var(--table-sort-active-color);
+}
+.data-table th.sort-asc,
+.data-table th.sort-desc {
+  color: var(--table-sort-active-color);
+}
+
+/* Sort icon inside header */
+.th-sort-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  font-size: 0.7rem;
+  color: var(--table-sort-icon-color);
+  vertical-align: middle;
+  transition: color 0.15s ease;
+}
+.data-table th.sortable:hover .th-sort-icon,
+.data-table th.sort-asc .th-sort-icon,
+.data-table th.sort-desc .th-sort-icon {
+  color: var(--table-sort-active-color);
+}
+
+.data-table tbody tr {
+  transition: background-color 0.1s ease;
 }
 
 .data-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--table-row-hover-bg);
+}
+
+.data-table tbody tr.selected,
+.data-table tbody tr[aria-selected="true"] {
+  background: var(--table-row-selected-bg);
+}
+
+/* Last row no bottom border */
+.data-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .align-right {
@@ -1971,6 +2085,10 @@ p {
   width: min(100%, 1040px);
 }
 
+.modal-box.xlarge {
+  width: min(100%, 1280px);
+}
+
 .modal-header,
 .modal-footer {
   display: flex;
@@ -2090,6 +2208,103 @@ p {
   font-weight: 700;
 }
 
+#svc-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#svc-management-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#svc-management-form input::placeholder,
+#svc-management-form textarea::placeholder,
+#svc-management-form .hms-multi-select-placeholder,
+#svc-management-form .svc-form-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#role-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#role-form .form-field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#dept-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#dept-management-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#dept-management-form .hms-multi-select-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#medicine-master-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#medicine-master-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#medicine-master-form input::placeholder,
+#medicine-master-form textarea::placeholder,
+#medicine-master-form .medicine-form-placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+#branch-management-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+#branch-management-form .form-group > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.consent-template-form input::placeholder,
+.consent-template-form textarea::placeholder {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.consent-template-form .doc-field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-management-edit-form .form-section-title {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.user-management-edit-form .form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-management-edit-form input::placeholder,
+.user-management-edit-form select:disabled {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 .form-field input,
 .form-field select,
 .form-field textarea,
@@ -2103,6 +2318,16 @@ p {
   color: var(--text-main);
   padding: 0 0.75rem;
   outline: 0;
+}
+
+.form-field .hms-multi-select-checkbox {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 4px;
 }
 
 .form-field textarea,
@@ -2183,12 +2408,207 @@ p {
 }
 
 /* User Management screen migrated from HMS Local */
+.um-role-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.form-field.um-role-field,
+fieldset.form-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.um-role-options .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 34px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.form-field .um-role-options input[type='checkbox'] {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
 .um-grid {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   overflow-y: auto;
+}
+
+.user-management-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.department-management-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.department-delete-preview {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.department-delete-section {
+  min-width: 0;
+}
+
+.department-delete-section h4 {
+  margin: 0 0 0.5rem;
+}
+
+.department-delete-bulk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.65rem;
+}
+
+.department-delete-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  font-weight: 600;
+}
+
+.department-delete-select-all input,
+.department-delete-list input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  accent-color: #1d4ed8;
+}
+
+.department-delete-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: min(100%, 20rem);
+}
+
+.department-delete-user-actions select {
+  flex: 1 1 14rem;
+  min-width: min(100%, 14rem);
+  max-width: 100%;
+}
+
+.department-delete-list {
+  max-height: min(15rem, 32vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
+  background: #fff;
+}
+
+.department-delete-list > li {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-wrap: anywhere;
+}
+
+.department-delete-list > li:last-child {
+  border-bottom: 0;
+}
+
+.department-delete-service-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.department-delete-service-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.department-delete-service-row > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.department-delete-user-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.department-delete-user-row > input {
+  margin-top: 0.2rem;
+}
+
+.department-delete-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.department-delete-pagination > span {
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .department-delete-service-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .department-delete-service-row > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .department-delete-user-actions {
+    width: 100%;
+  }
+
+  .department-delete-user-actions > button {
+    width: 100%;
+  }
+}
+
+.service-catalogue-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.medicine-master-page {
+  padding: 1.25rem 1.75rem;
+}
+
+.branch-management-page {
   padding: 1.25rem 1.75rem;
 }
 

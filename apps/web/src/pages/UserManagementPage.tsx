@@ -102,6 +102,17 @@ const statuses: UserStatus[] = ['Active', 'Inactive', 'Locked'];
 
 
 
+const getPasswordPolicyText = (policy: AuthPasswordPolicy) => {
+  const requirements = [`at least ${policy.minLength} characters`];
+
+  if (policy.requireUppercase) requirements.push('one uppercase letter');
+  if (policy.requireLowercase) requirements.push('one lowercase letter');
+  if (policy.requireNumber) requirements.push('one number');
+  if (policy.requireSymbol) requirements.push('one symbol');
+
+  return `${requirements.join(', ')}.${policy.requireSymbol ? '' : ' Symbols are optional.'}`;
+};
+
 const getPasswordPolicyApiMessage = (error: ApiError) => {
   if (error.code !== 'PASSWORD_POLICY_FAILED' || !Array.isArray(error.details)) return null;
 
@@ -244,6 +255,16 @@ function InteractivePasswordPolicy({ password, policy }: { password: string; pol
   );
 }
 
+function PasswordPolicyNote({ policy }: { policy: AuthPasswordPolicy | null }) {
+  if (!policy) return null;
+
+  return (
+    <p className="password-policy-note" role="note">
+      <strong>Password policy:</strong> {getPasswordPolicyText(policy)}
+    </p>
+  );
+}
+
 function SortableHeader({
   column,
   label,
@@ -375,6 +396,7 @@ export function UserManagementPage() {
   const watchedDepartmentId = userForm.watch('departmentId');
   const watchedEmail = userForm.watch('email');
   const watchedPassword = userForm.watch('password') || '';
+  const watchedStatus = userForm.watch('status') || 'Active';
   const isEditingSuperAdmin = modalMode === 'edit' &&
     Boolean(activeUser?.source.roles.some((role) => role.code === 'SUPER_ADMIN'));
   const activeSuperAdminRoleId = activeUser?.source.roles.find((role) => role.code === 'SUPER_ADMIN')?.id;
