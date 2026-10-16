@@ -1,0 +1,46 @@
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Modal } from '../ui/Modal';
+import { ophthalmologyIdSchema } from '../../api/ophthalmology';
+import { stationWriteSchema, deviceSchema, type OphthalmologyStation } from '../../api/ophthalmology-admin';
+import type { OphthalmologyAdministrationFeature } from '../../hooks/ophthalmology/useOphthalmologyAdministrationFeature';
+import { lines } from '../../hooks/ophthalmology/configuration-form';
+import { EditorErrors, inputInstant, localDateTime, useEditorLeaveGuard } from './OphthalmologyConfigurationEditor';
+
+const editorSchema = stationWriteSchema.omit({ supported_test_types: true, devices: true }).extend({ code: z.string().trim().min(1).max(80), department_id: ophthalmologyIdSchema, test_codes: z.string(), devices: z.array(deviceSchema.extend({ calibration_status: z.enum(['', ...deviceSchema.shape.calibration_status.options]) })).max(100) });
+type Editor = z.infer<typeof editorSchema>;
+export function OphthalmologyStationEditor({ feature: f, record: initialRecord }: { feature: OphthalmologyAdministrationFeature; record: OphthalmologyStation | null }) {
+  const [record] = useState(initialRecord);
+  const readOnly = f.list.isError || (record ? !f.canEdit : !f.canCreate);
+  const { register, control, setValue, getValues, handleSubmit, setError, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({ resolver: zodResolver(editorSchema), defaultValues: { code: record?.code ?? '', department_id: record?.department_id ?? '', name: record?.name ?? '', description: record?.description ?? null, test_codes: record?.supported_test_types.join('\n') ?? '', devices: record?.devices ?? [], member_user_ids: record?.member_user_ids ?? [] } });
+  const values = useWatch({ control });
+  const devices = useFieldArray({ control, name: 'devices' });
+  const leave = useEditorLeaveGuard(isDirty);
+  const close = () => { if (!f.busy && !isSubmitting && leave()) f.setQuery({ edit_id: null }); };
+  return <Modal size="large" className="oph-workspace" open title={record ? `Edit station · ${record.name}` : 'New ophthalmology station'} onClose={close} footer={<><button type="button" className="doc-btn" disabled={f.busy || isSubmitting} onClick={close}>Cancel</button><button type="submit" className="doc-btn primary" form="oph-station-form" disabled={f.busy || isSubmitting || readOnly}>Save station</button></>}>
+    <form id="oph-station-form" onSubmit={handleSubmit(async (form) => {
+      const parsed = stationWriteSchema.safeParse({ name: form.name, description: form.description, supported_test_types: lines(form.test_codes).map((code) => code.toUpperCase()), devices: form.devices, member_user_ids: form.member_user_ids });
+      if (!parsed.success) { setError('root', { message: 'Check device calibration status, member uniqueness and station fields.' }); return; }
+      await f.save({ resource: 'stations', id: record?.id ?? null, expected_version: record?.version ?? null, branch_id: f.branchId, department_id: form.department_id, code: form.code, body: parsed.data });
+    })}>
+      <EditorErrors errors={errors} />{f.error && <p className="form-error-banner" role="alert">{f.error} Entries are retained. Reopen a stale station before retrying.</p>}
+      <fieldset className="oph-fieldset" disabled={f.busy || isSubmitting || readOnly}><div className="doc-form-grid two"><label className="doc-field"><span>Code <span className="oph-required">*</span></span><input maxLength={80} readOnly={Boolean(record)} {...register('code')} /></label><label className="doc-field"><span>Name <span className="oph-required">*</span></span><input maxLength={160} {...register('name')} /></label>
+        <label className="doc-field"><span>Ophthalmology department <span className="oph-required">*</span></span><select value={values.department_id ?? ''} disabled={Boolean(record)} onChange={(event) => { if (getValues('member_user_ids').length && !window.confirm('Changing department clears the selected memberships. Continue?')) return; setValue('department_id', event.target.value, { shouldDirty: true }); setValue('member_user_ids', [], { shouldDirty: true }); f.setQuery({ department_id: event.target.value, member_page: '1' }); }}><option value="">Select department</option>{values.department_id && !f.departmentOptions.some((item) => item.id === values.department_id) && <option value={values.department_id}>Saved department</option>}{f.departmentOptions.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}</select></label>
+        <label className="doc-field">Supported test codes, one per line<textarea {...register('test_codes')} /></label><label className="doc-field">Description<textarea maxLength={1000} {...register('description', { setValueAs: (value: string) => value.trim() || null })} /></label>
+      </div>
+      {!f.canDepartments && <p>Departments View permission is required for new department selection.</p>}{f.departments.isError && <p role="alert">Department lookup failed. <button type="button" className="doc-btn" onClick={() => void f.departments.refetch()}>Retry departments</button></p>}
+      <div className="oph-toolbar"><button className="doc-btn" type="button" disabled={f.departmentPage <= 1} onClick={() => f.setQuery({ department_page: String(f.departmentPage - 1) })}>Previous departments</button><span>Page {f.departmentPage}</span><button className="doc-btn" type="button" disabled={f.departmentPage >= (f.departments.data?.meta.totalPages ?? 0)} onClick={() => f.setQuery({ department_page: String(f.departmentPage + 1) })}>Next departments</button></div>
+      <h4>Station members</h4><p>Choose active branch/department staff. The server validates ophthalmology eligibility.</p>
+      {!f.canUsers && <p>Users View permission is required for membership lookup. Existing memberships are preserved.</p>}
+      {(values.member_user_ids ?? []).filter((id) => !f.memberOptions.some((member) => member.id === id)).map((id) => <p key={id}>Saved member {id} <button type="button" className="doc-btn" onClick={() => setValue('member_user_ids', getValues('member_user_ids').filter((value) => value !== id), { shouldDirty: true })}>Remove member</button></p>)}
+      <div className="oph-options">{f.memberOptions.map((member) => <label key={member.id}><input type="checkbox" checked={(values.member_user_ids ?? []).includes(member.id)} onChange={(event) => setValue('member_user_ids', event.target.checked ? [...new Set([...getValues('member_user_ids'), member.id])] : getValues('member_user_ids').filter((id) => id !== member.id), { shouldDirty: true })} /> {member.fullName}</label>)}</div>
+      {f.members.isLoading && <p role="status">Loading eligible staff…</p>}{f.members.isError && <p role="alert">Staff lookup failed. <button type="button" className="doc-btn" onClick={() => void f.members.refetch()}>Retry staff</button></p>}
+      <div className="oph-toolbar"><button type="button" className="doc-btn" disabled={f.memberPage <= 1} onClick={() => f.setQuery({ member_page: String(f.memberPage - 1) })}>Previous staff</button><span>Page {f.memberPage}</span><button type="button" className="doc-btn" disabled={f.memberPage >= (f.members.data?.meta.totalPages ?? 0)} onClick={() => f.setQuery({ member_page: String(f.memberPage + 1) })}>Next staff</button></div>
+      <h4>Devices and calibration</h4>{devices.fields.map((device, index) => <section className="doc-card" key={device.id}><div className="doc-form-grid two"><label className="doc-field"><span>Device code <span className="oph-required">*</span></span><input maxLength={80} {...register(`devices.${index}.code`)} /></label><label className="doc-field"><span>Device name <span className="oph-required">*</span></span><input maxLength={160} {...register(`devices.${index}.name`)} /></label><label className="doc-field">Status<select {...register(`devices.${index}.status`)}><option>ACTIVE</option><option>INACTIVE</option></select></label><label className="doc-field"><span>Calibration status <span className="oph-required">*</span></span><select {...register(`devices.${index}.calibration_status`)}><option value="">Select</option>{deviceSchema.shape.calibration_status.options.map((status) => <option key={status}>{status}</option>)}</select></label>{(['calibrated_at', 'calibration_due_at'] as const).map((key) => <label className="doc-field" key={key}>{key.replaceAll('_', ' ')}<input type="datetime-local" value={localDateTime(values.devices?.[index]?.[key])} onChange={(event) => setValue(`devices.${index}.${key}`, inputInstant(event.target.value), { shouldDirty: true })} /></label>)}</div><button type="button" className="doc-btn" onClick={() => { if (window.confirm('Remove this device from the station configuration?')) devices.remove(index); }}>Remove device</button></section>)}
+      <button type="button" className="doc-btn" disabled={devices.fields.length >= 100} onClick={() => devices.append({ code: '', name: '', status: 'INACTIVE', calibration_status: '', calibrated_at: null, calibration_due_at: null })}>Add device</button>
+      </fieldset>
+    </form>
+  </Modal>;
+}

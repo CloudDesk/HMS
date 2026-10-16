@@ -166,6 +166,8 @@ export type OpdConsultationResponse = {
   physical_examination: string | null;
   assessment: string | null;
   diagnoses?: ApiOpdStructuredDiagnosis[];
+  version?: number;
+  clinical_history?: { consultation_version: number; diagnoses: ApiOpdStructuredDiagnosis[]; treatment_plan: string | null; changed_by: string; changed_at: string }[];
   treatment_plan: string | null;
   doctor_notes: string | null;
   completed_at: string | null;
@@ -178,6 +180,9 @@ export type OpdConsultationResponse = {
 export type ApiOpdDiagnosisType = 'PRIMARY' | 'SECONDARY';
 
 export type ApiOpdStructuredDiagnosis = {
+  laterality?: 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE' | null;
+  status?: 'SUSPECTED' | 'CONFIRMED' | 'RULED_OUT' | null;
+  severity?: string | null; stage?: string | null; differential?: boolean;
   code: string;
   display: string;
   codingSystem: string;

@@ -28,7 +28,7 @@ export type OpdPrescriptionSectionProps = {
     id: string;
     name: string;
     strength?: string | null;
-    available_quantity: number;
+    available_quantity: number | null;
     unit?: string | null;
   }>;
   medicationForm: MedicationFormState;
@@ -169,7 +169,7 @@ export function OpdPrescriptionSection({
                 {masterMedicines.map((med) => (
                   <option key={med.id} value={med.name}>
                     {med.name} {med.strength ? `(${med.strength})` : ''} — Stock:{' '}
-                    {med.available_quantity} {med.unit || 'units'}
+                    {med.available_quantity === null ? 'Stock unavailable' : `${med.available_quantity} ${med.unit || 'units'}`}
                   </option>
                 ))}
               </select>
@@ -450,9 +450,8 @@ export function OpdPrescriptionSection({
       </section>
 
       <div className="opd-sticky-actions">
-        <span className="opd-autosave saved">
-          <i aria-hidden="true" className="ph ph-check-circle" />
-          Auto-save enabled
+        <span className="opd-autosave">
+          Save changes before leaving
         </span>
         <div>
           {canEdit && (

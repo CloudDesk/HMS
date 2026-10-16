@@ -1,0 +1,19 @@
+# Ophthalmology frontend B6 execution gap note
+
+16 October 2026. B6 explicitly approved. Frontend only; earlier B0–B5 working changes preserved. PROJECT_RULES, AGENTS and frontend B6 prompts reconciled with actual phase10 schemas/routes/services/repositories and existing staff hooks. The Scope2 IP/surgery/Emergency plan is a separate release stream. HMS Local is absent; reuse existing OPD cards, tables, forms and pagination. B5 prerequisites remain unresolved, so B6 cannot be accepted as a complete release.
+
+## Reuse and intended changes
+
+Reuse existing task attachment upload/selection (B2), authenticated patient-document download, auth branch scope, configuration/station reads and existing specialty CSS. Add strict six-report API schemas, service/domain/feature hooks and a dedicated Reports View-gated report route/sidebar item. Keep filters/page/type/station lookup pagination in URL, validate dates/IDs, and never export/count a partial page as a complete report. Add explicit missing-metric coverage notes. Add scope-checked attachment download and provenance display without changing storage or portal implementation. Add focused tests and phase evidence.
+
+## Contract findings / stop gates
+
+- Six report routes are live. STATION_QUEUE returns task rows including terminal tasks (not an operational waiting-only queue); PENDING_REVIEW only SUBMITTED_FOR_REVIEW; REPEAT_UNABLE omits reason and rate denominators; CLINICAL_VOLUME groups contexts with tasks, not all consultations; utilization counts orders/completed by test/station, not device capacity utilization. Turnaround intervals are nullable milliseconds. Label these exact semantics and absence honestly. Date filters apply to orderedAt. Missing metrics remain unavailable, never zero.
+- Reports validate branch access but have no department filter/enforcement beyond branch membership. Existing Reports View is authoritative for these branch operational projections; API owner must confirm finer-grained department policy. No frontend role-derived authorization is invented. No report export route exists; dashboard refresh (Export permission) is not an export.
+- Publication has POST publish and withdraw but no staff GET/list/history/eligible-source projection. Publishing summary copies broad source objects and lacks guaranteed confidential-field exclusion; reopening/amendment does not provide reliable withdrawal/republication effects. Do not expose publication writes or invent state from upload/status. Staff publication/withdraw needs reloadable current versions and approved payload policy. Portal code is outside Developer B ownership.
+- Existing attachment upload/list supports provenance and patient-document IDs; no configured MIME/size policy read projection exists. Preserve server validation and errors; no invented client limits, DICOM/video/device adapters or annotations. Metadata/transaction revalidation and idempotency fingerprint handling need owner review (upload replay compares checksum/task/result only, not changed title/time/provenance). Do not broaden upload functionality or claim full media acceptance.
+- Existing shared domains supply their own screens. Surgery pipeline, follow-up compliance and revenue require authoritative integrated report contracts; no fabricated frontend aggregates or extra grants. Live acceptance is blocked without an authenticated session/approved fixtures and unresolved earlier-phase contracts.
+
+## Verification plan
+
+Test report schemas/routes/units/nullable values, invalid filters, permission/cache/context/station gates, URL paging, empty/error/retry and lack of fabricated totals/export/publication actions. Test document download exact source/scope/permission, duplicate/late responses and errors. Run six workspace checks and focused regression; record live acceptance limits and unrelated failures precisely.

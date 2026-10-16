@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import type { CreateBillingInvoicePayload } from '../../api/billing';
 import type { InventoryItem } from '../../api/pharmacy-inventory';
 import type {
@@ -17,6 +17,8 @@ import { usePatientDetails } from '../patients/usePatients';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 import { useCallNextOpdPatient, useOpdVisits } from './useOpd';
 import { useOpdWorkspace } from './useOpdWorkspace';
+import { hasPermission } from '../../auth/access-control';
+import { useAuth } from '../../auth/useAuth';
 
 const WORKSPACE_TABS = [
   { id: '1', label: '1 Consultation', name: 'Consultation' },
@@ -26,6 +28,8 @@ const WORKSPACE_TABS = [
   { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
   { id: '6', label: '6 Referral', name: 'Referral' },
   { id: '7', label: '7 Follow-up', name: 'Follow-up' },
+  { id: '8', label: '8 Notes', name: 'Notes' },
+  { id: '9', label: '9 Documents', name: 'Documents' },
 ] as const;
 
 type SaveWorkspaceDraftInput = {
@@ -43,117 +47,129 @@ type CompleteWorkspaceInput = SaveWorkspaceDraftInput & {
 
 export function useOpdVisitFeature() {
   const { search } = useAppLocation();
+  const { user } = useAuth();
+  const canView = (module: string, screen: string) => hasPermission(user?.permissions ?? [], { module, screen, action: 'View' });
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const visitIdParam = searchParams.get('id') ?? '';
-  const initialTabParam = searchParams.get('tab') ?? 'Consultation';
-  const [activeVisitId, setActiveVisitId] = useState(visitIdParam);
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const match = WORKSPACE_TABS.find((tab) =>
-      tab.name.toLowerCase() === initialTabParam.toLowerCase() ||
-      tab.id === initialTabParam ||
-      tab.label.toLowerCase().includes(initialTabParam.toLowerCase()));
-    return match?.name ?? 'Consultation';
-  });
-
-  const workspace = useOpdWorkspace(activeVisitId || null);
-
   // In Consultation Workspace, only in-consultation and completed visits are valid for active review/switching
-  const recentVisitsQuery = useOpdVisits({ limit: 20, sortBy: 'created_at', sortOrder: 'desc' });
+  const recentVisitsQuery = useOpdVisits({ limit: 20, sortBy: 'created_at', sortOrder: 'desc' }, canView('OPD', 'OPD Visits'));
   const recentVisits = useMemo(() => {
     const list = recentVisitsQuery.data?.data ?? [];
     return list.filter((v) => v.status === 'IN_CONSULTATION' || v.status === 'COMPLETED');
   }, [recentVisitsQuery.data]);
 
-  useEffect(() => {
-    if (visitIdParam && visitIdParam !== activeVisitId) setActiveVisitId(visitIdParam);
-  }, [activeVisitId, visitIdParam]);
+  const activeVisitId = searchParams.get('id') ?? recentVisits[0]?.id ?? '';
+  const specialtyCompletionRequired = searchParams.get('specialty') === 'ophthalmology';
+  const tabParam = searchParams.get('tab') ?? 'Consultation';
+  const activeTab = WORKSPACE_TABS.find((tab) => tab.name.toLowerCase() === tabParam.toLowerCase() || tab.id === tabParam)?.name ?? 'Consultation';
+  const workspace = useOpdWorkspace(activeVisitId || null, activeTab);
+  const visit = workspace.visit?.id === activeVisitId ? workspace.visit : null;
+  const context = useMemo(() => ({ active: true, pending: false, completionCommitted: false }), [activeVisitId]);
+  useLayoutEffect(() => {
+    context.active = true;
+    return () => { context.active = false; };
+  }, [context]);
+  const assertContext = () => {
+    if (workspace.visitError) throw new Error('Reload the encounter records successfully before saving.');
+    if (!context.active || !visit) throw new Error('The selected encounter changed. Refresh its saved records before continuing.');
+  };
 
-  useEffect(() => {
-    const firstVisit = recentVisits[0];
-    if (!activeVisitId && firstVisit) setActiveVisitId(firstVisit.id);
-  }, [activeVisitId, recentVisits]);
-
-  const patientQuery = usePatientDetails(workspace.visit?.patient_id ?? null);
-  const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
-  const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, Boolean(activeVisitId));
+  const patientQuery = usePatientDetails(canView('Patients', 'Patient Records') ? visit?.patient_id ?? null : null);
+  const branchesQuery = useBranchesList({ status: 'ACTIVE', limit: 100 }, Boolean(visit && activeTab === 'Lab Orders' && canView('Administration', 'Branches')));
+  const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', limit: 100 }, Boolean(visit && (activeTab === 'Lab Orders' || activeTab === 'Imaging Orders') && canView('Administration', 'Departments')));
   const callNextPatient = useCallNextOpdPatient({ notifyOnError: false });
 
   const masterMedicines = useMemo(() => {
     const inventoryById: Record<string, InventoryItem> = {};
-    const inventoryByName: Record<string, InventoryItem> = {};
     workspace.inventory.forEach((item) => {
       inventoryById[item.medicine_id] = item;
-      if (item.medicine?.name) inventoryByName[item.medicine.name] = item;
     });
     return workspace.medicines.map((medicine) => {
-      const inventory = inventoryById[medicine.id] ?? inventoryByName[medicine.name];
+      const inventory = inventoryById[medicine.id];
       return {
         id: medicine.id,
         name: medicine.name,
         generic_name: medicine.generic_name,
         strength: medicine.strength,
         dosage_form: medicine.dosage_form,
-        unit: inventory?.medicine?.name || medicine.unit || 'units',
-        available_quantity: inventory?.available_quantity ?? 120,
+        unit: medicine.unit || 'units',
+        available_quantity: inventory?.available_quantity ?? null,
       };
     });
   }, [workspace.inventory, workspace.medicines]);
 
+  const runWorkflow = async (steps: Array<{ label: string; run: () => Promise<unknown> }>) => {
+    assertContext();
+    if (context.pending) throw new Error('A save is already in progress for this encounter.');
+    context.pending = true;
+    let saved = 0;
+    try {
+      for (const step of steps) {
+        assertContext();
+        try { await step.run(); }
+        catch (error) {
+          throw new Error(`${step.label} failed: ${getOpdErrorMessage(error)}${saved ? ' Earlier steps were saved. Refresh and review those records before retrying.' : ''}`, { cause: error });
+        }
+        saved += 1;
+      }
+      assertContext();
+    } finally { context.pending = false; }
+  };
+
   const saveWorkspaceDraft = async (input: SaveWorkspaceDraftInput) => {
-    if (!workspace.visit) return;
-    const visitId = workspace.visit.id;
-    await workspace.mutations.saveConsultationDraft({ visitId, payload: input.consultation });
-    if (input.prescription) {
-      await workspace.mutations.savePrescriptionDraft({ visitId, payload: input.prescription }).catch(() => null);
-    }
-    if (input.laboratory) {
-      await workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'LABORATORY', payload: input.laboratory }).catch(() => null);
-    }
-    if (input.imaging) {
-      await workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'IMAGING', payload: input.imaging }).catch(() => null);
-    }
-    if (input.referral) {
-      await workspace.mutations.saveReferralDraft({ visitId, payload: input.referral });
-    }
-    if (input.followUp) {
-      await workspace.mutations.saveFollowUpDraft({ visitId, payload: input.followUp });
-    }
+    const { prescription, laboratory, imaging, referral, followUp, } = input;
+    assertContext();
+    const visitId = activeVisitId;
+    await runWorkflow([
+      { label: 'Consultation draft', run: () => workspace.mutations.saveConsultationDraft({ visitId, payload: input.consultation }) },
+      ...(prescription ? [{ label: 'Prescription draft', run: () => workspace.mutations.savePrescriptionDraft({ visitId, payload: prescription }) }] : []),
+      ...(laboratory ? [{ label: 'Laboratory draft', run: () => workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'LABORATORY', payload: laboratory }) }] : []),
+      ...(imaging ? [{ label: 'Imaging draft', run: () => workspace.mutations.saveClinicalOrderDraft({ visitId, type: 'IMAGING', payload: imaging }) }] : []),
+      ...(referral ? [{ label: 'Referral draft', run: () => workspace.mutations.saveReferralDraft({ visitId, payload: referral }) }] : []),
+      ...(followUp ? [{ label: 'Follow-up draft', run: () => workspace.mutations.saveFollowUpDraft({ visitId, payload: followUp }) }] : []),
+    ]);
   };
 
   const completeWorkspace = async (input: CompleteWorkspaceInput) => {
-    if (!workspace.visit) return;
-    const visitId = workspace.visit.id;
-    await workspace.mutations.completeConsultation({ visitId, payload: input.consultation });
-    if (input.prescription) {
-      await workspace.mutations.submitPrescription({ visitId, payload: input.prescription });
+    const { prescription, laboratory, imaging, referral, followUp, invoice, } = input;
+    assertContext();
+    if (specialtyCompletionRequired) throw new Error('Return to Ophthalmology readiness. This encounter cannot be completed from the generic OPD workflow.');
+    if (context.completionCommitted || visit?.status === 'COMPLETED') throw new Error('This consultation is already completed. Review downstream records individually before retrying any handoff.');
+    const visitId = activeVisitId;
+    try {
+      await runWorkflow([
+        { label: 'Consultation completion', run: async () => {
+          const result = await workspace.mutations.completeConsultation({ visitId, payload: input.consultation });
+          context.completionCommitted = true;
+          return result;
+        } },
+        ...(prescription ? [{ label: 'Pharmacy handoff', run: () => workspace.mutations.submitPrescription({ visitId, payload: prescription }) }] : []),
+        ...(laboratory ? [{ label: 'Laboratory handoff', run: () => workspace.mutations.submitClinicalOrder({ visitId, type: 'LABORATORY', payload: laboratory }) }] : []),
+        ...(imaging ? [{ label: 'Imaging handoff', run: () => workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: imaging }) }] : []),
+        ...(referral ? [{ label: 'Referral handoff', run: () => workspace.mutations.submitReferral({ visitId, payload: referral }) }] : []),
+        ...(followUp ? [{ label: 'Follow-up scheduling', run: () => workspace.mutations.scheduleFollowUp({ visitId, payload: followUp }) }] : []),
+        ...(invoice ? [{ label: 'Billing handoff', run: () => workspace.mutations.createBillingInvoice(invoice) }] : []),
+      ]);
+    } finally {
+      // Completion already updates the visit atomically on the backend; never replay its status transition.
+      if (context.active) await workspace.refetchVisit();
     }
-    if (input.laboratory) {
-      await workspace.mutations.submitClinicalOrder({ visitId, type: 'LABORATORY', payload: input.laboratory });
-    }
-    if (input.imaging) {
-      await workspace.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload: input.imaging });
-    }
-    if (input.referral) {
-      await workspace.mutations.submitReferral({ visitId, payload: input.referral });
-    }
-    if (input.followUp) {
-      await workspace.mutations.scheduleFollowUp({ visitId, payload: input.followUp });
-    }
-    if (input.invoice) {
-      await workspace.mutations.createBillingInvoice(input.invoice).catch(() => null);
-    }
-    if (workspace.visit.status !== 'COMPLETED') {
-      await workspace.mutations.updateVisitStatus({
-        id: visitId,
-        payload: { status: 'COMPLETED', notes: 'Consultation completed.' },
-      }).catch(() => null);
-    }
-    await workspace.refetchVisit();
   };
 
   const selectVisit = (visitId: string) => {
-    setActiveVisitId(visitId);
-    navigate(`/opd/consultation?id=${encodeURIComponent(visitId)}`);
+    if (visitId === activeVisitId) return;
+    context.active = false;
+    const next = new URLSearchParams(search);
+    next.set('id', visitId);
+    next.delete('specialty');
+    navigate(`/opd/consultation?${next.toString()}`);
+  };
+
+  const setActiveTab = (tab: string) => {
+    if (!WORKSPACE_TABS.some((item) => item.name === tab)) return;
+    const next = new URLSearchParams(search);
+    if (activeVisitId) next.set('id', activeVisitId);
+    next.set('tab', tab);
+    navigate(`/opd/consultation?${next.toString()}`, { replace: true });
   };
 
   const refetchVisit = async () => {
@@ -163,10 +179,10 @@ export function useOpdVisitFeature() {
   return {
     state: {
       activeVisitId,
-      activeTab,
+      activeTab, specialtyCompletionRequired,
       recentVisits,
-      visit: workspace.visit,
-      patient: patientQuery.data ?? null,
+      visit,
+      patient: patientQuery.data?.id === visit?.patient_id ? patientQuery.data : null,
       vitals: workspace.vitals,
       consultation: workspace.consultation,
       prescription: workspace.prescription,
@@ -180,7 +196,7 @@ export function useOpdVisitFeature() {
       branches: branchesQuery.data?.data ?? [],
       departments: departmentsQuery.data?.data ?? [],
       documents: workspace.documents,
-      loading: recentVisitsQuery.isLoading || workspace.visitLoading || patientQuery.isLoading,
+      loading: recentVisitsQuery.isLoading || workspace.isLoading || workspace.visitLoading || patientQuery.isLoading,
       loadError: workspace.visitError ? getOpdErrorMessage(workspace.visitError) : '',
       updating: workspace.isUpdating || callNextPatient.isPending,
       canEditConsultation: workspace.canEditConsultation,
@@ -189,8 +205,10 @@ export function useOpdVisitFeature() {
       canEditReferral: workspace.canEditReferral,
       canEditFollowUp: workspace.canEditFollowUp,
       canCreateVitals: workspace.canCreateVitals,
+      canOpenOphthalmology: canView('OPD', 'Ophthalmology Intake') && canView('OPD', 'OPD Visits'),
     },
     actions: {
+      openSpecialtyCompletion: () => { if (visit) navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}&section=completion`); },
       setActiveTab,
       selectVisit,
       refetchVisit,

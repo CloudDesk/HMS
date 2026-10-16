@@ -51,6 +51,10 @@ const MedicineMasterPage = lazy(() => import('../pages/MedicineMasterPage').then
 const OpdDashboardPage = lazy(() => import('../pages/OpdDashboardPage').then((module) => ({ default: module.OpdDashboardPage })));
 const OpdQueuePage = lazy(() => import('../pages/OpdQueuePage').then((module) => ({ default: module.OpdQueuePage })));
 const OpdVisitPage = lazy(() => import('../pages/OpdVisitPage').then((module) => ({ default: module.OpdVisitPage })));
+const OphthalmologyWorkspacePage = lazy(() => import('../pages/OphthalmologyWorkspacePage').then((module) => ({ default: module.OphthalmologyWorkspacePage })));
+const OphthalmologyConfigurationPage = lazy(() => import('../pages/OphthalmologyConfigurationPage').then((module) => ({ default: module.OphthalmologyConfigurationPage })));
+const OphthalmologyReportsPage = lazy(() => import('../pages/OphthalmologyReportsPage').then((module) => ({ default: module.OphthalmologyReportsPage })));
+const OphthalmologyQueuePage = lazy(() => import('../pages/OphthalmologyQueuePage').then((module) => ({ default: module.OphthalmologyQueuePage })));
 const PatientConsentPage = lazy(() => import('../pages/PatientConsentPage').then((module) => ({ default: module.PatientConsentPage })));
 const PatientDocumentsPage = lazy(() => import('../pages/PatientDocumentsPage').then((module) => ({ default: module.PatientDocumentsPage })));
 const PatientProfilePage = lazy(() => import('../pages/PatientProfilePage').then((module) => ({ default: module.PatientProfilePage })));
@@ -235,6 +239,22 @@ export function AppRouter() {
     title = 'OPD Dashboard';
     breadcrumbs = ['Home', 'OPD', 'Dashboard'];
     content = <OpdDashboardPage />;
+  } else if (pathname === '/opd/ophthalmology/reports') {
+    title = 'Ophthalmology Reports';
+    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Reports'];
+    content = <OphthalmologyReportsPage />;
+  } else if (pathname === '/opd/ophthalmology/queue') {
+    title = 'My Ophthalmology Test Queue';
+    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Queue'];
+    content = <OphthalmologyQueuePage />;
+  } else if (pathname === '/opd/ophthalmology/configuration') {
+    title = 'Ophthalmology Configuration';
+    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Configuration'];
+    content = <OphthalmologyConfigurationPage />;
+  } else if (pathname === '/opd/ophthalmology') {
+    title = 'Ophthalmology Workspace';
+    breadcrumbs = ['Home', 'OPD', 'Ophthalmology'];
+    content = <OphthalmologyWorkspacePage />;
   } else if (pathname === '/opd/consultation') {
     title = 'Consultation Workspace';
     breadcrumbs = ['Home', 'OPD', 'Consultation'];

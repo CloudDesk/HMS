@@ -1,0 +1,27 @@
+.oph-workspace { max-width: 1440px; }
+.oph-workspace .doc-card { padding: 20px; margin-bottom: 16px; }
+.oph-workspace h3 { margin: 0 0 12px; }
+.oph-workspace h4 { margin: 18px 0 10px; }
+.oph-workspace p { margin: 8px 0 12px; }
+.oph-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.oph-table-scroll { overflow-x: auto; }
+.oph-table-scroll table { width: 100%; }
+.oph-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+.oph-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 12px 0; }
+.oph-option { display: block; margin: 10px 0; }
+.oph-repeat { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+.oph-required { color: #dc2626; }
+.oph-consultation-areas { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.oph-patient-header { position: sticky; top: 0; z-index: 2; background: var(--surface, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 10px; padding: 16px; }
+.oph-allergy-alert { color: #b91c1c; font-weight: 600; }
+.oph-document-options { border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; min-width: 0; }
+.oph-document-options label { display: block; margin: 8px 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .oph-patient-header { position: static; } }
+.oph-emergency { border-left: 4px solid #dc2626; }
+.oph-workspace dd { margin: 4px 0 12px; white-space: pre-wrap; }
+.oph-workspace dt { font-weight: 600; text-transform: capitalize; }
+.oph-workspace input[type="checkbox"] { accent-color: var(--primary-color, #2563eb); }
+.oph-workspace fieldset:disabled { opacity: .8; }
+@media (max-width: 640px) { .oph-workspace .doc-form-grid.two { grid-template-columns: 1fr; } .oph-workspace .doc-card { padding: 14px; } }
+
+.oph-attachment-metadata { overflow-wrap: anywhere; }
