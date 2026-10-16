@@ -3,6 +3,9 @@ import { Types, type ClientSession } from 'mongoose';
 import { executeRequiredTransaction } from '../../shared/database/transaction.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { OpdVisitRepository } from '../opd/opd-visit.repository.js';
+import type { OpdConsultationRepository } from '../opd/opd-consultation.repository.js';
+import type { AppointmentRepository } from '../appointments/appointment.repository.js';
+import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdVisit, OpdVisitType } from '../opd/opd-visit.types.js';
 import type { NotificationService } from '../notifications/notification.service.js';
 import type { OphthalmologyRepository } from './ophthalmology.repository.js';
@@ -46,6 +49,17 @@ import type {
   AmendOphthalmologyTestResultDTO,
   OphthalmologyTestResultVersion,
   OphthalmologyTestResultStatus,
+  SaveOphthalmologyClinicalReviewDraftDTO,
+  SaveOphthalmologyOpticalPrescriptionDraftDTO,
+  ApproveOphthalmologyOpticalPrescriptionDTO,
+  OphthalmologyResultReviewDTO,
+  OphthalmologyCompletionRequirementCode,
+  OphthalmologyCompletionReadiness,
+  DeferOphthalmologyResultDTO,
+  OverrideOphthalmologyCompletionDTO,
+  CompleteOphthalmologyConsultationDTO,
+  ReopenOphthalmologyConsultationDTO,
+  AmendOphthalmologyConsultationDTO,
 } from './ophthalmology.types.js';
 
 const sharedVisitType: Record<OphthalmologyVisitSubtype, OpdVisitType> = {
@@ -66,6 +80,9 @@ export class OphthalmologyService {
     private readonly repository: OphthalmologyRepository,
     private readonly visitRepository: OpdVisitRepository,
     private readonly notificationService: NotificationService,
+    private readonly consultationRepository?: OpdConsultationRepository,
+    private readonly appointmentRepository?: AppointmentRepository,
+    private readonly patientRepository?: PatientRepository,
   ) {}
 
   async getContext(visitId: string, userId: string) {
@@ -110,6 +127,7 @@ export class OphthalmologyService {
     const visit = await this.getOphthalmologyVisit(visitId, userId);
     const current = await this.repository.getContextByVisit(visitId);
     if (!current) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    await this.assertConsultationWritable(visitId);
     if (current.version !== data.expected_version) throw this.versionConflict('context');
     const subtype = data.visit_subtype ?? current.visit_subtype;
     assertOphthalmologyLaterality('CONTEXT', data.affected_eye ?? current.affected_eye);
@@ -240,6 +258,7 @@ export class OphthalmologyService {
     if (!current) throw new AppError('Ophthalmology alert not found', 404, 'OPHTHALMOLOGY_ALERT_NOT_FOUND');
     if (current.visit_id !== visitId) throw new AppError('Ophthalmology alert not found for this visit', 404, 'OPHTHALMOLOGY_ALERT_NOT_FOUND');
     await this.getOphthalmologyVisit(visitId, userId);
+    await this.assertConsultationWritable(visitId);
     if (current.version !== data.expected_version) throw this.versionConflict('alert');
     return executeRequiredTransaction(this.repository, async (session) => {
       const alert = await this.repository.getAlert(alertId, session);
@@ -437,6 +456,7 @@ export class OphthalmologyService {
     this.validateObjectId(data.test_catalogue_version_id, 'Test catalogue version id is invalid');
     await this.getOphthalmologyVisit(visitId, userId); const context = await this.repository.getContextByVisit(visitId);
     if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    await this.assertConsultationWritable(visitId);
     if (context.version !== data.expected_context_version) throw this.versionConflict('context');
     const normalized = { ...data, test_code: data.test_code.trim().toUpperCase(), workflow_stage_code: textValue(data.workflow_stage_code)?.toUpperCase(),
       special_instructions: textValue(data.special_instructions), source_order_id: data.source_order_id ?? null, source_order_item_id: data.source_order_item_id ?? null };
@@ -499,6 +519,7 @@ export class OphthalmologyService {
     const task = await this.requireScopedTask(id, userId); this.assertExpected(task, {
       expected_status: data.expected_task_status, expected_version: data.expected_task_version,
     });
+    await this.assertConsultationWritable(task.visit_id);
     if (!['IN_PROGRESS', 'DRAFT'].includes(task.status)) throw this.statusConflict('Result draft requires IN_PROGRESS or DRAFT status');
     await this.validateResultWrite(task, data, userId, 'DRAFT');
     const existing = await this.repository.getTestResult(id);
@@ -530,6 +551,7 @@ export class OphthalmologyService {
     const task = await this.requireScopedTask(id, userId); this.assertExpected(task, {
       expected_status: data.expected_task_status, expected_version: data.expected_task_version,
     });
+    await this.assertConsultationWritable(task.visit_id);
     if (task.status !== 'DRAFT') throw this.statusConflict('Completion requires a saved DRAFT result');
     const result = await this.repository.getTestResult(id); if (!result || result.status !== 'DRAFT' || result.version !== data.expected_result_version) throw this.versionConflict('test result');
     await this.validateResultWrite(task, this.resultVersionAsWrite(result.current, data), userId, 'COMPLETED');
@@ -541,7 +563,8 @@ export class OphthalmologyService {
       await this.validateResultWrite(currentTask, this.resultVersionAsWrite(currentResult.current, data), userId, 'COMPLETED', session);
       const completed = await this.repository.completeTestResult(id, currentResult.version, currentResult.current.payload, userId, session); if (!completed) throw this.versionConflict('test result');
       const updatedTask = await this.repository.transitionTestTask(id, currentTask.status, currentTask.version, 'COMPLETED', 'COMPLETED', userId,
-        null, { completedAt: new Date() }, session); if (!updatedTask) throw this.versionConflict('test task');
+        null, { completedAt: new Date(), doctorReviewRequired: this.resultRequiresDoctorReview(currentResult.current.form_type,
+          currentResult.current.payload, currentResult.current.reliability) }, session); if (!updatedTask) throw this.versionConflict('test task');
       await this.repository.audit('ophthalmology.test_result.completed', userId, { taskId: id, resultId: completed.id,
         contextId: task.context_id, branchId: task.branch_id, formType: completed.current.form_type,
         clinicalVersion: completed.current_clinical_version, previousTaskStatus: task.status, resultingTaskStatus: updatedTask.status,
@@ -553,7 +576,8 @@ export class OphthalmologyService {
     const task = await this.requireScopedTask(id, userId); this.assertExpected(task, {
       expected_status: data.expected_task_status, expected_version: data.expected_task_version,
     });
-    if (task.status !== 'COMPLETED') throw this.statusConflict('Only an unreviewed completed result can be amended in Phase 5');
+    await this.assertConsultationWritable(task.visit_id);
+    if (task.status !== 'COMPLETED') throw this.statusConflict('Only an unreviewed completed result can be amended');
     const reason = this.requiredReason(data.reason); const result = await this.repository.getTestResult(id);
     if (!result || result.status !== 'COMPLETED' || result.version !== data.expected_result_version) throw this.versionConflict('test result');
     await this.validateResultWrite(task, data, userId, 'COMPLETED', undefined, false);
@@ -614,6 +638,7 @@ export class OphthalmologyService {
   async repeatTestTask(id: string, data: RepeatOphthalmologyTestTaskDTO, idempotencyKey: string, userId: string,
     metadata: OphthalmologyRequestMetadata = {}) {
     const task = await this.requireScopedTask(id, userId);
+    await this.assertConsultationWritable(task.visit_id);
     const reason = this.requiredReason(data.reason);
     const fingerprint = this.fingerprint({ original_id: id, ...data, reason, assigned_user_id: data.assigned_user_id ?? null });
     const existing = await this.repository.getRepeatTask(id); if (existing) {
@@ -640,6 +665,7 @@ export class OphthalmologyService {
   }
   async routeTestTask(id: string, data: RouteOphthalmologyTestTaskDTO, userId: string, metadata: OphthalmologyRequestMetadata = {}) {
     const task = await this.requireScopedTask(id, userId); this.assertExpected(task, data);
+    await this.assertConsultationWritable(task.visit_id);
     if (data.target === 'OPHTHALMOLOGIST') {
       if (!['COMPLETED', 'REVIEWED', 'UNABLE_TO_PERFORM'].includes(task.status)) throw this.statusConflict('Task cannot be routed to doctor from its current state');
       return executeRequiredTransaction(this.repository, async (session) => {
@@ -691,7 +717,7 @@ export class OphthalmologyService {
     if (requireAssigned) await this.validateStartEligibility(task, userId, task.device_code, session);
     else await this.requireTaskStationMember(task, userId, 'amend this result', session);
     if (data.source_type === 'DEVICE_IMPORT') throw new AppError('No approved device adapter is configured', 501, 'OPHTHALMOLOGY_ADAPTER_NOT_CONFIGURED');
-    if (status === 'DRAFT' && data.source_type !== 'MANUAL') throw new AppError('Initial Phase 5 entry must use MANUAL source', 400, 'OPHTHALMOLOGY_RESULT_SOURCE_INVALID');
+    if (status === 'DRAFT' && data.source_type !== 'MANUAL') throw new AppError('Initial result entry must use MANUAL source', 400, 'OPHTHALMOLOGY_RESULT_SOURCE_INVALID');
     if (data.reliability === 'POOR' && !textValue(data.reliability_reason)) {
       throw new AppError('Poor reliability requires a reason', 400, 'OPHTHALMOLOGY_RESULT_CONDITIONAL_REQUIRED');
     }
@@ -707,18 +733,487 @@ export class OphthalmologyService {
       throw new AppError('An active matching branch form profile is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
     }
     const payload = data.payload as Record<string, unknown>;
+    this.validatePayloadLaterality(task, payload);
     for (const container of Object.values(payload)) if (container && typeof container === 'object' && !Array.isArray(container)) {
       const eyes = container as Record<string, unknown>;
       if (task.laterality === 'OD' && eyes.OS !== undefined && eyes.OS !== null) throw new AppError('OS data conflicts with the OD task', 400, 'OPHTHALMOLOGY_RESULT_LATERALITY_INVALID');
       if (task.laterality === 'OS' && eyes.OD !== undefined && eyes.OD !== null) throw new AppError('OD data conflicts with the OS task', 400, 'OPHTHALMOLOGY_RESULT_LATERALITY_INVALID');
     }
+    await this.validateSpecializedResultReferences(task, data, profile.values, session);
     validateCoreTestPayload(data.form_type, payload, profile.values, status);
+    await this.validateResultComparison(task, data, session);
     const documentIds = [...new Set([...(data.document_ids ?? []), ...this.collectDocumentIds(payload)])];
     for (const id of documentIds) this.validateObjectId(id, 'Result document id is invalid');
     if (documentIds.length && await this.repository.validPatientDocumentCount(task.patient_id, documentIds, session) !== documentIds.length) {
       throw new AppError('Every result document must be an active document for the same patient', 400, 'OPHTHALMOLOGY_DOCUMENT_REFERENCE_INVALID');
     }
     return profile;
+  }
+
+  private validatePayloadLaterality(task: OphthalmologyTestTask, payload: Record<string, unknown>) {
+    const asserted: string[] = [];
+    for (const key of ['eye', 'testing_eye']) if (typeof payload[key] === 'string') asserted.push(payload[key] as string);
+    if (Array.isArray(payload.image_sets)) for (const set of payload.image_sets) if (set && typeof set === 'object'
+      && typeof (set as Record<string, unknown>).eye === 'string') asserted.push((set as Record<string, unknown>).eye as string);
+    if (task.laterality === 'OD' && asserted.some((eye) => eye === 'OS' || eye === 'OU')) {
+      throw new AppError('Result eye conflicts with the OD task', 400, 'OPHTHALMOLOGY_RESULT_LATERALITY_INVALID');
+    }
+    if (task.laterality === 'OS' && asserted.some((eye) => eye === 'OD' || eye === 'OU')) {
+      throw new AppError('Result eye conflicts with the OS task', 400, 'OPHTHALMOLOGY_RESULT_LATERALITY_INVALID');
+    }
+  }
+
+  private async validateResultComparison(task: OphthalmologyTestTask,
+    data: SaveOphthalmologyTestResultDraftDTO | AmendOphthalmologyTestResultDTO, session?: ClientSession) {
+    if (data.form_type !== 'VISUAL_FIELD' && data.form_type !== 'OCT') return;
+    const comparison = (data.payload as Record<string, unknown>).comparison as Record<string, unknown> | undefined;
+    if (!comparison || comparison.outcome === 'NOT_COMPARED') return;
+    const resultId = comparison.result_id as string; const clinicalVersion = comparison.clinical_version as number;
+    this.validateObjectId(resultId, 'Comparison result id is invalid');
+    const prior = await this.repository.getTestResultById(resultId, session);
+    const version = prior?.history.find((entry) => entry.clinical_version === clinicalVersion && entry.status === 'COMPLETED');
+    const targetEye = ((data.payload as Record<string, unknown>).eye as string | undefined) ?? task.laterality;
+    const lateralityCompatible = Boolean(version && (version.laterality === targetEye || version.laterality === 'OU' || targetEye === 'OU'));
+    if (!prior || prior.id === (await this.repository.getTestResult(task.id, session))?.id || prior.patient_id !== task.patient_id
+      || prior.branch_id !== task.branch_id || !version || version.form_type !== data.form_type || !lateralityCompatible
+      || version.performed_at >= new Date(data.performed_at)) {
+      throw new AppError('Comparison does not reference an eligible prior completed test version', 409, 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE');
+    }
+  }
+
+  private async validateSpecializedResultReferences(task: OphthalmologyTestTask,
+    data: SaveOphthalmologyTestResultDraftDTO | AmendOphthalmologyTestResultDTO, profileValues: Record<string, unknown>, session?: ClientSession) {
+    const payload = data.payload as Record<string, unknown>;
+    if (data.form_type === 'CONTACT_LENS') {
+      const lenses = payload.lens_details as Record<string, Record<string, unknown>> | undefined;
+      for (const eye of ['OD', 'OS']) { const id = lenses?.[eye]?.optical_product_version_id; if (id === undefined) continue;
+        if (typeof id !== 'string') throw new AppError(`${eye} optical product version id is invalid`, 400, 'VALIDATION_ERROR');
+        this.validateObjectId(id, `${eye} optical product version id is invalid`); const product = await this.repository.getConfiguration(id, session);
+        if (!product || product.branch_id !== task.branch_id || product.type !== 'OPTICAL_PRODUCT' || product.status !== 'ACTIVE') {
+          throw new AppError(`${eye} requires an active branch optical product version`, 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+        }
+      }
+      const followUp = payload.follow_up as Record<string, unknown> | undefined;
+      if (typeof followUp?.recommended_date === 'string') {
+        const date = new Date(followUp.recommended_date); if (Number.isNaN(date.valueOf()) || date <= new Date(data.performed_at)) {
+          throw new AppError('Contact lens follow-up date must be after the assessment', 400, 'OPHTHALMOLOGY_RESULT_INVALID');
+        }
+      }
+      if (typeof followUp?.follow_up_id === 'string') {
+        this.validateObjectId(followUp.follow_up_id, 'OPD follow-up id is invalid');
+        if (!await this.repository.getOpdFollowUpReference(followUp.follow_up_id, task.visit_id, task.patient_id, session)) {
+          throw new AppError('OPD follow-up does not belong to this visit and patient', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
+        }
+      }
+    }
+    if (data.form_type === 'PAEDIATRIC_VISION') {
+      const patient = await this.repository.getPatientAssessmentContext(task.patient_id, session);
+      if (!patient) throw new AppError('An active authoritative patient record is required', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
+      const performed = new Date(data.performed_at); const birth = patient.date_of_birth; let months = (performed.getUTCFullYear() - birth.getUTCFullYear()) * 12
+        + performed.getUTCMonth() - birth.getUTCMonth(); if (performed.getUTCDate() < birth.getUTCDate()) months -= 1;
+      const maximum = profileValues.paediatric_max_age_years;
+      if (typeof maximum !== 'number' || !Number.isFinite(maximum) || maximum <= 0) {
+        throw new AppError('Configured paediatric maximum age is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+      }
+      if (months < 0 || months >= maximum * 12) throw new AppError('Patient age is outside the configured paediatric range', 400, 'OPHTHALMOLOGY_RESULT_AGE_INVALID');
+      payload.age_at_assessment_months = months; payload.guardian_recorded = patient.guardian_recorded;
+      const cycloplegic = payload.cycloplegic_refraction as Record<string, unknown> | null | undefined;
+      if (cycloplegic) {
+        const medicationId = cycloplegic.medication_configuration_version_id;
+        if (typeof medicationId !== 'string') throw new AppError('Cycloplegic medication version id is invalid', 400, 'VALIDATION_ERROR');
+        this.validateObjectId(medicationId, 'Cycloplegic medication version id is invalid');
+        const medication = await this.repository.getConfiguration(medicationId, session);
+        if (!medication || medication.branch_id !== task.branch_id || medication.type !== 'DRUG_OPTION' || medication.status !== 'ACTIVE') {
+          throw new AppError('An active branch cycloplegic drug option is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+        }
+        const administered = new Date(cycloplegic.administered_at as string); const examined = new Date(cycloplegic.examined_at as string);
+        if (Number.isNaN(administered.valueOf()) || Number.isNaN(examined.valueOf()) || administered > examined
+          || examined > new Date(performed.getTime() + 5 * 60 * 1000)) {
+          throw new AppError('Cycloplegic administration and examination times are invalid', 400, 'OPHTHALMOLOGY_RESULT_INVALID');
+        }
+      }
+    }
+  }
+
+  async getDoctorReview(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.repository.getContextByVisit(visitId);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    return this.repository.getDoctorReviewProjection(context);
+  }
+  async getClinicalReview(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); return this.repository.getClinicalReviewByVisit(visitId);
+  }
+  async saveClinicalReviewDraft(visitId: string, data: SaveOphthalmologyClinicalReviewDraftDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.repository.getContextByVisit(visitId);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    await this.assertConsultationWritable(visitId);
+    this.validateReviewInput(data); await this.requireDoctor(context, userId);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const current = await this.repository.getClinicalReviewByVisit(visitId, session);
+      if ((current?.version ?? 0) !== data.expected_version) throw this.versionConflict('clinical review');
+      const diagnoses = await this.repository.getDiagnosisKeys(visitId, session);
+      if (diagnoses.length === 0) throw new AppError('At least one consultation diagnosis is required', 400, 'OPHTHALMOLOGY_DIAGNOSIS_REQUIRED');
+      for (const plan of data.treatment_plans) if (!diagnoses.some((item) => item.code === plan.diagnosis_code.trim().toUpperCase()
+        && (item.laterality === plan.diagnosis_laterality || item.laterality === 'NOT_APPLICABLE'))) {
+        throw new AppError('Every treatment plan must reference a current consultation diagnosis and laterality', 400, 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH');
+      }
+      if (!await this.repository.validateReviewReferences(context, data, session)) {
+        throw new AppError('A treatment plan reference is outside this visit, patient, or branch', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
+      }
+      let saved;
+      try { saved = await this.repository.saveClinicalReviewDraft(context, data, userId, session); }
+      catch (error) { if (duplicateKey(error)) throw this.versionConflict('clinical review'); throw error; }
+      if (!saved) throw this.versionConflict('clinical review');
+      await this.repository.audit('ophthalmology.clinical_review.draft_saved', userId, { reviewId: saved.id, contextId: context.id,
+        visitId, patientId: context.patient_id, branchId: context.branch_id, resultingVersion: saved.version,
+        clinicalVersion: saved.current_clinical_version }, metadata, session); return saved;
+    });
+  }
+  async getOpticalPrescription(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); return this.repository.getOpticalPrescriptionByVisit(visitId);
+  }
+  async saveOpticalPrescriptionDraft(visitId: string, data: SaveOphthalmologyOpticalPrescriptionDraftDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.repository.getContextByVisit(visitId);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    await this.assertConsultationWritable(visitId);
+    await this.requireDoctor(context, userId); await this.validateOpticalInput(context, data);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const current = await this.repository.getOpticalPrescriptionByVisit(visitId, session);
+      if ((current?.version ?? 0) !== data.expected_version || current?.status === 'APPROVED') throw this.versionConflict('optical prescription');
+      let saved;
+      try { saved = await this.repository.saveOpticalPrescriptionDraft(context, data, userId, session); }
+      catch (error) { if (duplicateKey(error)) throw this.versionConflict('optical prescription'); throw error; }
+      if (!saved) throw this.versionConflict('optical prescription');
+      await this.repository.audit('ophthalmology.optical_prescription.draft_saved', userId, { prescriptionId: saved.id,
+        contextId: context.id, visitId, patientId: context.patient_id, branchId: context.branch_id,
+        resultingVersion: saved.version, clinicalVersion: saved.current_clinical_version }, metadata, session); return saved;
+    });
+  }
+  async approveOpticalPrescription(visitId: string, data: ApproveOphthalmologyOpticalPrescriptionDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.repository.getContextByVisit(visitId);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    const doctorId = await this.requireDoctor(context, userId);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const current = await this.repository.getOpticalPrescriptionByVisit(visitId, session);
+      if (!current) throw new AppError('Optical prescription not found', 404, 'OPHTHALMOLOGY_OPTICAL_PRESCRIPTION_NOT_FOUND');
+      if (current.status !== data.expected_status) throw this.statusConflict('Optical prescription status changed after it was loaded');
+      if (current.version !== data.expected_version) throw this.versionConflict('optical prescription');
+      const saved = await this.repository.approveOpticalPrescription(current.id, data.expected_version,
+        current.current_clinical_version, userId, doctorId, session);
+      if (!saved) throw this.versionConflict('optical prescription');
+      await this.repository.audit('ophthalmology.optical_prescription.approved', userId, { prescriptionId: saved.id,
+        contextId: context.id, visitId, patientId: context.patient_id, branchId: context.branch_id,
+        resultingVersion: saved.version, clinicalVersion: saved.current_clinical_version }, metadata, session); return saved;
+    });
+  }
+
+  async reviewTestResult(taskId: string, data: OphthalmologyResultReviewDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    const task = await this.requireScopedTask(taskId, userId); const context = await this.repository.getContext(task.context_id);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    await this.requireDoctor(context, userId); await this.assertConsultationWritable(task.visit_id);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const updated = await this.repository.reviewTestResult(task.id, data.expected_task_version, data.expected_result_version,
+        data.expected_clinical_version, userId, textValue(data.comment), session);
+      if (!updated) throw this.versionConflict('test result review');
+      await this.repository.audit('ophthalmology.test_result.reviewed', userId, { taskId: task.id, resultClinicalVersion: data.expected_clinical_version,
+        visitId: task.visit_id, patientId: task.patient_id, branchId: task.branch_id, previousVersion: data.expected_task_version,
+        resultingVersion: updated.version }, metadata, session); return updated;
+    });
+  }
+
+  async getCompletionReadiness(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
+    return this.evaluateCompletionReadiness(context);
+  }
+
+  async deferResult(visitId: string, data: DeferOphthalmologyResultDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
+    await this.requireDoctor(context, userId); this.validateObjectId(data.source_id, 'Deferred result source id is invalid');
+    this.validateObjectId(data.responsible_doctor_id, 'Responsible doctor id is invalid'); const reason = this.requiredReason(data.reason);
+    if (!textValue(data.review_plan) && !data.due_at) throw new AppError('A review plan or due date is required for a deferred result', 400, 'OPHTHALMOLOGY_DEFERRAL_PLAN_REQUIRED');
+    if (data.due_at && new Date(data.due_at) <= new Date()) throw new AppError('Deferred result due date must be in the future', 400, 'VALIDATION_ERROR');
+    return executeRequiredTransaction(this.repository, async (session) => {
+      if (!await this.repository.validDeferralSource(context, data.source_type, data.source_id, session)) {
+        throw new AppError('Deferred result source is outside this consultation', 409, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
+      }
+      if (!await this.repository.activeDoctorExists(data.responsible_doctor_id, context, session)) {
+        throw new AppError('Responsible doctor is not active in this branch and department', 409, 'OPHTHALMOLOGY_DOCTOR_REQUIRED');
+      }
+      const finalization = await this.repository.ensureFinalization(context, userId, session);
+      if (finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      const updated = await this.repository.addResultDeferral(finalization.id, data.expected_version, { ...data, reason }, userId, session);
+      if (!updated) throw this.versionConflict('consultation finalization');
+      await this.repository.audit('ophthalmology.consultation.result_deferred', userId, { finalizationId: updated.id, visitId,
+        patientId: context.patient_id, branchId: context.branch_id, sourceType: data.source_type, sourceId: data.source_id,
+        responsibleDoctorId: data.responsible_doctor_id, reason, resultingVersion: updated.version }, metadata, session); return updated;
+    });
+  }
+
+  async overrideCompletion(visitId: string, data: OverrideOphthalmologyCompletionDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
+    const doctorId = await this.requireDoctor(context, userId); const reason = this.requiredReason(data.reason);
+    const readiness = await this.evaluateCompletionReadiness(context); const unmet = readiness.requirements.filter((entry) => !entry.satisfied);
+    const actual = unmet.map((entry) => entry.code).sort(); const expected = [...new Set(data.expected_unmet_codes)].sort();
+    if (actual.length === 0 || JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new AppError('Unmet completion requirements changed after they were loaded', 409, 'OPHTHALMOLOGY_COMPLETION_REQUIREMENTS_CHANGED');
+    }
+    const configuration = await this.repository.getConfiguration(context.configuration_version_id);
+    if (configuration?.values.allow_override !== true) throw new AppError('The active completion profile does not allow override', 403, 'OPHTHALMOLOGY_COMPLETION_OVERRIDE_DENIED');
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const transactional = await this.evaluateCompletionReadiness(context, session);
+      const currentUnmet = transactional.requirements.filter((entry) => !entry.satisfied);
+      if (JSON.stringify(currentUnmet.map((entry) => entry.code).sort()) !== JSON.stringify(expected)) {
+        throw new AppError('Unmet completion requirements changed after they were loaded', 409, 'OPHTHALMOLOGY_COMPLETION_REQUIREMENTS_CHANGED');
+      }
+      const finalization = await this.repository.ensureFinalization(context, userId, session);
+      if (finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      const updated = await this.repository.addCompletionOverride(finalization.id, data.expected_version, currentUnmet, reason, doctorId, userId, session);
+      if (!updated) throw this.versionConflict('consultation finalization');
+      await this.repository.audit('ophthalmology.consultation.completion_overridden', userId, { finalizationId: updated.id,
+        visitId, patientId: context.patient_id, branchId: context.branch_id, unmetCodes: expected, reason, resultingVersion: updated.version }, metadata, session);
+      return updated;
+    });
+  }
+
+  async completeConsultation(visitId: string, data: CompleteOphthalmologyConsultationDTO, idempotencyKey: string, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    const visit = await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
+    const doctorId = await this.requireDoctor(context, userId); this.requireCompletionDependencies();
+    const fingerprint = this.fingerprint({ visitId, data }); const existing = await this.repository.getFinalizationByVisit(visitId);
+    const replay = existing?.completions.find((entry) => entry.idempotency_key === idempotencyKey);
+    if (replay) { if (replay.request_fingerprint !== fingerprint) throw this.idempotencyConflict(); return existing; }
+    const scope = await this.visitRepository.resolveBranchScope(userId);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const transactionalVisit = await this.visitRepository.getById(visitId, scope, session);
+      const transactionalContext = await this.repository.getContextByVisit(visitId, session);
+      const consultation = await this.consultationRepository!.getByVisit(visitId, session);
+      const review = await this.repository.getClinicalReviewByVisit(visitId, session);
+      const optical = await this.repository.getOpticalPrescriptionByVisit(visitId, session);
+      if (!transactionalVisit || !transactionalContext || !consultation || !review) throw new AppError('Consultation completion resources are incomplete', 409, 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE');
+      if (transactionalContext.version !== data.expected_context_version || consultation.version !== data.expected_consultation_version
+        || review.version !== data.expected_clinical_review_version || (data.expected_optical_prescription_version !== undefined
+          && (optical?.version ?? null) !== data.expected_optical_prescription_version)) throw this.versionConflict('consultation completion');
+      const finalization = await this.repository.ensureFinalization(transactionalContext, userId, session);
+      const racedReplay = finalization.completions.find((entry) => entry.idempotency_key === idempotencyKey);
+      if (racedReplay) { if (racedReplay.request_fingerprint !== fingerprint) throw this.idempotencyConflict(); return finalization; }
+      if (finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      const readiness = await this.evaluateCompletionReadiness(transactionalContext, session);
+      const unmet = readiness.requirements.filter((entry) => !entry.satisfied); const latestOverride = finalization.overrides.at(-1);
+      if (unmet.length > 0 && JSON.stringify([...latestOverride?.unmet_codes ?? []].sort()) !== JSON.stringify(unmet.map((entry) => entry.code).sort())) {
+        throw new AppError('Consultation completion requirements are not satisfied', 409, 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE', { requirements: unmet });
+      }
+      const initial = finalization.status === 'OPEN';
+      if (initial && (transactionalVisit.status !== 'IN_CONSULTATION' || consultation.status !== 'DRAFT' || review.status !== 'DRAFT')) {
+        throw this.statusConflict('Shared OPD consultation is not ready for completion');
+      }
+      if (!initial && finalization.status !== 'AMENDMENT_OPEN') throw this.statusConflict('Consultation is already completed');
+      let completedConsultation = consultation;
+      if (initial) {
+        completedConsultation = await this.consultationRepository!.saveForVisit({ ...consultation,
+          expected_version: consultation.version, expected_status: consultation.status, status: 'COMPLETED', completedAt: new Date(),
+          visit: transactionalVisit, currentVersion: consultation.version, currentStatus: consultation.status }, userId, session);
+        const completedVisit = await this.visitRepository.updateStatusIf(visitId, ['IN_CONSULTATION'],
+          { status: 'COMPLETED', notes: consultation.assessment ?? 'Ophthalmology consultation completed.' }, userId, session, transactionalVisit.version);
+        if (!completedVisit) throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_STATUS_CONFLICT');
+        if (transactionalVisit.appointment_id && !await this.appointmentRepository!.updateStatus(transactionalVisit.appointment_id,
+          { status: 'COMPLETED', notes: 'Ophthalmology consultation completed by doctor.' }, userId, undefined, session)) {
+          throw new AppError('Linked appointment not found', 409, 'OPD_APPOINTMENT_CONFLICT');
+        }
+        if (!await this.repository.setClinicalReviewCompleted(review.id, review.version, session)) throw this.versionConflict('clinical review');
+      }
+      const resultingContext = await this.repository.setContextWorkflowStatus(transactionalContext.id, transactionalContext.version,
+        initial ? ['UNDER_CONSULTATION', 'CLINICAL_REVIEW', 'REVIEW_COMPLETED'] : ['CLINICAL_REVIEW'], 'CONSULTATION_COMPLETED', userId, session);
+      if (!resultingContext) throw this.versionConflict('context');
+      const configuration = await this.requireCompletionConfiguration(transactionalContext, session);
+      const clinicalVersion = (finalization.completions.at(-1)?.clinical_version ?? 0) + 1;
+      const summary = await this.repository.getDoctorReviewProjection(transactionalContext, session) as Record<string, unknown>;
+      const completed = await this.repository.completeFinalization(finalization.id, finalization.version, { clinical_version: clinicalVersion,
+        configuration_version_id: configuration.id, configuration_revision: configuration.revision, configuration_snapshot: configuration.values,
+        consultation_version: completedConsultation.version, clinical_review_version: review.current_clinical_version,
+        optical_prescription_version: optical?.current_clinical_version ?? null, requirements: readiness.requirements, summary,
+        doctor_id: doctorId, idempotency_key: idempotencyKey, request_fingerprint: fingerprint,
+        supersedes_clinical_version: initial ? null : clinicalVersion - 1 }, userId, session);
+      if (!completed) throw this.versionConflict('consultation finalization');
+      if (initial) await this.patientRepository!.addTimelineEvent(transactionalContext.patient_id, { event_type: 'OPD_CONSULTATION_COMPLETED',
+        title: 'Ophthalmology consultation completed', description: `${visit.visit_number}: doctor-approved Ophthalmology summary recorded.` }, userId, session);
+      await this.repository.audit(initial ? 'ophthalmology.consultation.completed' : 'ophthalmology.consultation.amendment_approved', userId,
+        { finalizationId: completed.id, visitId, patientId: context.patient_id, branchId: context.branch_id, clinicalVersion,
+          doctorId, previousVersion: finalization.version, resultingVersion: completed.version }, metadata, session);
+      await this.patientRepository!.auditClinicalEvent(initial ? 'opd.consultation.completed' : 'opd.consultation.amendment_approved', userId,
+        { finalizationId: completed.id, visitId, patientId: context.patient_id, clinicalVersion, doctorId,
+          previousVersion: finalization.version, resultingVersion: completed.version }, session);
+      return completed;
+    });
+  }
+
+  async getConsultationSummary(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
+    const [finalization, summary] = await Promise.all([this.repository.getFinalizationByVisit(visitId), this.repository.getDoctorReviewProjection(context)]);
+    return { finalization, summary };
+  }
+
+  async getCompletionHistory(visitId: string, userId: string) {
+    await this.getOphthalmologyVisit(visitId, userId); await this.requireContextForVisit(visitId);
+    return this.repository.getFinalizationByVisit(visitId);
+  }
+
+  async reopenConsultation(visitId: string, data: ReopenOphthalmologyConsultationDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId); await this.requireDoctor(context, userId);
+    const reason = this.requiredReason(data.reason);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const finalization = await this.repository.getFinalizationByVisit(visitId, session);
+      if (!finalization || finalization.status !== data.expected_status || finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      const reopened = await this.repository.reopenFinalization(finalization.id, data.expected_version, reason, userId, session);
+      if (!reopened) throw this.versionConflict('consultation finalization');
+      const updatedContext = await this.repository.setContextWorkflowStatus(context.id, context.version, ['CONSULTATION_COMPLETED'], 'CLINICAL_REVIEW', userId, session);
+      if (!updatedContext) throw this.versionConflict('context');
+      await this.repository.audit('ophthalmology.consultation.reopened', userId, { finalizationId: reopened.id, visitId,
+        patientId: context.patient_id, branchId: context.branch_id, reason, resultingVersion: reopened.version }, metadata, session); return reopened;
+    });
+  }
+
+  async amendConsultation(visitId: string, data: AmendOphthalmologyConsultationDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId); await this.requireDoctor(context, userId);
+    this.validateObjectId(data.episode_id, 'Amendment episode id is invalid'); const reason = this.requiredReason(data.reason);
+    if (JSON.stringify(canonicalize(data.before_value)) === JSON.stringify(canonicalize(data.after_value))) {
+      throw new AppError('Amendment before and after values must differ', 400, 'VALIDATION_ERROR');
+    }
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const finalization = await this.repository.getFinalizationByVisit(visitId, session);
+      if (!finalization || finalization.status !== data.expected_status || finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      const updated = await this.repository.appendAmendment(finalization.id, data.expected_version, data.episode_id,
+        { ...data, reason }, userId, session); if (!updated) throw this.versionConflict('consultation amendment');
+      await this.repository.audit('ophthalmology.consultation.amended', userId, { finalizationId: updated.id, episodeId: data.episode_id,
+        visitId, patientId: context.patient_id, branchId: context.branch_id, section: data.section, reason,
+        beforeValueHash: this.fingerprint(data.before_value), afterValueHash: this.fingerprint(data.after_value),
+        resultingVersion: updated.version }, metadata, session); return updated;
+    });
+  }
+
+  private async evaluateCompletionReadiness(context: OphthalmologyContext, session?: ClientSession): Promise<OphthalmologyCompletionReadiness> {
+    const configuration = await this.requireCompletionConfiguration(context, session);
+    const required = configuration.values.required_requirements;
+    if (!Array.isArray(required) || required.length === 0) throw new AppError('Completion profile requires required_requirements', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    const allowed = new Set<OphthalmologyCompletionRequirementCode>(['INTAKE_COMPLETED', 'MANDATORY_TESTS_REVIEWED', 'ALL_RESULTS_RESOLVED',
+      'ALERTS_ACKNOWLEDGED', 'DIAGNOSIS_RECORDED', 'CLINICAL_REVIEW_RECORDED', 'TREATMENT_PLAN_RECORDED',
+      'OPTICAL_APPROVED_IF_PRESENT', 'FOLLOW_UP_DECISION_RECORDED']);
+    const codes = [...new Set(required.filter((entry): entry is OphthalmologyCompletionRequirementCode => typeof entry === 'string'
+      && allowed.has(entry as OphthalmologyCompletionRequirementCode)))];
+    if (codes.length !== required.length) throw new AppError('Completion profile contains unsupported requirement codes', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    const [intake, alerts, evidence, consultation, review, optical, finalization] = await Promise.all([
+      this.repository.getIntakeByContext(context.id, session), this.repository.getAlertsByContext(context.id, session),
+      this.repository.getCompletionEvidence(context, session), this.consultationRepository?.getByVisit(context.visit_id, session),
+      this.repository.getClinicalReviewByVisit(context.visit_id, session), this.repository.getOpticalPrescriptionByVisit(context.visit_id, session),
+      this.repository.getFinalizationByVisit(context.visit_id, session),
+    ]);
+    if (!consultation) throw new AppError('OPD consultation draft is required', 409, 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE');
+    const deferred = new Set(finalization?.deferrals.map((entry) => `${entry.source_type}:${entry.source_id}`) ?? []);
+    const mandatoryCodes = new Set(Array.isArray(configuration.values.mandatory_test_codes)
+      ? (configuration.values.mandatory_test_codes as unknown[]).filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.toUpperCase()) : []);
+    const activeTasks = evidence.tasks.filter((task) => !['CANCELLED', 'UNABLE_TO_PERFORM', 'REPEAT_REQUIRED'].includes(task.status));
+    const mandatoryTasks = activeTasks.filter((task) => mandatoryCodes.has(task.test_code));
+    const unresolvedOrders = evidence.clinical_orders.filter((order) => !['VERIFIED', 'COMPLETED'].includes(order.status)
+      && !deferred.has(`CLINICAL_ORDER:${order.id}`));
+    const checks: Record<OphthalmologyCompletionRequirementCode, { satisfied: boolean; details: string; resource_ids: string[] }> = {
+      INTAKE_COMPLETED: { satisfied: intake?.status === 'COMPLETED', details: 'Ophthalmology intake must be completed.', resource_ids: intake ? [intake.id] : [] },
+      MANDATORY_TESTS_REVIEWED: { satisfied: mandatoryTasks.every((task) => task.status === 'REVIEWED' || deferred.has(`TEST_TASK:${task.id}`)),
+        details: 'Configured mandatory tests must be reviewed or explicitly deferred.', resource_ids: mandatoryTasks.filter((task) => task.status !== 'REVIEWED').map((task) => task.id) },
+      ALL_RESULTS_RESOLVED: { satisfied: activeTasks.every((task) => task.status === 'REVIEWED' || deferred.has(`TEST_TASK:${task.id}`)) && unresolvedOrders.length === 0,
+        details: 'All test and investigation results must be reviewed or explicitly deferred.', resource_ids: [...activeTasks.filter((task) => task.status !== 'REVIEWED' && !deferred.has(`TEST_TASK:${task.id}`)).map((task) => task.id), ...unresolvedOrders.map((order) => order.id)] },
+      ALERTS_ACKNOWLEDGED: { satisfied: alerts.every((alert) => alert.status === 'ACKNOWLEDGED'), details: 'All active alerts must be acknowledged.', resource_ids: alerts.filter((alert) => alert.status !== 'ACKNOWLEDGED').map((alert) => alert.id) },
+      DIAGNOSIS_RECORDED: { satisfied: consultation.diagnoses.length > 0, details: 'At least one structured diagnosis must be recorded.', resource_ids: [consultation.id] },
+      CLINICAL_REVIEW_RECORDED: { satisfied: Boolean(review?.current.clinical_summary.trim()), details: 'Doctor clinical review must be recorded.', resource_ids: review ? [review.id] : [] },
+      TREATMENT_PLAN_RECORDED: { satisfied: Boolean(review?.current.treatment_plans.length), details: 'At least one diagnosis-linked treatment plan must be recorded.', resource_ids: review ? [review.id] : [] },
+      OPTICAL_APPROVED_IF_PRESENT: { satisfied: !optical || optical.status === 'APPROVED', details: 'An optical prescription must be approved when present.', resource_ids: optical ? [optical.id] : [] },
+      FOLLOW_UP_DECISION_RECORDED: { satisfied: Boolean(review?.current.follow_up_decision), details: 'Follow-up or no-follow-up decision must be recorded.', resource_ids: review ? [review.id] : [] },
+    };
+    const requirements = codes.map((code) => ({ code, ...checks[code] }));
+    return { ready: requirements.every((entry) => entry.satisfied), context_version: context.version, consultation_version: consultation.version,
+      clinical_review_version: review?.version ?? null, optical_prescription_version: optical?.version ?? null,
+      configuration_version_id: configuration.id, configuration_revision: configuration.revision, requirements };
+  }
+
+  private async requireCompletionConfiguration(context: OphthalmologyContext, session?: ClientSession) {
+    const configuration = await this.repository.getConfiguration(context.configuration_version_id, session);
+    const matches = await this.repository.getActiveCompletionProfiles(context.branch_id, context.visit_subtype, session);
+    if (!configuration || configuration.type !== 'COMPLETION_PROFILE' || configuration.status !== 'ACTIVE'
+      || matches.length !== 1 || matches[0]?.id !== configuration.id) {
+      throw new AppError('An active completion profile matching the visit subtype is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    }
+    return configuration;
+  }
+
+  private async requireContextForVisit(visitId: string) {
+    const context = await this.repository.getContextByVisit(visitId);
+    if (!context) throw new AppError('Ophthalmology context not found', 404, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND'); return context;
+  }
+
+  private requireCompletionDependencies() {
+    if (!this.consultationRepository || !this.appointmentRepository || !this.patientRepository) {
+      throw new AppError('Ophthalmology completion integration is unavailable', 503, 'OPHTHALMOLOGY_COMPLETION_DEPENDENCY_UNAVAILABLE');
+    }
+  }
+
+  private async assertConsultationWritable(visitId: string) {
+    const finalization = await this.repository.getFinalizationByVisit(visitId);
+    if (finalization && finalization.status !== 'OPEN') throw new AppError('Completed consultation is read-only; use the amendment workflow', 409, 'OPHTHALMOLOGY_CONSULTATION_LOCKED');
+  }
+  private validateReviewInput(data: SaveOphthalmologyClinicalReviewDraftDTO) {
+    const keys = new Set<string>();
+    for (const plan of data.treatment_plans) {
+      for (const id of [plan.medication_prescription_id, plan.procedure_recommendation_id, plan.referral_id, plan.follow_up_id,
+        ...(plan.clinical_order_ids ?? [])]) if (id) this.validateObjectId(id, 'Treatment plan reference id is invalid');
+      const key = `${plan.diagnosis_code.trim().toUpperCase()}:${plan.diagnosis_laterality}:${plan.category.trim().toUpperCase()}`;
+      if (keys.has(key)) throw new AppError('Duplicate treatment plan entries are not allowed', 400, 'VALIDATION_ERROR'); keys.add(key);
+    }
+  }
+  private async validateOpticalInput(context: OphthalmologyContext, data: SaveOphthalmologyOpticalPrescriptionDraftDTO) {
+    if (!data.power.OD && !data.power.OS) throw new AppError('At least one eye prescription is required', 400, 'VALIDATION_ERROR');
+    for (const eye of ['OD', 'OS'] as const) { const power = data.power[eye]; if (power?.cylinder != null && power.axis == null) {
+      throw new AppError(`Axis is required when ${eye} cylinder is supplied`, 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED'); } }
+    if (data.pupillary_distance.format === 'BINOCULAR' && data.pupillary_distance.binocular == null) {
+      throw new AppError('Binocular pupillary distance is required', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
+    }
+    if (data.pupillary_distance.format === 'MONOCULAR' && (data.pupillary_distance.OD == null || data.pupillary_distance.OS == null)) {
+      throw new AppError('OD and OS pupillary distances are required', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
+    }
+    if (['BIFOCAL', 'PROGRESSIVE'].includes(data.prescription_type) && (!data.segment_height
+      || (data.power.OD && data.segment_height.OD == null) || (data.power.OS && data.segment_height.OS == null))) {
+      throw new AppError('Segment height is required for prescribed eyes', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
+    }
+    const validUntil = new Date(data.valid_until); const reviewDate = data.review_date ? new Date(data.review_date) : null;
+    if (validUntil <= new Date() || (reviewDate && reviewDate > validUntil)) throw new AppError('Prescription validity and review dates are invalid', 400, 'VALIDATION_ERROR');
+    const configuration = await this.repository.getConfiguration(context.configuration_version_id);
+    if (!configuration || configuration.status !== 'ACTIVE') throw new AppError('Active Ophthalmology configuration is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    const allowed = (key: string) => Array.isArray(configuration.values[key])
+      ? new Set((configuration.values[key] as unknown[]).filter((value): value is string => typeof value === 'string').map((value) => value.toUpperCase())) : null;
+    const lenses = allowed('lens_types'); const materials = allowed('lens_materials'); const coatings = allowed('coating_codes');
+    if ((lenses && !lenses.has(data.lens_type.toUpperCase())) || (materials && !materials.has(data.material.toUpperCase()))
+      || (coatings && data.coating_codes.some((code) => !coatings.has(code.toUpperCase())))) {
+      throw new AppError('Optical selection is not in the active configuration', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    }
+  }
+  private async requireDoctor(context: OphthalmologyContext, userId: string) {
+    const doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    if (!doctorId) throw new AppError('An active Ophthalmology doctor is required', 403, 'OPHTHALMOLOGY_DOCTOR_REQUIRED'); return doctorId;
+  }
+
+  private resultRequiresDoctorReview(formType: string, payload: Record<string, unknown>, reliability: string) {
+    if (reliability === 'POOR' || formType === 'B_SCAN' || formType === 'BIOMETRY_IOL') return true;
+    if (formType === 'CONTACT_LENS' && (payload.record_stage === 'FINAL' || ['DOCTOR_REVIEW', 'CONTRAINDICATED'].includes(payload.outcome as string))) return true;
+    if (formType === 'PAEDIATRIC_VISION' && Array.isArray(payload.result_codes)
+      && payload.result_codes.some((value) => typeof value === 'string' && ['DEVELOPMENTAL_REVIEW', 'REPEAT'].includes(value))) return true;
+    const reviewCodes = ['DOCTOR_REVIEW', 'ORTHOPTIC_REVIEW', 'URGENT_REVIEW'];
+    return ['technician_observation_codes', 'impression_codes'].some((key) => Array.isArray(payload[key])
+      && (payload[key] as unknown[]).some((value) => typeof value === 'string' && reviewCodes.includes(value)));
   }
 
   private async requireTestTask(id: string) {
@@ -756,6 +1251,7 @@ export class OphthalmologyService {
   }
   private async assignTask(task: OphthalmologyTestTask, expectedStatus: OphthalmologyTestTask['status'], expectedVersion: number,
     stationId: string, assignedUserId: string | null, userId: string, reason: string | null, reassign: boolean, metadata: OphthalmologyRequestMetadata) {
+    await this.assertConsultationWritable(task.visit_id);
     if (task.status !== expectedStatus) throw this.statusConflict('Test task status changed after it was loaded'); if (task.version !== expectedVersion) throw this.versionConflict('test task');
     await this.validateTaskStation(task, stationId, assignedUserId); return executeRequiredTransaction(this.repository, async (session) => {
       await this.validateTaskStation(task, stationId, assignedUserId, session); const updated = await this.repository.assignTestTask(task.id,
@@ -768,7 +1264,7 @@ export class OphthalmologyService {
   private async transitionTask(task: OphthalmologyTestTask, data: TaskStateActionDTO, toStatus: OphthalmologyTestTask['status'],
     action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED', userId: string, reason: string | null,
     set: Record<string, unknown>, metadata: OphthalmologyRequestMetadata, guard?: (session: ClientSession) => Promise<void>) {
-    this.assertExpected(task, data); return executeRequiredTransaction(this.repository, async (session) => {
+    await this.assertConsultationWritable(task.visit_id); this.assertExpected(task, data); return executeRequiredTransaction(this.repository, async (session) => {
       if (guard) await guard(session);
       const updated = await this.repository.transitionTestTask(task.id, data.expected_status, data.expected_version, toStatus, action, userId, reason, set, session);
       if (!updated) throw this.versionConflict('test task'); await this.repository.audit(`ophthalmology.test_task.${action.toLowerCase()}`, userId,

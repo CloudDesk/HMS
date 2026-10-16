@@ -1,5 +1,7 @@
+import type { MultipartFields, MultipartValue } from '@fastify/multipart';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { requirePermission } from '../../middleware/require-permission.js';
+import { requireAnyPermission, requirePermission } from '../../middleware/require-permission.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
@@ -37,6 +39,15 @@ import {
   saveOphthalmologyTestResultDraftBodySchema,
   completeOphthalmologyTestResultBodySchema,
   amendOphthalmologyTestResultBodySchema,
+  saveOphthalmologyClinicalReviewDraftBodySchema,
+  saveOphthalmologyOpticalPrescriptionDraftBodySchema,
+  approveOphthalmologyOpticalPrescriptionBodySchema,
+  reviewOphthalmologyTestResultBodySchema,
+  deferOphthalmologyResultBodySchema,
+  overrideOphthalmologyCompletionBodySchema,
+  completeOphthalmologyConsultationBodySchema,
+  reopenOphthalmologyConsultationBodySchema,
+  amendOphthalmologyConsultationBodySchema,
 } from './ophthalmology.schemas.js';
 import type {
   AcknowledgeOphthalmologyAlertDTO,
@@ -67,15 +78,107 @@ import type {
   SaveOphthalmologyTestResultDraftDTO,
   CompleteOphthalmologyTestResultDTO,
   AmendOphthalmologyTestResultDTO,
+  SaveOphthalmologyClinicalReviewDraftDTO,
+  SaveOphthalmologyOpticalPrescriptionDraftDTO,
+  ApproveOphthalmologyOpticalPrescriptionDTO,
+  OphthalmologyResultReviewDTO,
+  DeferOphthalmologyResultDTO,
+  OverrideOphthalmologyCompletionDTO,
+  CompleteOphthalmologyConsultationDTO,
+  ReopenOphthalmologyConsultationDTO,
+  AmendOphthalmologyConsultationDTO,
 } from './ophthalmology.types.js';
+import { ophthalmologyAttachmentListQuerySchema, ophthalmologyDashboardQuerySchema, ophthalmologyPublicationBodySchema, ophthalmologyPublicationHeadersSchema,
+  ophthalmologyReportParamsSchema, ophthalmologyReportQuerySchema,
+  withdrawOphthalmologyPublicationBodySchema } from './ophthalmology-phase10.schemas.js';
+import type { CreateOphthalmologyPublicationDTO, OphthalmologyAttachmentListQuery, OphthalmologyAttachmentProvenance,
+  OphthalmologyDashboardQuery, OphthalmologyReportQuery, OphthalmologyReportType, WithdrawOphthalmologyPublicationDTO } from './ophthalmology-phase10.types.js';
 
 type VisitParams = { visitId: string };
 type IdParams = { id: string };
 type VisitAlertParams = { visitId: string; id: string };
 type IdempotencyHeaders = { 'idempotency-key': string };
+type ReportParams = { reportType: OphthalmologyReportType };
 const metadata = (request: FastifyRequest) => ({ ipAddress: request.ip, userAgent: request.headers['user-agent'] });
+const readMultipartField = (fields: MultipartFields, name: string) => {
+  const field = fields[name]; const first = Array.isArray(field) ? field[0] : field;
+  if (!first || first.type !== 'field') return null;
+  const value = (first as MultipartValue).value;
+  if (typeof value !== 'string') return null;
+  return value.trim() || null;
+};
+const requireMultipartField = (fields: MultipartFields, name: string, label: string) => {
+  const value = readMultipartField(fields, name);
+  if (!value) throw new AppError(`${label} is required`, 400, 'VALIDATION_ERROR');
+  return value;
+};
+const isAttachmentProvenance = (value: string): value is OphthalmologyAttachmentProvenance =>
+  value === 'MANUAL_UPLOAD' || value === 'DEVICE_IMPORT';
 
 export const registerOphthalmologyRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.post<{ Headers: IdempotencyHeaders }>('/api/ophthalmology/attachments', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Queue', 'Edit'),
+    schema: { headers: ophthalmologyPublicationHeadersSchema },
+  }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) throw new AppError('Attachment file is required', 400, 'VALIDATION_ERROR');
+    const data = await file.toBuffer();
+    const provenance = requireMultipartField(file.fields, 'provenance', 'Provenance');
+    if (!isAttachmentProvenance(provenance)) throw new AppError('Attachment provenance is invalid', 400, 'VALIDATION_ERROR');
+    const attachment = await services.ophthalmologyPhase10.uploadAttachment({
+      task_id: requireMultipartField(file.fields, 'task_id', 'Task id'), result_id: readMultipartField(file.fields, 'result_id'),
+      title: requireMultipartField(file.fields, 'title', 'Title'), acquired_at: requireMultipartField(file.fields, 'acquired_at', 'Acquired at'),
+      provenance, file_name: file.filename, mime_type: file.mimetype, file_size_bytes: data.byteLength, data,
+    }, request.headers['idempotency-key'], request.user!.id, metadata(request));
+    return reply.status(201).send(ok(attachment));
+  });
+  app.get<{ Querystring: OphthalmologyAttachmentListQuery }>('/api/ophthalmology/attachments', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Queue', 'View'),
+    schema: { querystring: ophthalmologyAttachmentListQuerySchema },
+  }, async (request) => ok(await services.ophthalmologyPhase10.listAttachments(request.query, request.user!.id)));
+  app.post<{ Body: CreateOphthalmologyPublicationDTO; Headers: IdempotencyHeaders }>('/api/ophthalmology/publications', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Portal Publication', 'Publish'),
+    schema: { headers: ophthalmologyPublicationHeadersSchema, body: ophthalmologyPublicationBodySchema },
+  }, async (request, reply) => reply.status(201).send(ok(await services.ophthalmologyPhase10.publish(request.body,
+    request.headers['idempotency-key'], request.user!.id, metadata(request)))));
+  app.post<{ Params: IdParams; Body: WithdrawOphthalmologyPublicationDTO }>('/api/ophthalmology/publications/:id/withdraw', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Portal Publication', 'Withdraw'),
+    schema: { params: ophthalmologyIdParamsSchema, body: withdrawOphthalmologyPublicationBodySchema },
+  }, async (request) => ok(await services.ophthalmologyPhase10.withdraw(request.params.id, request.body, request.user!.id, metadata(request))));
+  app.get<{ Params: ReportParams; Querystring: OphthalmologyReportQuery }>('/api/ophthalmology/reports/:reportType', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Reports', 'View'),
+    schema: { params: ophthalmologyReportParamsSchema, querystring: ophthalmologyReportQuerySchema },
+  }, async (request) => ok(await services.ophthalmologyPhase10.report(request.params.reportType, request.query, request.user!.id)));
+  app.get<{ Querystring: OphthalmologyDashboardQuery }>('/api/ophthalmology/dashboard', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Reports', 'View'), schema: { querystring: ophthalmologyDashboardQuerySchema },
+  }, async (request) => ok(await services.ophthalmologyPhase10.dashboard(request.query, request.user!.id)));
+  app.post<{ Querystring: OphthalmologyDashboardQuery }>('/api/ophthalmology/dashboard/refresh', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Reports', 'Export'), schema: { querystring: ophthalmologyDashboardQuerySchema },
+  }, async (request) => ok(await services.ophthalmologyPhase10.refreshDashboard(request.query, request.user!.id)));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/doctor-review', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getDoctorReview(request.params.visitId, request.user!.id)));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/clinical-review', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getClinicalReview(request.params.visitId, request.user!.id)));
+  app.put<{ Params: VisitParams; Body: SaveOphthalmologyClinicalReviewDraftDTO }>('/api/opd/visits/:visitId/ophthalmology/clinical-review/draft', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Diagnose'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: saveOphthalmologyClinicalReviewDraftBodySchema },
+  }, async (request) => ok(await services.ophthalmology.saveClinicalReviewDraft(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/optical-prescription', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Optical Prescription', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getOpticalPrescription(request.params.visitId, request.user!.id)));
+  app.put<{ Params: VisitParams; Body: SaveOphthalmologyOpticalPrescriptionDraftDTO }>('/api/opd/visits/:visitId/ophthalmology/optical-prescription/draft', {
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Optical Prescription', action: 'Create' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Optical Prescription', action: 'Edit' },
+    ]),
+    schema: { params: ophthalmologyVisitParamsSchema, body: saveOphthalmologyOpticalPrescriptionDraftBodySchema },
+  }, async (request) => ok(await services.ophthalmology.saveOpticalPrescriptionDraft(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: ApproveOphthalmologyOpticalPrescriptionDTO }>('/api/opd/visits/:visitId/ophthalmology/optical-prescription/approve', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Optical Prescription', 'Approve'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: approveOphthalmologyOpticalPrescriptionBodySchema },
+  }, async (request) => ok(await services.ophthalmology.approveOpticalPrescription(request.params.visitId, request.body, request.user!.id, metadata(request))));
   app.get<{ Querystring: OphthalmologyTestTaskListQuery }>('/api/ophthalmology/test-tasks', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Queue', 'View'), schema: { querystring: ophthalmologyTestTaskListQuerySchema },
   }, async (request) => ok(await services.ophthalmology.listTestTasks(request.query, request.user!.id)));
@@ -130,6 +233,41 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Review', 'Amend'),
     schema: { params: ophthalmologyIdParamsSchema, body: amendOphthalmologyTestResultBodySchema },
   }, async (request) => ok(await services.ophthalmology.amendTestResult(request.params.id, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: IdParams; Body: OphthalmologyResultReviewDTO }>('/api/ophthalmology/test-tasks/:id/result/review', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Review', 'Review'),
+    schema: { params: ophthalmologyIdParamsSchema, body: reviewOphthalmologyTestResultBodySchema },
+  }, async (request) => ok(await services.ophthalmology.reviewTestResult(request.params.id, request.body, request.user!.id, metadata(request))));
+
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/completion-readiness', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getCompletionReadiness(request.params.visitId, request.user!.id)));
+  app.post<{ Params: VisitParams; Body: DeferOphthalmologyResultDTO }>('/api/opd/visits/:visitId/ophthalmology/result-deferrals', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Override'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: deferOphthalmologyResultBodySchema },
+  }, async (request) => ok(await services.ophthalmology.deferResult(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: OverrideOphthalmologyCompletionDTO }>('/api/opd/visits/:visitId/ophthalmology/completion-overrides', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Override'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: overrideOphthalmologyCompletionBodySchema },
+  }, async (request) => ok(await services.ophthalmology.overrideCompletion(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: CompleteOphthalmologyConsultationDTO; Headers: IdempotencyHeaders }>('/api/opd/visits/:visitId/ophthalmology/complete', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Complete'),
+    schema: { params: ophthalmologyVisitParamsSchema, headers: ophthalmologyTestTaskHeadersSchema, body: completeOphthalmologyConsultationBodySchema },
+  }, async (request) => ok(await services.ophthalmology.completeConsultation(request.params.visitId, request.body,
+    request.headers['idempotency-key'], request.user!.id, metadata(request))));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/summary', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getConsultationSummary(request.params.visitId, request.user!.id)));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/completion-history', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getCompletionHistory(request.params.visitId, request.user!.id)));
+  app.post<{ Params: VisitParams; Body: ReopenOphthalmologyConsultationDTO }>('/api/opd/visits/:visitId/ophthalmology/reopen', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Reopen'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: reopenOphthalmologyConsultationBodySchema },
+  }, async (request) => ok(await services.ophthalmology.reopenConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: AmendOphthalmologyConsultationDTO }>('/api/opd/visits/:visitId/ophthalmology/amendments', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Amend'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: amendOphthalmologyConsultationBodySchema },
+  }, async (request) => ok(await services.ophthalmology.amendConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/context', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'View'), schema: { params: ophthalmologyVisitParamsSchema },

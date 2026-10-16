@@ -1,7 +1,7 @@
 import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { OpdConsultationModel, type OpdConsultationFields } from './opd-consultation.model.js';
-import type { OpdConsultation, SaveOpdConsultationDTO } from './opd-consultation.types.js';
+import type { OpdConsultation, OpdConsultationClinicalHistoryEntry, OpdStructuredDiagnosis, SaveOpdConsultationDTO } from './opd-consultation.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
 
 type OpdConsultationLean = OpdConsultationFields & { _id: Types.ObjectId };
@@ -25,6 +25,13 @@ const nullableString = (value: string | null | undefined) => {
   return trimmed ? trimmed : null;
 };
 
+const toDiagnosis = (diagnosis: OpdStructuredDiagnosis) => ({
+  code: diagnosis.code, display: diagnosis.display, codingSystem: diagnosis.codingSystem, type: diagnosis.type,
+  ...(diagnosis.laterality && diagnosis.status ? { laterality: diagnosis.laterality, status: diagnosis.status,
+    severity: diagnosis.severity ?? null, stage: diagnosis.stage ?? null, differential: diagnosis.differential ?? false } : {}),
+  ...(diagnosis.notes != null ? { notes: diagnosis.notes } : {}),
+});
+
 const toConsultation = (consultation: OpdConsultationLean): OpdConsultation => ({
   id: consultation._id.toString(),
   visit_id: consultation.visitId.toString(),
@@ -42,12 +49,13 @@ const toConsultation = (consultation: OpdConsultationLean): OpdConsultation => (
   allergies: consultation.allergies ?? null,
   physical_examination: consultation.physicalExamination ?? null,
   assessment: consultation.assessment ?? null,
-  diagnoses: consultation.diagnoses?.map((d) => ({
-    code: d.code,
-    display: d.display,
-    codingSystem: d.codingSystem,
-    type: d.type,
-    notes: d.notes ?? null,
+  diagnoses: consultation.diagnoses?.map(toDiagnosis) ?? [],
+  clinical_history: consultation.clinicalHistory?.map((entry) => ({
+    consultation_version: entry.consultationVersion,
+    diagnoses: entry.diagnoses.map(toDiagnosis),
+    treatment_plan: entry.treatmentPlan ?? null,
+    changed_by: entry.changedBy.toString(),
+    changed_at: entry.changedAt,
   })) ?? [],
   treatment_plan: consultation.treatmentPlan ?? null,
   doctor_notes: consultation.doctorNotes ?? null,
@@ -72,6 +80,11 @@ const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => 
       display: d.display.trim(),
       codingSystem: (d.codingSystem || 'ICD-11').trim(),
       type: d.type || 'PRIMARY',
+      laterality: d.laterality ?? null,
+      status: d.status ?? null,
+      severity: nullableString(d.severity),
+      stage: nullableString(d.stage),
+      differential: d.differential ?? false,
       notes: nullableString(d.notes),
     })),
   } : {}),
@@ -99,6 +112,7 @@ export class OpdConsultationRepository {
     data: SaveOpdConsultationRecord,
     userId: string,
     session?: ClientSession,
+    historyEntry?: OpdConsultationClinicalHistoryEntry,
   ): Promise<OpdConsultation> {
     const currentVersion = data.currentVersion ?? 0;
     const versionFilter = currentVersion === 0
@@ -117,6 +131,13 @@ export class OpdConsultationRepository {
         {
           $set: buildUpdatePayload(data, userId),
           $inc: { version: 1 },
+          ...(historyEntry ? { $push: { clinicalHistory: {
+            consultationVersion: historyEntry.consultation_version,
+            diagnoses: historyEntry.diagnoses,
+            treatmentPlan: historyEntry.treatment_plan,
+            changedBy: requiredObjectId(historyEntry.changed_by),
+            changedAt: historyEntry.changed_at,
+          } } } : {}),
           $setOnInsert: {
             visitId: requiredObjectId(data.visit.id),
             patientId: requiredObjectId(data.visit.patient_id),

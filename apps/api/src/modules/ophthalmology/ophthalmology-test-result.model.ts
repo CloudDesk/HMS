@@ -1,6 +1,6 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type {
-  OphthalmologyCoreTestFormType,
+  OphthalmologyTestFormType,
   OphthalmologyResultReliability,
   OphthalmologyResultSourceType,
   OphthalmologyTestResultStatus,
@@ -9,7 +9,7 @@ import type {
 export type OphthalmologyTestResultVersionFields = {
   clinicalVersion: number;
   status: OphthalmologyTestResultStatus;
-  formType: OphthalmologyCoreTestFormType;
+  formType: OphthalmologyTestFormType;
   formSchemaVersion: string;
   formProfileVersionId: Types.ObjectId;
   formProfileRevision: number;
@@ -61,7 +61,9 @@ const resultVersionSchema = new Schema<OphthalmologyTestResultVersionFields>({
   clinicalVersion: { type: Number, min: 1, required: true },
   status: { type: String, enum: ['DRAFT', 'COMPLETED'], required: true },
   formType: { type: String, enum: ['VISUAL_ACUITY', 'LENSOMETRY', 'AUTOREFRACTION_KERATOMETRY', 'OBJECTIVE_REFRACTION',
-    'SUBJECTIVE_REFRACTION', 'INTRAOCULAR_PRESSURE', 'SLIT_LAMP_ANTERIOR_SEGMENT', 'POSTERIOR_FUNDUS_EXAM'], required: true },
+    'SUBJECTIVE_REFRACTION', 'INTRAOCULAR_PRESSURE', 'SLIT_LAMP_ANTERIOR_SEGMENT', 'POSTERIOR_FUNDUS_EXAM', 'PACHYMETRY',
+    'COLOUR_VISION', 'MOTILITY_SQUINT_BINOCULAR', 'DRY_EYE', 'VISUAL_FIELD', 'OCT', 'FUNDUS_PHOTOGRAPHY',
+    'CORNEAL_TOPOGRAPHY', 'BIOMETRY_IOL', 'B_SCAN', 'GONIOSCOPY', 'CONTACT_LENS', 'PAEDIATRIC_VISION'], required: true },
   formSchemaVersion: { type: String, required: true, trim: true },
   formProfileVersionId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyConfiguration', required: true },
   formProfileRevision: { type: Number, min: 1, required: true },

@@ -512,8 +512,8 @@ export class PatientRepository {
     return document ? toPatientDocument(document) : undefined;
   }
 
-  async createDocument(patientId: string, data: CreatePatientDocumentDTO, userId: string) {
-    const created = await PatientDocumentModel.create({
+  async createDocument(patientId: string, data: CreatePatientDocumentDTO, userId: string, session?: ClientSession) {
+    const values = {
       patientId: new Types.ObjectId(patientId),
       visitId: toObjectId(data.visit_id),
       admissionId: toObjectId(data.admission_id),
@@ -545,7 +545,9 @@ export class PatientRepository {
       verifiedBy: null,
       verifiedAt: null,
       status: 'ACTIVE',
-    });
+    };
+    const created = new PatientDocumentModel(values);
+    await created.save(session ? { session } : undefined);
     return toPatientDocument(created.toObject<PatientDocumentLean>());
   }
 

@@ -17,6 +17,11 @@ export const opdStructuredDiagnosisSchema = {
     display: { type: 'string', minLength: 1 },
     codingSystem: { type: 'string', minLength: 1 },
     type: { type: 'string', enum: ['PRIMARY', 'SECONDARY'] },
+    laterality: { type: ['string', 'null'], enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE', null] },
+    status: { type: ['string', 'null'], enum: ['SUSPECTED', 'CONFIRMED', 'RULED_OUT', null] },
+    severity: { type: ['string', 'null'], maxLength: 120 },
+    stage: { type: ['string', 'null'], maxLength: 120 },
+    differential: { type: 'boolean' },
     notes: { type: ['string', 'null'] },
   },
 } as const;

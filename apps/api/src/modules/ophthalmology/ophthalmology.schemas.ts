@@ -244,11 +244,13 @@ export const routeOphthalmologyTestTaskBodySchema = {
   },
 } as const;
 
-const coreTestFormTypes = ['VISUAL_ACUITY', 'LENSOMETRY', 'AUTOREFRACTION_KERATOMETRY', 'OBJECTIVE_REFRACTION',
-  'SUBJECTIVE_REFRACTION', 'INTRAOCULAR_PRESSURE', 'SLIT_LAMP_ANTERIOR_SEGMENT', 'POSTERIOR_FUNDUS_EXAM'] as const;
+const testFormTypes = ['VISUAL_ACUITY', 'LENSOMETRY', 'AUTOREFRACTION_KERATOMETRY', 'OBJECTIVE_REFRACTION',
+  'SUBJECTIVE_REFRACTION', 'INTRAOCULAR_PRESSURE', 'SLIT_LAMP_ANTERIOR_SEGMENT', 'POSTERIOR_FUNDUS_EXAM', 'PACHYMETRY',
+  'COLOUR_VISION', 'MOTILITY_SQUINT_BINOCULAR', 'DRY_EYE', 'VISUAL_FIELD', 'OCT', 'FUNDUS_PHOTOGRAPHY',
+  'CORNEAL_TOPOGRAPHY', 'BIOMETRY_IOL', 'B_SCAN', 'GONIOSCOPY', 'CONTACT_LENS', 'PAEDIATRIC_VISION'] as const;
 const resultWriteProperties = {
   expected_task_version: version, expected_result_version: { type: ['integer', 'null'], minimum: 0 },
-  form_type: { type: 'string', enum: coreTestFormTypes }, form_schema_version: { type: 'string', minLength: 1, maxLength: 40 },
+  form_type: { type: 'string', enum: testFormTypes }, form_schema_version: { type: 'string', minLength: 1, maxLength: 40 },
   form_profile_version_id: objectId, performed_at: { type: 'string', format: 'date-time' },
   source_type: { type: 'string', enum: ['MANUAL', 'DEVICE_IMPORT', 'MANUAL_CORRECTION'] },
   reliability: { type: 'string', enum: ['GOOD', 'FAIR', 'POOR'] }, reliability_reason: nullableText(1000), comments: nullableText(4000),
@@ -270,4 +272,99 @@ export const amendOphthalmologyTestResultBodySchema = {
   type: 'object', additionalProperties: false, required: [...resultWriteRequired, 'reason'],
   properties: { ...resultWriteProperties, expected_result_version: version, expected_task_status: { const: 'COMPLETED' },
     source_type: { const: 'MANUAL_CORRECTION' }, reason: { type: 'string', minLength: 1, maxLength: 1000 } },
+} as const;
+
+const reviewReference = { ...objectId, type: ['string', 'null'] } as const;
+const treatmentPlanSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['diagnosis_code', 'diagnosis_laterality', 'treatment', 'category', 'priority', 'status'],
+  properties: {
+    diagnosis_code: { type: 'string', minLength: 1, maxLength: 80 },
+    diagnosis_laterality: { type: 'string', enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE'] },
+    treatment: { type: 'string', minLength: 1, maxLength: 4000 }, category: { type: 'string', minLength: 1, maxLength: 80 },
+    priority: { type: 'string', enum: ['ROUTINE', 'URGENT', 'EMERGENCY'] },
+    status: { type: 'string', enum: ['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED'] },
+    medication_prescription_id: reviewReference,
+    clinical_order_ids: { type: 'array', maxItems: 50, uniqueItems: true, items: objectId },
+    procedure_recommendation_id: reviewReference, referral_id: reviewReference, follow_up_id: reviewReference,
+  },
+} as const;
+export const saveOphthalmologyClinicalReviewDraftBodySchema = {
+  type: 'object', additionalProperties: false, required: ['expected_version', 'clinical_summary', 'treatment_plans'],
+  properties: { expected_version: version, clinical_summary: { type: 'string', minLength: 1, maxLength: 10000 },
+    treatment_plans: { type: 'array', maxItems: 100, items: treatmentPlanSchema },
+    follow_up_decision: { type: ['string', 'null'], enum: ['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP', null] },
+    patient_instructions: nullableText(4000) },
+} as const;
+
+const opticalPowerSchema = {
+  type: 'object', additionalProperties: false, required: ['sphere'], properties: {
+    sphere: { type: 'number', minimum: -40, maximum: 40 }, cylinder: { type: ['number', 'null'], minimum: -20, maximum: 20 },
+    axis: { type: ['number', 'null'], minimum: 0, maximum: 180 }, addition: { type: ['number', 'null'], minimum: 0, maximum: 10 },
+    prism: { type: ['number', 'null'], minimum: 0, maximum: 30 }, prism_base: nullableText(40),
+  },
+} as const;
+export const saveOphthalmologyOpticalPrescriptionDraftBodySchema = {
+  type: 'object', additionalProperties: false,
+  required: ['expected_version', 'prescription_type', 'power', 'pupillary_distance', 'lens_type', 'material', 'coating_codes',
+    'usage_instructions', 'valid_until'],
+  properties: {
+    expected_version: version, prescription_type: { type: 'string', enum: ['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL'] },
+    power: { type: 'object', additionalProperties: false, minProperties: 1,
+      properties: { OD: { anyOf: [opticalPowerSchema, { type: 'null' }] }, OS: { anyOf: [opticalPowerSchema, { type: 'null' }] } } },
+    pupillary_distance: { type: 'object', additionalProperties: false, required: ['format'], properties: {
+      format: { type: 'string', enum: ['BINOCULAR', 'MONOCULAR'] }, binocular: { type: ['number', 'null'], minimum: 30, maximum: 90 },
+      OD: { type: ['number', 'null'], minimum: 15, maximum: 50 }, OS: { type: ['number', 'null'], minimum: 15, maximum: 50 },
+    } },
+    segment_height: { anyOf: [{ type: 'object', additionalProperties: false, properties: {
+      OD: { type: ['number', 'null'], minimum: 5, maximum: 50 }, OS: { type: ['number', 'null'], minimum: 5, maximum: 50 },
+    } }, { type: 'null' }] },
+    lens_type: { type: 'string', minLength: 1, maxLength: 80 }, material: { type: 'string', minLength: 1, maxLength: 80 },
+    coating_codes: { type: 'array', maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 80 } },
+    usage_instructions: { type: 'string', minLength: 1, maxLength: 2000 }, valid_until: { type: 'string', format: 'date-time' },
+    review_date: { type: ['string', 'null'], format: 'date-time' },
+  },
+} as const;
+export const approveOphthalmologyOpticalPrescriptionBodySchema = {
+  type: 'object', additionalProperties: false, required: ['expected_version', 'expected_status'],
+  properties: { expected_version: version, expected_status: { const: 'DRAFT' } },
+} as const;
+
+const completionRequirementCodes = ['INTAKE_COMPLETED', 'MANDATORY_TESTS_REVIEWED', 'ALL_RESULTS_RESOLVED', 'ALERTS_ACKNOWLEDGED',
+  'DIAGNOSIS_RECORDED', 'CLINICAL_REVIEW_RECORDED', 'TREATMENT_PLAN_RECORDED', 'OPTICAL_APPROVED_IF_PRESENT',
+  'FOLLOW_UP_DECISION_RECORDED'] as const;
+export const reviewOphthalmologyTestResultBodySchema = {
+  type: 'object', additionalProperties: false,
+  required: ['expected_task_version', 'expected_result_version', 'expected_clinical_version'],
+  properties: { expected_task_version: version, expected_result_version: version, expected_clinical_version: { type: 'integer', minimum: 1 },
+    comment: nullableText(2000) },
+} as const;
+export const deferOphthalmologyResultBodySchema = {
+  type: 'object', additionalProperties: false,
+  required: ['expected_version', 'source_type', 'source_id', 'reason', 'responsible_doctor_id'],
+  properties: { expected_version: version, source_type: { type: 'string', enum: ['TEST_TASK', 'CLINICAL_ORDER'] }, source_id: objectId,
+    reason: { type: 'string', minLength: 1, maxLength: 1000 }, review_plan: nullableText(2000),
+    due_at: { type: ['string', 'null'], format: 'date-time' }, responsible_doctor_id: objectId },
+} as const;
+export const overrideOphthalmologyCompletionBodySchema = {
+  type: 'object', additionalProperties: false, required: ['expected_version', 'expected_unmet_codes', 'reason'],
+  properties: { expected_version: version, expected_unmet_codes: { type: 'array', minItems: 1, uniqueItems: true,
+    items: { type: 'string', enum: completionRequirementCodes } }, reason: { type: 'string', minLength: 1, maxLength: 2000 } },
+} as const;
+export const completeOphthalmologyConsultationBodySchema = {
+  type: 'object', additionalProperties: false,
+  required: ['expected_version', 'expected_context_version', 'expected_consultation_version', 'expected_clinical_review_version'],
+  properties: { expected_version: version, expected_context_version: version, expected_consultation_version: version,
+    expected_clinical_review_version: version, expected_optical_prescription_version: { type: ['integer', 'null'], minimum: 0 } },
+} as const;
+export const reopenOphthalmologyConsultationBodySchema = {
+  type: 'object', additionalProperties: false, required: ['expected_version', 'expected_status', 'reason'],
+  properties: { expected_version: version, expected_status: { const: 'COMPLETED' }, reason: { type: 'string', minLength: 1, maxLength: 2000 } },
+} as const;
+export const amendOphthalmologyConsultationBodySchema = {
+  type: 'object', additionalProperties: false,
+  required: ['expected_version', 'expected_status', 'episode_id', 'section', 'before_value', 'after_value', 'reason'],
+  properties: { expected_version: version, expected_status: { const: 'AMENDMENT_OPEN' }, episode_id: objectId,
+    section: { type: 'string', minLength: 1, maxLength: 120 }, before_value: {}, after_value: {},
+    reason: { type: 'string', minLength: 1, maxLength: 2000 } },
 } as const;

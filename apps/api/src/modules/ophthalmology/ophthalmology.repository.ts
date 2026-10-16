@@ -5,7 +5,11 @@ import { DepartmentModel } from '../departments/department.model.js';
 import { DoctorModel } from '../doctors/doctor.model.js';
 import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
-import { PatientDocumentModel } from '../patients/patient.model.js';
+import { OpdFollowUpModel } from '../opd/opd-follow-up.model.js';
+import { OpdPrescriptionModel } from '../opd/opd-prescription.model.js';
+import { OpdReferralModel } from '../opd/opd-referral.model.js';
+import { PatientDocumentModel, PatientModel } from '../patients/patient.model.js';
+import { ProcedureRecommendationModel } from '../surgery/surgery.model.js';
 import { PermissionModel } from '../permissions/permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -28,6 +32,11 @@ import {
 import { OphthalmologyTestTaskModel, type OphthalmologyTestTaskFields } from './ophthalmology-test-task.model.js';
 import { OphthalmologyTestResultModel, type OphthalmologyTestResultFields,
   type OphthalmologyTestResultVersionFields } from './ophthalmology-test-result.model.js';
+import { OphthalmologyClinicalReviewModel, OphthalmologyOpticalPrescriptionModel,
+  type OphthalmologyClinicalReviewFields, type OphthalmologyClinicalReviewVersionFields,
+  type OphthalmologyOpticalPrescriptionFields, type OphthalmologyOpticalPrescriptionVersionFields } from './ophthalmology-review.model.js';
+import { OphthalmologyConsultationFinalizationModel,
+  type OphthalmologyConsultationFinalizationFields } from './ophthalmology-consultation.model.js';
 import type {
   CreateOphthalmologyConfigurationDTO,
   CreateOphthalmologyContextDTO,
@@ -59,6 +68,11 @@ import type {
   OphthalmologyTestResult,
   SaveOphthalmologyTestResultDraftDTO,
   AmendOphthalmologyTestResultDTO,
+  OphthalmologyClinicalReview,
+  OphthalmologyOpticalPrescription,
+  SaveOphthalmologyClinicalReviewDraftDTO,
+  SaveOphthalmologyOpticalPrescriptionDraftDTO,
+  OphthalmologyCompletionRequirement,
 } from './ophthalmology.types.js';
 import type { OpdVisit } from '../opd/opd-visit.types.js';
 
@@ -70,11 +84,50 @@ type IntakeRecord = OphthalmologyIntakeFields & { _id: Types.ObjectId };
 type AlertRecord = OphthalmologyAlertFields & { _id: Types.ObjectId };
 type TestTaskRecord = OphthalmologyTestTaskFields & { _id: Types.ObjectId };
 type TestResultRecord = OphthalmologyTestResultFields & { _id: Types.ObjectId };
+type ClinicalReviewRecord = OphthalmologyClinicalReviewFields & { _id: Types.ObjectId };
+type OpticalPrescriptionRecord = OphthalmologyOpticalPrescriptionFields & { _id: Types.ObjectId };
+type FinalizationRecord = OphthalmologyConsultationFinalizationFields & { _id: Types.ObjectId };
 const oid = (value: string) => new Types.ObjectId(value);
 const text = (value?: string | null) => value?.trim() || null;
 const date = (value?: string | null) => value ? new Date(value) : null;
 const pageMeta = (total: number, page: number, limit: number) => ({ total, page, limit, totalPages: Math.ceil(total / limit) || 1 });
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const toClinicalReviewVersion = (item: OphthalmologyClinicalReviewVersionFields) => ({
+  clinical_version: item.clinicalVersion, clinical_summary: item.clinicalSummary,
+  follow_up_decision: item.followUpDecision ?? null, patient_instructions: item.patientInstructions ?? null,
+  treatment_plans: item.treatmentPlans.map((plan) => ({ id: plan._id.toString(), diagnosis_code: plan.diagnosisCode,
+    diagnosis_laterality: plan.diagnosisLaterality, treatment: plan.treatment, category: plan.category, priority: plan.priority,
+    status: plan.status, medication_prescription_id: plan.medicationPrescriptionId?.toString() ?? null,
+    clinical_order_ids: plan.clinicalOrderIds.map(String), procedure_recommendation_id: plan.procedureRecommendationId?.toString() ?? null,
+    referral_id: plan.referralId?.toString() ?? null, follow_up_id: plan.followUpId?.toString() ?? null,
+    clinician_user_id: plan.clinicianUserId.toString() })),
+  created_by: item.createdBy.toString(), created_at: item.createdAt,
+});
+const toClinicalReview = (item: ClinicalReviewRecord): OphthalmologyClinicalReview => ({
+  id: item._id.toString(), context_id: item.contextId.toString(), visit_id: item.visitId.toString(), patient_id: item.patientId.toString(),
+  branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), current_clinical_version: item.currentClinicalVersion,
+  status: item.status, current: toClinicalReviewVersion(item.versions[item.versions.length - 1]!),
+  history: item.versions.map(toClinicalReviewVersion), version: item.version, created_at: item.createdAt, updated_at: item.updatedAt,
+});
+const toOpticalVersion = (item: OphthalmologyOpticalPrescriptionVersionFields) => ({
+  clinical_version: item.clinicalVersion, status: item.status, prescription_type: item.prescriptionType,
+  power: { OD: item.power.OD ? { sphere: item.power.OD.sphere, cylinder: item.power.OD.cylinder ?? null, axis: item.power.OD.axis ?? null,
+    addition: item.power.OD.addition ?? null, prism: item.power.OD.prism ?? null, prism_base: item.power.OD.prismBase ?? null } : null,
+    OS: item.power.OS ? { sphere: item.power.OS.sphere, cylinder: item.power.OS.cylinder ?? null, axis: item.power.OS.axis ?? null,
+      addition: item.power.OS.addition ?? null, prism: item.power.OS.prism ?? null, prism_base: item.power.OS.prismBase ?? null } : null },
+  pupillary_distance: item.pupillaryDistance, segment_height: item.segmentHeight ?? null, lens_type: item.lensType,
+  material: item.material, coating_codes: item.coatingCodes, usage_instructions: item.usageInstructions, valid_until: item.validUntil,
+  review_date: item.reviewDate ?? null, approver_user_id: item.approverUserId?.toString() ?? null,
+  approver_doctor_id: item.approverDoctorId?.toString() ?? null, approved_at: item.approvedAt ?? null,
+  created_by: item.createdBy.toString(), created_at: item.createdAt,
+});
+const toOpticalPrescription = (item: OpticalPrescriptionRecord): OphthalmologyOpticalPrescription => ({
+  id: item._id.toString(), context_id: item.contextId.toString(), visit_id: item.visitId.toString(), patient_id: item.patientId.toString(),
+  branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), current_clinical_version: item.currentClinicalVersion,
+  status: item.status, current: toOpticalVersion(item.versions[item.versions.length - 1]!), history: item.versions.map(toOpticalVersion),
+  version: item.version, created_at: item.createdAt, updated_at: item.updatedAt,
+});
 
 const toContext = (item: ContextRecord): OphthalmologyContext => ({
   id: item._id.toString(), visit_id: item.visitId.toString(), patient_id: item.patientId.toString(),
@@ -158,7 +211,9 @@ const toTestTask = (item: TestTaskRecord): OphthalmologyTestTask => ({
     reason: entry.reason ?? null, actor_user_id: entry.actorUserId.toString(), occurred_at: entry.occurredAt })),
   ordered_at: item.orderedAt, assigned_at: item.assignedAt ?? null, waiting_since: item.waitingSince ?? null,
   called_at: item.calledAt ?? null, started_at: item.startedAt ?? null, completed_at: item.completedAt ?? null, unable_at: item.unableAt ?? null,
-  cancelled_at: item.cancelledAt ?? null, version: item.version ?? 0, created_at: item.createdAt, updated_at: item.updatedAt,
+  cancelled_at: item.cancelledAt ?? null, reviewed_by: item.reviewedBy?.toString() ?? null, reviewed_at: item.reviewedAt ?? null,
+  reviewed_clinical_version: item.reviewedClinicalVersion ?? null, review_comment: item.reviewComment ?? null,
+  version: item.version ?? 0, created_at: item.createdAt, updated_at: item.updatedAt,
 });
 const toResultVersion = (item: OphthalmologyTestResultVersionFields) => ({
   clinical_version: item.clinicalVersion, status: item.status, form_type: item.formType, form_schema_version: item.formSchemaVersion,
@@ -181,6 +236,30 @@ const toTestResult = (item: TestResultRecord): OphthalmologyTestResult => {
     current_clinical_version: item.currentClinicalVersion, status: item.status, current, history, version: item.version ?? 0,
     created_at: item.createdAt, updated_at: item.updatedAt };
 };
+const toFinalization = (item: FinalizationRecord) => ({
+  id: item._id.toString(), context_id: item.contextId.toString(), visit_id: item.visitId.toString(), patient_id: item.patientId.toString(),
+  branch_id: item.branchId.toString(), department_id: item.departmentId.toString(), status: item.status, version: item.version,
+  deferrals: item.deferrals.map((entry) => ({ id: entry._id.toString(), source_type: entry.sourceType, source_id: entry.sourceId.toString(),
+    reason: entry.reason, review_plan: entry.reviewPlan ?? null, due_at: entry.dueAt ?? null,
+    responsible_doctor_id: entry.responsibleDoctorId.toString(), recorded_by: entry.recordedBy.toString(), recorded_at: entry.recordedAt })),
+  overrides: item.overrides.map((entry) => ({ id: entry._id.toString(), unmet_codes: entry.unmetCodes,
+    unmet_snapshot: entry.unmetSnapshot.map((requirement) => ({ code: requirement.code, details: requirement.details, resource_ids: requirement.resourceIds })),
+    reason: entry.reason, doctor_id: entry.doctorId.toString(), actor_user_id: entry.actorUserId.toString(), created_at: entry.createdAt })),
+  completions: item.completions.map((entry) => ({ clinical_version: entry.clinicalVersion,
+    configuration_version_id: entry.configurationVersionId.toString(), configuration_revision: entry.configurationRevision,
+    configuration_snapshot: entry.configurationSnapshot, consultation_version: entry.consultationVersion,
+    clinical_review_version: entry.clinicalReviewVersion, optical_prescription_version: entry.opticalPrescriptionVersion ?? null,
+    requirement_snapshot: entry.requirementSnapshot.map((requirement) => ({ code: requirement.code, satisfied: requirement.satisfied,
+      details: requirement.details, resource_ids: requirement.resourceIds })), summary_snapshot: entry.summarySnapshot,
+    approver_user_id: entry.approverUserId.toString(), approver_doctor_id: entry.approverDoctorId.toString(), approved_at: entry.approvedAt,
+    idempotency_key: entry.idempotencyKey, request_fingerprint: entry.requestFingerprint,
+    supersedes_clinical_version: entry.supersedesClinicalVersion ?? null })),
+  amendment_episodes: item.amendmentEpisodes.map((entry) => ({ id: entry._id.toString(), source_clinical_version: entry.sourceClinicalVersion,
+    reason: entry.reason, status: entry.status, opened_by: entry.openedBy.toString(), opened_at: entry.openedAt,
+    changes: entry.changes.map((change) => ({ section: change.section, before_value: change.beforeValue,
+      after_value: change.afterValue, reason: change.reason, changed_by: change.changedBy.toString(), changed_at: change.changedAt })) })),
+  created_at: item.createdAt, updated_at: item.updatedAt,
+});
 const uniqueCodes = (items?: string[]) => [...new Set((items ?? []).map((item) => item.trim().toUpperCase()))];
 const intakeSet = (data: SaveOphthalmologyIntakeDraftDTO) => ({
   complaintConfigurationVersionId: oid(data.complaint_configuration_version_id), emergencyConfigurationVersionId: oid(data.emergency_configuration_version_id),
@@ -281,6 +360,11 @@ export class OphthalmologyRepository {
   async getConfiguration(id: string, session?: ClientSession) {
     const query = OphthalmologyConfigurationModel.findById(oid(id)); if (session) query.session(session);
     const item = await query.lean<ConfigurationRecord>(); return item ? toConfiguration(item) : null;
+  }
+  async getActiveCompletionProfiles(branchId: string, subtype: OphthalmologyVisitSubtype, session?: ClientSession) {
+    const query = OphthalmologyConfigurationModel.find({ branchId: oid(branchId), type: 'COMPLETION_PROFILE', status: 'ACTIVE',
+      'values.visit_subtypes': subtype }); if (session) query.session(session);
+    return (await query.lean<ConfigurationRecord[]>()).map(toConfiguration);
   }
   async listConfigurations(query: OphthalmologyConfigurationListQuery) {
     const currentPage = query.page ?? 1; const currentLimit = query.limit ?? 20;
@@ -485,6 +569,19 @@ export class OphthalmologyRepository {
     const query = OphthalmologyTestResultModel.findOne({ taskId: oid(taskId) }); if (session) query.session(session);
     const item = await query.lean<TestResultRecord>(); return item ? toTestResult(item) : null;
   }
+  async getTestResultById(id: string, session?: ClientSession) {
+    const query = OphthalmologyTestResultModel.findById(oid(id)); if (session) query.session(session);
+    const item = await query.lean<TestResultRecord>(); return item ? toTestResult(item) : null;
+  }
+  async getPatientAssessmentContext(patientId: string, session?: ClientSession) {
+    const query = PatientModel.findOne({ _id: oid(patientId), status: 'ACTIVE', deletedAt: null }).select('dateOfBirth parentGuardian').lean();
+    if (session) query.session(session); const patient = await query;
+    return patient ? { date_of_birth: patient.dateOfBirth, guardian_recorded: Boolean(patient.parentGuardian?.trim()) } : null;
+  }
+  async getOpdFollowUpReference(id: string, visitId: string, patientId: string, session?: ClientSession) {
+    const query = OpdFollowUpModel.findOne({ _id: oid(id), visitId: oid(visitId), patientId: oid(patientId), deletedAt: null }).select('_id').lean();
+    if (session) query.session(session); return Boolean(await query);
+  }
   async validPatientDocumentCount(patientId: string, documentIds: string[], session?: ClientSession) {
     if (documentIds.length === 0) return 0;
     const query = PatientDocumentModel.countDocuments({ _id: { $in: documentIds.map(oid) }, patientId: oid(patientId), status: 'ACTIVE' });
@@ -688,6 +785,245 @@ export class OphthalmologyRepository {
         $push: { transitionHistory: { action: 'REPEAT_REQUESTED', fromStatus: original.status, toStatus: 'REPEAT_REQUIRED', reason,
           actorUserId: oid(userId), occurredAt: now } }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<TestTaskRecord>(); return record ? toTestTask(record) : null;
+  }
+
+  async getClinicalReviewByVisit(visitId: string, session?: ClientSession) {
+    const query = OphthalmologyClinicalReviewModel.findOne({ visitId: oid(visitId) }); if (session) query.session(session);
+    const record = await query.lean<ClinicalReviewRecord>(); return record ? toClinicalReview(record) : null;
+  }
+  async saveClinicalReviewDraft(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO,
+    userId: string, session: ClientSession) {
+    const current = await this.getClinicalReviewByVisit(context.visit_id, session); const now = new Date();
+    const version: OphthalmologyClinicalReviewVersionFields = { clinicalVersion: (current?.current_clinical_version ?? 0) + 1,
+      clinicalSummary: data.clinical_summary.trim(), treatmentPlans: data.treatment_plans.map((plan) => ({ _id: new Types.ObjectId(),
+        diagnosisCode: plan.diagnosis_code.trim().toUpperCase(), diagnosisLaterality: plan.diagnosis_laterality,
+        treatment: plan.treatment.trim(), category: plan.category.trim().toUpperCase(), priority: plan.priority, status: plan.status,
+        medicationPrescriptionId: plan.medication_prescription_id ? oid(plan.medication_prescription_id) : null,
+        clinicalOrderIds: (plan.clinical_order_ids ?? []).map(oid),
+        procedureRecommendationId: plan.procedure_recommendation_id ? oid(plan.procedure_recommendation_id) : null,
+        referralId: plan.referral_id ? oid(plan.referral_id) : null, followUpId: plan.follow_up_id ? oid(plan.follow_up_id) : null,
+        clinicianUserId: oid(userId) })), followUpDecision: data.follow_up_decision ?? null,
+      patientInstructions: text(data.patient_instructions), createdBy: oid(userId), createdAt: now };
+    if (!current) {
+      if (data.expected_version !== 0) return null;
+      const records = await OphthalmologyClinicalReviewModel.create([{ contextId: oid(context.id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), departmentId: oid(context.department_id),
+        currentClinicalVersion: 1, status: 'DRAFT', versions: [version], version: 1, createdBy: oid(userId), updatedBy: oid(userId) }], { session });
+      return toClinicalReview(records[0]!.toObject<ClinicalReviewRecord>());
+    }
+    const record = await OphthalmologyClinicalReviewModel.findOneAndUpdate({ _id: oid(current.id), version: data.expected_version },
+      { $set: { currentClinicalVersion: version.clinicalVersion, updatedBy: oid(userId) }, $push: { versions: version }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<ClinicalReviewRecord>(); return record ? toClinicalReview(record) : null;
+  }
+
+  async getOpticalPrescriptionByVisit(visitId: string, session?: ClientSession) {
+    const query = OphthalmologyOpticalPrescriptionModel.findOne({ visitId: oid(visitId) }); if (session) query.session(session);
+    const record = await query.lean<OpticalPrescriptionRecord>(); return record ? toOpticalPrescription(record) : null;
+  }
+  private opticalVersion(data: SaveOphthalmologyOpticalPrescriptionDraftDTO, clinicalVersion: number, userId: string) {
+    const power = (eye: 'OD' | 'OS') => { const item = data.power[eye]; return item ? { sphere: item.sphere, cylinder: item.cylinder ?? null,
+      axis: item.axis ?? null, addition: item.addition ?? null, prism: item.prism ?? null, prismBase: text(item.prism_base) } : null; };
+    return { clinicalVersion, status: 'DRAFT' as const, prescriptionType: data.prescription_type, power: { OD: power('OD'), OS: power('OS') },
+      pupillaryDistance: data.pupillary_distance, segmentHeight: data.segment_height ?? null,
+      lensType: data.lens_type.trim().toUpperCase(), material: data.material.trim().toUpperCase(),
+      coatingCodes: data.coating_codes.map((item) => item.trim().toUpperCase()), usageInstructions: data.usage_instructions.trim(),
+      validUntil: new Date(data.valid_until), reviewDate: date(data.review_date), approverUserId: null, approverDoctorId: null,
+      approvedAt: null, createdBy: oid(userId), createdAt: new Date() } satisfies OphthalmologyOpticalPrescriptionVersionFields;
+  }
+  async saveOpticalPrescriptionDraft(context: OphthalmologyContext, data: SaveOphthalmologyOpticalPrescriptionDraftDTO,
+    userId: string, session: ClientSession) {
+    const current = await this.getOpticalPrescriptionByVisit(context.visit_id, session);
+    const version = this.opticalVersion(data, (current?.current_clinical_version ?? 0) + 1, userId);
+    if (!current) {
+      if (data.expected_version !== 0) return null;
+      const records = await OphthalmologyOpticalPrescriptionModel.create([{ contextId: oid(context.id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), departmentId: oid(context.department_id),
+        currentClinicalVersion: 1, status: 'DRAFT', versions: [version], version: 1, createdBy: oid(userId), updatedBy: oid(userId) }], { session });
+      return toOpticalPrescription(records[0]!.toObject<OpticalPrescriptionRecord>());
+    }
+    const record = await OphthalmologyOpticalPrescriptionModel.findOneAndUpdate({ _id: oid(current.id), status: 'DRAFT', version: data.expected_version },
+      { $set: { currentClinicalVersion: version.clinicalVersion, updatedBy: oid(userId) }, $push: { versions: version }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<OpticalPrescriptionRecord>(); return record ? toOpticalPrescription(record) : null;
+  }
+  async approveOpticalPrescription(id: string, expectedVersion: number, clinicalVersion: number, userId: string, doctorId: string, session: ClientSession) {
+    const now = new Date(); const record = await OphthalmologyOpticalPrescriptionModel.findOneAndUpdate(
+      { _id: oid(id), status: 'DRAFT', version: expectedVersion },
+      { $set: { status: 'APPROVED', 'versions.$[current].status': 'APPROVED', 'versions.$[current].approverUserId': oid(userId),
+        'versions.$[current].approverDoctorId': oid(doctorId), 'versions.$[current].approvedAt': now, updatedBy: oid(userId) }, $inc: { version: 1 } },
+      { arrayFilters: [{ 'current.clinicalVersion': clinicalVersion }], returnDocument: 'after', lean: true, session }).lean<OpticalPrescriptionRecord>();
+    return record ? toOpticalPrescription(record) : null;
+  }
+  async getActiveDoctorId(userId: string, branchId: string, departmentId: string, session?: ClientSession) {
+    const query = DoctorModel.findOne({ userId: oid(userId), branchId: oid(branchId), departmentId: oid(departmentId),
+      status: 'ACTIVE', deletedAt: null }).select('_id'); if (session) query.session(session); return (await query.lean())?._id.toString() ?? null;
+  }
+  async validateReviewReferences(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO, session: ClientSession) {
+    for (const plan of data.treatment_plans) {
+      if (plan.medication_prescription_id && !await OpdPrescriptionModel.exists({ _id: oid(plan.medication_prescription_id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+      for (const id of plan.clinical_order_ids ?? []) if (!await OpdClinicalOrderModel.exists({ _id: oid(id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+      if (plan.procedure_recommendation_id && !await ProcedureRecommendationModel.exists({ _id: oid(plan.procedure_recommendation_id),
+        encounterType: 'OPD_VISIT', encounterId: oid(context.visit_id), patientId: oid(context.patient_id), branchId: oid(context.branch_id) }).session(session)) return false;
+      if (plan.referral_id && !await OpdReferralModel.exists({ _id: oid(plan.referral_id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+      if (plan.follow_up_id && !await OpdFollowUpModel.exists({ _id: oid(plan.follow_up_id), visitId: oid(context.visit_id),
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+    }
+    return true;
+  }
+  async getDiagnosisKeys(visitId: string, session?: ClientSession) {
+    const query = OpdConsultationModel.findOne({ visitId: oid(visitId), deletedAt: null }).select('diagnoses'); if (session) query.session(session);
+    const item = await query.lean(); return (item?.diagnoses ?? []).map((diagnosis) => ({ code: diagnosis.code.trim().toUpperCase(),
+      laterality: diagnosis.laterality ?? 'NOT_APPLICABLE' }));
+  }
+  async getDoctorReviewProjection(context: OphthalmologyContext, session?: ClientSession) {
+    const scope = { visitId: oid(context.visit_id), patientId: oid(context.patient_id) };
+    const [patient, consultation, tasks, results, prescriptions, orders, procedures, referrals, followUps, clinicalReview, opticalPrescription] = await Promise.all([
+      PatientModel.findById(oid(context.patient_id)).select('patientNumber firstName lastName dateOfBirth gender allergies alerts').session(session ?? null).lean(),
+      OpdConsultationModel.findOne({ visitId: oid(context.visit_id), deletedAt: null }).select('-deletedBy -__v').session(session ?? null).lean(),
+      OphthalmologyTestTaskModel.find(scope).select('-idempotencyKey -requestFingerprint -assignmentHistory -transitionHistory -routingHistory').session(session ?? null).lean(),
+      OphthalmologyTestResultModel.find(scope).select('-__v').session(session ?? null).lean(),
+      OpdPrescriptionModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
+      OpdClinicalOrderModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
+      ProcedureRecommendationModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id), encounterType: 'OPD_VISIT', encounterId: oid(context.visit_id) }).select('-__v').session(session ?? null).lean(),
+      OpdReferralModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
+      OpdFollowUpModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
+      this.getClinicalReviewByVisit(context.visit_id, session), this.getOpticalPrescriptionByVisit(context.visit_id, session),
+    ]);
+    const previousResults = await OphthalmologyTestResultModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id),
+      visitId: { $ne: oid(context.visit_id) } }).sort({ updatedAt: -1 }).limit(50).select('-__v').session(session ?? null).lean();
+    return { context, patient, consultation, tasks, results, previous_results: previousResults, medication_prescriptions: prescriptions,
+      clinical_orders: orders, procedure_recommendations: procedures, referrals, follow_ups: followUps, clinical_review: clinicalReview,
+      optical_prescription: opticalPrescription };
+  }
+
+  async getCompletionEvidence(context: OphthalmologyContext, session?: ClientSession) {
+    const scope = { contextId: oid(context.id) };
+    const taskQuery = OphthalmologyTestTaskModel.find(scope); const resultQuery = OphthalmologyTestResultModel.find(scope);
+    const orderQuery = OpdClinicalOrderModel.find({ visitId: oid(context.visit_id), patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), deletedAt: null }).select('_id status orderType version');
+    if (session) { taskQuery.session(session); resultQuery.session(session); orderQuery.session(session); }
+    const [tasks, results, orders] = await Promise.all([taskQuery.lean<TestTaskRecord[]>(), resultQuery.lean<TestResultRecord[]>(), orderQuery.lean()]);
+    return { tasks: tasks.map(toTestTask), results: results.map(toTestResult), clinical_orders: orders.map((entry) => ({
+      id: entry._id.toString(), status: entry.status, order_type: entry.orderType, version: entry.version ?? 0,
+    })) };
+  }
+
+  async getFinalizationByVisit(visitId: string, session?: ClientSession) {
+    const query = OphthalmologyConsultationFinalizationModel.findOne({ visitId: oid(visitId) }); if (session) query.session(session);
+    const item = await query.lean<FinalizationRecord>(); return item ? toFinalization(item) : null;
+  }
+
+  async ensureFinalization(context: OphthalmologyContext, userId: string, session: ClientSession) {
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ visitId: oid(context.visit_id) },
+      { $setOnInsert: { contextId: oid(context.id), visitId: oid(context.visit_id), patientId: oid(context.patient_id),
+        branchId: oid(context.branch_id), departmentId: oid(context.department_id), status: 'OPEN', version: 0,
+        deferrals: [], overrides: [], completions: [], amendmentEpisodes: [], createdBy: oid(userId), updatedBy: oid(userId) } },
+      { upsert: true, returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>();
+    if (!record) throw new Error('Ophthalmology consultation finalization could not be initialized'); return toFinalization(record);
+  }
+
+  async reviewTestResult(taskId: string, expectedTaskVersion: number, expectedResultVersion: number,
+    expectedClinicalVersion: number, userId: string, comment: string | null, session: ClientSession) {
+    const result = await OphthalmologyTestResultModel.findOne({ taskId: oid(taskId), status: 'COMPLETED', version: expectedResultVersion,
+      currentClinicalVersion: expectedClinicalVersion }).session(session).lean<TestResultRecord>();
+    if (!result) return null;
+    const currentTask = await OphthalmologyTestTaskModel.findOne({ _id: oid(taskId), status: { $in: ['COMPLETED', 'SUBMITTED_FOR_REVIEW'] },
+      version: expectedTaskVersion }).session(session).lean<TestTaskRecord>(); if (!currentTask) return null;
+    const now = new Date(); const record = await OphthalmologyTestTaskModel.findOneAndUpdate(
+      { _id: oid(taskId), status: { $in: ['COMPLETED', 'SUBMITTED_FOR_REVIEW'] }, version: expectedTaskVersion },
+      { $set: { status: 'REVIEWED', reviewedBy: oid(userId), reviewedAt: now, reviewedClinicalVersion: expectedClinicalVersion,
+        reviewComment: comment, updatedBy: oid(userId) }, $push: { transitionHistory: { action: 'REVIEWED',
+        fromStatus: currentTask.status, toStatus: 'REVIEWED', reason: comment, actorUserId: oid(userId), occurredAt: now } },
+        $inc: { version: 1 } }, { returnDocument: 'after', lean: true, session }).lean<TestTaskRecord>();
+    return record ? toTestTask(record) : null;
+  }
+
+  async addResultDeferral(finalizationId: string, expectedVersion: number, data: { source_type: 'TEST_TASK' | 'CLINICAL_ORDER';
+    source_id: string; reason: string; review_plan?: string | null; due_at?: string | null; responsible_doctor_id: string },
+    userId: string, session: ClientSession) {
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId), status: 'OPEN', version: expectedVersion },
+      { $push: { deferrals: { _id: new Types.ObjectId(), sourceType: data.source_type, sourceId: oid(data.source_id), reason: data.reason.trim(),
+        reviewPlan: text(data.review_plan), dueAt: date(data.due_at), responsibleDoctorId: oid(data.responsible_doctor_id),
+        recordedBy: oid(userId), recordedAt: new Date() } }, $set: { updatedBy: oid(userId) }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
+  }
+
+  async addCompletionOverride(finalizationId: string, expectedVersion: number, unmet: OphthalmologyCompletionRequirement[],
+    reason: string, doctorId: string, userId: string, session: ClientSession) {
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId), status: 'OPEN', version: expectedVersion },
+      { $push: { overrides: { _id: new Types.ObjectId(), unmetCodes: unmet.map((entry) => entry.code),
+        unmetSnapshot: unmet.map((entry) => ({ code: entry.code, details: entry.details, resourceIds: entry.resource_ids })),
+        reason, doctorId: oid(doctorId), actorUserId: oid(userId), createdAt: new Date() } },
+        $set: { updatedBy: oid(userId) }, $inc: { version: 1 } }, { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>();
+    return record ? toFinalization(record) : null;
+  }
+
+  async completeFinalization(finalizationId: string, expectedVersion: number, completion: { clinical_version: number;
+    configuration_version_id: string; configuration_revision: number; configuration_snapshot: Record<string, unknown>;
+    consultation_version: number; clinical_review_version: number; optical_prescription_version: number | null;
+    requirements: OphthalmologyCompletionRequirement[]; summary: Record<string, unknown>; doctor_id: string; idempotency_key: string;
+    request_fingerprint: string; supersedes_clinical_version: number | null }, userId: string, session: ClientSession) {
+    const current = await OphthalmologyConsultationFinalizationModel.findOne({ _id: oid(finalizationId), version: expectedVersion }).session(session).lean<FinalizationRecord>();
+    if (!current || !['OPEN', 'AMENDMENT_OPEN'].includes(current.status)) return null;
+    const completionSet: Record<string, unknown> = { status: 'COMPLETED', updatedBy: oid(userId) };
+    if (current.status === 'AMENDMENT_OPEN') completionSet['amendmentEpisodes.$[episode].status'] = 'COMPLETED';
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId),
+      status: { $in: ['OPEN', 'AMENDMENT_OPEN'] }, version: expectedVersion }, { $push: { completions: {
+        clinicalVersion: completion.clinical_version, configurationVersionId: oid(completion.configuration_version_id),
+        configurationRevision: completion.configuration_revision, configurationSnapshot: completion.configuration_snapshot,
+        consultationVersion: completion.consultation_version, clinicalReviewVersion: completion.clinical_review_version,
+        opticalPrescriptionVersion: completion.optical_prescription_version, requirementSnapshot: completion.requirements.map((entry) => ({
+          code: entry.code, satisfied: entry.satisfied, details: entry.details, resourceIds: entry.resource_ids })),
+        summarySnapshot: completion.summary, approverUserId: oid(userId), approverDoctorId: oid(completion.doctor_id), approvedAt: new Date(),
+        idempotencyKey: completion.idempotency_key, requestFingerprint: completion.request_fingerprint,
+        supersedesClinicalVersion: completion.supersedes_clinical_version } }, $set: completionSet, $inc: { version: 1 } },
+      { ...(current.status === 'AMENDMENT_OPEN' ? { arrayFilters: [{ 'episode.status': 'OPEN' }] } : {}),
+        returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>();
+    return record ? toFinalization(record) : null;
+  }
+
+  async setClinicalReviewCompleted(id: string, expectedVersion: number, session: ClientSession) {
+    return OphthalmologyClinicalReviewModel.findOneAndUpdate({ _id: oid(id), status: 'DRAFT', version: expectedVersion },
+      { $set: { status: 'COMPLETED' }, $inc: { version: 1 } }, { returnDocument: 'after', lean: true, session }).lean<ClinicalReviewRecord>();
+  }
+
+  async setContextWorkflowStatus(id: string, expectedVersion: number, expectedStatuses: OphthalmologyWorkflowStatus[],
+    status: OphthalmologyWorkflowStatus, userId: string, session: ClientSession) {
+    const record = await OphthalmologyContextModel.findOneAndUpdate({ _id: oid(id), version: expectedVersion, workflowStatus: { $in: expectedStatuses } },
+      { $set: { workflowStatus: status, updatedBy: oid(userId) }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<ContextRecord>(); return record ? toContext(record) : null;
+  }
+
+  async reopenFinalization(finalizationId: string, expectedVersion: number, reason: string, userId: string, session: ClientSession) {
+    const current = await OphthalmologyConsultationFinalizationModel.findById(oid(finalizationId)).session(session).lean<FinalizationRecord>();
+    const sourceClinicalVersion = current?.completions.at(-1)?.clinicalVersion; if (!sourceClinicalVersion) return null;
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId), status: 'COMPLETED', version: expectedVersion },
+      { $set: { status: 'AMENDMENT_OPEN', updatedBy: oid(userId) }, $push: { amendmentEpisodes: { _id: new Types.ObjectId(),
+        sourceClinicalVersion, reason, status: 'OPEN', openedBy: oid(userId), openedAt: new Date(), changes: [] } }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
+  }
+
+  async appendAmendment(finalizationId: string, expectedVersion: number, episodeId: string, change: { section: string;
+    before_value: unknown; after_value: unknown; reason: string }, userId: string, session: ClientSession) {
+    const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId), status: 'AMENDMENT_OPEN',
+      version: expectedVersion, amendmentEpisodes: { $elemMatch: { _id: oid(episodeId), status: 'OPEN' } } },
+      { $push: { 'amendmentEpisodes.$.changes': { section: change.section.trim(), beforeValue: change.before_value,
+        afterValue: change.after_value, reason: change.reason.trim(), changedBy: oid(userId), changedAt: new Date() } },
+        $set: { updatedBy: oid(userId) }, $inc: { version: 1 } },
+      { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
+  }
+
+  async validDeferralSource(context: OphthalmologyContext, type: 'TEST_TASK' | 'CLINICAL_ORDER', id: string, session: ClientSession) {
+    if (type === 'TEST_TASK') return Boolean(await OphthalmologyTestTaskModel.exists({ _id: oid(id), contextId: oid(context.id) }).session(session));
+    return Boolean(await OpdClinicalOrderModel.exists({ _id: oid(id), visitId: oid(context.visit_id), patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), deletedAt: null }).session(session));
+  }
+
+  async activeDoctorExists(doctorId: string, context: OphthalmologyContext, session: ClientSession) {
+    return Boolean(await DoctorModel.exists({ _id: oid(doctorId), branchId: oid(context.branch_id), departmentId: oid(context.department_id),
+      status: 'ACTIVE', deletedAt: null }).session(session));
   }
 
   async audit(eventType: string, actorUserId: string, resource: Record<string, unknown>, metadata: OphthalmologyRequestMetadata, session?: ClientSession) {

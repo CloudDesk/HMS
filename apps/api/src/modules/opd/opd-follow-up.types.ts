@@ -41,3 +41,12 @@ export type SaveOpdFollowUpDTO = {
   reminder_type?: OpdFollowUpReminderType;
   notes?: string | null;
 };
+
+export type OpdFollowUpComplianceQuery = {
+  branch_id: string;
+  department_id?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
+};

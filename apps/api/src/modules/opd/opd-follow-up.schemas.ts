@@ -17,3 +17,12 @@ export const saveFollowUpBodySchema = {
     notes: { type: ['string', 'null'], maxLength: 2000 },
   },
 } as const;
+
+const objectId = { type: 'string', pattern: '^[a-fA-F0-9]{24}$' } as const;
+export const followUpComplianceQuerySchema = {
+  type: 'object', additionalProperties: false, required: ['branch_id'], properties: {
+    branch_id: objectId, department_id: objectId, date_from: { type: 'string', format: 'date-time' },
+    date_to: { type: 'string', format: 'date-time' }, page: { type: 'integer', minimum: 1, default: 1 },
+    limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  },
+} as const;

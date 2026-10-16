@@ -43,7 +43,7 @@ Do not force-add ignored documentation or silently choose another location.
 
 The document label remains **For Review**, but on 15 October 2026 the project owner approved DEC-01 through DEC-12 in `HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX.md` as binding project decisions. Treat FSD v1.0 as the controlling functional scope baseline and the approved decision register as its implementation clarification. Reconcile any later approved FSD revision through explicit change control.
 
-Phases 1 through 5 are complete. Complete one phase at a time, satisfy its exit gate, and wait for explicit approval before starting the next phase. Phase 6 has not started.
+Phases 1 through 10 are complete and the approved Phase 11 backend implementation and automated hardening are complete. **Frontend integration may proceed against API contract version 1.10.0 and the live APIs.** Overall release validation remains **PARTIALLY COMPLETE** because the owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, and documented unrelated repository regressions remain open. Do not start another backend phase or release without explicit approval.
 
 The decision approval does not authorize invented clinical content. Do not invent or silently default:
 
@@ -302,7 +302,7 @@ Clearly distinguish executed, inspected, blocked, mocked, and live transaction-c
 
 ## Phase 5 Core clinical tests
 
-**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_5_GAP_NOTE.md`, API contract version 1.4.0, and `HMS_OPHTHALMOLOGY_PHASE_5_VERIFICATION.md`. Phase 6 has not started and requires explicit owner approval.
+**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_5_GAP_NOTE.md`, API contract version 1.4.0, and `HMS_OPHTHALMOLOGY_PHASE_5_VERIFICATION.md`.
 
 Implement Visual Acuity, Lensometry, Autorefraction/Keratometry, Objective Refraction, Subjective Refraction, IOP, Slit-lamp/Anterior Segment, and Posterior/Fundus Examination with every approved FSD field and common rule.
 
@@ -310,11 +310,15 @@ Implement Visual Acuity, Lensometry, Autorefraction/Keratometry, Objective Refra
 
 ## Phase 6 Advanced diagnostics
 
+**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_6_GAP_NOTE.md`, API contract version 1.5.0, and `HMS_OPHTHALMOLOGY_PHASE_6_VERIFICATION.md`. Phase 7 subsequently completed and is recorded separately.
+
 Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, Visual Field, OCT, Fundus Photography, Corneal Topography, Biometry/IOL Calculation, B-scan, and Gonioscopy with approved device/source, calculation, quality, comparison, file, review, and audit behavior.
 
 **Exit gate:** Every form is mapped, contracted, tested, and permission-visible through the consolidated read model.
 
 ## Phase 7 Contact lens and paediatric assessments
+
+**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_7_GAP_NOTE.md`, API contract version 1.6.0, and `HMS_OPHTHALMOLOGY_PHASE_7_VERIFICATION.md`. Phase 8 has not started and requires explicit owner approval.
 
 - Implement contact-lens trial/final distinction, fit, over-refraction, outcome, education, and follow-up.
 - Implement paediatric methods, cycloplegic context, alignment/red reflex, amblyopia/binocular assessment, cooperation, parent symptoms, relevant history, and results.
@@ -323,6 +327,8 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 **Exit gate:** Specialized field, conditional, context, permission, and audit tests pass.
 
 ## Phase 8 Doctor review diagnosis treatment and prescriptions
+
+**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_8_GAP_NOTE.md`, API contract version 1.7.0, and `HMS_OPHTHALMOLOGY_PHASE_8_VERIFICATION.md`. Phase 9 subsequently completed and is recorded separately.
 
 - Implement consolidated doctor review and historical comparison.
 - Extend approved existing diagnosis behavior; do not duplicate it.
@@ -333,6 +339,8 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 
 ## Phase 9 Clinical review completion amendment and summary
 
+**Status:** COMPLETE on 15 October 2026. Evidence is recorded in `HMS_OPHTHALMOLOGY_PHASE_9_GAP_NOTE.md`, API contract version 1.8.0, and `HMS_OPHTHALMOLOGY_PHASE_9_VERIFICATION.md`. Phase 10 subsequently completed on 16 October 2026.
+
 - Implement approved review/consultation transitions and structured unmet requirements.
 - Implement acknowledgement, result deferral, override, digital approval, completion, reopening, and amendment.
 - Make completion atomic/idempotent, lock finalized records, preserve version history, and generate summary/history APIs.
@@ -341,6 +349,8 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 
 ## Phase 10 Shared integrations portal reports and dashboards
 
+**Status:** COMPLETE on 16 October 2026. Configured GCS-backed attachment persistence and metadata, source-domain-first ID-linked handoffs, exact-version publication/withdrawal, restricted patient-portal projection, six operational reports, snapshot dashboard APIs, and authoritative procedure/surgery, follow-up-compliance and revenue report integrations are implemented or contractually bound as documented in `HMS_OPHTHALMOLOGY_PHASE_10_GAP_NOTE.md` and `HMS_OPHTHALMOLOGY_PHASE_10_VERIFICATION.md`. Phase 11 subsequently started with explicit owner approval.
+
 - Finalize lab, imaging, result, pharmacy, procedure/surgery, referral, follow-up, finance, document, timeline, audit, and portal handoffs.
 - Enforce idempotency/compensation, explicit publication/withdrawal, and restricted-content exclusion.
 - Implement approved reports and snapshot jobs using authoritative finance data.
@@ -348,6 +358,8 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 **Exit gate:** Integration, retry, duplicate, partial-failure, publication, scope, performance, and shared-domain regression tests pass.
 
 ## Phase 11 End to end hardening and release validation
+
+**Backend implementation status:** COMPLETE on 16 October 2026. **Frontend handoff status:** READY against API contract version 1.10.0. Automated release hardening found and corrected the Optical Prescription route permission boundary, added permission/index regression coverage, passed all 160 focused release tests and 1,028 of 1,029 full API tests, and passed API/web typecheck and builds. Overall release validation remains **PARTIALLY COMPLETE** because the live GCS smoke test was explicitly deferred by the owner. Interactive multi-role/multi-branch acceptance, the unrelated department-visibility regression, existing repository-wide lint failures, and four unrelated web-test failures remain documented release conditions in `HMS_OPHTHALMOLOGY_PHASE_11_VERIFICATION.md`. No later backend phase has started.
 
 - Execute the complete acceptance matrix across roles, branches, encounters, stations, forms, exceptions, completion, portal, and integrations.
 - Run typecheck, lint, build, focused tests, transaction-capable integration tests, security/scope tests, query/index checks, and General OPD/Dental regression.

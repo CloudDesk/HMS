@@ -4,7 +4,7 @@
 
 This matrix reconciles the Ophthalmology OPD FSD with the current backend baseline and the revised Developer A plan. It is the implementation gate for Developer A.
 
-**Phases 0 through 5 status: COMPLETE - AWAITING PHASE 6 APPROVAL.** On 15 October 2026, the project owner approved the resolutions for DEC-01 through DEC-12 as binding project decisions. The code-level gap note, versioned API contract and baseline verification are complete. Phase 1 shared OPD hardening, Phase 2 structural foundation, Phase 3 intake/emergency escalation, Phase 4 test queue lifecycle, and Phase 5 core clinical result forms are recorded in their phase verification documents. Later phases remain subject to their phase exit/entry gates. Approval of the decision framework does not invent missing clinical master values, file policies, or vendor adapter contracts; those remain explicit configuration or integration dependencies.
+**Phases 0 through 9 status: COMPLETE - AWAITING PHASE 10 APPROVAL.** On 15 October 2026, the project owner approved the resolutions for DEC-01 through DEC-12 as binding project decisions. Phase 9 exact-version result review, configured completion readiness, doctor approval, atomic OPD finalization, locking, reopening, amendments, and summary/history APIs are recorded in its gap and verification documents. Later phases remain subject to their phase exit/entry gates. Approval of the decision framework does not invent missing clinical master values, file policies, or vendor adapter contracts; those remain explicit configuration or integration dependencies.
 
 No backend feature implementation was performed while producing this matrix.
 
@@ -101,23 +101,23 @@ Every form requires field-level request/response schemas plus patient/encounter/
 | OPH-TST-04 | 9.4, Table 14 | Objective refraction: method/type/distance, drug/timing, raw/final power, reflex/media, impression. | IMPLEMENTED | OWNED/CONFIGURATION | 5 | Production drug master/timing rules pending. | Phase 5 conditional/axis tests. |
 | OPH-TST-05 | 9.5, Table 15 | Subjective refraction: starting/final, BCVA, duochrome/JCC/fogging, acceptance, balance, near/use, impression. | IMPLEMENTED | OWNED/CONFIGURATION | 5 | Production required/option values pending. | Phase 5 completion/error/amendment tests. |
 | OPH-TST-06 | 9.6, Table 16 | IOP: readings, method/time/position/drugs, repeats/final, reliability, configured alerts. | IMPLEMENTED | OWNED/CONFIGURATION | 5 | Production thresholds/units/method codes pending; acknowledgement is later review scope. | Phase 5 selected/final, configured-threshold, no-auto-diagnosis tests. |
-| OPH-TST-07 | 9.7, Table 17 | Pachymetry: method, thickness, repeats/average, quality, impression, report. | MISSING | OWNED/BLOCKED | 6 | Units/ranges/impressions. | Average/poor-quality tests. |
-| OPH-TST-08 | 9.8, Table 18 | Colour vision: method, eye, plate counts, result, defect/severity, reliability. | MISSING | OWNED/BLOCKED | 6 | Methods/scoring. | Score/laterality tests. |
-| OPH-TST-09 | 9.9, Table 19 | Motility/squint/binocular: methods, fixation, deviation/measurements, movements, positive findings, stereopsis, impression. | MISSING | OWNED/BLOCKED | 6 | Grading/measurement masters. | Positive-detail tests. |
+| OPH-TST-07 | 9.7, Table 17 | Pachymetry: method, thickness, repeats/average, quality, impression, report. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production units/ranges/impressions pending. | Phase 6 retained-reading/average/quality/document tests. |
+| OPH-TST-08 | 9.8, Table 18 | Colour vision: method, eye, plate counts, result, defect/severity, reliability. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production methods/scoring options pending. | Phase 6 score/laterality/conditional tests. |
+| OPH-TST-09 | 9.9, Table 19 | Motility/squint/binocular: methods, fixation, deviation/measurements, movements, positive findings, stereopsis, impression. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production grading/measurement masters pending. | Phase 6 positive-detail/completion/amendment tests. |
 | OPH-TST-10 | 9.10, Table 20 | Slit-lamp/anterior segment: OD/OS structures, status/finding/location/grade, diagram/image/remarks. | IMPLEMENTED | OWNED/CONFIGURATION | 5 | Production finding/grade masters and role grants pending. | Phase 5 eye/permission/document/amendment tests. |
-| OPH-TST-11 | 9.11, Table 21 | Dry eye: symptoms/score, Schirmer, TBUT, staining, meniscus, glands, blink/lid/sensation, impression. | MISSING | OWNED/BLOCKED | 6 | Questionnaire/grades/units. | Score/conditional tests. |
-| OPH-TST-12 | 9.12, Table 22 | Visual field: equipment/protocol, eye/correction, setup, reliability/result indices, pattern, eligible comparison, report/impression. | MISSING | OWNED/BLOCKED | 6 | Protocol/comparison rules. | Reliability/comparison tests. |
-| OPH-TST-13 | 9.13, Table 23 | OCT: type/scans, eye, quality/signal, measurements, artefact, comparison, images/report, observation. | MISSING | OWNED/BLOCKED | 6 | Scan/measurement masters. | Order-match/artefact tests. |
-| OPH-TST-14 | 9.14, Table 24 | Fundus photography: eye/type/field/dilation, quality/count, abnormality, images/notes/repeat. | MISSING | OWNED/BLOCKED | 6 | Image/findings masters and limits. | Eye-linked image/repeat tests. |
+| OPH-TST-11 | 9.11, Table 21 | Dry eye: symptoms/score, Schirmer, TBUT, staining, meniscus, glands, blink/lid/sensation, impression. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production questionnaire/grades/units pending. | Phase 6 structured-eye/completion/amendment tests. |
+| OPH-TST-12 | 9.12, Table 22 | Visual field: equipment/protocol, eye/correction, setup, reliability/result indices, pattern, eligible comparison, report/impression. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production equipment/protocol options pending. | Phase 6 exact prior-version/reliability/laterality tests. |
+| OPH-TST-13 | 9.13, Table 23 | OCT: type/scans, eye, quality/signal, measurements, artefact, comparison, images/report, observation. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production scan/measurement masters and order attributes pending. | Phase 6 artefact/comparison/document/review-routing tests. |
+| OPH-TST-14 | 9.14, Table 24 | Fundus photography: eye/type/field/dilation, quality/count, abnormality, images/notes/repeat. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production image/findings masters and policy limits pending. | Phase 6 eye-linked image/quality/repeat tests. |
 | OPH-TST-15 | 9.15, Table 25 | Posterior/fundus: dilation consent/check/drug/timing, method, vitreous/disc/macula/retina, diagrams/images. | IMPLEMENTED | OWNED/REUSED/CONFIGURATION | 5 | Production consent/medication option values pending. | Phase 5 dilation/permission/document/amendment tests. |
-| OPH-TST-16 | 9.16, Table 26 | Topography: K/axes, Kmax/average, astigmatism/thickness, elevation/maps, asphericity/pupil/WTW, files/impression. | MISSING | OWNED/BLOCKED | 6 | Units/maps/calculations. | Source/derived/file tests. |
-| OPH-TST-17 | 9.17, Table 27 | Biometry/IOL: measurements, target, formula/model/power, predicted refraction, quality/factors, selected/backup IOL, report. | MISSING | OWNED/BLOCKED | 6 | Formula/catalogue/doctor approval. | Calculation/approval tests. |
-| OPH-TST-18 | 9.18, Table 28 | B-scan: eye/indication, setup, axial length, structures, lesion, media/report, observation/review. | MISSING | OWNED/BLOCKED | 6 | Findings/media contract. | Lesion/review tests. |
-| OPH-TST-19 | 9.19, Table 29 | Gonioscopy: per-eye/per-quadrant grade/pigment/PAS/NV, other, overall examination. | MISSING | OWNED/BLOCKED | 6 | Grading and role scope. | Quadrant/positive-detail tests. |
-| OPH-TST-20 | 9.20, Table 30 | Contact lens: trial/final details, power/schedule, fit, over-refraction/VA, response, outcome, education/follow-up. | MISSING | OWNED/REUSED/BLOCKED | 7 | Catalogue/prescription boundary. | Trial/final/conditional tests. |
-| OPH-TST-21 | 9.21, Table 31 | Paediatric: methods, cycloplegia, alignment/red reflex, amblyopia/binocular, cooperation, parent symptoms/history, result. | MISSING | OWNED/REUSED/BLOCKED | 7 | Consent/guardian/history sources. | Age/context/permission tests. |
-| OPH-TST-22 | 9 intro, Table 38 | Distinguish imported/manual/modified values and retain provenance. | PARTIAL | OWNED/DEPENDENCY/BLOCKED | 5-7 | Manual/correction provenance implemented; imports await approved adapters. | Phase 5 provenance/amendment/adapter-rejection tests. |
-| OPH-TST-23 | 9, Table 38 | Retain source readings/units for derived values; validate configured formats/ranges. | PARTIAL | OWNED/CONFIGURATION | 5-7 | Phase 5 core implemented; advanced formulas/ranges/units remain Phase 6-7. | Phase 5 boundary/source-selection/configured-range tests. |
+| OPH-TST-16 | 9.16, Table 26 | Topography: K/axes, Kmax/average, astigmatism/thickness, elevation/maps, asphericity/pupil/WTW, files/impression. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production units/maps/options pending. | Phase 6 source/derived/axis/file tests. |
+| OPH-TST-17 | 9.17, Table 27 | Biometry/IOL: measurements, target, formula/model/power, predicted refraction, quality/factors, selected/backup IOL, report. | IMPLEMENTED | OWNED/REUSED/CONFIGURATION | 6, 8 | Formula/catalogue values pending; final approval remains Phase 8. | Phase 6 proposed-only selection/calculation/document/review-routing tests. |
+| OPH-TST-18 | 9.18, Table 28 | B-scan: eye/indication, setup, axial length, structures, lesion, media/report, observation/review. | IMPLEMENTED | OWNED/CONFIGURATION | 6, 9 | Production findings/media options remain configuration dependencies. | Phase 6 lesion/file/pending-review plus Phase 9 exact-version review tests. |
+| OPH-TST-19 | 9.19, Table 29 | Gonioscopy: per-eye/per-quadrant grade/pigment/PAS/NV, other, overall examination. | IMPLEMENTED | OWNED/CONFIGURATION | 6 | Production grading options pending. | Phase 6 configured-quadrant/positive-detail tests. |
+| OPH-TST-20 | 9.20, Table 30 | Contact lens: trial/final details, power/schedule, fit, over-refraction/VA, response, outcome, education/follow-up. | IMPLEMENTED | OWNED/REUSED/CONFIGURATION | 7, 8 | Production optical-product/options remain configuration; prescription approval remains Phase 8. | Phase 7 trial/final, reference, conditional, laterality, amendment, review-routing, concurrency, rollback and audit tests. |
+| OPH-TST-21 | 9.21, Table 31 | Paediatric: methods, cycloplegia, alignment/red reflex, amblyopia/binocular, cooperation, parent symptoms/history, result. | IMPLEMENTED | OWNED/REUSED/CONFIGURATION | 7 | Production methods/results, age boundary and drug options remain configuration dependencies. | Phase 7 age/guardian derivation, medication/timing, conditional, amendment, permission, concurrency, rollback and audit tests. |
+| OPH-TST-22 | 9 intro, Table 38 | Distinguish imported/manual/modified values and retain provenance. | PARTIAL | OWNED/DEPENDENCY/BLOCKED | 5-7 | Manual/correction provenance implemented for every result form; imports await approved adapters. | Phase 5-7 provenance/amendment/adapter-rejection tests. |
+| OPH-TST-23 | 9, Table 38 | Retain source readings/units for derived values; validate configured formats/ranges. | IMPLEMENTED | OWNED/CONFIGURATION | 5-7 | Production clinical ranges/options remain configuration dependencies. | Phase 5-7 selected-source/configured-range/derived-value and server-derived paediatric-context tests. |
 
 ### Doctor review diagnosis treatment and outcomes
 
@@ -129,33 +129,33 @@ Every form requires field-level request/response schemas plus patient/encounter/
 | OPH-REV-04 | Tables 32, 34 | Eye-specific medication fields through existing prescribing/pharmacy. | PARTIAL | REUSED/DEPENDENCY/BLOCKED | 8, 10 | Shared contract and authority. | Pharmacy regression tests. |
 | OPH-REV-05 | 10.3, Table 33 | Separate optical prescription with all FSD fields, approval, validity, print/share. | MISSING | OWNED/BLOCKED | 8 | Fields/masters/authority/validity. | Schema/version/approval tests. |
 | OPH-REV-06 | Tables 32, 34 | Further tests, procedure, surgery, referral, follow-up retain clinical context. | ASSESS | REUSED/DEPENDENCY | 8, 10 | Shared-domain contracts. | Handoff/idempotency tests. |
-| OPH-REV-07 | Table 32 | Digital doctor approval required for final completion. | MISSING | OWNED | 9 | DEC-08 authenticated approval-event semantics approved. | Impersonation/completion tests. |
+| OPH-REV-07 | Table 32 | Digital doctor approval required for final completion. | IMPLEMENTED | OWNED | 9 | Authenticated approval event; cryptographic signature remains out of contract. | Phase 9 doctor identity, unauthorized, completion, and audit tests. |
 
 ### Shared integrations
 
 | ID | FSD reference | Backend requirement | Baseline | Disposition | Phase | Blocker/dependency | Verification |
 |---|---|---|---|---|---|---|---|
 | OPH-INT-01 | 11, Table 35 | Every record linked to authoritative patient and encounter. | PARTIAL | OWNED/REUSED | All | Define invariant. | Cross-patient/encounter tests. |
-| OPH-INT-02 | 11.1 | Order during consultation; authoritative result returns to review. | CONFLICT | OWNED/REUSED/BLOCKED | 1, 4, 10 | Order timing/per-test mapping. | End-to-end result loop. |
-| OPH-INT-03 | 11.1 | Record reviewer/time and preserve assessment versions. | MISSING | OWNED/BLOCKED | 8, 9 | Review/version model. | Review/amendment tests. |
-| OPH-INT-04 | Table 35 | Imaging order/result carries laterality and reason. | PARTIAL | REUSED/DEPENDENCY | 8, 10 | Imaging contract assessment. | Imaging regression. |
-| OPH-INT-05 | Table 35 | Procedure/surgery links diagnosis, laterality, context. | ASSESS | REUSED/DEPENDENCY | 8, 10 | Shared contract assessment. | Duplicate/handoff tests. |
-| OPH-INT-06 | Table 35 | Billing/insurance uses authoritative existing charge rules. | ASSESS | REUSED/DEPENDENCY | 10 | Verify the DEC-09 trigger/idempotency contract with billing. | Duplicate-charge tests. |
-| OPH-INT-07 | 18 | Timeline/audit retain safe ophthalmology context. | PARTIAL | REUSED/OWNED | All | Define safe event types/descriptions under DEC-08/DEC-09. | Audit/redaction tests. |
+| OPH-INT-02 | 11.1 | Order during consultation; authoritative result returns to review. | IMPLEMENTED | OWNED/REUSED | 1, 4, 10 | Source-domain-first create/link contract approved. | Linked-order/result and completion validation tests. |
+| OPH-INT-03 | 11.1 | Record reviewer/time and preserve assessment versions. | IMPLEMENTED | OWNED | 8, 9 | External result adapters remain Phase 10 dependencies. | Phase 9 exact-version review and append-only amendment tests. |
+| OPH-INT-04 | Table 35 | Imaging order/result carries laterality and reason. | IMPLEMENTED | REUSED | 8, 10 | Existing OPD Imaging order is authoritative and linked by ID/item. | Imaging reference regression. |
+| OPH-INT-05 | Table 35 | Procedure/surgery links diagnosis, laterality, context. | IMPLEMENTED | REUSED | 8, 10 | Source-domain-first procedure recommendation with validated ID link. | Reference/handoff tests. |
+| OPH-INT-06 | Table 35 | Billing/insurance uses authoritative existing charge rules. | IMPLEMENTED | REUSED | 10 | Shared OPD services/orders are billable sources; Billing owns price/idempotency/reversal. | No-duplicate/no-local-calculation tests. |
+| OPH-INT-07 | 18 | Timeline/audit retain safe ophthalmology context. | IMPLEMENTED | REUSED/OWNED | All | External adapter audit remains with owning domains. | Phase 10 transactional publication/withdrawal audit and safe timeline tests. |
 
 ### Lifecycle completion amendment and portal
 
 | ID | FSD reference | Backend requirement | Baseline | Disposition | Phase | Blocker/dependency | Verification |
 |---|---|---|---|---|---|---|---|
-| OPH-LIF-01 | 12.2 | Map all consultation states to existing OPD states. | CONFLICT | OWNED | 0, 9 | DEC-05 overlay/transition map approved. | Allowed/denied transitions. |
-| OPH-LIF-02 | 12.3 | Pending mandatory results keep encounter open unless approved override. | MISSING | OWNED/BLOCKED | 9 | Mandatory/override policy. | Block/override tests. |
-| OPH-LIF-03 | 14.1, Table 43 | Enforce all completion prerequisites and return unmet items. | MISSING | OWNED/BLOCKED | 9 | Hospital approval of prerequisites. | Structured prerequisite tests. |
-| OPH-LIF-04 | 16.1 | Summary contains all FSD sections. | MISSING | OWNED/FRONTEND/BLOCKED | 9 | Summary/publication schema. | Complete/empty/scope tests. |
-| OPH-LIF-05 | 16.2 | Record approver/time and lock completed information. | PARTIAL | OWNED | 9 | DEC-08 version/approval behavior approved. | Lock/stale-write tests. |
-| OPH-LIF-06 | 14-16 | Reopen/amend with permission, reason, before/after, actor/time, downstream consistency. | MISSING | OWNED | 9 | DEC-08 amendment effects approved; concrete downstream contracts verified per phase. | Version/downstream tests. |
-| OPH-LIF-07 | 16.2 | Completion and downstream handoffs are atomic/idempotent or recoverable. | CONFLICT | OWNED/DEPENDENCY/BLOCKED | 1, 9, 10 | Transaction/compensation boundaries. | Rollback/retry tests. |
-| OPH-PORT-01 | 16.3 | Publish approved summary, final prescriptions, selected verified results, instructions, follow-up, bills. | ASSESS | REUSED/DEPENDENCY/BLOCKED | 10 | Portal publication contract. | Ownership/publication tests. |
-| OPH-PORT-02 | 16.3 | Exclude draft/internal/confidential/unverified/staff-only content. | ASSESS | OWNED/DEPENDENCY/BLOCKED | 10 | Visibility/withdrawal policy. | Restricted-content tests. |
+| OPH-LIF-01 | 12.2 | Map all consultation states to existing OPD states. | IMPLEMENTED | OWNED | 0, 9 | External/downstream states remain Phase 10. | Phase 9 atomic context/OPD transition tests. |
+| OPH-LIF-02 | 12.3 | Pending mandatory results keep encounter open unless approved override. | IMPLEMENTED | OWNED/CONFIGURATION | 9 | Production mandatory-test list remains approved configuration. | Phase 9 block/exact-snapshot override tests. |
+| OPH-LIF-03 | 14.1, Table 43 | Enforce all completion prerequisites and return unmet items. | IMPLEMENTED | OWNED/CONFIGURATION | 9 | Production requirement selection remains approved configuration. | Phase 9 structured prerequisite tests. |
+| OPH-LIF-04 | 16.1 | Summary contains all FSD sections. | IMPLEMENTED | OWNED/REUSED | 9 | Portal publication is Phase 10. | Phase 9 consolidated summary/history tests. |
+| OPH-LIF-05 | 16.2 | Record approver/time and lock completed information. | IMPLEMENTED | OWNED | 9 | None for local completion. | Phase 9 approval, lock, stale-write tests. |
+| OPH-LIF-06 | 14-16 | Reopen/amend with permission, reason, before/after, actor/time, downstream consistency. | IMPLEMENTED | OWNED/DEPENDENCY | 9, 10 | Republish/downstream consistency remains Phase 10. | Phase 9 append-only reopen/amend/reapproval tests. |
+| OPH-LIF-07 | 16.2 | Completion and downstream handoffs are atomic/idempotent or recoverable. | IMPLEMENTED | OWNED/DEPENDENCY | 1, 9, 10 | External handoff compensation remains Phase 10. | Phase 9 atomic rollback/concurrent/idempotent retry tests. |
+| OPH-PORT-01 | 16.3 | Publish approved summary, final prescriptions, selected verified results, instructions, follow-up, bills. | PARTIAL | REUSED/DEPENDENCY/BLOCKED | 10 | Exact Ophthalmology summary/optical/result publication implemented; shared-domain patient-visible version contract remains pending. | Phase 10 ownership/idempotency/publication/withdrawal tests. |
+| OPH-PORT-02 | 16.3 | Exclude draft/internal/confidential/unverified/staff-only content. | IMPLEMENTED | OWNED/DEPENDENCY | 10 | Shared-domain publication classification remains owned by each source domain. | Phase 10 exact-version eligibility and restricted-projection tests. |
 
 ### Validation exception and file handling
 
@@ -176,20 +176,20 @@ Every form requires field-level request/response schemas plus patient/encounter/
 
 | ID | FSD reference | Backend requirement | Baseline | Disposition | Phase | Blocker/dependency | Verification |
 |---|---|---|---|---|---|---|---|
-| OPH-RPT-01 | 17, Table 40 | Station queue dashboard. | MISSING | OWNED/BLOCKED | 10 | Confirm release scope. | Snapshot/scope tests. |
-| OPH-RPT-02 | Table 40 | Test turnaround metrics. | MISSING | OWNED/BLOCKED | 10 | Timestamp semantics. | Metric tests. |
-| OPH-RPT-03 | Table 40 | Pending review and repeat/unable reports. | MISSING | OWNED/BLOCKED | 10 | Dimensions/retention. | Filter/scope tests. |
-| OPH-RPT-04 | Table 40 | Clinical volume and diagnostic utilization. | MISSING | OWNED/BLOCKED | 10 | Confirm release scope. | Snapshot/query-plan tests. |
-| OPH-RPT-05 | Table 40 | Surgery pipeline and follow-up compliance. | ASSESS | REUSED/DEPENDENCY | 10 | Shared reporting contracts. | Cross-domain metric tests. |
-| OPH-RPT-06 | Table 40 | Revenue view from authoritative finance reporting. | ASSESS | REUSED/DEPENDENCY | 10 | DEC-11 requires integration; verify the finance reporting contract. | No-fabrication tests. |
+| OPH-RPT-01 | 17, Table 40 | Station queue dashboard. | IMPLEMENTED | OWNED | 10 | None for Ophthalmology task metrics. | Phase 10 snapshot/scope tests. |
+| OPH-RPT-02 | Table 40 | Test turnaround metrics. | IMPLEMENTED | OWNED | 10 | None for approved task timestamps. | Phase 10 order/start/complete/review metric tests. |
+| OPH-RPT-03 | Table 40 | Pending review and repeat/unable reports. | IMPLEMENTED | OWNED | 10 | None for Ophthalmology task state. | Phase 10 filter/scope tests. |
+| OPH-RPT-04 | Table 40 | Clinical volume and diagnostic utilization. | IMPLEMENTED | OWNED | 10 | None for Ophthalmology context/task counts. | Phase 10 paginated aggregation and snapshot tests. |
+| OPH-RPT-05 | Table 40 | Surgery pipeline and follow-up compliance. | IMPLEMENTED | REUSED | 10 | `/api/reports/phase-2` procedure schedule and `/api/opd/reports/follow-up-compliance`. | Authoritative branch/department/status tests. |
+| OPH-RPT-06 | Table 40 | Revenue view from authoritative finance reporting. | IMPLEMENTED | REUSED | 10 | `/api/reports/phase-2` payment status with Billing permission. | No-fabrication/permission tests. |
 | OPH-MST-01 | Appendix A, Table 42 | All ten FSD master groups. | PARTIAL/MISSING | OWNED/DEPENDENCY/BLOCKED | 2 | Ownership/values/configuration/admin permissions. | CRUD/scope/reference tests. |
-| OPH-NFR-01 | 18 | High-volume drafts, correct encounter/eye history, complete audit. | PARTIAL | OWNED | All | Define workload/retention. | Concurrency/performance tests. |
-| OPH-NFR-02 | 18 | No cross-patient/branch/organization leakage. | PARTIAL | OWNED | All | Scope inventory. | Negative matrix. |
-| OPH-NFR-03 | 18 | No General OPD, Dental, or shared-module regression. | ASSESS | OWNED/REUSED | 1, 11 | Identify regression suite. | Required regression evidence. |
+| OPH-NFR-01 | 18 | High-volume drafts, correct encounter/eye history, complete audit. | PARTIAL | OWNED | All | Automated concurrency, bounded-query, history and audit evidence passes; production load/retention validation remains deployment-owned. | Phase 1-11 focused suite and critical-index regression. |
+| OPH-NFR-02 | 18 | No cross-patient/branch/organization leakage. | IMPLEMENTED | OWNED | All | None for the approved automated boundary; interactive role/branch acceptance remains a release condition. | Cross-patient, cross-encounter, branch, station, assignment and portal negative tests. |
+| OPH-NFR-03 | 18 | No General OPD, Dental, or shared-module regression. | PARTIAL | OWNED/REUSED | 1, 11 | Known unrelated department-visibility API regression and four unrelated web-test failures remain. | Full API/web regression evidence in Phase 11 verification. |
 | OPH-MIN-01 | Appendix B, Table 43 | Minimum data for tests, complaint, VA, refraction, IOP, result, diagnosis, prescription, plan, completion. | MISSING/PARTIAL | OWNED/BLOCKED | 3-9 | Global versus configured mandatory rules. | Per-record minimum tests. |
-| OPH-ACC-01 | 20.1 | Full workflow acceptance from activation through reopening. | MISSING/PARTIAL | OWNED/DEPENDENCY | 2-11 | Close underlying decisions. | End-to-end suite. |
-| OPH-ACC-02 | 20.2 | Full permission/scope acceptance. | PARTIAL | OWNED | 2-11 | DEC-07 permission inventory approved; verify assigned-role coverage per phase. | Authorization suite. |
-| OPH-ACC-03 | 20.3 | Patient/appointment/check-in/queue/vitals and shared-domain regression, no duplicates, authoritative results, audit. | ASSESS | OWNED/REUSED | 1, 10, 11 | Shared fixtures/owners. | Integration/regression suite. |
+| OPH-ACC-01 | 20.1 | Full workflow acceptance from activation through reopening. | PARTIAL | OWNED/DEPENDENCY | 2-11 | Automated Phase 1-11 workflow passes; live GCS and interactive end-to-end acceptance remain. | 160-test focused release suite plus full API suite. |
+| OPH-ACC-02 | 20.2 | Full permission/scope acceptance. | PARTIAL | OWNED | 2-11 | Automated inventory/scope passes and direct optical route gates were corrected; interactive assigned-role coverage remains. | Permission seed, route-boundary, negative-scope and full regression suites. |
+| OPH-ACC-03 | 20.3 | Patient/appointment/check-in/queue/vitals and shared-domain regression, no duplicates, authoritative results, audit. | PARTIAL | OWNED/REUSED | 1, 10, 11 | Full automated suites retain one unrelated API failure and four unrelated web failures; manual persistence/browser acceptance remains. | Phase 11 full-suite evidence. |
 
 ## Approved decision register
 
@@ -520,4 +520,4 @@ Emergency bypass records the skipped stages and reason. It does not delete pendi
 
 ## Exit recommendation
 
-**PHASES 0 THROUGH 5 COMPLETE - AWAITING PHASE 6 APPROVAL.** DEC-01 through DEC-12 remain binding project rules. Phase 1 shared OPD hardening, Phase 2 structural foundation, Phase 3 intake/emergency escalation, Phase 4 test assignment/station queue lifecycle, and Phase 5 core clinical result forms are verified in their phase verification documents. Phase 6 has not started and requires explicit owner approval. Missing DEC-06 clinical values and DEC-10 policy/vendor details remain configuration dependencies and must not be fabricated.
+**APPROVED BACKEND IMPLEMENTATION COMPLETE; FRONTEND HANDOFF READY; PHASE 11 RELEASE VALIDATION PARTIALLY COMPLETE.** DEC-01 through DEC-12 remain binding project rules. Developer B may proceed against API contract version 1.10.0 and the live backend APIs. Phase 11 automated hardening corrected the direct optical-prescription permission boundary and passed the complete focused release suite. The owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, one unrelated API department-visibility regression, existing repository lint failures and four unrelated web-test failures remain recorded release conditions. No later backend phase or release has started.

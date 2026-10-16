@@ -1,9 +1,9 @@
-import { Types } from 'mongoose';
+import { Types, type PipelineStage } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import type { OpdConsultation } from './opd-consultation.types.js';
 import { OpdFollowUpModel, type OpdFollowUpFields } from './opd-follow-up.model.js';
-import type { OpdFollowUp, SaveOpdFollowUpDTO } from './opd-follow-up.types.js';
+import type { OpdFollowUp, OpdFollowUpComplianceQuery, SaveOpdFollowUpDTO } from './opd-follow-up.types.js';
 import type { OpdVisit } from './opd-visit.types.js';
 
 type OpdFollowUpLean = OpdFollowUpFields & { _id: Types.ObjectId };
@@ -48,6 +48,38 @@ const toFollowUp = (record: OpdFollowUpLean): OpdFollowUp => ({
 });
 
 export class OpdFollowUpRepository {
+  async compliance(query: OpdFollowUpComplianceQuery) {
+    const page = query.page ?? 1; const limit = query.limit ?? 20; const now = new Date();
+    const dateRange = query.date_from || query.date_to ? { ...(query.date_from ? { $gte: new Date(query.date_from) } : {}),
+      ...(query.date_to ? { $lte: new Date(query.date_to) } : {}) } : undefined;
+    const pipeline: PipelineStage[] = [
+      { $match: { deletedAt: null, ...(dateRange ? { nextVisitDate: dateRange } : {}) } },
+      { $lookup: { from: 'opdvisits', localField: 'visitId', foreignField: '_id', as: 'sourceVisit' } },
+      { $unwind: '$sourceVisit' },
+      { $match: { 'sourceVisit.branchId': objectId(query.branch_id), 'sourceVisit.deletedAt': null,
+        ...(query.department_id ? { 'sourceVisit.departmentId': objectId(query.department_id) } : {}) } },
+      { $lookup: { from: 'appointments', localField: 'appointmentId', foreignField: '_id', as: 'appointment' } },
+      { $unwind: { path: '$appointment', preserveNullAndEmptyArrays: true } },
+      { $addFields: { compliance_status: { $switch: { branches: [
+        { case: { $eq: ['$status', 'DRAFT'] }, then: 'UNSCHEDULED' },
+        { case: { $eq: ['$appointment.status', 'COMPLETED'] }, then: 'COMPLETED' },
+        { case: { $eq: ['$appointment.status', 'NO_SHOW'] }, then: 'MISSED' },
+        { case: { $in: ['$appointment.status', ['CANCELLED', 'RESCHEDULED']] }, then: 'CANCELLED_OR_RESCHEDULED' },
+        { case: { $lt: ['$nextVisitDate', now] }, then: 'OVERDUE' },
+      ], default: 'UPCOMING' } } } },
+      { $project: { _id: 0, follow_up_id: { $toString: '$_id' }, source_visit_id: { $toString: '$visitId' },
+        patient_id: { $toString: '$patientId' }, patient_number: 1, appointment_id: { $cond: ['$appointmentId', { $toString: '$appointmentId' }, null] },
+        appointment_number: 1, follow_up_type: '$followUpType', next_visit_date: '$nextVisitDate', scheduled_at: '$scheduledAt',
+        appointment_status: { $ifNull: ['$appointment.status', null] }, compliance_status: 1 } },
+      { $sort: { next_visit_date: -1, follow_up_id: 1 } },
+    ];
+    const [items, countRows] = await Promise.all([
+      OpdFollowUpModel.aggregate([...pipeline, { $skip: (page - 1) * limit }, { $limit: limit }]),
+      OpdFollowUpModel.aggregate([...pipeline, { $count: 'total' }]),
+    ]);
+    const total = Number(countRows[0]?.total ?? 0);
+    return { data: items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+  }
   async getByVisit(visitId: string): Promise<OpdFollowUp | null> {
     const record = await OpdFollowUpModel.findOne({ visitId: objectId(visitId), deletedAt: null }).lean<OpdFollowUpLean>();
     return record ? toFollowUp(record) : null;

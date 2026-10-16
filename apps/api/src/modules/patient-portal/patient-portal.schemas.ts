@@ -260,6 +260,16 @@ export const patientPortalOverviewResponseSchema = apiResponseSchema({
         },
       },
     },
+    ophthalmology_publications: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['id', 'source_type', 'source_id', 'source_version', 'published_at', 'payload'],
+        properties: { id: { type: 'string' }, source_type: { type: 'string' }, source_id: { type: 'string' },
+          source_version: { type: 'integer' }, published_at: { type: 'string' },
+          payload: { type: 'object', additionalProperties: true } },
+      },
+    },
     purchased_medicines: {
       type: 'array',
       items: {

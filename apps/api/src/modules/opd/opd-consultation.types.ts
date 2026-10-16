@@ -1,13 +1,28 @@
 export type OpdConsultationStatus = 'DRAFT' | 'COMPLETED';
 
 export type OpdDiagnosisType = 'PRIMARY' | 'SECONDARY';
+export type OpdDiagnosisLaterality = 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE';
+export type OpdDiagnosisStatus = 'SUSPECTED' | 'CONFIRMED' | 'RULED_OUT';
 
 export type OpdStructuredDiagnosis = {
   code: string;
   display: string;
   codingSystem: string;
   type: OpdDiagnosisType;
+  laterality?: OpdDiagnosisLaterality | null;
+  status?: OpdDiagnosisStatus | null;
+  severity?: string | null;
+  stage?: string | null;
+  differential?: boolean;
   notes?: string | null;
+};
+
+export type OpdConsultationClinicalHistoryEntry = {
+  consultation_version: number;
+  diagnoses: OpdStructuredDiagnosis[];
+  treatment_plan: string | null;
+  changed_by: string;
+  changed_at: Date;
 };
 
 export type OpdConsultation = {
@@ -28,6 +43,7 @@ export type OpdConsultation = {
   physical_examination: string | null;
   assessment: string | null;
   diagnoses: OpdStructuredDiagnosis[];
+  clinical_history: OpdConsultationClinicalHistoryEntry[];
   treatment_plan: string | null;
   doctor_notes: string | null;
   completed_at: Date | null;

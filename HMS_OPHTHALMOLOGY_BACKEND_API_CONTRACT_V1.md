@@ -2,15 +2,17 @@
 
 ## Contract status
 
-**Version:** 1.4.0
+**Version:** 1.10.0
 
 **Baseline date:** 15 October 2026
 
 **Authority:** Ophthalmology FSD v1.0 plus approved DEC-01 through DEC-12
 
-**Implementation state:** Phases 1 through 5 implemented; Phase 6 has not started
+**Implementation state:** Approved backend feature implementation and Phase 11 automated hardening complete; frontend integration ready; release validation partially complete
 
 **Compatibility:** Additive to existing OPD and shared-domain APIs
+
+**Frontend handoff:** READY. Developer B may implement against version 1.10.0 using live APIs and the documented permission, validation, concurrency and error contracts. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance are release gates, not blockers to frontend implementation.
 
 This contract freezes the backend vocabulary, ownership, endpoint families, lifecycle, concurrency, permission and error behavior required for phase-wise implementation. A consuming phase must update the contract with exact request/response schemas before exposing its routes. Missing clinical values and file/vendor policy inputs remain configuration dependencies and are never inferred.
 
@@ -252,7 +254,7 @@ Create and request-repeat require an `Idempotency-Key` header (8-120 safe charac
 
 Assignment validates an active branch/department station supporting the test and, when provided, an active member with `Ophthalmology Test Queue / Start`. Start requires that assigned actor and accepts optional `device_code`; an active device must be calibration-current or not require calibration. Unable-to-perform records doctor routing without inventing a status. Next-station routing atomically adds routing history and assigns an existing ordered task in the same context. Queue visibility is limited to active station memberships, explicit assignment, or eligible Ophthalmologist review work.
 
-### Phase 5 core clinical test result forms
+### Phase 5-6 clinical test result forms
 
 Common routes:
 
@@ -291,50 +293,87 @@ Supported form types and minimum discriminators:
 | `CONTACT_LENS` | Trial/final identity, OD/OS power/fit/over-refraction, response, outcome, education and follow-up |
 | `PAEDIATRIC_VISION` | Age-appropriate methods, cycloplegia, alignment/red reflex, amblyopia/binocular, cooperation and parent history |
 
-Phase 5 implements the eight rows `VISUAL_ACUITY`, `LENSOMETRY`, `AUTOREFRACTION_KERATOMETRY`, `OBJECTIVE_REFRACTION`, `SUBJECTIVE_REFRACTION`, `INTRAOCULAR_PRESSURE`, `SLIT_LAMP_ANTERIOR_SEGMENT`, and `POSTERIOR_FUNDUS_EXAM`. The remaining rows are reserved for Phases 6 and 7 and are not accepted by the Phase 5 routes.
+Phase 5 implements the eight core rows `VISUAL_ACUITY`, `LENSOMETRY`, `AUTOREFRACTION_KERATOMETRY`, `OBJECTIVE_REFRACTION`, `SUBJECTIVE_REFRACTION`, `INTRAOCULAR_PRESSURE`, `SLIT_LAMP_ANTERIOR_SEGMENT`, and `POSTERIOR_FUNDUS_EXAM`. Phase 6 implements `PACHYMETRY`, `COLOUR_VISION`, `MOTILITY_SQUINT_BINOCULAR`, `DRY_EYE`, `VISUAL_FIELD`, `OCT`, `FUNDUS_PHOTOGRAPHY`, `CORNEAL_TOPOGRAPHY`, `BIOMETRY_IOL`, `B_SCAN`, and `GONIOSCOPY`. Phase 7 implements `CONTACT_LENS` and `PAEDIATRIC_VISION` through the same versioned result lifecycle.
 
 Each active branch `FORM_PROFILE` binds one form/schema to explicit configured test codes. Its revision and full values are snapshotted in the clinical version. Configured `required_fields`, `numeric_ranges`, and `allowed_values` are enforced at completion; no clinical defaults are seeded. Axis is structurally restricted to 0-180. Poor reliability requires a reason. The selected reading and original readings remain together in the payload. Initial entry is authorized manual entry only; device import returns `OPHTHALMOLOGY_ADAPTER_NOT_CONFIGURED` until an approved adapter exists. Attachments are references to active same-patient `PatientDocument` records only.
+
+Advanced-result rules are enforced by the backend. Pachymetry averages must match retained repeat readings; colour-vision plate totals and percentage must agree; and reported topography average K/corneal astigmatism must agree with K1/K2. OCT artefact or segmentation error requires a comment. Positive motility and gonioscopy findings require their structured details. Poor quality requires a repeat/review disposition or remarks. Fundus image sets retain eye, type, field, dilation, quality and exact image references.
+
+Visual Field and OCT progression outcomes other than `NOT_COMPARED` require an exact prior result ID and clinical version. The referenced version must be completed, earlier, for the same patient/branch/form, and laterality-compatible; otherwise the API returns `OPHTHALMOLOGY_COMPARISON_INELIGIBLE`. B-scan completion always marks the task for doctor review. Biometry/IOL accepts only `PROPOSED` selection in Phase 6 and marks the task for doctor review; final selection/approval remains Phase 8. Client-supplied reviewer identity, review time, and final approval are not accepted.
+
+Contact-lens results distinguish `TRIAL` and `FINAL`, validate each eye against an active same-branch `OPTICAL_PRODUCT` configuration version, retain power/fit/over-refraction/acuity/comfort/ocular-response details, and require insertion/removal and hygiene education at completion. An optional follow-up reference must belong to the same patient and visit; a recommendation date must be after the assessment. A final fitting or a contraindicated/doctor-review outcome routes the task for doctor review but does not approve an optical prescription.
+
+Paediatric results retain the selected age-appropriate methods, cycloplegic context, eye-specific alignment/red reflex, amblyopia/binocular assessment, cooperation, separately identified parent report, birth/development history, and result codes. Age in months and guardian-record presence are derived from the active Patient record. The branch form profile must define `paediatric_max_age_years`; cycloplegia must reference an active same-branch `DRUG_OPTION` and have ordered administration/examination/performed times. An unable examination requires a repeat outcome. Developmental-review and repeat outcomes route the task for doctor review.
 
 ### Phase 8 doctor review and outcomes
 
 | Method and path | Purpose |
 |---|---|
 | `GET /api/opd/visits/:visitId/ophthalmology/doctor-review` | Consolidated current/historical, eye-safe, permission-scoped read model |
+| `GET /api/opd/visits/:visitId/ophthalmology/clinical-review` | Read current and append-only clinical-review versions |
 | `PUT /api/opd/visits/:visitId/ophthalmology/clinical-review/draft` | Save assessment/plan draft with expected version |
-| `POST /api/opd/visits/:visitId/ophthalmology/diagnoses` | Add additive structured diagnosis data to existing OPD consultation ownership |
-| `PATCH /api/opd/visits/:visitId/ophthalmology/diagnoses/:diagnosisId` | Versioned diagnosis status/laterality change |
+| `GET /api/opd/visits/:visitId/consultation` | Existing authoritative consultation/diagnosis read, now including optional Ophthalmology diagnosis context and history |
+| `PUT /api/opd/visits/:visitId/consultation` | Existing authoritative consultation draft write with diagnosis status/laterality and expected version/status |
+| `GET /api/opd/visits/:visitId/ophthalmology/optical-prescription` | Read current and append-only optical-prescription versions |
 | `PUT /api/opd/visits/:visitId/ophthalmology/optical-prescription/draft` | Save separate optical prescription draft |
 | `POST /api/opd/visits/:visitId/ophthalmology/optical-prescription/approve` | Authorized version approval |
 
 Shared prescription, order, surgery/procedure, referral, follow-up and billing routes remain authoritative. Ophthalmology endpoints orchestrate by reference and stable source keys; they do not duplicate shared records.
 
+Consultation diagnoses accept optional `laterality`, `status`, `severity`, `stage`, and `differential` fields. A non-empty diagnosis set has exactly one primary diagnosis; using the clinical extension requires laterality and status, and duplicate code/laterality/status contexts are rejected. Changes to diagnoses or narrative treatment preserve the prior state, actor, time, and consultation version.
+
+Clinical-review drafts hold a summary and diagnosis-linked treatment-plan versions. Optional medication prescription, clinical order, procedure recommendation, referral, and follow-up IDs must resolve to the same patient, visit/encounter, and branch in their authoritative modules. Optical prescriptions retain OD/OS power, PD, segment height, configured lens/material/coating choices, instructions, validity/review dates, and append-only versions. Approval requires `Ophthalmology Optical Prescription / Approve`, an active branch/department doctor record, exact draft status/version, a transaction, and an audit event; an approved head cannot be edited through the normal draft route.
+
 ### Phase 9 completion and amendment
 
 | Method and path | Purpose |
 |---|---|
+| `POST /api/ophthalmology/test-tasks/:id/result/review` | Record an authenticated doctor review against exact task, result, and clinical versions |
 | `GET /api/opd/visits/:visitId/ophthalmology/completion-readiness` | Return configured prerequisites, satisfied/unmet items and current version |
-| `POST /api/opd/visits/:visitId/ophthalmology/deferred-results` | Record result/order, reason, plan/due date and responsible clinician |
-| `POST /api/opd/visits/:visitId/ophthalmology/overrides` | Authorized reasoned override with unmet-prerequisite snapshot |
+| `POST /api/opd/visits/:visitId/ophthalmology/result-deferrals` | Record result/order, reason, plan/due date and responsible clinician |
+| `POST /api/opd/visits/:visitId/ophthalmology/completion-overrides` | Authorized reasoned override with exact unmet-prerequisite snapshot |
 | `POST /api/opd/visits/:visitId/ophthalmology/complete` | Atomically approve and complete one exact version |
+| `GET /api/opd/visits/:visitId/ophthalmology/summary` | Return the finalization head plus consolidated authoritative consultation summary |
+| `GET /api/opd/visits/:visitId/ophthalmology/completion-history` | Return approvals, overrides, deferrals, amendment episodes, and immutable version history |
 | `POST /api/opd/visits/:visitId/ophthalmology/reopen` | Start a reasoned amendment episode without mutating final history |
 | `POST /api/opd/visits/:visitId/ophthalmology/amendments` | Append before/after version and trigger required re-review/republish |
 
 Digital approval records authenticated actor, linked doctor, timestamp, consultation version and audit event. It is not represented as a cryptographic signature unless a later approved contract adds one.
 
+Completion uses the active branch `COMPLETION_PROFILE` bound to the consultation context. Its `required_requirements` may contain only the approved structural requirement codes and its optional `mandatory_test_codes` determines mandatory test review. The server returns each requirement with `satisfied`, explanatory text, and resource IDs. It never invents clinical prerequisites. A configured `allow_override: true` is required before an authorized doctor may snapshot and override the exact current unmet-code set.
+
+The finalization head uses `OPEN -> COMPLETED -> AMENDMENT_OPEN -> COMPLETED`, expected versions, and an idempotency key/fingerprint. Initial completion atomically completes the authoritative OPD consultation and visit, linked appointment when present, Ophthalmology review/context, patient timeline, approval history, and audit. Completed clinical records are read-only through normal write APIs. Reopening creates an append-only episode; amendments retain section, before/after values, reason, actor, and time, and reapproval appends a superseding clinical version without reopening the coarse OPD visit.
+
 ### Phase 10 files publication reports and dashboards
 
 | Method and path | Purpose |
 |---|---|
-| `POST /api/ophthalmology/test-tasks/:taskId/attachments` | Authorized upload through patient-document/storage abstraction |
-| `GET /api/ophthalmology/test-tasks/:taskId/attachments` | Permission-scoped metadata list |
+| `POST /api/ophthalmology/attachments` | Idempotent multipart upload plus atomic Patient document and Ophthalmology attachment metadata |
+| `GET /api/ophthalmology/attachments` | Paginated branch/task/result/visit-scoped attachment metadata |
 | `POST /api/ophthalmology/publications` | Explicit publish of reviewed/final resource version |
 | `POST /api/ophthalmology/publications/:id/withdraw` | Withdraw publication with reason |
 | `GET /api/ophthalmology/reports/:reportType` | Indexed paginated detail report |
 | `GET /api/ophthalmology/dashboard` | Snapshot-backed branch/station operational summary |
+| `POST /api/ophthalmology/dashboard/refresh` | Authorized snapshot refresh/job trigger |
 
 Mandatory report types: `STATION_QUEUE`, `TEST_TURNAROUND`, `PENDING_REVIEW`, `REPEAT_UNABLE`, `CLINICAL_VOLUME`, `DIAGNOSTIC_UTILIZATION`. Surgery pipeline, follow-up compliance and revenue use authoritative shared reporting integrations.
 
+Authoritative cross-domain report integrations are `/api/reports/phase-2` for procedure/surgery pipeline and finance-derived revenue, and `/api/opd/reports/follow-up-compliance` for OPD follow-up compliance. Their owning-domain permissions remain mandatory; Ophthalmology does not proxy or recalculate their data.
+
 Attachment metadata includes patient, encounter, task/test, order/result, eye, device, acquisition time, provenance, checksum, MIME, size, original name, review state and publication state. Binary payloads are not stored in MongoDB. Production requires configured Google Cloud Storage. Unsupported policy or adapter details return explicit configuration errors.
+
+Phase 10 implementation status:
+
+- Implemented exact-version `CONSULTATION_SUMMARY`, `OPTICAL_PRESCRIPTION`, and `TEST_RESULT` publication, idempotent replay, transactional audit/timeline, reasoned optimistic withdrawal, restricted safe payload projection, active-publication-only patient portal reads, six paginated operational reports, and snapshot refresh/read.
+- Attachment upload/list is implemented through `PatientDocumentStorageService`. `PATIENT_DOCUMENT_STORAGE_PROVIDER=gcs` uses `GCP_PATIENT_DOCUMENTS_BUCKET` and Application Default Credentials; production rejects local or incomplete storage configuration. The endpoint accepts only the existing configured MIME/size policy, uploads the blob first, atomically creates the Patient document and Ophthalmology link, and deletes the blob if metadata persistence fails.
+- Shared downstream handoffs use source-domain-first creation and ID linking. Ophthalmology completion validates and retains authoritative prescription/order/procedure/referral/follow-up IDs and does not emit duplicate completion-time commands. Source-domain idempotency/version rules own retries; relink or source-domain cancellation is the compensation path. Billing owns price mapping, invoice idempotency, reversals, and revenue totals.
+
+### Phase 11 release hardening
+
+- Direct optical-prescription reads require `Ophthalmology Optical Prescription / View`; draft creation or editing requires either `Create` or `Edit`; exact-version approval requires `Approve`. General consultation permissions do not implicitly grant direct optical-prescription access.
+- Release regression coverage freezes the dedicated optical permission boundary and the critical uniqueness, active-configuration, idempotency, branch/station queue, patient/visit history, result and publication indexes.
+- Automated Phase 1 through Phase 11, OPD, portal, storage, permission and response-contract validation is complete. Live GCS object lifecycle testing and interactive multi-role/multi-branch browser acceptance remain explicit release conditions.
+- Phase 11 introduces no new clinical lifecycle, threshold, master value or shared-domain source of truth.
 
 ## Mutation example
 
@@ -393,10 +432,13 @@ Stale state:
 | 400 | `OPHTHALMOLOGY_RESULT_REQUIRED` | A structural or configured completion field is absent. |
 | 400 | `OPHTHALMOLOGY_RESULT_CONDITIONAL_REQUIRED` | A positive/selected result lacks its dependent detail. |
 | 400 | `OPHTHALMOLOGY_RESULT_RANGE_INVALID` | Axis or a configured numeric field is outside its approved range. |
+| 400 | `OPHTHALMOLOGY_RESULT_CALCULATION_INVALID` | A reported derived value does not match its retained source readings. |
 | 400 | `OPHTHALMOLOGY_RESULT_OPTION_INVALID` | A value is not in the active profile's approved options. |
 | 400 | `OPHTHALMOLOGY_RESULT_LATERALITY_REQUIRED` | The form has no result for an applicable eye. |
 | 400 | `OPHTHALMOLOGY_RESULT_LATERALITY_INVALID` | Eye data conflicts with the task laterality. |
+| 400 | `OPHTHALMOLOGY_RESULT_AGE_INVALID` | The patient age is outside the configured paediatric assessment range. |
 | 400 | `OPHTHALMOLOGY_RESULT_SOURCE_INVALID` | The source is not permitted for this write action. |
+| 400 | `OPHTHALMOLOGY_COMPARISON_REQUIRED` | A progression outcome lacks an exact prior result/version reference. |
 | 400 | `OPHTHALMOLOGY_REASON_REQUIRED` | Cancellation, unable, repeat, amendment, override or withdrawal lacks a reason. |
 | 400 | `OPHTHALMOLOGY_COMPLETION_BLOCKED` | Configured completion prerequisites are unmet. |
 | 400 | `OPHTHALMOLOGY_DOCUMENT_REFERENCE_INVALID` | A previous-report reference is missing, inactive, or belongs to another patient. |
@@ -428,6 +470,7 @@ Stale state:
 | 409 | `OPHTHALMOLOGY_FINALIZED` | Finalized content cannot be edited outside amendment. |
 | 409 | `OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT` | Shared-domain state prevents the requested handoff. |
 | 409 | `OPHTHALMOLOGY_ROUTING_REQUIRED` | Emergency completion cannot route because no eligible Ophthalmology clinician exists. |
+| 409 | `OPHTHALMOLOGY_COMPARISON_INELIGIBLE` | The referenced prior clinical version is not eligible for comparison. |
 | 422 | `OPHTHALMOLOGY_REVIEW_REQUIRED` | Action requires review of the referenced exact version. |
 | 422 | `OPHTHALMOLOGY_APPROVAL_REQUIRED` | Action requires authenticated doctor/authorized approval. |
 | 503 | `TRANSACTION_CAPABILITY_REQUIRED` | Required atomic workflow cannot run on the connected MongoDB deployment. |
@@ -471,6 +514,12 @@ Every applicable create, update, assign, reassign, call, start, draft, complete,
 
 | Version | Date | Change |
 |---|---|---|
+| 1.10.0 | 16 October 2026 | Implemented Phase 11 automated hardening, corrected direct optical-prescription routes to use their dedicated permission inventory, froze critical index and permission regressions, and recorded remaining live GCS/manual acceptance plus unrelated repository test/lint conditions. |
+| 1.9.0 | 16 October 2026 | Completed Phase 10 configured GCS/local storage provider, atomic/idempotent attachment metadata, source-domain-first ID-linked handoffs, exact-version portal publication/withdrawal, restricted portal projection, six operational reports, snapshot dashboard refresh/read, and authoritative cross-domain report integration contracts. |
+| 1.8.0 | 15 October 2026 | Implemented Phase 9 exact-version result review, configured structured completion readiness, result/order deferral, exact unmet-requirement override, authenticated doctor approval, atomic/idempotent shared OPD completion, final locking, append-only reopen/amendment/reapproval, and summary/history APIs. External publication and downstream dispatch remain Phase 10. |
+| 1.7.0 | 15 October 2026 | Implemented Phase 8 permission-scoped doctor review, additive authoritative OPD diagnosis context/history, versioned structured treatment plans with scoped shared-resource references, and separate versioned optical prescriptions with configured choices, exact-version doctor approval, immutability, transactions, concurrency, and audit. Consultation completion remains Phase 9. |
+| 1.6.0 | 15 October 2026 | Implemented Phase 7 contact-lens and paediatric-vision result contracts, active branch optical/drug reference validation, same-visit follow-up validation, server-derived paediatric age/guardian context, specialized completion conditions, doctor-review routing, amendments, concurrency, transactions, and audit. Optical-prescription approval remains Phase 8. |
+| 1.5.0 | 15 October 2026 | Implemented Phase 6 advanced diagnostic result contracts for eleven forms, retained-source calculation checks, conditional positive/quality findings, eligible exact-version comparison, eye-safe image/document references, proposed-only IOL selection, B-scan/IOL doctor-review routing, scoped unified reads, append-only amendments, concurrency, transactions, and audit. Device adapters, final clinical review, and Phase 7 specialized forms remain later work. |
 | 1.4.0 | 15 October 2026 | Implemented and froze Phase 5 result heads and version history for eight core tests, active form-profile binding/snapshots, configured required/range/option validation, laterality and axis controls, manual provenance, same-patient document references, transactional draft/completion, append-only amendment, optimistic concurrency, assignment/scope enforcement, indexes, audit, and rollback behavior. Review/submission and advanced tests remain later phases. |
 | 1.3.0 | 15 October 2026 | Implemented and froze Phase 4 idempotent configured test tasks, shared order-item references, scoped station queues, assignment/reassignment, call/unavailable/start, device validation, unable/cancel, linked repeat preservation, doctor/next-station routing, optimistic concurrency, transactions, indexes, and audit behavior. Phase 5 result forms remain unstarted. |
 | 1.2.0 | 15 October 2026 | Implemented and froze Phase 3 versioned intake, shared-history projection, patient-document reference validation, active complaint/emergency configuration binding, transactional completion, emergency alert, direct-routing, in-app notification, acknowledgement, concurrency, scope, audit, and rollback contracts. No clinical values or upload policy were invented. |

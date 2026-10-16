@@ -19,13 +19,14 @@ export type OphthalmologyTestTaskFields = {
   idempotencyKey: string; requestFingerprint: string;
   assignmentHistory: Array<{ action: 'ASSIGNED' | 'REASSIGNED'; fromStationId?: Types.ObjectId | null; toStationId: Types.ObjectId;
     fromUserId?: Types.ObjectId | null; toUserId?: Types.ObjectId | null; reason?: string | null; actorUserId: Types.ObjectId; occurredAt: Date }>;
-  transitionHistory: Array<{ action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED';
+  transitionHistory: Array<{ action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
     fromStatus: OphthalmologyTestTaskStatus; toStatus: OphthalmologyTestTaskStatus; reason?: string | null;
     actorUserId: Types.ObjectId; occurredAt: Date }>;
   routingHistory: Array<{ target: OphthalmologyTaskRoutingTarget; targetTaskId?: Types.ObjectId | null; targetStationId?: Types.ObjectId | null;
     reason?: string | null; actorUserId: Types.ObjectId; occurredAt: Date }>;
   orderedAt: Date; assignedAt?: Date | null; waitingSince?: Date | null; calledAt?: Date | null; startedAt?: Date | null;
-  completedAt?: Date | null; unableAt?: Date | null; cancelledAt?: Date | null; version: number; createdBy: Types.ObjectId; updatedBy: Types.ObjectId;
+  completedAt?: Date | null; unableAt?: Date | null; cancelledAt?: Date | null; reviewedBy?: Types.ObjectId | null; reviewedAt?: Date | null;
+  reviewedClinicalVersion?: number | null; reviewComment?: string | null; version: number; createdBy: Types.ObjectId; updatedBy: Types.ObjectId;
   createdAt: Date; updatedAt: Date;
 };
 
@@ -38,7 +39,7 @@ const assignmentSchema = new Schema({
   occurredAt: { type: Date, required: true },
 }, { _id: false });
 const transitionSchema = new Schema({
-  action: { type: String, enum: ['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED'], required: true },
+  action: { type: String, enum: ['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED'], required: true },
   fromStatus: { type: String, required: true }, toStatus: { type: String, required: true }, reason: { type: String, default: null, trim: true },
   actorUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, occurredAt: { type: Date, required: true },
 }, { _id: false });
@@ -71,7 +72,10 @@ const testTaskSchema = new Schema<OphthalmologyTestTaskFields>({
   assignmentHistory: { type: [assignmentSchema], default: [] }, transitionHistory: { type: [transitionSchema], default: [] },
   routingHistory: { type: [routingSchema], default: [] }, orderedAt: { type: Date, required: true }, assignedAt: { type: Date, default: null },
   waitingSince: { type: Date, default: null }, calledAt: { type: Date, default: null }, startedAt: { type: Date, default: null },
-  completedAt: { type: Date, default: null }, unableAt: { type: Date, default: null }, cancelledAt: { type: Date, default: null }, version: { type: Number, default: 0, min: 0, required: true },
+  completedAt: { type: Date, default: null }, unableAt: { type: Date, default: null }, cancelledAt: { type: Date, default: null },
+  reviewedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null }, reviewedAt: { type: Date, default: null },
+  reviewedClinicalVersion: { type: Number, default: null }, reviewComment: { type: String, default: null, trim: true },
+  version: { type: Number, default: 0, min: 0, required: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true }, updatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 

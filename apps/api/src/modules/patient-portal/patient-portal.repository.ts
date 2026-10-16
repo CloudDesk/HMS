@@ -18,6 +18,7 @@ import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
 import { buildPhoneMongoFilter } from '../../utils/phone.js';
+import { OphthalmologyPublicationModel } from '../ophthalmology/ophthalmology-phase10.model.js';
 
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
 const validObjectIds = (values: unknown[]) =>
@@ -873,7 +874,8 @@ export class PatientPortalRepository {
     const id = objectId(patientId);
     const now = new Date();
     const startOfToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const [patient, appointments, invoices, laboratoryResults, imagingReports, prescriptions, pharmacyInvoices, upcomingCount, outstandingCount] =
+    const [patient, appointments, invoices, laboratoryResults, imagingReports, prescriptions, pharmacyInvoices, upcomingCount, outstandingCount,
+      ophthalmologyPublications] =
       await Promise.all([
         PatientModel.findOne({ _id: id, deletedAt: null })
           .select('patientNumber firstName middleName lastName dateOfBirth gender phone email address emergencyContact bloodGroup status createdAt')
@@ -920,6 +922,9 @@ export class PatientPortalRepository {
           balanceAmount: { $gt: 0 },
           status: { $in: ['PENDING', 'PARTIALLY_PAID'] },
         }),
+        OphthalmologyPublicationModel.find({ patientId: id, status: 'APPROVED_FOR_PORTAL' })
+          .select('sourceType sourceId sourceVersion portalPayload publishedAt')
+          .sort({ publishedAt: -1 }).limit(50).lean(),
       ]);
 
     if (!patient) return null;
@@ -1017,6 +1022,10 @@ export class PatientPortalRepository {
           quantity: item.quantity ?? null,
           instructions: item.instructions ?? null,
         })),
+      })),
+      ophthalmology_publications: ophthalmologyPublications.map((publication) => ({
+        id: String(publication._id), source_type: publication.sourceType, source_id: String(publication.sourceId),
+        source_version: publication.sourceVersion, published_at: publication.publishedAt, payload: publication.portalPayload,
       })),
       purchased_medicines: pharmacyItems.flatMap((item) => {
         const invoice = pharmacyInvoiceById.get(String(item.invoiceId));

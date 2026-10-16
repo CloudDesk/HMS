@@ -87,6 +87,8 @@ import { InsuranceRepository } from '../../modules/insurance/insurance.repositor
 import { InsuranceService } from '../../modules/insurance/insurance.service.js';
 import { OphthalmologyRepository } from '../../modules/ophthalmology/ophthalmology.repository.js';
 import { OphthalmologyService } from '../../modules/ophthalmology/ophthalmology.service.js';
+import { OphthalmologyPhase10Repository } from '../../modules/ophthalmology/ophthalmology-phase10.repository.js';
+import { OphthalmologyPhase10Service } from '../../modules/ophthalmology/ophthalmology-phase10.service.js';
 
 export const createServiceRegistry = (): ServiceRegistry => {
   const authRepository = new AuthRepository();
@@ -105,6 +107,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const opdFollowUpRepository = new OpdFollowUpRepository();
   const opdReferralRepository = new OpdReferralRepository();
   const ophthalmologyRepository = new OphthalmologyRepository();
+  const ophthalmologyPhase10Repository = new OphthalmologyPhase10Repository();
   const patientRepository = new PatientRepository();
   const serviceRepository = new ServiceRepository();
   const medicineRepository = new MedicineRepository();
@@ -318,7 +321,14 @@ export const createServiceRegistry = (): ServiceRegistry => {
       notificationService,
       userRepository,
     ),
-    ophthalmology: new OphthalmologyService(ophthalmologyRepository, opdVisitRepository, notificationService),
+    ophthalmology: new OphthalmologyService(ophthalmologyRepository, opdVisitRepository, notificationService,
+      opdConsultationRepository, appointmentRepository, patientRepository),
+    ophthalmologyPhase10: new OphthalmologyPhase10Service(
+      ophthalmologyPhase10Repository,
+      ophthalmologyRepository,
+      patientRepository,
+      patientDocumentStorageService,
+    ),
     serviceCatalogue: new ServiceCatalogueService(serviceRepository, departmentRepository),
     medicines: new MedicineService(medicineRepository, pharmacyInventoryRepository),
     pharmacyInventory: new PharmacyInventoryService(pharmacyInventoryRepository),

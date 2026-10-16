@@ -1,6 +1,14 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type { OpdConsultationStatus, OpdStructuredDiagnosis } from './opd-consultation.types.js';
 
+type OpdConsultationClinicalHistoryFields = {
+  consultationVersion: number;
+  diagnoses: OpdStructuredDiagnosis[];
+  treatmentPlan?: string | null;
+  changedBy: Types.ObjectId;
+  changedAt: Date;
+};
+
 export type OpdConsultationFields = {
   visitId: Types.ObjectId;
   patientId: Types.ObjectId;
@@ -18,6 +26,7 @@ export type OpdConsultationFields = {
   physicalExamination?: string | null;
   assessment?: string | null;
   diagnoses?: OpdStructuredDiagnosis[];
+  clinicalHistory?: OpdConsultationClinicalHistoryFields[];
   treatmentPlan?: string | null;
   doctorNotes?: string | null;
   completedAt?: Date | null;
@@ -35,7 +44,23 @@ const opdStructuredDiagnosisSchema = new Schema<OpdStructuredDiagnosis>(
     display: { type: String, required: true },
     codingSystem: { type: String, required: true, default: 'ICD-11' },
     type: { type: String, enum: ['PRIMARY', 'SECONDARY'], default: 'PRIMARY', required: true },
+    laterality: { type: String, enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE'], default: null },
+    status: { type: String, enum: ['SUSPECTED', 'CONFIRMED', 'RULED_OUT'], default: null },
+    severity: { type: String, default: null },
+    stage: { type: String, default: null },
+    differential: { type: Boolean, default: false },
     notes: { type: String, default: null },
+  },
+  { _id: false },
+);
+
+const opdConsultationClinicalHistorySchema = new Schema<OpdConsultationClinicalHistoryFields>(
+  {
+    consultationVersion: { type: Number, min: 1, required: true },
+    diagnoses: { type: [opdStructuredDiagnosisSchema], default: [] },
+    treatmentPlan: { type: String, default: null },
+    changedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    changedAt: { type: Date, required: true },
   },
   { _id: false },
 );
@@ -58,6 +83,7 @@ const opdConsultationSchema = new Schema<OpdConsultationFields>(
     physicalExamination: { type: String, default: null },
     assessment: { type: String, default: null },
     diagnoses: { type: [opdStructuredDiagnosisSchema], default: [] },
+    clinicalHistory: { type: [opdConsultationClinicalHistorySchema], default: [] },
     treatmentPlan: { type: String, default: null },
     doctorNotes: { type: String, default: null },
     completedAt: { type: Date, default: null },

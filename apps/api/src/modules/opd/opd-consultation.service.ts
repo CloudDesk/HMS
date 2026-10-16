@@ -5,6 +5,7 @@ import type { AppointmentRepository } from '../appointments/appointment.reposito
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { SaveOpdConsultationDTO } from './opd-consultation.types.js';
+import type { OpdConsultation } from './opd-consultation.types.js';
 import type { OpdVitalsRepository } from './opd-vitals.repository.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
@@ -34,6 +35,7 @@ export class OpdConsultationService {
     const current = await this.repository.getByVisit(visitId);
     this.ensureDraftEditable(current?.status);
     this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
+    this.validateDiagnoses(data);
     const scope = await this.visitRepository.resolveBranchScope(userId);
 
     return executeRequiredTransaction(this.visitRepository, async (session) => {
@@ -51,7 +53,7 @@ export class OpdConsultationService {
         visit: transactionalVisit,
         currentVersion: transactionalCurrent?.version ?? 0,
         currentStatus: transactionalCurrent?.status,
-      }, userId, session);
+      }, userId, session, this.historyEntry(transactionalCurrent, data, userId));
 
       if (transactionalVisit.status === 'READY_FOR_CONSULTATION') {
         const updated = await this.visitRepository.updateStatusIf(
@@ -75,6 +77,7 @@ export class OpdConsultationService {
     await this.ensureVitalsRecorded(visit.id);
     const current = await this.repository.getByVisit(visitId);
     this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
+    this.validateDiagnoses(data);
     const scope = await this.visitRepository.resolveBranchScope(userId);
 
     return executeRequiredTransaction(this.visitRepository, async (session) => {
@@ -96,7 +99,7 @@ export class OpdConsultationService {
         visit: transactionalVisit,
         currentVersion: transactionalCurrent?.version ?? 0,
         currentStatus: transactionalCurrent?.status,
-      }, userId, session);
+      }, userId, session, this.historyEntry(transactionalCurrent, data, userId));
 
       const completedVisit = await this.visitRepository.updateStatusIf(
         transactionalVisit.id,
@@ -157,6 +160,34 @@ export class OpdConsultationService {
     if (data.expected_status !== undefined && data.expected_status !== currentStatus) {
       throw new AppError('The consultation status changed after it was loaded', 409, 'OPD_CONSULTATION_STATUS_CONFLICT');
     }
+  }
+
+  private validateDiagnoses(data: SaveOpdConsultationDTO) {
+    if (data.diagnoses === undefined) return;
+    const primaryCount = data.diagnoses.filter((item) => item.type === 'PRIMARY').length;
+    if (data.diagnoses.length > 0 && primaryCount !== 1) {
+      throw new AppError('Exactly one primary diagnosis is required', 400, 'OPD_DIAGNOSIS_PRIMARY_INVALID');
+    }
+    const seen = new Set<string>();
+    for (const diagnosis of data.diagnoses) {
+      const usesClinicalExtension = diagnosis.laterality != null || diagnosis.status != null || diagnosis.severity != null
+        || diagnosis.stage != null || diagnosis.differential !== undefined;
+      if (usesClinicalExtension && (!diagnosis.laterality || !diagnosis.status)) {
+        throw new AppError('Extended diagnosis entries require laterality and clinical status', 400, 'OPD_DIAGNOSIS_CONTEXT_REQUIRED');
+      }
+      const key = `${diagnosis.code.trim().toUpperCase()}|${diagnosis.laterality ?? 'UNSPECIFIED'}|${diagnosis.status ?? 'UNSPECIFIED'}`;
+      if (seen.has(key)) throw new AppError('Duplicate diagnosis context is not allowed', 409, 'OPD_DIAGNOSIS_DUPLICATE');
+      seen.add(key);
+    }
+  }
+
+  private historyEntry(current: OpdConsultation | null, data: SaveOpdConsultationDTO, userId: string) {
+    if (!current || (data.diagnoses === undefined && data.treatment_plan === undefined)) return undefined;
+    const nextDiagnoses = data.diagnoses ?? current.diagnoses;
+    const nextTreatment = data.treatment_plan === undefined ? current.treatment_plan : data.treatment_plan?.trim() || null;
+    if (JSON.stringify(nextDiagnoses) === JSON.stringify(current.diagnoses) && nextTreatment === current.treatment_plan) return undefined;
+    return { consultation_version: current.version, diagnoses: current.diagnoses, treatment_plan: current.treatment_plan,
+      changed_by: userId, changed_at: new Date() };
   }
 
   private ensureDraftEditable(status?: 'DRAFT' | 'COMPLETED') {

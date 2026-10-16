@@ -281,6 +281,8 @@ const patientTimelineEventSchema = new Schema<PatientTimelineEventFields>(
         'EMERGENCY_CONSULTATION_UPDATED',
         'EMERGENCY_DISPOSITION_CONFIRMED',
         'EMERGENCY_CONVERTED_TO_IP',
+        'OPHTHALMOLOGY_PORTAL_PUBLISHED',
+        'OPHTHALMOLOGY_PORTAL_WITHDRAWN',
       ],
       required: true,
     },

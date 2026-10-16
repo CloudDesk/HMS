@@ -4,7 +4,7 @@ import type { AppointmentService } from '../appointments/appointment.service.js'
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { OpdFollowUpRepository } from './opd-follow-up.repository.js';
-import type { SaveOpdFollowUpDTO } from './opd-follow-up.types.js';
+import type { OpdFollowUpComplianceQuery, SaveOpdFollowUpDTO } from './opd-follow-up.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
 
@@ -22,6 +22,14 @@ export class OpdFollowUpService {
   async getByVisit(visitId: string, userId: string) {
     await this.getVisit(visitId, userId);
     return this.repository.getByVisit(visitId);
+  }
+
+  async compliance(query: OpdFollowUpComplianceQuery, userId: string) {
+    if (query.date_from && query.date_to && new Date(query.date_from) > new Date(query.date_to)) {
+      throw new AppError('Date from must not be after date to', 400, 'VALIDATION_ERROR');
+    }
+    await this.visitRepository.resolveBranchScope(userId, query.branch_id);
+    return this.repository.compliance(query);
   }
 
   async saveDraft(visitId: string, data: SaveOpdFollowUpDTO, userId: string) {
