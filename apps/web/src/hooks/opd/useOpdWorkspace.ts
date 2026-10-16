@@ -39,7 +39,7 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const { user } = useAuth();
   const isSuperAdmin = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN'));
   const canAccess = (module: string, screen: string) =>
-    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen });
+    isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action: 'View' });
   const canAction = (module: string, screen: string, action: string) =>
     isSuperAdmin || hasPermission(user?.permissions ?? [], { module, screen, action });
 
@@ -54,41 +54,66 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
   const canDeleteDocuments = canAction('Patients', 'Patient Documents', 'Delete');
   const canCreateVitals = canAction('OPD', 'OPD Vitals', 'Create');
 
-  const visitQuery = useOpdVisit(visitId);
+  const hasVisit = Boolean(visitId);
+  const visitQuery = useOpdVisit(visitId, canAccess('OPD', 'OPD Visits'));
   const { data: visitData, isLoading: visitLoading } = visitQuery;
-  const { data: vitalsData, isLoading: vitalsLoading } = useOpdLatestVitals(visitId);
-  const { data: consultationData, isLoading: consultationLoading } = useOpdConsultation(visitId, !activeTab || activeTab === 'Consultation' || activeTab === 'Diagnosis');
-  const { data: prescriptionData, isLoading: prescriptionLoading } = useOpdPrescription(visitId, !activeTab || activeTab === 'Prescription');
-  const { data: followUpData, isLoading: followUpLoading } = useOpdFollowUp(visitId, !activeTab || activeTab === 'Follow-up');
-  const { data: referralData, isLoading: referralLoading } = useOpdReferral(visitId, !activeTab || activeTab === 'Referral');
-  const { data: labOrderData, isLoading: labOrderLoading } = useOpdClinicalOrder(visitId, 'LABORATORY', !activeTab || activeTab === 'Lab Orders');
-  const { data: imagingOrderData, isLoading: imagingOrderLoading } = useOpdClinicalOrder(visitId, 'IMAGING', !activeTab || activeTab === 'Imaging Orders');
+  // Persisted records support the cross-tab summary/save. Gate them by permission, not the active tab.
+  const vitalsQuery = useOpdLatestVitals(visitId, canAccess('OPD', 'OPD Vitals'));
+  const { data: vitalsData, isLoading: vitalsLoading } = vitalsQuery;
+  const consultationQuery = useOpdConsultation(visitId, canAccess('OPD', 'OPD Consultation'));
+  const { data: consultationData, isLoading: consultationLoading } = consultationQuery;
+  const prescriptionQuery = useOpdPrescription(visitId, canAccess('OPD', 'OPD Prescription'));
+  const { data: prescriptionData, isLoading: prescriptionLoading } = prescriptionQuery;
+  const followUpQuery = useOpdFollowUp(visitId, canAccess('OPD', 'OPD Follow-up'));
+  const { data: followUpData, isLoading: followUpLoading } = followUpQuery;
+  const referralQuery = useOpdReferral(visitId, canAccess('OPD', 'OPD Referral'));
+  const { data: referralData, isLoading: referralLoading } = referralQuery;
+  const labOrderQuery = useOpdClinicalOrder(visitId, 'LABORATORY', canAccess('OPD', 'OPD Clinical Orders'));
+  const { data: labOrderData, isLoading: labOrderLoading } = labOrderQuery;
+  const imagingOrderQuery = useOpdClinicalOrder(visitId, 'IMAGING', canAccess('OPD', 'OPD Clinical Orders'));
+  const { data: imagingOrderData, isLoading: imagingOrderLoading } = imagingOrderQuery;
 
   const { data: doctorsData, isLoading: doctorsLoading } = useDoctors(
     { limit: 100, sortBy: 'display_name', sortOrder: 'asc' },
-    canAccess('Doctors', 'Doctor Directory') && (!activeTab || activeTab === 'Referral' || activeTab === 'Follow-up')
+    hasVisit && canAccess('Doctors', 'Doctor Directory') && (!activeTab || activeTab === 'Referral' || activeTab === 'Follow-up')
   );
   const { data: medicinesData, isLoading: medicinesLoading } = useMedicines(
     { status: 'ACTIVE', limit: 100 },
-    (!activeTab || activeTab === 'Prescription') && (canAccess('Administration', 'Medicines') || canAccess('Pharmacy', 'Medicine Inventory') || canAccess('OPD', 'OPD Prescription'))
+    hasVisit && (!activeTab || activeTab === 'Prescription') && canAccess('Administration', 'Medicines')
   );
 
-  const branchId = visitData?.branch_id || '';
+  const currentVisit = visitData?.id === visitId ? visitData : null;
+  const matchesVisit = (record: { visit_id: string; patient_id: string } | null | undefined) =>
+    Boolean(currentVisit && record?.visit_id === visitId && record.patient_id === currentVisit.patient_id);
+  const branchId = currentVisit?.branch_id || '';
   const { data: inventoryData, isLoading: inventoryLoading } = usePharmacyInventoryList(
     { branch_id: branchId, limit: 100 },
-    Boolean(branchId && (!activeTab || activeTab === 'Prescription') && (canAccess('Pharmacy', 'Medicine Inventory') || canAccess('OPD', 'OPD Prescription')))
+    Boolean(hasVisit && branchId && (!activeTab || activeTab === 'Prescription') && canAccess('Pharmacy', 'Medicine Inventory'))
   );
 
   const { data: servicesData, isLoading: servicesLoading } = useServices(
     { status: 'ACTIVE', limit: 100 },
-    Boolean(visitId && (canAccess('Administration', 'Services') || canAccess('OPD', 'OPD Clinical Orders')))
+    hasVisit && canAccess('Administration', 'Services')
   );
 
   const { data: documentsData, isLoading: documentsLoading } = usePatientDocuments(
-    visitData?.patient_id ?? null,
+    currentVisit?.patient_id ?? null,
     { visit_id: visitId ?? undefined, limit: 100 },
-    Boolean(visitData?.patient_id && visitId && canAccess('Patients', 'Patient Documents') && (!activeTab || activeTab === 'Documents'))
+    Boolean(currentVisit?.patient_id && visitId && canAccess('Patients', 'Patient Documents') && (!activeTab || activeTab === 'Documents'))
   );
+
+  const clinicalQueries = [
+    { screen: 'OPD Vitals', query: vitalsQuery },
+    { screen: 'OPD Consultation', query: consultationQuery },
+    { screen: 'OPD Prescription', query: prescriptionQuery },
+    { screen: 'OPD Follow-up', query: followUpQuery },
+    { screen: 'OPD Referral', query: referralQuery },
+    { screen: 'OPD Clinical Orders', query: labOrderQuery },
+    { screen: 'OPD Clinical Orders', query: imagingOrderQuery },
+  ].filter((entry) => hasVisit && canAccess('OPD', entry.screen));
+  const mismatchedRecord = currentVisit && clinicalQueries.some((entry) => entry.query.data && !matchesVisit(entry.query.data));
+  const loadError = visitQuery.error ?? clinicalQueries.find((entry) => entry.query.error)?.query.error
+    ?? (mismatchedRecord ? new Error('Encounter records do not match the selected patient. Refresh before continuing.') : null);
 
   const silentNotifications = { notifyOnError: false, notifyOnSuccess: false };
   const { mutateAsync: saveConsultationDraft, isPending: isSavingConsultation } = useSaveOpdConsultationDraft(silentNotifications);
@@ -148,24 +173,27 @@ export function useOpdWorkspace(visitId: string | null, activeTab?: string) {
     isSubmittingReferral;
 
   return {
-    visit: visitData ?? null,
-    vitals: vitalsData ?? null,
-    consultation: consultationData ?? null,
-    prescription: prescriptionData ?? null,
-    followUp: followUpData ?? null,
-    referral: referralData ?? null,
-    labOrder: labOrderData ?? null,
-    imagingOrder: imagingOrderData ?? null,
-    doctors: doctorsData?.data ?? [],
-    medicines: medicinesData?.data ?? [],
-    inventory: inventoryData?.data ?? [],
-    services: servicesData?.data ?? [],
-    documents: documentsData?.data ?? [],
+    visit: canAccess('OPD', 'OPD Visits') && visitData?.id === visitId ? visitData : null,
+    vitals: canAccess('OPD', 'OPD Vitals') && matchesVisit(vitalsData) ? vitalsData ?? null : null,
+    consultation: canAccess('OPD', 'OPD Consultation') && matchesVisit(consultationData) ? consultationData ?? null : null,
+    prescription: canAccess('OPD', 'OPD Prescription') && matchesVisit(prescriptionData) ? prescriptionData ?? null : null,
+    followUp: canAccess('OPD', 'OPD Follow-up') && matchesVisit(followUpData) ? followUpData ?? null : null,
+    referral: canAccess('OPD', 'OPD Referral') && matchesVisit(referralData) ? referralData ?? null : null,
+    labOrder: canAccess('OPD', 'OPD Clinical Orders') && matchesVisit(labOrderData) ? labOrderData ?? null : null,
+    imagingOrder: canAccess('OPD', 'OPD Clinical Orders') && matchesVisit(imagingOrderData) ? imagingOrderData ?? null : null,
+    doctors: canAccess('Doctors', 'Doctor Directory') ? doctorsData?.data ?? [] : [],
+    medicines: canAccess('Administration', 'Medicines') ? medicinesData?.data ?? [] : [],
+    inventory: canAccess('Pharmacy', 'Medicine Inventory') ? inventoryData?.data ?? [] : [],
+    services: canAccess('Administration', 'Services') ? servicesData?.data ?? [] : [],
+    documents: canAccess('Patients', 'Patient Documents') ? documentsData?.data ?? [] : [],
     isLoading,
     visitLoading,
     isUpdating: isUpdatingOpd,
-    visitError: visitQuery.error,
-    refetchVisit: visitQuery.refetch,
+    visitError: loadError,
+    refetchVisit: () => Promise.all([
+      ...(hasVisit && canAccess('OPD', 'OPD Visits') ? [visitQuery.refetch()] : []),
+      ...clinicalQueries.map((entry) => entry.query.refetch()),
+    ]),
     isSavingConsultation,
     isCompletingConsultation,
     isSubmittingPrescription,

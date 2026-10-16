@@ -142,9 +142,8 @@ export function OpdConsultationSection({
       </section>
 
       <div className="opd-sticky-actions">
-        <span className="opd-autosave saved">
-          <i aria-hidden="true" className="ph ph-check-circle" />
-          Auto-save enabled
+        <span className="opd-autosave">
+          Save a draft to persist changes
         </span>
         <div>
           {canEdit && (

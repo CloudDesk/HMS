@@ -2,10 +2,6 @@ import { appConfig } from '../config';
 import { tokenStorage } from '../auth/token-storage';
 import { ApiError, type ApiErrorPayload } from './api-error';
 
-type ApiEnvelope<T> = {
-  data: T;
-};
-
 type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   auth?: boolean;
   retryOnUnauthorized?: boolean;
@@ -87,7 +83,9 @@ const fetchEnvelope = async <T>(path: string, options: ApiRequestOptions) => {
     throw toApiError(response, payload);
   }
 
-  return ((payload as ApiEnvelope<T> | null)?.data ?? payload) as T;
+  // A null resource is valid (for example an encounter with no intake yet).
+  // Test envelope membership rather than falling back when its data is null.
+  return (payload !== null && typeof payload === 'object' && 'data' in payload ? payload.data : payload) as T;
 };
 
 const readFileName = (response: Response) => {

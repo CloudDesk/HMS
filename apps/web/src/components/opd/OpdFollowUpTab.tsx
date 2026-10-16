@@ -16,6 +16,7 @@ export type OpdFollowUpTabProps = {
   saveConsultationDraft: () => void;
   scheduleFollowUp: () => void;
   completeConsultation: () => void;
+  completionBlocked?: boolean;
 };
 
 export function OpdFollowUpTab({
@@ -34,6 +35,7 @@ export function OpdFollowUpTab({
   saveConsultationDraft,
   scheduleFollowUp,
   completeConsultation,
+  completionBlocked = false,
 }: OpdFollowUpTabProps) {
   return (
     <article className="doc-card opd-tab-card">
@@ -100,9 +102,8 @@ export function OpdFollowUpTab({
       </section>
 
       <div className="opd-sticky-actions">
-        <span className="opd-autosave saved">
-          <i aria-hidden="true" className="ph ph-check-circle" />
-          Auto-save enabled
+        <span className="opd-autosave">
+          Save changes before leaving
         </span>
         <div>
           <button
@@ -134,7 +135,8 @@ export function OpdFollowUpTab({
             <button
               className="doc-btn success"
               disabled={
-                updating === 'consultation-complete' ||
+                (!isVisitCompleted && completionBlocked) ||
+                  updating === 'consultation-complete' ||
                 updating === 'follow-up-schedule' ||
                 !followUpDate ||
                 !followUpDoctorId

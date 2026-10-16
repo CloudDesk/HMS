@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { fromZonedTime } from 'date-fns-tz';
 import type { SaveBillingInvoiceItem } from '../api/billing';
 import {
   type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
+  type OpdVitalsResponse,
   type SaveOpdConsultationPayload,
   type SaveOpdPrescriptionPayload,
 } from '../api/opd';
 import type { PatientDocumentResponse } from '../api/patients';
 import type { ServiceResponse } from '../api/services';
-import { ICD10_DIAGNOSES, type Icd10Diagnosis } from '../data/icd10-diagnoses';
-import { Toast } from '../components/ui/Toast';
+import { useOpdDiagnoses } from '../hooks/opd/useOpdDiagnoses';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import {
   OpdConsultationSection,
@@ -26,7 +27,7 @@ import {
   OpdSummaryPanel,
   OpdClinicalVitalsModal,
 } from '../components/opd';
-import { useOpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
+import { useOpdVisitFeature, type OpdVisitFeature } from '../hooks/opd/useOpdVisitFeature';
 import { useActiveBranch } from '../context/BranchContext';
 import { useTimezone } from '../api/useSettings';
 import { navigate } from '../routing/navigation';
@@ -91,6 +92,8 @@ const WORKSPACE_TABS = [
   { id: '5', label: '5 Imaging Orders', name: 'Imaging Orders' },
   { id: '6', label: '6 Referral', name: 'Referral' },
   { id: '7', label: '7 Follow-up', name: 'Follow-up' },
+  { id: '8', label: '8 Notes', name: 'Notes' },
+  { id: '9', label: '9 Documents', name: 'Documents' },
 ] as const;
 
 const emptyVitalsForm: VitalsFormState = {
@@ -122,6 +125,15 @@ const emptyPrescriptionForm: PrescriptionFormState = {
   doctor_instructions: '', patient_instructions: '',
 };
 
+const vitalsFormFromRecord = (vitals: OpdVitalsResponse | null): VitalsFormState => ({
+  blood_pressure_systolic: vitals?.blood_pressure_systolic?.toString() ?? '',
+  blood_pressure_diastolic: vitals?.blood_pressure_diastolic?.toString() ?? '',
+  weight_kg: vitals?.weight_kg?.toString() ?? '', height_cm: vitals?.height_cm?.toString() ?? '',
+  temperature_c: vitals?.temperature_c?.toString() ?? '', pulse_bpm: vitals?.pulse_bpm?.toString() ?? '',
+  respiratory_rate_per_min: vitals?.respiratory_rate_per_min?.toString() ?? '',
+  oxygen_saturation_percent: vitals?.oxygen_saturation_percent?.toString() ?? '', notes: vitals?.notes ?? '',
+});
+
 const consultationFormFromRecord = (consultation: OpdConsultationResponse | null): ConsultationFormState => ({
   allergies: consultation?.allergies ?? emptyConsultationForm.allergies,
   assessment: consultation?.assessment ?? emptyConsultationForm.assessment,
@@ -152,9 +164,18 @@ const prescriptionFormFromRecord = (prescription: OpdPrescriptionResponse | null
 });
 
 export function OpdVisitPage() {
+  const feature = useOpdVisitFeature();
+  return <OpdVisitWorkspace key={feature.state.activeVisitId} feature={feature} />;
+}
+
+function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
   const { activeBranchId } = useActiveBranch();
   const timezone = useTimezone();
-  const feature = useOpdVisitFeature();
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const {
     activeVisitId, activeTab, recentVisits, visit, patient, vitals, consultation,
     prescription, followUp, referral, laboratoryOrder, imagingOrder, doctors, masterMedicines, services,
@@ -176,9 +197,6 @@ export function OpdVisitPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
 
   // Referral Tab (Tab 6) State
   const [referralSpecialty, setReferralSpecialty] = useState('');
@@ -218,6 +236,7 @@ export function OpdVisitPage() {
           consultation: {
             allergies: consultationForm.allergies.trim() || null,
             assessment: consultationForm.assessment.trim() || null,
+            diagnoses: diagnoses.diagnosesForSave,
             chief_complaint: consultationForm.chief_complaint.trim() || null,
             doctor_notes: consultationForm.doctor_notes.trim() || null,
             family_history: consultationForm.family_history.trim() || null,
@@ -256,10 +275,7 @@ export function OpdVisitPage() {
   };
 
   const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    setToastVisible(true);
-    window.setTimeout(() => setToastVisible(false), 3200);
+    if (mounted.current) toast[tone](message, { position: 'top-right' });
   };
 
   const handleSaveVitalsModal = async (e: React.FormEvent) => {
@@ -277,8 +293,8 @@ export function OpdVisitPage() {
           payload: {
             blood_pressure_systolic: Number(vitalsForm.blood_pressure_systolic),
             blood_pressure_diastolic: Number(vitalsForm.blood_pressure_diastolic),
-            weight_kg: Number(vitalsForm.weight_kg) || 70,
-            height_cm: Number(vitalsForm.height_cm) || 170,
+            weight_kg: vitalsForm.weight_kg ? Number(vitalsForm.weight_kg) : null,
+            height_cm: vitalsForm.height_cm ? Number(vitalsForm.height_cm) : null,
             temperature_c: vitalsForm.temperature_c ? Number(vitalsForm.temperature_c) : null,
             pulse_bpm: vitalsForm.pulse_bpm ? Number(vitalsForm.pulse_bpm) : null,
             respiratory_rate_per_min: vitalsForm.respiratory_rate_per_min ? Number(vitalsForm.respiratory_rate_per_min) : null,
@@ -306,37 +322,10 @@ export function OpdVisitPage() {
     [services],
   );
 
-  // Sub-tab 2: Diagnosis State
-  const [dxSearchTerm, setDxSearchTerm] = useState('');
-  const [selectedDiagnoses, setSelectedDiagnoses] = useState<Icd10Diagnosis[]>([]);
-
-  const filteredIcd10 = useMemo(() => {
-    if (!dxSearchTerm.trim()) {
-      return ICD10_DIAGNOSES.slice(0, 8);
-    }
-    const q = dxSearchTerm.toLowerCase();
-    return ICD10_DIAGNOSES.filter(
-      (d) =>
-        d.code.toLowerCase().includes(q) ||
-        d.name.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q),
-    );
-  }, [dxSearchTerm]);
-
-  const handleAddDiagnosis = (dx: Icd10Diagnosis) => {
-    if (selectedDiagnoses.some((d) => d.code === dx.code)) return;
-    const next = [...selectedDiagnoses, dx];
-    setSelectedDiagnoses(next);
-    setConsultationForm((prev) => ({
-      ...prev,
-      assessment: prev.assessment ? `${prev.assessment}\n${dx.code} - ${dx.name}` : `${dx.code} - ${dx.name}`,
-    }));
-  };
-
-  const handleRemoveDiagnosis = (code: string) => {
-    const next = selectedDiagnoses.filter((d) => d.code !== code);
-    setSelectedDiagnoses(next);
-  };
+  const diagnoses = useOpdDiagnoses(consultation, (update) =>
+    setConsultationForm((current) => ({ ...current, assessment: update(current.assessment) })));
+  const { search: dxSearchTerm, setSearch: setDxSearchTerm, selected: selectedDiagnoses,
+    filtered: filteredIcd10, add: handleAddDiagnosis, remove: handleRemoveDiagnosis } = diagnoses;
 
   // Sub-tab 4: Lab Orders State
   const labFacilities = useMemo(() => {
@@ -486,87 +475,92 @@ export function OpdVisitPage() {
     }
   };
 
+  const hasUnsavedChanges =
+    JSON.stringify(consultationForm) !== JSON.stringify(consultationFormFromRecord(consultation)) ||
+    JSON.stringify(prescriptionForm) !== JSON.stringify(prescriptionFormFromRecord(prescription)) ||
+    JSON.stringify(vitalsForm) !== JSON.stringify(vitalsFormFromRecord(vitals)) ||
+    JSON.stringify(diagnoses.diagnosesForSave) !== JSON.stringify(consultation?.diagnoses) ||
+    Object.values(medicationForm).some(Boolean) || Boolean(selectedFile) ||
+    labOrders.map((item) => item.id).join(',') !== (laboratoryOrder?.items ?? []).map((item) => item.service_id).join(',') ||
+    imagingOrders.map((item) => item.id).join(',') !== (imagingOrder?.items ?? []).map((item) => item.service_id).join(',') ||
+    labClinicalNotes !== (laboratoryOrder?.clinical_notes ?? '') || labOrderSummary !== (laboratoryOrder?.instructions ?? '') ||
+    labPriority !== (laboratoryOrder?.priority ?? 'ROUTINE') || labFacility !== (laboratoryOrder?.destination ?? 'Main Branch - Laboratory') || labSampleType !== (laboratoryOrder?.specimen_type ?? 'Blood') ||
+    imagingPriority !== (imagingOrder?.priority ?? 'ROUTINE') ||
+    imagingClinicalInfo !== (imagingOrder?.clinical_notes ?? '') || imagingOrderInstructions !== (imagingOrder?.instructions ?? '') ||
+    referralSpecialty !== (referral?.specialty ?? '') || referralDoctorId !== (referral?.referred_doctor_id ?? '') || referralReason !== (referral?.reason ?? '') ||
+    followUpDate !== (followUp?.next_visit_date?.slice(0, 10) ?? '') || followUpDoctorId !== (followUp?.assigned_doctor_id ?? '') ||
+    followUpStartTime !== (followUp?.start_time ?? '09:00') || followUpDurationMinutes !== String(followUp?.duration_minutes ?? 30);
+
   useEffect(() => {
-    if (!vitals) return;
-    setVitalsForm({
-      blood_pressure_systolic: vitals.blood_pressure_systolic?.toString() ?? '',
-      blood_pressure_diastolic: vitals.blood_pressure_diastolic?.toString() ?? '',
-      weight_kg: vitals.weight_kg?.toString() ?? '',
-      height_cm: vitals.height_cm?.toString() ?? '',
-      temperature_c: vitals.temperature_c?.toString() ?? '',
-      pulse_bpm: vitals.pulse_bpm?.toString() ?? '',
-      respiratory_rate_per_min: vitals.respiratory_rate_per_min?.toString() ?? '',
-      oxygen_saturation_percent: vitals.oxygen_saturation_percent?.toString() ?? '',
-      notes: vitals.notes ?? '',
-    });
+    if (!hasUnsavedChanges) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedChanges]);
+
+  const confirmLeave = () => !hasUnsavedChanges || window.confirm('Leave this encounter and discard unsaved changes?');
+  const navigateAway = (path: string) => { if (confirmLeave()) navigate(path); };
+
+  useEffect(() => {
+    setVitalsForm(vitalsFormFromRecord(vitals));
   }, [vitals]);
 
   useEffect(() => {
-    if (!consultation) return;
     setConsultationForm(consultationFormFromRecord(consultation));
-    const assessment = consultation.assessment;
-    if (!assessment) return;
-    const matched = ICD10_DIAGNOSES.filter((diagnosis) =>
-      assessment.toLowerCase().includes(diagnosis.code.toLowerCase()) ||
-      assessment.toLowerCase().includes(diagnosis.name.toLowerCase()));
-    if (matched.length > 0) setSelectedDiagnoses(matched);
   }, [consultation]);
 
   useEffect(() => {
-    if (prescription) setPrescriptionForm(prescriptionFormFromRecord(prescription));
+    setPrescriptionForm(prescriptionFormFromRecord(prescription));
   }, [prescription]);
 
   useEffect(() => {
-    if (!referral) return;
-    setReferralSpecialty(referral.specialty ?? '');
-    setReferralDoctorId(referral.referred_doctor_id ?? '');
-    setReferralReason(referral.reason ?? '');
+    setReferralSpecialty(referral?.specialty ?? '');
+    setReferralDoctorId(referral?.referred_doctor_id ?? '');
+    setReferralReason(referral?.reason ?? '');
   }, [referral]);
 
   useEffect(() => {
-    if (!followUp) return;
-    setFollowUpDate(followUp.next_visit_date?.slice(0, 10) ?? '');
-    setFollowUpDoctorId(followUp.assigned_doctor_id ?? '');
-    setFollowUpStartTime(followUp.start_time ?? '09:00');
-    setFollowUpDurationMinutes(String(followUp.duration_minutes ?? 30));
+    setFollowUpDate(followUp?.next_visit_date?.slice(0, 10) ?? '');
+    setFollowUpDoctorId(followUp?.assigned_doctor_id ?? '');
+    setFollowUpStartTime(followUp?.start_time ?? '09:00');
+    setFollowUpDurationMinutes(String(followUp?.duration_minutes ?? 30));
   }, [followUp]);
 
   useEffect(() => {
-    if (!laboratoryOrder?.items?.length) return;
-    setLabOrders(laboratoryOrder.items.map((item) => ({
+    setLabOrders((laboratoryOrder?.items ?? []).map((item) => ({
       id: item.service_id,
       name: item.investigation_name,
       category: item.category,
       local_id: item.id || `lab-${Date.now()}-${Math.random()}`,
     })));
-    setLabPriority(laboratoryOrder.priority);
-    if (laboratoryOrder.destination) setLabFacility(laboratoryOrder.destination);
-    if (laboratoryOrder.specimen_type) setLabSampleType(laboratoryOrder.specimen_type);
-    if (laboratoryOrder.clinical_notes) setLabClinicalNotes(laboratoryOrder.clinical_notes);
-    if (laboratoryOrder.instructions) setLabOrderSummary(laboratoryOrder.instructions);
+    setLabPriority(laboratoryOrder?.priority ?? 'ROUTINE');
+    setLabFacility(laboratoryOrder?.destination ?? 'Main Branch - Laboratory');
+    setLabSampleType(laboratoryOrder?.specimen_type ?? 'Blood');
+    setLabClinicalNotes(laboratoryOrder?.clinical_notes ?? '');
+    setLabOrderSummary(laboratoryOrder?.instructions ?? '');
   }, [laboratoryOrder]);
 
   useEffect(() => {
-    if (!imagingOrder?.items?.length) return;
-    setImagingOrders(imagingOrder.items.map((item) => ({
+    setImagingOrders((imagingOrder?.items ?? []).map((item) => ({
       id: item.service_id,
       name: item.investigation_name,
       category: item.category,
       local_id: item.id || `img-${Date.now()}-${Math.random()}`,
     })));
-    setImagingPriority(imagingOrder.priority);
-    if (imagingOrder.clinical_notes) setImagingClinicalInfo(imagingOrder.clinical_notes);
-    if (imagingOrder.instructions) setImagingOrderInstructions(imagingOrder.instructions);
+    setImagingPriority(imagingOrder?.priority ?? 'ROUTINE');
+    setImagingClinicalInfo(imagingOrder?.clinical_notes ?? '');
+    setImagingOrderInstructions(imagingOrder?.instructions ?? '');
   }, [imagingOrder]);
 
   // Action Handlers
   const saveConsultationDraft = async () => {
-    if (!visit) return;
+    if (!visit) return false;
     setUpdating('consultation-draft');
     try {
       const payload: SaveOpdConsultationPayload = {
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
+        diagnoses: diagnoses.diagnosesForSave,
         chief_complaint: consultationForm.chief_complaint.trim() || null,
         doctor_notes: consultationForm.doctor_notes.trim() || null,
         family_history: consultationForm.family_history.trim() || null,
@@ -618,19 +612,18 @@ export function OpdVisitPage() {
       });
 
       showToast('Consultation draft and clinical orders saved.');
+      return true;
     } catch (error) {
       showToast(getOpdErrorMessage(error), 'error');
+      return false;
     } finally {
       setUpdating('');
     }
   };
 
-  const handleNextStep = (nextTab: string) => {
-    void saveConsultationDraft();
+  const handleNextStep = async (nextTab: string) => {
+    if (!await saveConsultationDraft() || !mounted.current) return;
     setActiveTab(nextTab);
-    if (visit?.id) {
-      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}&tab=${encodeURIComponent(nextTab)}`, { replace: true });
-    }
     requestAnimationFrame(() => {
       const scrollContainer = document.querySelector('.main-content');
       if (scrollContainer) {
@@ -652,6 +645,7 @@ export function OpdVisitPage() {
       const consultationPayload: SaveOpdConsultationPayload = {
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
+        diagnoses: diagnoses.diagnosesForSave,
         chief_complaint: consultationForm.chief_complaint.trim() || null,
         doctor_notes: consultationForm.doctor_notes.trim() || null,
         family_history: consultationForm.family_history.trim() || null,
@@ -692,11 +686,13 @@ export function OpdVisitPage() {
 
   const completeConsultation = async () => {
     if (!visit) return;
+    if (feature.state.specialtyCompletionRequired) { showToast('Use Ophthalmology readiness for this encounter. Generic OPD completion is unavailable.', 'error'); return; }
     setUpdating('consultation-complete');
     try {
       const payload: SaveOpdConsultationPayload = {
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
+        diagnoses: diagnoses.diagnosesForSave,
         chief_complaint: consultationForm.chief_complaint.trim() || null,
         doctor_notes: consultationForm.doctor_notes.trim() || null,
         family_history: consultationForm.family_history.trim() || null,
@@ -896,6 +892,7 @@ export function OpdVisitPage() {
     if (!visit) return;
     try {
       const download = await feature.actions.downloadDocument(visit.patient_id, document.id);
+      if (!mounted.current) return;
       const url = URL.createObjectURL(download.blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -908,6 +905,7 @@ export function OpdVisitPage() {
     if (!visit) return;
     try {
       const download = await feature.actions.downloadDocument(visit.patient_id, document.id);
+      if (!mounted.current) return;
       const url = URL.createObjectURL(download.blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -934,6 +932,7 @@ export function OpdVisitPage() {
     setUpdating('call-next');
     try {
       const nextVisit = await feature.actions.callNextPatient(visit.id);
+      if (!mounted.current) return;
       showToast(`${nextVisit.patient_name} has been called. Reception and nursing were notified.`);
       selectVisit(nextVisit.id);
     } catch (error) {
@@ -948,32 +947,23 @@ export function OpdVisitPage() {
   const isTabCompleted = (tabName: string): boolean => {
     switch (tabName) {
       case 'Consultation':
-        return Boolean(
-          consultationForm.chief_complaint.trim() ||
-            consultationForm.assessment.trim() ||
-            consultation?.chief_complaint,
-        );
+        return Boolean(consultation?.chief_complaint || consultation?.assessment);
       case 'Vitals':
         return Boolean(vitalsForm.blood_pressure_systolic.trim() || vitalsForm.pulse_bpm.trim());
       case 'Diagnosis':
-        return selectedDiagnoses.length > 0 || Boolean(consultationForm.assessment.trim());
+        return Boolean(consultation?.diagnoses?.length || consultation?.assessment);
       case 'Prescription':
-        return prescriptionForm.items.length > 0 || Boolean(prescription?.items?.length);
+        return Boolean(prescription?.items?.length);
       case 'Lab Orders':
-        return labOrders.length > 0 || Boolean(laboratoryOrder?.items?.length);
+        return Boolean(laboratoryOrder?.items?.length);
       case 'Imaging Orders':
-        return imagingOrders.length > 0 || Boolean(imagingOrder?.items?.length);
+        return Boolean(imagingOrder?.items?.length);
       case 'Referral':
-        return (
-          Boolean(referralSpecialty?.trim()) ||
-          Boolean(referralReason?.trim())
-        );
+        return Boolean(referral?.specialty || referral?.reason);
       case 'Follow-up':
-        return (
-          Boolean(prescriptionForm.follow_up_date)
-        );
+        return Boolean(followUp?.next_visit_date);
       case 'Notes':
-        return Boolean(consultationForm.doctor_notes.trim());
+        return Boolean(consultation?.doctor_notes);
       case 'Documents':
         return documents.length > 0;
       default:
@@ -986,12 +976,13 @@ export function OpdVisitPage() {
       {/* Top Header Bar */}
       <section className="opd-page-header">
         <div className="opd-page-title">
-          <button className="doc-btn" onClick={() => navigate('/opd/queue')} type="button">
+          <button className="doc-btn" onClick={() => navigateAway('/opd/queue')} type="button">
             <i className="ph ph-arrow-left" aria-hidden="true" />
             Back to Queue
           </button>
         </div>
         <div className="opd-page-actions">
+          {visit && feature.state.canOpenOphthalmology && <button className="doc-btn" type="button" onClick={() => navigateAway(`/opd/ophthalmology?visit_id=${visit.id}`)}>Ophthalmology intake</button>}
           <button
             className="doc-btn primary"
             disabled={!visit || visit.status !== 'COMPLETED' || updating === 'call-next'}
@@ -1007,7 +998,7 @@ export function OpdVisitPage() {
               <span>Patient Visit:</span>
               <select
                 id="active-visit-select"
-                onChange={(e) => selectVisit(e.target.value)}
+                onChange={(e) => { if (confirmLeave()) selectVisit(e.target.value); }}
                 value={activeVisitId}
               >
                 {recentVisits.map((v) => (
@@ -1029,8 +1020,8 @@ export function OpdVisitPage() {
           </button>
         </div>
       </section>
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
 
+      {feature.state.specialtyCompletionRequired && <div className="form-error-banner"><p>Ophthalmology completion must use the specialty readiness workflow. This screen can save shared care records.</p>{feature.state.canOpenOphthalmology && <button type="button" className="doc-btn" onClick={() => { if (confirmLeave()) feature.actions.openSpecialtyCompletion(); }}>Return to Ophthalmology readiness</button>}</div>}
       {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
       {loading ? (
@@ -1081,7 +1072,7 @@ export function OpdVisitPage() {
             <div className="opd-patient-banner-actions">
               <button
                 className="doc-btn"
-                onClick={() => navigate(`/patients/profile?id=${visit.patient_id}`)}
+                onClick={() => navigateAway(`/patients/profile?id=${visit.patient_id}`)}
                 type="button"
               >
                 <i className="ph ph-user" aria-hidden="true" />
@@ -1089,7 +1080,7 @@ export function OpdVisitPage() {
               </button>
               <button
                 className="doc-btn"
-                onClick={() => navigate(`/patients/emr?id=${visit.patient_id}`)}
+                onClick={() => navigateAway(`/patients/emr?id=${visit.patient_id}`)}
                 type="button"
               >
                 <i className="ph ph-clock-counter-clockwise" aria-hidden="true" />
@@ -1133,21 +1124,20 @@ export function OpdVisitPage() {
                       key={tab.id}
                       onClick={() => {
                         setActiveTab(tab.name);
-                        navigate(`/opd/consultation?id=${visit.id}&tab=${encodeURIComponent(tab.name)}`, { replace: true });
                       }}
                       role="tab"
                       type="button"
                     >
                       {tab.label}
                       {completed ? (
-                        <i className="ph ph-check-circle-fill tab-completed-icon" aria-hidden="true" title="Tab completed" />
+                        <i className="ph ph-check-circle-fill tab-completed-icon" aria-hidden="true" title="Saved details available" />
                       ) : null}
                     </button>
                   );
                 })}
               </div>
 
-              <fieldset disabled={isVisitCompleted} style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}>
+              <fieldset disabled={isVisitCompleted || Boolean(updating) || feature.state.updating || Boolean(loadError)} style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}>
                 {/* TAB 1: CONSULTATION */}
                 {activeTab === 'Consultation' ? (
                   <OpdConsultationSection
@@ -1273,6 +1263,7 @@ export function OpdVisitPage() {
                 {/* TAB 7: FOLLOW-UP */}
                 {activeTab === 'Follow-up' ? (
                   <OpdFollowUpTab
+                    completionBlocked={feature.state.specialtyCompletionRequired}
                     completeConsultation={completeConsultation}
                     doctors={doctors}
                     followUp={followUp}
@@ -1344,7 +1335,6 @@ export function OpdVisitPage() {
         vitalsForm={vitalsForm}
       />
 
-      <Toast message={toastMessage} tone={toastTone} visible={toastVisible} />
     </div>
   );
 }

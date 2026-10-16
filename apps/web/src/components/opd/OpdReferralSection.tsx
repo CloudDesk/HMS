@@ -119,9 +119,8 @@ export function OpdReferralSection({
       )}
 
       <div className="opd-sticky-actions">
-        <span className="opd-autosave saved">
-          <i aria-hidden="true" className="ph ph-check-circle" />
-          Auto-save enabled
+        <span className="opd-autosave">
+          Save changes before leaving
         </span>
         <div>
           {canEdit && (
