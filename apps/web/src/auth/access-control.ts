@@ -103,6 +103,7 @@ const routeRequirements: Record<string, PermissionRequirement[]> = {
   '/opd/ophthalmology': [{ module: 'OPD', screen: 'OPD Visits' }, { module: 'OPD', screen: 'Ophthalmology Intake' }],
   '/opd/ophthalmology/configuration': [{ module: 'OPD', screen: 'Ophthalmology Configuration' }],
   '/opd/ophthalmology/reports': [{ module: 'OPD', screen: 'Ophthalmology Reports' }],
+  '/opd/ophthalmology/dashboard': [{ module: 'OPD', screen: 'Ophthalmology Reports' }],
   '/opd/ophthalmology/queue': [{ module: 'OPD', screen: 'Ophthalmology Test Queue' }],
   '/admissions': [{ module: 'Admissions', screen: 'Inpatient Admissions' }],
   '/admissions/bed-availability': [{ module: 'Admissions', screen: 'Beds' }],

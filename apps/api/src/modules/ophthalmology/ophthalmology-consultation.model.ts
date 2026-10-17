@@ -14,8 +14,9 @@ export type OphthalmologyConsultationFinalizationFields = {
     summarySnapshot: Record<string, unknown>; approverUserId: Types.ObjectId; approverDoctorId: Types.ObjectId; approvedAt: Date;
     idempotencyKey: string; requestFingerprint: string; supersedesClinicalVersion?: number | null }>;
   amendmentEpisodes: Array<{ _id: Types.ObjectId; sourceClinicalVersion: number; reason: string; status: 'OPEN' | 'PENDING_REAPPROVAL' | 'COMPLETED';
-    openedBy: Types.ObjectId; openedAt: Date; changes: Array<{ section: string; beforeValue: unknown; afterValue: unknown; reason: string;
-      changedBy: Types.ObjectId; changedAt: Date }> }>;
+    openedBy: Types.ObjectId; openedAt: Date; changes: Array<{ sourceType: 'OPD_CONSULTATION' | 'CLINICAL_REVIEW' | 'OPTICAL_PRESCRIPTION';
+      sourceId: Types.ObjectId; fromSourceVersion: number; toSourceVersion: number; reason: string; changedBy: Types.ObjectId; changedAt: Date;
+      section?: string; beforeValue?: unknown; afterValue?: unknown }> }>;
   createdBy: Types.ObjectId; updatedBy: Types.ObjectId; createdAt: Date; updatedAt: Date;
 };
 const deferralSchema = new Schema({ sourceType: { type: String, enum: ['TEST_TASK', 'CLINICAL_ORDER'], required: true },
@@ -32,8 +33,10 @@ const completionSchema = new Schema({ clinicalVersion: { type: Number, required:
   approverUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, approverDoctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
   approvedAt: { type: Date, required: true }, idempotencyKey: { type: String, required: true }, requestFingerprint: { type: String, required: true },
   supersedesClinicalVersion: { type: Number, default: null } }, { _id: false });
-const changeSchema = new Schema({ section: { type: String, required: true }, beforeValue: { type: Schema.Types.Mixed, required: true },
-  afterValue: { type: Schema.Types.Mixed, required: true }, reason: { type: String, required: true }, changedBy: { type: Schema.Types.ObjectId, required: true },
+const changeSchema = new Schema({ sourceType: { type: String, enum: ['OPD_CONSULTATION', 'CLINICAL_REVIEW', 'OPTICAL_PRESCRIPTION'] },
+  sourceId: { type: Schema.Types.ObjectId }, fromSourceVersion: { type: Number, min: 0 }, toSourceVersion: { type: Number, min: 1 },
+  section: { type: String }, beforeValue: { type: Schema.Types.Mixed }, afterValue: { type: Schema.Types.Mixed },
+  reason: { type: String, required: true }, changedBy: { type: Schema.Types.ObjectId, required: true },
   changedAt: { type: Date, required: true } }, { _id: false });
 const episodeSchema = new Schema({ sourceClinicalVersion: { type: Number, required: true }, reason: { type: String, required: true },
   status: { type: String, enum: ['OPEN', 'PENDING_REAPPROVAL', 'COMPLETED'], required: true }, openedBy: { type: Schema.Types.ObjectId, required: true },

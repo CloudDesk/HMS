@@ -109,6 +109,14 @@ describe('staff route access control', () => {
     expect(canAccessRoute('/administration/users', [], roles)).toBe(true);
   });
 
+  it('gates the Ophthalmology dashboard with Reports View and exposes its sidebar link', () => {
+    const reportsView = [permission('OPD', 'Ophthalmology Reports')];
+    expect(canAccessRoute('/opd/ophthalmology/dashboard', reportsView)).toBe(true);
+    expect(canAccessRoute('/opd/ophthalmology/dashboard', [])).toBe(false);
+    expect(getAccessibleSidebarModules(reportsView).find((module) => module.key === 'opd')?.links.map((link) => link.href))
+      .toContain('/opd/ophthalmology/dashboard');
+  });
+
   it('normalizes module, screen, and action strings with underscores and casing differences', () => {
     const admissionReqPermission = permission('Admissions', 'Admission Requests', 'Create');
     expect(hasPermission([admissionReqPermission], { module: 'ADMISSIONS', screen: 'ADMISSION_REQUESTS', action: 'CREATE' })).toBe(true);

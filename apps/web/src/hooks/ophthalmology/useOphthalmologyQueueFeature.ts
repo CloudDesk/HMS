@@ -52,7 +52,7 @@ export function useOphthalmologyQueueFeature() {
   const workflowQuery = useOphthalmologyBoundWorkflow(workflowId, canView && canConfigure && Boolean(workflowId) && (createOpen || workflowOpen));
   const workflow = canConfigure && workflowQuery.data?.id === workflowId && workflowQuery.data.branch_id === branchId ? workflowQuery.data : undefined;
   const action = queueActionDefinitions.find((entry) => entry.action === params.get('action'));
-  const allowedActions = task && !scopeError && !visitScopeError ? queueActionDefinitions.filter((entry) => can(entry.screen, entry.permission) && entry.statuses.includes(task.status) && (entry.action !== 'start' || task.assigned_user_id === user?.id) && (entry.action !== 'request-repeat' || !task.repeat_task_id)) : [];
+  const allowedActions = task && !scopeError && !visitScopeError ? queueActionDefinitions.filter((entry) => can(entry.screen, entry.permission) && entry.statuses.includes(task.status) && (!['start', 'submit-for-review'].includes(entry.action) || task.assigned_user_id === user?.id) && (entry.action !== 'request-repeat' || !task.repeat_task_id)) : [];
   const actionOpen = Boolean(task && action && can(action.screen, action.permission));
   const routeNext = params.get('route_target') === 'NEXT_STATION';
   const needsAssignment = actionOpen && Boolean(action && (['assign', 'reassign', 'request-repeat'].includes(action.action) || action.action === 'route' && routeNext));

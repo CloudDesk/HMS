@@ -12,10 +12,11 @@ export const queueTaskSchema = taskSchema.extend({
   test_catalogue_version_id: id, workflow_profile_version_id: id, workflow_stage_code: z.string().nullable(),
   source_type: z.enum(['WORKFLOW', 'CLINICAL_ORDER_ITEM']), source_order_id: nullableId, source_order_item_id: nullableId, source_order_type: z.enum(['LABORATORY', 'IMAGING']).nullable(),
   doctor_review_required: z.boolean(), repeat_of_task_id: nullableId, repeat_task_id: nullableId, repeat_root_task_id: nullableId,
-  ordered_at: instant, assigned_at: instant.nullable(), waiting_since: instant.nullable(), called_at: instant.nullable(), unable_at: instant.nullable(), cancelled_at: instant.nullable(),
+  ordered_at: instant, assigned_at: instant.nullable(), waiting_since: instant.nullable(), called_at: instant.nullable(),
+  submitted_by: nullableId.default(null), submitted_at: instant.nullable().default(null), unable_at: instant.nullable(), cancelled_at: instant.nullable(),
   reviewed_by: nullableId, reviewed_at: instant.nullable(), reviewed_clinical_version: version.nullable(), review_comment: z.string().nullable(),
   assignment_history: z.array(z.object({ action: z.enum(['ASSIGNED', 'REASSIGNED']), from_station_id: nullableId, to_station_id: id, from_user_id: nullableId, to_user_id: nullableId, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
-  transition_history: z.array(z.object({ action: z.enum(['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED']), from_status: taskStatusSchema, to_status: taskStatusSchema, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
+  transition_history: z.array(z.object({ action: z.enum(['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'SUBMITTED_FOR_REVIEW', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED']), from_status: taskStatusSchema, to_status: taskStatusSchema, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
   routing_history: z.array(z.object({ target: z.enum(['NEXT_STATION', 'OPHTHALMOLOGIST']), target_task_id: nullableId, target_station_id: nullableId, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
   created_at: instant, updated_at: instant,
 });
@@ -48,6 +49,7 @@ export const queueCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start'), task_id: id, body: z.object({ expected_version: version, expected_status: z.literal('PATIENT_CALLED'), device_code: z.string().trim().max(80).nullable().optional() }).strict() }).strict(),
   z.object({ action: z.literal('unable'), task_id: id, body: z.object({ ...expected, expected_status: z.enum(['IN_PROGRESS', 'DRAFT']), reason }).strict() }).strict(),
   z.object({ action: z.literal('cancel'), task_id: id, body: z.object({ ...expected, expected_status: z.enum(['ORDERED', 'PATIENT_WAITING', 'PATIENT_CALLED', 'DRAFT']), reason }).strict() }).strict(),
+  z.object({ action: z.literal('submit-for-review'), task_id: id, body: z.object({ expected_version: version, expected_status: z.literal('COMPLETED') }).strict() }).strict(),
   z.object({ action: z.literal('request-repeat'), task_id: id, key, body: z.object({ ...expected, expected_status: z.enum(['COMPLETED', 'SUBMITTED_FOR_REVIEW']), station_id: id, assigned_user_id: nullableId.optional(), reason }).strict() }).strict(),
   z.object({ action: z.literal('route'), task_id: id, body: routeBody }).strict(),
 ]);

@@ -30,6 +30,7 @@ import {
   assignOphthalmologyTestTaskBodySchema,
   reassignOphthalmologyTestTaskBodySchema,
   callOphthalmologyTestTaskBodySchema,
+  submitOphthalmologyTestTaskForReviewBodySchema,
   patientUnavailableOphthalmologyTestTaskBodySchema,
   startOphthalmologyTestTaskBodySchema,
   unableOphthalmologyTestTaskBodySchema,
@@ -47,7 +48,9 @@ import {
   overrideOphthalmologyCompletionBodySchema,
   completeOphthalmologyConsultationBodySchema,
   reopenOphthalmologyConsultationBodySchema,
-  amendOphthalmologyConsultationBodySchema,
+  correctOphthalmologyConsultationBodySchema,
+  correctOphthalmologyClinicalReviewBodySchema,
+  correctOphthalmologyOpticalPrescriptionBodySchema,
 } from './ophthalmology.schemas.js';
 import type {
   AcknowledgeOphthalmologyAlertDTO,
@@ -71,6 +74,7 @@ import type {
   AssignOphthalmologyTestTaskDTO,
   ReassignOphthalmologyTestTaskDTO,
   TaskStateActionDTO,
+  SubmitOphthalmologyTestTaskForReviewDTO,
   ReasonedTaskStateActionDTO,
   StartOphthalmologyTestTaskDTO,
   RepeatOphthalmologyTestTaskDTO,
@@ -86,7 +90,9 @@ import type {
   OverrideOphthalmologyCompletionDTO,
   CompleteOphthalmologyConsultationDTO,
   ReopenOphthalmologyConsultationDTO,
-  AmendOphthalmologyConsultationDTO,
+  CorrectOphthalmologyConsultationDTO,
+  CorrectOphthalmologyClinicalReviewDTO,
+  CorrectOphthalmologyOpticalPrescriptionDTO,
 } from './ophthalmology.types.js';
 import { ophthalmologyAttachmentListQuerySchema, ophthalmologyDashboardQuerySchema, ophthalmologyPublicationBodySchema, ophthalmologyPublicationHeadersSchema,
   ophthalmologyReportParamsSchema, ophthalmologyReportQuerySchema,
@@ -211,6 +217,10 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
   app.post<{ Params: IdParams; Body: ReasonedTaskStateActionDTO }>('/api/ophthalmology/test-tasks/:id/cancel', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Queue', 'Cancel'), schema: { params: ophthalmologyIdParamsSchema, body: cancelOphthalmologyTestTaskBodySchema },
   }, async (request) => ok(await services.ophthalmology.cancelTestTask(request.params.id, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: IdParams; Body: SubmitOphthalmologyTestTaskForReviewDTO }>('/api/ophthalmology/test-tasks/:id/submit-for-review', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Queue', 'Complete'),
+    schema: { params: ophthalmologyIdParamsSchema, body: submitOphthalmologyTestTaskForReviewBodySchema },
+  }, async (request) => ok(await services.ophthalmology.submitTestTaskForReview(request.params.id, request.body, request.user!.id, metadata(request))));
   app.post<{ Params: IdParams; Body: RepeatOphthalmologyTestTaskDTO; Headers: IdempotencyHeaders }>('/api/ophthalmology/test-tasks/:id/request-repeat', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Test Review', 'Request Repeat'),
     schema: { params: ophthalmologyIdParamsSchema, headers: ophthalmologyTestTaskHeadersSchema, body: repeatOphthalmologyTestTaskBodySchema },
@@ -264,10 +274,18 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Reopen'),
     schema: { params: ophthalmologyVisitParamsSchema, body: reopenOphthalmologyConsultationBodySchema },
   }, async (request) => ok(await services.ophthalmology.reopenConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
-  app.post<{ Params: VisitParams; Body: AmendOphthalmologyConsultationDTO }>('/api/opd/visits/:visitId/ophthalmology/amendments', {
+  app.post<{ Params: VisitParams; Body: CorrectOphthalmologyConsultationDTO }>('/api/opd/visits/:visitId/ophthalmology/corrections/consultation', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Amend'),
-    schema: { params: ophthalmologyVisitParamsSchema, body: amendOphthalmologyConsultationBodySchema },
-  }, async (request) => ok(await services.ophthalmology.amendConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
+    schema: { params: ophthalmologyVisitParamsSchema, body: correctOphthalmologyConsultationBodySchema },
+  }, async (request) => ok(await services.ophthalmology.correctConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: CorrectOphthalmologyClinicalReviewDTO }>('/api/opd/visits/:visitId/ophthalmology/corrections/clinical-review', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Amend'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: correctOphthalmologyClinicalReviewBodySchema },
+  }, async (request) => ok(await services.ophthalmology.correctClinicalReview(request.params.visitId, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: CorrectOphthalmologyOpticalPrescriptionDTO }>('/api/opd/visits/:visitId/ophthalmology/corrections/optical-prescription', {
+    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'Amend'),
+    schema: { params: ophthalmologyVisitParamsSchema, body: correctOphthalmologyOpticalPrescriptionBodySchema },
+  }, async (request) => ok(await services.ophthalmology.correctOpticalPrescription(request.params.visitId, request.body, request.user!.id, metadata(request))));
 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/context', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'View'), schema: { params: ophthalmologyVisitParamsSchema },

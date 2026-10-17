@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const request = vi.hoisted(() => vi.fn());
 vi.mock('./client', () => ({ apiClient: { request } }));
-import { deferralWriteSchema, finalizationSchema, ophthalmologyCompletionApi, overrideWriteSchema, readinessSchema } from './ophthalmology-completion';
+import { completeWriteSchema, deferralWriteSchema, finalizationSchema, ophthalmologyCompletionApi, overrideWriteSchema, readinessSchema } from './ophthalmology-completion';
 const id = '111111111111111111111111'; const instant = '2026-10-16T00:00:00Z';
 const head = () => ({ id, context_id: id, visit_id: id, patient_id: id, branch_id: id, department_id: id, status: 'OPEN', version: 2, deferrals: [], overrides: [], completions: [], amendment_episodes: [], created_at: instant, updated_at: instant });
 describe('B5 completion metadata and controlled exceptions', () => {
@@ -43,7 +43,27 @@ describe('B5 completion metadata and controlled exceptions', () => {
     const parsed = finalizationSchema.parse({ ...head(), completions: [completion] });
     expect(parsed.completions[0]).not.toHaveProperty('summary_snapshot'); expect(parsed.completions[0]).not.toHaveProperty('configuration_snapshot'); expect(parsed.completions[0]).not.toHaveProperty('idempotency_key'); expect(parsed.completions[0]).not.toHaveProperty('request_fingerprint');
   });
-  it('has no completion, reopening or untyped amendment writer while their safety contracts are incomplete', () => {
-    expect(ophthalmologyCompletionApi).not.toHaveProperty('complete'); expect(ophthalmologyCompletionApi).not.toHaveProperty('reopen'); expect(ophthalmologyCompletionApi).not.toHaveProperty('amend'); expect(request).not.toHaveBeenCalled();
+  it('accepts explicit missing-code resources without treating them as MongoDB identifiers', () => {
+    const value = { ready: false, context_version: 1, consultation_version: 1, clinical_review_version: 1, optical_prescription_version: null, configuration_version_id: id, configuration_revision: 1,
+      requirements: [{ code: 'MANDATORY_TESTS_REVIEWED', satisfied: false, details: 'Missing', resource_ids: ['MANDATORY_TEST_CODE:VISUAL_ACUITY'] }] };
+    expect(readinessSchema.safeParse(value).success).toBe(true);
+  });
+  it('sends exact completion versions with a stable caller-owned idempotency key', async () => {
+    const body = completeWriteSchema.parse({ expected_version: 2, expected_context_version: 3, expected_consultation_version: 4,
+      expected_clinical_review_version: 5, expected_optical_prescription_version: null });
+    request.mockResolvedValue({ ...head(), status: 'COMPLETED', version: 3 });
+    await ophthalmologyCompletionApi.complete(id, body, 'c4-stable-retry-key');
+    expect(request).toHaveBeenCalledWith(`/opd/visits/${id}/ophthalmology/complete`, { method: 'POST',
+      headers: { 'Idempotency-Key': 'c4-stable-retry-key' }, body });
+  });
+  it('uses only the three typed authoritative correction routes', async () => {
+    const envelope = { expected_version: 3, expected_status: 'AMENDMENT_OPEN' as const, episode_id: id,
+      expected_source_version: 2, reason: 'Correct assessment' };
+    request.mockResolvedValue({ finalization: { ...head(), status: 'AMENDMENT_OPEN', version: 4 }, source: {
+      id, status: 'COMPLETED', version: 3, assessment: 'Corrected', diagnoses: [], treatment_plan: null, doctor_notes: null, completed_at: instant } });
+    await ophthalmologyCompletionApi.correctConsultation(id, { ...envelope, consultation: { assessment: 'Corrected' } });
+    expect(request).toHaveBeenCalledWith(`/opd/visits/${id}/ophthalmology/corrections/consultation`, { method: 'POST',
+      body: { ...envelope, consultation: { assessment: 'Corrected' } } });
+    expect(ophthalmologyCompletionApi).not.toHaveProperty('amend');
   });
 });

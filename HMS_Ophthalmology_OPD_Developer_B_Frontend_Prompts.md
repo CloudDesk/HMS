@@ -1,5 +1,9 @@
 # HMS Ophthalmology OPD — Developer B (Frontend) Phase Prompts
 
+## Current continuation — 17 October 2026
+
+The post-B6 contract reconciliation is complete in `HMS_OPHTHALMOLOGY_FRONTEND_CONTRACT_RECONCILIATION.md`. C1 dashboard integration, C2 queue review submission, C3 completion-safety backend handoff and C4 completion frontend are implemented with focused verification complete. C4 consumes backend API contract 1.12.0; see `HMS_OPHTHALMOLOGY_FRONTEND_C4_VERIFICATION.md`. Repository-wide web typecheck/build and authenticated live acceptance retain documented unrelated/open conditions. Publication, cross-domain reports and clinical-contract-dependent fields remain open. **C5 publication backend handoff has not started.**
+
 ## Role and ownership
 
 You are **Developer B — Frontend**.
@@ -62,7 +66,7 @@ Never claim a document was verified if it was not accessible.
 - Preferred location: `docs/analysis/ophthalmology/contracts/`. Verify it is accessible and suitable before relying on it. If documentation is ignored/untracked, agree on a tracked, accessible, non-conflicting location; do not force-add or overwrite files without approval.
 - Each contract must define endpoint/method, request/response schemas, required fields and validation, authentication/permissions/organization scope, errors, identifiers and lifecycle transitions, audit requirements, compatibility/versioning, and representative examples.
 - Developer A publishes the contract; Developer B implements against it. Neither silently changes the other's implementation.
-- The existing tracked contract is `HMS_OPHTHALMOLOGY_BACKEND_API_CONTRACT_V1.md`, currently v1.10.0. Use it rather than creating a competing contract under the preferred directory. Read the actual routes, schemas and types without editing them. Endpoint families for later phases are planned contracts, not evidence that those endpoints work.
+- The existing tracked contract is `HMS_OPHTHALMOLOGY_BACKEND_API_CONTRACT_V1.md`, currently v1.12.0. Use it rather than creating a competing contract under the preferred directory. Read the actual routes, schemas and types without editing them. Endpoint families for later phases are planned contracts, not evidence that those endpoints work.
 - If a dependency is missing, complete only independent work and document the exact missing artifact, decision, field, endpoint, or approval. Do not invent a substitute.
 
 ## 4. Engineering Checklist Compliance

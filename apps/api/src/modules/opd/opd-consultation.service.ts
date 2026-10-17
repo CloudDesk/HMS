@@ -9,6 +9,7 @@ import type { OpdConsultation } from './opd-consultation.types.js';
 import type { OpdVitalsRepository } from './opd-vitals.repository.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdVisit } from './opd-visit.types.js';
+import type { OphthalmologyRepository } from '../ophthalmology/ophthalmology.repository.js';
 
 const terminalVisitStatuses: OpdVisit['status'][] = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
@@ -21,6 +22,7 @@ export class OpdConsultationService {
     private readonly vitalsRepository: OpdVitalsRepository,
     private readonly patientRepository: PatientRepository,
     private readonly appointmentRepository: AppointmentRepository,
+    private readonly ophthalmologyRepository?: Pick<OphthalmologyRepository, 'getContextByVisit'>,
   ) {}
 
   async getByVisit(visitId: string, userId: string) {
@@ -74,6 +76,7 @@ export class OpdConsultationService {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
+    await this.ensureNotOphthalmologyManaged(visitId);
     await this.ensureVitalsRecorded(visit.id);
     const current = await this.repository.getByVisit(visitId);
     this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
@@ -85,6 +88,7 @@ export class OpdConsultationService {
       if (!transactionalVisit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
       this.ensureOpenVisit(transactionalVisit);
       this.ensureConsultationReady(transactionalVisit);
+      await this.ensureNotOphthalmologyManaged(visitId, session);
       const transactionalCurrent = await this.repository.getByVisit(visitId, session);
       this.assertExpectedState(
         data,
@@ -225,6 +229,13 @@ export class OpdConsultationService {
 
     if (!latestVitals) {
       throw new AppError('Vitals must be recorded before completing consultation', 400, 'VITALS_REQUIRED');
+    }
+  }
+
+  private async ensureNotOphthalmologyManaged(visitId: string, session?: import('mongoose').ClientSession) {
+    if (this.ophthalmologyRepository && await this.ophthalmologyRepository.getContextByVisit(visitId, session)) {
+      throw new AppError('Ophthalmology consultations must use specialty completion readiness and approval', 409,
+        'OPHTHALMOLOGY_SPECIALTY_COMPLETION_REQUIRED');
     }
   }
 

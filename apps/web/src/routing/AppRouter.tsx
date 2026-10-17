@@ -54,6 +54,7 @@ const OpdVisitPage = lazy(() => import('../pages/OpdVisitPage').then((module) =>
 const OphthalmologyWorkspacePage = lazy(() => import('../pages/OphthalmologyWorkspacePage').then((module) => ({ default: module.OphthalmologyWorkspacePage })));
 const OphthalmologyConfigurationPage = lazy(() => import('../pages/OphthalmologyConfigurationPage').then((module) => ({ default: module.OphthalmologyConfigurationPage })));
 const OphthalmologyReportsPage = lazy(() => import('../pages/OphthalmologyReportsPage').then((module) => ({ default: module.OphthalmologyReportsPage })));
+const OphthalmologyDashboardPage = lazy(() => import('../pages/OphthalmologyDashboardPage').then((module) => ({ default: module.OphthalmologyDashboardPage })));
 const OphthalmologyQueuePage = lazy(() => import('../pages/OphthalmologyQueuePage').then((module) => ({ default: module.OphthalmologyQueuePage })));
 const PatientConsentPage = lazy(() => import('../pages/PatientConsentPage').then((module) => ({ default: module.PatientConsentPage })));
 const PatientDocumentsPage = lazy(() => import('../pages/PatientDocumentsPage').then((module) => ({ default: module.PatientDocumentsPage })));
@@ -239,6 +240,10 @@ export function AppRouter() {
     title = 'OPD Dashboard';
     breadcrumbs = ['Home', 'OPD', 'Dashboard'];
     content = <OpdDashboardPage />;
+  } else if (pathname === '/opd/ophthalmology/dashboard') {
+    title = 'Ophthalmology Dashboard';
+    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Dashboard'];
+    content = <OphthalmologyDashboardPage />;
   } else if (pathname === '/opd/ophthalmology/reports') {
     title = 'Ophthalmology Reports';
     breadcrumbs = ['Home', 'OPD', 'Ophthalmology Reports'];

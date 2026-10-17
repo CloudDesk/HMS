@@ -210,7 +210,8 @@ const toTestTask = (item: TestTaskRecord): OphthalmologyTestTask => ({
     target_task_id: entry.targetTaskId?.toString() ?? null, target_station_id: entry.targetStationId?.toString() ?? null,
     reason: entry.reason ?? null, actor_user_id: entry.actorUserId.toString(), occurred_at: entry.occurredAt })),
   ordered_at: item.orderedAt, assigned_at: item.assignedAt ?? null, waiting_since: item.waitingSince ?? null,
-  called_at: item.calledAt ?? null, started_at: item.startedAt ?? null, completed_at: item.completedAt ?? null, unable_at: item.unableAt ?? null,
+  called_at: item.calledAt ?? null, started_at: item.startedAt ?? null, completed_at: item.completedAt ?? null,
+  submitted_by: item.submittedBy?.toString() ?? null, submitted_at: item.submittedAt ?? null, unable_at: item.unableAt ?? null,
   cancelled_at: item.cancelledAt ?? null, reviewed_by: item.reviewedBy?.toString() ?? null, reviewed_at: item.reviewedAt ?? null,
   reviewed_clinical_version: item.reviewedClinicalVersion ?? null, review_comment: item.reviewComment ?? null,
   version: item.version ?? 0, created_at: item.createdAt, updated_at: item.updatedAt,
@@ -256,8 +257,10 @@ const toFinalization = (item: FinalizationRecord) => ({
     supersedes_clinical_version: entry.supersedesClinicalVersion ?? null })),
   amendment_episodes: item.amendmentEpisodes.map((entry) => ({ id: entry._id.toString(), source_clinical_version: entry.sourceClinicalVersion,
     reason: entry.reason, status: entry.status, opened_by: entry.openedBy.toString(), opened_at: entry.openedAt,
-    changes: entry.changes.map((change) => ({ section: change.section, before_value: change.beforeValue,
-      after_value: change.afterValue, reason: change.reason, changed_by: change.changedBy.toString(), changed_at: change.changedAt })) })),
+    changes: entry.changes.map((change) => ({ source_type: change.sourceType ?? null, source_id: change.sourceId?.toString() ?? null,
+      from_source_version: change.fromSourceVersion ?? null, to_source_version: change.toSourceVersion ?? null,
+      section: change.section ?? null, before_value: change.beforeValue, after_value: change.afterValue,
+      reason: change.reason, changed_by: change.changedBy.toString(), changed_at: change.changedAt })) })),
   created_at: item.createdAt, updated_at: item.updatedAt,
 });
 const uniqueCodes = (items?: string[]) => [...new Set((items ?? []).map((item) => item.trim().toUpperCase()))];
@@ -815,6 +818,16 @@ export class OphthalmologyRepository {
       { $set: { currentClinicalVersion: version.clinicalVersion, updatedBy: oid(userId) }, $push: { versions: version }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<ClinicalReviewRecord>(); return record ? toClinicalReview(record) : null;
   }
+  async correctClinicalReview(context: OphthalmologyContext, expectedVersion: number,
+    data: Omit<SaveOphthalmologyClinicalReviewDraftDTO, 'expected_version'>, userId: string, session: ClientSession) {
+    const current = await this.getClinicalReviewByVisit(context.visit_id, session);
+    if (!current || current.status !== 'COMPLETED' || current.version !== expectedVersion) return null;
+    const saved = await this.saveClinicalReviewDraft(context, { ...data, expected_version: expectedVersion }, userId, session);
+    if (!saved) return null;
+    const record = await OphthalmologyClinicalReviewModel.findOneAndUpdate({ _id: oid(saved.id), status: 'COMPLETED', version: saved.version },
+      { $set: { status: 'DRAFT', updatedBy: oid(userId) } }, { returnDocument: 'after', lean: true, session }).lean<ClinicalReviewRecord>();
+    return record ? toClinicalReview(record) : null;
+  }
 
   async getOpticalPrescriptionByVisit(visitId: string, session?: ClientSession) {
     const query = OphthalmologyOpticalPrescriptionModel.findOne({ visitId: oid(visitId) }); if (session) query.session(session);
@@ -844,6 +857,16 @@ export class OphthalmologyRepository {
     const record = await OphthalmologyOpticalPrescriptionModel.findOneAndUpdate({ _id: oid(current.id), status: 'DRAFT', version: data.expected_version },
       { $set: { currentClinicalVersion: version.clinicalVersion, updatedBy: oid(userId) }, $push: { versions: version }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<OpticalPrescriptionRecord>(); return record ? toOpticalPrescription(record) : null;
+  }
+  async correctOpticalPrescription(context: OphthalmologyContext, expectedVersion: number,
+    data: Omit<SaveOphthalmologyOpticalPrescriptionDraftDTO, 'expected_version'>, userId: string, session: ClientSession) {
+    const current = await this.getOpticalPrescriptionByVisit(context.visit_id, session);
+    if (!current || current.status !== 'APPROVED' || current.version !== expectedVersion) return null;
+    const next = this.opticalVersion({ ...data, expected_version: expectedVersion }, current.current_clinical_version + 1, userId);
+    const record = await OphthalmologyOpticalPrescriptionModel.findOneAndUpdate({ _id: oid(current.id), status: 'APPROVED', version: expectedVersion },
+      { $set: { currentClinicalVersion: next.clinicalVersion, status: 'DRAFT', updatedBy: oid(userId) }, $push: { versions: next },
+        $inc: { version: 1 } }, { returnDocument: 'after', lean: true, session }).lean<OpticalPrescriptionRecord>();
+    return record ? toOpticalPrescription(record) : null;
   }
   async approveOpticalPrescription(id: string, expectedVersion: number, clinicalVersion: number, userId: string, doctorId: string, session: ClientSession) {
     const now = new Date(); const record = await OphthalmologyOpticalPrescriptionModel.findOneAndUpdate(
@@ -929,10 +952,10 @@ export class OphthalmologyRepository {
     const result = await OphthalmologyTestResultModel.findOne({ taskId: oid(taskId), status: 'COMPLETED', version: expectedResultVersion,
       currentClinicalVersion: expectedClinicalVersion }).session(session).lean<TestResultRecord>();
     if (!result) return null;
-    const currentTask = await OphthalmologyTestTaskModel.findOne({ _id: oid(taskId), status: { $in: ['COMPLETED', 'SUBMITTED_FOR_REVIEW'] },
+    const currentTask = await OphthalmologyTestTaskModel.findOne({ _id: oid(taskId), status: 'SUBMITTED_FOR_REVIEW',
       version: expectedTaskVersion }).session(session).lean<TestTaskRecord>(); if (!currentTask) return null;
     const now = new Date(); const record = await OphthalmologyTestTaskModel.findOneAndUpdate(
-      { _id: oid(taskId), status: { $in: ['COMPLETED', 'SUBMITTED_FOR_REVIEW'] }, version: expectedTaskVersion },
+      { _id: oid(taskId), status: 'SUBMITTED_FOR_REVIEW', version: expectedTaskVersion },
       { $set: { status: 'REVIEWED', reviewedBy: oid(userId), reviewedAt: now, reviewedClinicalVersion: expectedClinicalVersion,
         reviewComment: comment, updatedBy: oid(userId) }, $push: { transitionHistory: { action: 'REVIEWED',
         fromStatus: currentTask.status, toStatus: 'REVIEWED', reason: comment, actorUserId: oid(userId), occurredAt: now } },
@@ -1005,12 +1028,14 @@ export class OphthalmologyRepository {
       { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
   }
 
-  async appendAmendment(finalizationId: string, expectedVersion: number, episodeId: string, change: { section: string;
-    before_value: unknown; after_value: unknown; reason: string }, userId: string, session: ClientSession) {
+  async appendSourceAmendment(finalizationId: string, expectedVersion: number, episodeId: string, change: {
+    source_type: 'OPD_CONSULTATION' | 'CLINICAL_REVIEW' | 'OPTICAL_PRESCRIPTION'; source_id: string;
+    from_source_version: number; to_source_version: number; reason: string }, userId: string, session: ClientSession) {
     const record = await OphthalmologyConsultationFinalizationModel.findOneAndUpdate({ _id: oid(finalizationId), status: 'AMENDMENT_OPEN',
       version: expectedVersion, amendmentEpisodes: { $elemMatch: { _id: oid(episodeId), status: 'OPEN' } } },
-      { $push: { 'amendmentEpisodes.$.changes': { section: change.section.trim(), beforeValue: change.before_value,
-        afterValue: change.after_value, reason: change.reason.trim(), changedBy: oid(userId), changedAt: new Date() } },
+      { $push: { 'amendmentEpisodes.$.changes': { sourceType: change.source_type, sourceId: oid(change.source_id),
+        fromSourceVersion: change.from_source_version, toSourceVersion: change.to_source_version,
+        reason: change.reason.trim(), changedBy: oid(userId), changedAt: new Date() } },
         $set: { updatedBy: oid(userId) }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
   }

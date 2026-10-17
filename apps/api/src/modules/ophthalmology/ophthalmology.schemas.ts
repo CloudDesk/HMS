@@ -208,6 +208,7 @@ const stateActionSchema = (statuses: readonly string[]) => ({
   properties: { expected_status: { type: 'string', enum: statuses }, expected_version: version },
 } as const);
 export const callOphthalmologyTestTaskBodySchema = stateActionSchema(['PATIENT_WAITING']);
+export const submitOphthalmologyTestTaskForReviewBodySchema = stateActionSchema(['COMPLETED']);
 export const patientUnavailableOphthalmologyTestTaskBodySchema = {
   type: 'object', additionalProperties: false, required: ['expected_status', 'expected_version', 'reason'],
   properties: { expected_status: { const: 'PATIENT_CALLED' }, expected_version: version, reason: { type: 'string', minLength: 1, maxLength: 1000 } },
@@ -361,10 +362,33 @@ export const reopenOphthalmologyConsultationBodySchema = {
   type: 'object', additionalProperties: false, required: ['expected_version', 'expected_status', 'reason'],
   properties: { expected_version: version, expected_status: { const: 'COMPLETED' }, reason: { type: 'string', minLength: 1, maxLength: 2000 } },
 } as const;
-export const amendOphthalmologyConsultationBodySchema = {
-  type: 'object', additionalProperties: false,
-  required: ['expected_version', 'expected_status', 'episode_id', 'section', 'before_value', 'after_value', 'reason'],
-  properties: { expected_version: version, expected_status: { const: 'AMENDMENT_OPEN' }, episode_id: objectId,
-    section: { type: 'string', minLength: 1, maxLength: 120 }, before_value: {}, after_value: {},
-    reason: { type: 'string', minLength: 1, maxLength: 2000 } },
+const correctionEnvelope = { expected_version: version, expected_status: { const: 'AMENDMENT_OPEN' }, episode_id: objectId,
+  expected_source_version: version, reason: { type: 'string', minLength: 1, maxLength: 2000 } } as const;
+const consultationCorrection = {
+  type: 'object', additionalProperties: false, minProperties: 1, properties: {
+    chief_complaint: nullableText(10000), history_present_illness: nullableText(10000), past_history: nullableText(10000),
+    family_history: nullableText(10000), allergies: nullableText(10000), physical_examination: nullableText(10000),
+    assessment: nullableText(10000), diagnoses: { type: 'array', items: {
+      type: 'object', additionalProperties: false, required: ['code', 'display'], properties: {
+        code: { type: 'string', minLength: 1 }, display: { type: 'string', minLength: 1 }, codingSystem: { type: 'string', minLength: 1 },
+        type: { type: 'string', enum: ['PRIMARY', 'SECONDARY'] }, laterality: { type: ['string', 'null'], enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE', null] },
+        status: { type: ['string', 'null'], enum: ['SUSPECTED', 'CONFIRMED', 'RULED_OUT', null] }, severity: nullableText(120),
+        stage: nullableText(120), differential: { type: 'boolean' }, notes: nullableText(10000),
+      },
+    } }, treatment_plan: nullableText(10000), doctor_notes: nullableText(10000),
+  },
 } as const;
+export const correctOphthalmologyConsultationBodySchema = { type: 'object', additionalProperties: false,
+  required: ['expected_version', 'expected_status', 'episode_id', 'expected_source_version', 'reason', 'consultation'],
+  properties: { ...correctionEnvelope, consultation: consultationCorrection } } as const;
+export const correctOphthalmologyClinicalReviewBodySchema = { type: 'object', additionalProperties: false,
+  required: ['expected_version', 'expected_status', 'episode_id', 'expected_source_version', 'reason', 'clinical_review'],
+  properties: { ...correctionEnvelope, clinical_review: { ...saveOphthalmologyClinicalReviewDraftBodySchema,
+    required: ['clinical_summary', 'treatment_plans'], properties: Object.fromEntries(Object.entries(saveOphthalmologyClinicalReviewDraftBodySchema.properties)
+      .filter(([key]) => key !== 'expected_version')) } } } as const;
+export const correctOphthalmologyOpticalPrescriptionBodySchema = { type: 'object', additionalProperties: false,
+  required: ['expected_version', 'expected_status', 'episode_id', 'expected_source_version', 'reason', 'optical_prescription'],
+  properties: { ...correctionEnvelope, optical_prescription: { ...saveOphthalmologyOpticalPrescriptionDraftBodySchema,
+    required: saveOphthalmologyOpticalPrescriptionDraftBodySchema.required.filter((key) => key !== 'expected_version'),
+    properties: Object.fromEntries(Object.entries(saveOphthalmologyOpticalPrescriptionDraftBodySchema.properties)
+      .filter(([key]) => key !== 'expected_version')) } } } as const;

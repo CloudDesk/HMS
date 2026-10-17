@@ -30,9 +30,16 @@ describe('ophthalmology queue contracts and transitions', () => {
     expect(queueCommandSchema.safeParse({ action: 'cancel', task_id: id, body: { expected_version: 2, expected_status: 'DRAFT', reason: '   ' } }).success).toBe(false);
     expect(request).not.toHaveBeenCalled();
   });
-  it('never invents a submission action from the enum', () => {
-    expect(queueCommandSchema.safeParse({ action: 'submit-for-review', task_id: id, body: {} }).success).toBe(false);
-    expect(queueActionDefinitions.map((action) => action.action)).not.toContain('submit-for-review');
+  it('submits only an exact completed task version to the verified backend command', async () => {
+    const command = buildQueueCommand({ id, version: 7, status: 'COMPLETED' } as QueueTask, 'submit-for-review', form, 'unused-key');
+    expect(command).toEqual({ action: 'submit-for-review', task_id: id, body: { expected_version: 7, expected_status: 'COMPLETED' } });
+    expect(queueActionDefinitions).toContainEqual(expect.objectContaining({ action: 'submit-for-review', permission: 'Complete', statuses: ['COMPLETED'] }));
+    expect(queueCommandSchema.safeParse({ ...command, body: { expected_version: 7, expected_status: 'SUBMITTED_FOR_REVIEW' } }).success).toBe(false);
+    request.mockRejectedValue(new Error('network timeout'));
+    await expect(ophthalmologyQueueApi.action(command)).rejects.toThrow('network timeout');
+    expect(request).toHaveBeenCalledWith(`/ophthalmology/test-tasks/${id}/submit-for-review`, {
+      method: 'POST', body: { expected_version: 7, expected_status: 'COMPLETED' },
+    });
   });
   it('requires existing next task/station and does not advance unable tasks to a next station', () => {
     const command = { action: 'route', task_id: id, body: { expected_status: 'COMPLETED', expected_version: 7, target: 'NEXT_STATION' } };

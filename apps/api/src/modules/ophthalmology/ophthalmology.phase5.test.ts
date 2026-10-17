@@ -90,6 +90,62 @@ describe('Ophthalmology Phase 5 core clinical test results', () => {
     expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
   });
 
+  it('submits one completed result for review with actor, time, transition, and audit', async () => {
+    const [form, payload] = forms[0]!; const { task, profile } = await createTaskAndProfile(form);
+    await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);
+    await service.completeTestResult(task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1,
+      expected_result_version: 0 }, userId);
+    const submitted = await service.submitTestTaskForReview(task._id.toString(), {
+      expected_status: 'COMPLETED', expected_version: 2,
+    }, userId);
+    expect(submitted).toMatchObject({ status: 'SUBMITTED_FOR_REVIEW', submitted_by: userId, version: 3,
+      transition_history: [{ action: 'DRAFT_SAVED' }, { action: 'COMPLETED' }, { action: 'SUBMITTED_FOR_REVIEW',
+        from_status: 'COMPLETED', to_status: 'SUBMITTED_FOR_REVIEW', actor_user_id: userId }] });
+    expect(submitted.submitted_at).toBeInstanceOf(Date);
+    expect(await AuditLogModel.countDocuments({ eventType: 'ophthalmology.test_task.submitted_for_review' })).toBe(1);
+  });
+
+  it('allows only one concurrent review submission and rejects the stale duplicate', async () => {
+    const [form, payload] = forms[0]!; const { task, profile } = await createTaskAndProfile(form, '-submit-race');
+    await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);
+    await service.completeTestResult(task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1,
+      expected_result_version: 0 }, userId);
+    const request = { expected_status: 'COMPLETED' as const, expected_version: 2 };
+    const outcomes = await Promise.allSettled([0, 1].map(() => service.submitTestTaskForReview(task._id.toString(), request, userId)));
+    expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
+    const persisted = await repository.getTestTask(task._id.toString());
+    expect(persisted).toMatchObject({ status: 'SUBMITTED_FOR_REVIEW', version: 3 });
+    expect(persisted?.transition_history.filter((entry) => entry.action === 'SUBMITTED_FOR_REVIEW')).toHaveLength(1);
+  });
+
+  it('requires a completed result and rolls back submission when audit persistence fails', async () => {
+    const [form, payload] = forms[0]!; const { task, profile } = await createTaskAndProfile(form, '-submit-rollback');
+    await OphthalmologyTestTaskModel.updateOne({ _id: task._id }, { $set: { status: 'COMPLETED', version: 2 } });
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_RESULT_REQUIRED' });
+    expect(await repository.getTestTask(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 2, submitted_at: null });
+
+    await OphthalmologyTestTaskModel.updateOne({ _id: task._id }, { $set: { status: 'IN_PROGRESS', version: 0 } });
+    await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);
+    await service.completeTestResult(task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1,
+      expected_result_version: 0 }, userId);
+    const outsider = await UserModel.create({ username: 'oph.phase5.outsider', email: 'oph.phase5.outsider@example.test',
+      fullName: 'Unassigned Technician', passwordHash: 'not-used', roleIds: [], branchIds: [branchId], departmentIds: [departmentId], status: 'active' });
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, outsider._id.toString()))
+      .rejects.toMatchObject({ statusCode: 403, code: 'OPHTHALMOLOGY_ASSIGNMENT_DENIED' });
+    const foreignBranch = await BranchModel.create({ code: 'OPH-P5-FOREIGN', name: 'Foreign branch', status: 'ACTIVE' });
+    const foreignUser = await UserModel.create({ username: 'oph.phase5.foreign', email: 'oph.phase5.foreign@example.test',
+      fullName: 'Foreign Technician', passwordHash: 'not-used', roleIds: [], branchIds: [foreignBranch._id], departmentIds: [], status: 'active' });
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, foreignUser._id.toString()))
+      .rejects.toMatchObject({ statusCode: 403 });
+    expect(await repository.getTestTask(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 2, submitted_at: null });
+    vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, userId))
+      .rejects.toThrow('audit unavailable');
+    expect(await repository.getTestTask(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 2, submitted_at: null });
+  });
+
   it.each(forms)('retains completed %s history through a reasoned correction', async (form, payload) => {
     const { task, profile } = await createTaskAndProfile(form);
     await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);

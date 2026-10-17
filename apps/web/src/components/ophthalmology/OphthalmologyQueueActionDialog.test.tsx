@@ -40,4 +40,13 @@ describe('queue action dialog preserves editing intent', () => {
     expect(actionSubmit).toHaveBeenCalledTimes(2); expect(actionSubmit.mock.calls[0]?.[0]).toEqual(actionSubmit.mock.calls[1]?.[0]);
     expect(actionSubmit.mock.calls[0]?.[0]?.key).toMatch(/^[a-f0-9-]{36}$/); expect(setQuery).toHaveBeenCalledWith(expect.objectContaining({ action: null, task_id: id }));
   });
+  it('confirms review submission with the exact completed task version', async () => {
+    const completed = { ...task, status: 'COMPLETED' as const, version: 8 };
+    await act(async () => root.render(<OphthalmologyQueueActionDialog feature={feature()} task={completed} action="submit-for-review" />));
+    expect(document.body.textContent).toContain('ready for ophthalmologist review');
+    actionSubmit.mockResolvedValue({ id }); await submit();
+    expect(actionSubmit).toHaveBeenCalledWith({ action: 'submit-for-review', task_id: id,
+      body: { expected_version: 8, expected_status: 'COMPLETED' } });
+    expect(window.confirm).toHaveBeenCalledWith('Confirm submit for review for QA lensometry (OD)?');
+  });
 });

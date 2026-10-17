@@ -393,7 +393,7 @@ export type OphthalmologyAssignmentHistoryEntry = {
 };
 
 export type OphthalmologyTaskTransitionEntry = {
-  action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
+  action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'SUBMITTED_FOR_REVIEW' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
   from_status: OphthalmologyTestTaskStatus;
   to_status: OphthalmologyTestTaskStatus;
   reason: string | null;
@@ -446,6 +446,8 @@ export type OphthalmologyTestTask = {
   called_at: Date | null;
   started_at: Date | null;
   completed_at: Date | null;
+  submitted_by: string | null;
+  submitted_at: Date | null;
   unable_at: Date | null;
   cancelled_at: Date | null;
   reviewed_by: string | null;
@@ -501,6 +503,7 @@ export type ReassignOphthalmologyTestTaskDTO = {
   reason: string;
 };
 export type TaskStateActionDTO = { expected_status: OphthalmologyTestTaskStatus; expected_version: number };
+export type SubmitOphthalmologyTestTaskForReviewDTO = { expected_status: 'COMPLETED'; expected_version: number };
 export type ReasonedTaskStateActionDTO = TaskStateActionDTO & { reason: string };
 export type StartOphthalmologyTestTaskDTO = TaskStateActionDTO & { device_code?: string | null };
 export type RepeatOphthalmologyTestTaskDTO = TaskStateActionDTO & { station_id: string; assigned_user_id?: string | null; reason: string };
@@ -772,5 +775,16 @@ export type OverrideOphthalmologyCompletionDTO = { expected_version: number; exp
 export type CompleteOphthalmologyConsultationDTO = { expected_version: number; expected_context_version: number;
   expected_consultation_version: number; expected_clinical_review_version: number; expected_optical_prescription_version?: number | null };
 export type ReopenOphthalmologyConsultationDTO = { expected_version: number; expected_status: 'COMPLETED'; reason: string };
-export type AmendOphthalmologyConsultationDTO = { expected_version: number; expected_status: 'AMENDMENT_OPEN'; episode_id: string;
-  section: string; before_value: unknown; after_value: unknown; reason: string };
+export type OphthalmologyCorrectionEnvelope = { expected_version: number; expected_status: 'AMENDMENT_OPEN'; episode_id: string;
+  expected_source_version: number; reason: string };
+export type CorrectOphthalmologyConsultationDTO = OphthalmologyCorrectionEnvelope & { consultation: {
+  chief_complaint?: string | null; history_present_illness?: string | null; past_history?: string | null; family_history?: string | null;
+  allergies?: string | null; physical_examination?: string | null; assessment?: string | null;
+  diagnoses?: import('../opd/opd-consultation.types.js').OpdStructuredDiagnosis[]; treatment_plan?: string | null; doctor_notes?: string | null;
+} };
+export type CorrectOphthalmologyClinicalReviewDTO = OphthalmologyCorrectionEnvelope & {
+  clinical_review: Omit<SaveOphthalmologyClinicalReviewDraftDTO, 'expected_version'>;
+};
+export type CorrectOphthalmologyOpticalPrescriptionDTO = OphthalmologyCorrectionEnvelope & {
+  optical_prescription: Omit<SaveOphthalmologyOpticalPrescriptionDraftDTO, 'expected_version'>;
+};

@@ -9,6 +9,7 @@ export const queueActionDefinitions: { action: QueueAction; label: string; scree
   { action: 'start', label: 'Start test', screen: 'Ophthalmology Test Queue', permission: 'Start', statuses: ['PATIENT_CALLED'] },
   { action: 'unable', label: 'Unable to perform', screen: 'Ophthalmology Test Queue', permission: 'Cancel', statuses: ['IN_PROGRESS', 'DRAFT'] },
   { action: 'cancel', label: 'Cancel test', screen: 'Ophthalmology Test Queue', permission: 'Cancel', statuses: ['ORDERED', 'PATIENT_WAITING', 'PATIENT_CALLED', 'DRAFT'] },
+  { action: 'submit-for-review', label: 'Submit for review', screen: 'Ophthalmology Test Queue', permission: 'Complete', statuses: ['COMPLETED'] },
   { action: 'request-repeat', label: 'Request repeat', screen: 'Ophthalmology Test Review', permission: 'Request Repeat', statuses: ['COMPLETED', 'SUBMITTED_FOR_REVIEW'] },
   { action: 'route', label: 'Route / handoff', screen: 'Ophthalmology Test Queue', permission: 'Reassign', statuses: ['COMPLETED', 'REVIEWED', 'UNABLE_TO_PERFORM'] },
 ];
@@ -22,7 +23,7 @@ export function buildQueueCommand(task: QueueTask, action: QueueAction, values: 
       : action === 'request-repeat' ? { action, task_id: task.id, key, body: { ...body, ...assignment, reason: values.reason } }
         : action === 'route' ? { action, task_id: task.id, body: { ...body, target: values.target, reason: values.reason || null, ...(values.target === 'NEXT_STATION' ? { ...assignment, next_task_id: values.next_task_id } : {}) } }
           : action === 'start' ? { action, task_id: task.id, body: { ...body, device_code: values.device_code || null } }
-            : action === 'call' ? { action, task_id: task.id, body }
+            : action === 'call' || action === 'submit-for-review' ? { action, task_id: task.id, body }
               : { action, task_id: task.id, body: { ...body, reason: values.reason } };
   return queueCommandSchema.parse(input);
 }

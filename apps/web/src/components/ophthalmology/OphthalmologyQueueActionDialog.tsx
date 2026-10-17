@@ -24,6 +24,7 @@ export function OphthalmologyQueueActionDialog({ feature: f, task: latest, actio
   const devices = f.station?.devices.filter((device) => device.status === 'ACTIVE' && (device.calibration_status === 'NOT_REQUIRED' || device.calibration_status === 'CURRENT' && (!device.calibration_due_at || Date.parse(device.calibration_due_at) > Date.now()))) ?? [];
   return <Modal open size="large" className="oph-workspace" title={title} onClose={close} footer={<><button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={close}>Close</button><button className="doc-btn primary" type="submit" form="oph-queue-action" disabled={disabled || needsStation && (!f.canConfigure || f.stationsQuery.isError || f.stationQuery.isError) || action === 'route' && values.target === 'NEXT_STATION' && !f.targetTask}>Confirm {title.toLowerCase()}</button></>}>
     <p>{task.test_name} · {task.laterality} · patient {task.patient_id} · {task.status} · version {task.version}</p>
+    {action === 'submit-for-review' && <p>This confirms the completed result is ready for ophthalmologist review. Submission records your identity and time and cannot be repeated from this version.</p>}
     {changed && <p role="alert">This task changed while the dialog was open. Your entries are retained. Close and reopen it after reviewing the refreshed task.</p>}
     <form id="oph-queue-action" onSubmit={handleSubmit(async (values) => {
       try {

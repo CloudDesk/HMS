@@ -2,17 +2,17 @@
 
 ## Contract status
 
-**Version:** 1.10.0
+**Version:** 1.12.0
 
 **Baseline date:** 15 October 2026
 
 **Authority:** Ophthalmology FSD v1.0 plus approved DEC-01 through DEC-12
 
-**Implementation state:** Approved backend feature implementation and Phase 11 automated hardening complete; frontend integration ready; release validation partially complete
+**Implementation state:** Approved backend feature implementation, Phase 11 automated hardening, C3 completion-safety handoff and C4 completion frontend implementation complete; release validation partially complete
 
 **Compatibility:** Additive to existing OPD and shared-domain APIs
 
-**Frontend handoff:** READY. Developer B may implement against version 1.10.0 using live APIs and the documented permission, validation, concurrency and error contracts. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance are release gates, not blockers to frontend implementation.
+**Frontend handoff:** CONSUMED BY C4. The staff completion UI uses version 1.12.0 permission-safe projections and typed authoritative correction commands. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance remain release gates.
 
 This contract freezes the backend vocabulary, ownership, endpoint families, lifecycle, concurrency, permission and error behavior required for phase-wise implementation. A consuming phase must update the contract with exact request/response schemas before exposing its routes. Missing clinical values and file/vendor policy inputs remain configuration dependencies and are never inferred.
 
@@ -247,12 +247,13 @@ An emergency selection atomically completes intake, moves an eligible early spec
 | `POST /api/ophthalmology/test-tasks/:taskId/start` | Start task after assignment/scope validation |
 | `POST /api/ophthalmology/test-tasks/:taskId/unable` | Record unable-to-perform reason and doctor-review routing |
 | `POST /api/ophthalmology/test-tasks/:taskId/cancel` | Controlled cancellation with reason |
+| `POST /api/ophthalmology/test-tasks/:taskId/submit-for-review` | Atomically submit an exact completed task/result for doctor review |
 | `POST /api/ophthalmology/test-tasks/:taskId/request-repeat` | Preserve original and create linked repeat exactly once |
 | `POST /api/ophthalmology/test-tasks/:taskId/route` | Next station or direct doctor routing |
 
 Create and request-repeat require an `Idempotency-Key` header (8-120 safe characters). Every action body includes exact `expected_status` and `expected_version`; reason is required for reassign, unavailable, unable, cancel, and repeat. Create snapshots the active branch `TEST_CATALOGUE` version, configured test code/name, bound workflow version and optional validated stage. `CLINICAL_ORDER_ITEM` requires an exact non-draft shared order/item for the same visit, patient, and branch; the task never mutates that order.
 
-Assignment validates an active branch/department station supporting the test and, when provided, an active member with `Ophthalmology Test Queue / Start`. Start requires that assigned actor and accepts optional `device_code`; an active device must be calibration-current or not require calibration. Unable-to-perform records doctor routing without inventing a status. Next-station routing atomically adds routing history and assigns an existing ordered task in the same context. Queue visibility is limited to active station memberships, explicit assignment, or eligible Ophthalmologist review work.
+Assignment validates an active branch/department station supporting the test and, when provided, an active member with `Ophthalmology Test Queue / Start`. Start requires that assigned actor and accepts optional `device_code`; an active device must be calibration-current or not require calibration. Unable-to-perform records doctor routing without inventing a status. Review submission requires the assigned active station member, a completed current result, exact `COMPLETED` task status/version, and `Ophthalmology Test Queue / Complete`; the transaction stores `submitted_by`, `submitted_at`, transition history, and audit evidence. Duplicate or stale submission returns `409`. Next-station routing atomically adds routing history and assigns an existing ordered task in the same context. Queue visibility is limited to active station memberships, explicit assignment, or eligible Ophthalmologist review work.
 
 ### Phase 5-6 clinical test result forms
 
@@ -336,13 +337,19 @@ Clinical-review drafts hold a summary and diagnosis-linked treatment-plan versio
 | `GET /api/opd/visits/:visitId/ophthalmology/summary` | Return the finalization head plus consolidated authoritative consultation summary |
 | `GET /api/opd/visits/:visitId/ophthalmology/completion-history` | Return approvals, overrides, deferrals, amendment episodes, and immutable version history |
 | `POST /api/opd/visits/:visitId/ophthalmology/reopen` | Start a reasoned amendment episode without mutating final history |
-| `POST /api/opd/visits/:visitId/ophthalmology/amendments` | Append before/after version and trigger required re-review/republish |
+| `POST /api/opd/visits/:visitId/ophthalmology/corrections/consultation` | Correct the exact completed authoritative OPD consultation version |
+| `POST /api/opd/visits/:visitId/ophthalmology/corrections/clinical-review` | Append a corrected authoritative clinical-review version |
+| `POST /api/opd/visits/:visitId/ophthalmology/corrections/optical-prescription` | Append a corrected optical-prescription draft requiring approval |
 
-Digital approval records authenticated actor, linked doctor, timestamp, consultation version and audit event. It is not represented as a cryptographic signature unless a later approved contract adds one.
+Result review requires task status `SUBMITTED_FOR_REVIEW`; `COMPLETED` can no longer bypass the technician submission gate. Digital approval records authenticated actor, linked doctor, timestamp, consultation version and audit event. It is not represented as a cryptographic signature unless a later approved contract adds one.
 
-Completion uses the active branch `COMPLETION_PROFILE` bound to the consultation context. Its `required_requirements` may contain only the approved structural requirement codes and its optional `mandatory_test_codes` determines mandatory test review. The server returns each requirement with `satisfied`, explanatory text, and resource IDs. It never invents clinical prerequisites. A configured `allow_override: true` is required before an authorized doctor may snapshot and override the exact current unmet-code set.
+Completion uses the active branch `COMPLETION_PROFILE` bound to the consultation context. Its `required_requirements` may contain only the approved structural requirement codes and its optional `mandatory_test_codes` determines mandatory test review. Every configured mandatory code must have matching task evidence and every matching task must be reviewed or covered by a valid recorded deferral; a missing code is returned as `MANDATORY_TEST_CODE:<CODE>` and cannot pass by an empty-set evaluation. The server returns each requirement with `satisfied`, explanatory text, and resource IDs. It never invents clinical prerequisites. A configured `allow_override: true` is required before an authorized doctor may snapshot and override the exact current unmet-code set.
 
-The finalization head uses `OPEN -> COMPLETED -> AMENDMENT_OPEN -> COMPLETED`, expected versions, and an idempotency key/fingerprint. Initial completion atomically completes the authoritative OPD consultation and visit, linked appointment when present, Ophthalmology review/context, patient timeline, approval history, and audit. Completed clinical records are read-only through normal write APIs. Reopening creates an append-only episode; amendments retain section, before/after values, reason, actor, and time, and reapproval appends a superseding clinical version without reopening the coarse OPD visit.
+The finalization head uses `OPEN -> COMPLETED -> AMENDMENT_OPEN -> COMPLETED`, expected versions, and an idempotency key/fingerprint. Initial completion atomically completes the authoritative OPD consultation and visit, linked appointment when present, Ophthalmology review/context, patient timeline, approval history, and audit. The generic shared-OPD completion command rejects any visit with an Ophthalmology context using `OPHTHALMOLOGY_SPECIALTY_COMPLETION_REQUIRED`, so clients cannot bypass specialty readiness.
+
+Summary and completion-history responses use explicit allowlists. They exclude idempotency keys, request fingerprints, configuration and summary snapshots, raw result payloads, document/private-storage data, and legacy arbitrary before/after values. The summary exposes scoped context, selected consultation fields, current clinical review, current optical prescription, task state metadata, and non-payload result metadata.
+
+Completed clinical records are read-only through normal write APIs. Reopening creates one append-only episode. A correction request requires `expected_version`, `expected_status: AMENDMENT_OPEN`, the open `episode_id`, exact `expected_source_version`, and a non-empty reason plus its typed source payload. The three commands atomically update the authoritative source and append only its source type/id and from/to versions to finalization history. Reapproval is rejected until at least one authoritative correction exists; a corrected optical prescription must be approved first. Reapproval appends a superseding clinical version without reopening the coarse OPD visit.
 
 ### Phase 10 files publication reports and dashboards
 
@@ -468,6 +475,10 @@ Stale state:
 | 409 | `OPHTHALMOLOGY_DEVICE_UNAVAILABLE` | Device is inactive or its calibration is not current. |
 | 409 | `OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT` | Idempotency key was reused with a different normalized request. |
 | 409 | `OPHTHALMOLOGY_FINALIZED` | Finalized content cannot be edited outside amendment. |
+| 409 | `OPHTHALMOLOGY_COMPLETION_INCOMPLETE` | Configured completion evidence is absent or unresolved. |
+| 409 | `OPHTHALMOLOGY_CORRECTION_REQUIRED` | Reapproval was requested without an authoritative source correction. |
+| 409 | `OPHTHALMOLOGY_REAPPROVAL_REQUIRED` | A corrected optical prescription has not been approved. |
+| 409 | `OPHTHALMOLOGY_SPECIALTY_COMPLETION_REQUIRED` | Generic OPD completion was attempted for an Ophthalmology-managed visit. |
 | 409 | `OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT` | Shared-domain state prevents the requested handoff. |
 | 409 | `OPHTHALMOLOGY_ROUTING_REQUIRED` | Emergency completion cannot route because no eligible Ophthalmology clinician exists. |
 | 409 | `OPHTHALMOLOGY_COMPARISON_INELIGIBLE` | The referenced prior clinical version is not eligible for comparison. |
@@ -490,7 +501,7 @@ Every applicable create, update, assign, reassign, call, start, draft, complete,
 - Source context and idempotency key where applicable.
 - Reason and comment where applicable.
 - Expected/previous and resulting status/version.
-- Before/after references for clinical amendments.
+- Corrected authoritative source type/id and exact from/to source versions for clinical corrections.
 - Safe metadata only; no full notes, result payloads, secrets or private file URLs in logs.
 
 ## Shared-domain compatibility contract
@@ -514,6 +525,8 @@ Every applicable create, update, assign, reassign, call, start, draft, complete,
 
 | Version | Date | Change |
 |---|---|---|
+| 1.12.0 | 17 October 2026 | Completed C3 completion safety: mandatory-code existence evidence, permission-safe summary/history allowlists, three atomic typed authoritative-source correction commands, correction-required reapproval with optical reapproval enforcement, and a backend guard preventing generic OPD completion bypass. |
+| 1.11.0 | 17 October 2026 | Added the explicit transactional `COMPLETED -> SUBMITTED_FOR_REVIEW` command with assigned-station authorization, completed-result prerequisite, optimistic concurrency, submission provenance, transition/audit history, and enforced the submission gate before doctor review. |
 | 1.10.0 | 16 October 2026 | Implemented Phase 11 automated hardening, corrected direct optical-prescription routes to use their dedicated permission inventory, froze critical index and permission regressions, and recorded remaining live GCS/manual acceptance plus unrelated repository test/lint conditions. |
 | 1.9.0 | 16 October 2026 | Completed Phase 10 configured GCS/local storage provider, atomic/idempotent attachment metadata, source-domain-first ID-linked handoffs, exact-version portal publication/withdrawal, restricted portal projection, six operational reports, snapshot dashboard refresh/read, and authoritative cross-domain report integration contracts. |
 | 1.8.0 | 15 October 2026 | Implemented Phase 9 exact-version result review, configured structured completion readiness, result/order deferral, exact unmet-requirement override, authenticated doctor approval, atomic/idempotent shared OPD completion, final locking, append-only reopen/amendment/reapproval, and summary/history APIs. External publication and downstream dispatch remain Phase 10. |

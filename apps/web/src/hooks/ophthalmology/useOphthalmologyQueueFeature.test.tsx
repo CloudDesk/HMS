@@ -4,11 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthPermission } from '../../auth/auth-types';
 
 const state = vi.hoisted(() => ({
-  permissions: [] as AuthPermission[], search: '', taskBranch: '333333333333333333333333', version: 2,
+  permissions: [] as AuthPermission[], search: '', taskBranch: '333333333333333333333333', taskStatus: 'PATIENT_WAITING',
+  assignedUserId: '777777777777777777777777', version: 2,
   mutation: vi.fn(), queries: new Map<string, unknown[]>(),
   query: (name: string, args: unknown[]) => {
     state.queries.set(name, args);
-    const data = name === 'task' ? { id: '111111111111111111111111', visit_id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: state.taskBranch, department_id: '555555555555555555555555', context_id: '666666666666666666666666', assigned_user_id: '777777777777777777777777', status: 'PATIENT_WAITING', version: state.version }
+    const data = name === 'task' ? { id: '111111111111111111111111', visit_id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: state.taskBranch, department_id: '555555555555555555555555', context_id: '666666666666666666666666', assigned_user_id: state.assignedUserId, status: state.taskStatus, version: state.version }
       : name === 'visit' ? { id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: '333333333333333333333333', department_id: '555555555555555555555555', status: 'IN_CONSULTATION' }
         : { data: [], meta: { totalPages: 0 } };
     return { data, isError: false, isFetching: false, isLoading: false, refetch: vi.fn() };
@@ -36,7 +37,7 @@ describe('queue permissions, scope and asynchronous actions', () => {
   let root: Root; let container: HTMLDivElement; let feature: ReturnType<typeof useOphthalmologyQueueFeature>;
   function Harness() { feature = useOphthalmologyQueueFeature(); return null; }
   const grant = (screen: string, action = 'View') => state.permissions.push({ module: 'OPD', screen, action, code: `${screen}.${action}` });
-  beforeEach(() => { state.search = '?branch_id=333333333333333333333333&task_id=111111111111111111111111'; state.taskBranch = '333333333333333333333333'; state.permissions = []; state.version = 2; state.queries.clear(); state.mutation.mockReset(); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { state.search = '?branch_id=333333333333333333333333&task_id=111111111111111111111111'; state.taskBranch = '333333333333333333333333'; state.taskStatus = 'PATIENT_WAITING'; state.assignedUserId = '777777777777777777777777'; state.permissions = []; state.version = 2; state.queries.clear(); state.mutation.mockReset(); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
   it('does not expose cached denied tasks or fetch modal lookups', async () => {
     await act(async () => root.render(<Harness />));
@@ -59,6 +60,13 @@ describe('queue permissions, scope and asynchronous actions', () => {
     grant('Ophthalmology Test Queue'); await act(async () => root.render(<Harness />)); expect(feature.allowedActions).toEqual([]);
     grant('Ophthalmology Test Queue', 'Call'); await act(async () => root.render(<Harness />)); expect(feature.allowedActions.map((action) => action.action)).toEqual(['call']);
     state.search += '&page=-1'; await act(async () => root.render(<Harness />)); expect(feature.invalidFilters).toBe(true); expect(feature.writable).toBe(false); expect(feature.task).toBeUndefined();
+  });
+  it('offers review submission only to the assigned user with Complete permission', async () => {
+    grant('Ophthalmology Test Queue'); grant('Ophthalmology Test Queue', 'Complete'); state.taskStatus = 'COMPLETED';
+    await act(async () => root.render(<Harness />));
+    expect(feature.allowedActions.map((action) => action.action)).toContain('submit-for-review');
+    state.assignedUserId = '999999999999999999999999'; await act(async () => root.render(<Harness />));
+    expect(feature.allowedActions.map((action) => action.action)).not.toContain('submit-for-review');
   });
   it('suppresses duplicate clicks and discards late success after task navigation', async () => {
     grant('Ophthalmology Test Queue'); grant('Ophthalmology Test Queue', 'Call');

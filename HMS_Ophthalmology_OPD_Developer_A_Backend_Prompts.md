@@ -43,7 +43,7 @@ Do not force-add ignored documentation or silently choose another location.
 
 The document label remains **For Review**, but on 15 October 2026 the project owner approved DEC-01 through DEC-12 in `HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX.md` as binding project decisions. Treat FSD v1.0 as the controlling functional scope baseline and the approved decision register as its implementation clarification. Reconcile any later approved FSD revision through explicit change control.
 
-Phases 1 through 10 are complete and the approved Phase 11 backend implementation and automated hardening are complete. **Frontend integration may proceed against API contract version 1.10.0 and the live APIs.** Overall release validation remains **PARTIALLY COMPLETE** because the owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, and documented unrelated repository regressions remain open. Do not start another backend phase or release without explicit approval.
+Phases 1 through 10, Phase 11 automated hardening, C2 review submission, C3 completion safety and C4 completion frontend are complete. C4 consumes API contract version 1.12.0 for safe summary, completion/reapproval, controlled reopen and typed source corrections. **The next backend step is C5 publication handoff, which has not started and requires explicit approval.** Overall release validation remains **PARTIALLY COMPLETE** because the owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, and documented unrelated repository regressions remain open.
 
 The decision approval does not authorize invented clinical content. Do not invent or silently default:
 
@@ -359,7 +359,7 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 
 ## Phase 11 End to end hardening and release validation
 
-**Backend implementation status:** COMPLETE on 16 October 2026. **Frontend handoff status:** READY against API contract version 1.10.0. Automated release hardening found and corrected the Optical Prescription route permission boundary, added permission/index regression coverage, passed all 160 focused release tests and 1,028 of 1,029 full API tests, and passed API/web typecheck and builds. Overall release validation remains **PARTIALLY COMPLETE** because the live GCS smoke test was explicitly deferred by the owner. Interactive multi-role/multi-branch acceptance, the unrelated department-visibility regression, existing repository-wide lint failures, and four unrelated web-test failures remain documented release conditions in `HMS_OPHTHALMOLOGY_PHASE_11_VERIFICATION.md`. No later backend phase has started.
+**Backend implementation status:** COMPLETE on 16 October 2026, with C2 review submission and C3 completion safety completed on 17 October 2026. **C4 frontend status:** IMPLEMENTATION COMPLETE against API contract version 1.12.0 with focused verification recorded in `HMS_OPHTHALMOLOGY_FRONTEND_C4_VERIFICATION.md`. Overall release validation remains **PARTIALLY COMPLETE** because the live GCS smoke test was explicitly deferred by the owner. Interactive multi-role/multi-branch acceptance and documented unrelated repository failures remain open. C5 has not started.
 
 - Execute the complete acceptance matrix across roles, branches, encounters, stations, forms, exceptions, completion, portal, and integrations.
 - Run typecheck, lint, build, focused tests, transaction-capable integration tests, security/scope tests, query/index checks, and General OPD/Dental regression.

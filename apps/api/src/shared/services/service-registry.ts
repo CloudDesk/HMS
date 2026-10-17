@@ -301,6 +301,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       opdVitalsRepository,
       patientRepository,
       appointmentRepository,
+      ophthalmologyRepository,
     ),
     opdClinicalOrders: opdClinicalOrderService,
     opdPrescriptions: opdPrescriptionService,

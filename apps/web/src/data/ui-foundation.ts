@@ -51,6 +51,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/opd/consultation', label: 'Consultation', icon: 'ph-chats-circle' },
       { href: '/opd/queue', label: 'Waiting Queue', icon: 'ph-clock' },
       { href: '/opd/ophthalmology/configuration', label: 'Ophthalmology Configuration', icon: 'ph-eye' },
+      { href: '/opd/ophthalmology/dashboard', label: 'Ophthalmology Dashboard', icon: 'ph-squares-four' },
       { href: '/opd/ophthalmology/reports', label: 'Ophthalmology Reports', icon: 'ph-chart-bar' },
       { href: '/opd/ophthalmology/queue', label: 'My Ophthalmology Test Queue', icon: 'ph-list-checks' },
     ],
