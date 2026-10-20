@@ -45,7 +45,7 @@ export const doctorPerformancePeriods: readonly DoctorPerformancePeriod[] = [
 const appointmentVisitTypes: readonly ApiAppointmentVisitType[] = [
   'NEW_CONSULTATION',
   'FOLLOW_UP',
-  'PROCEDURE',
+  'PROCEDURE', 'REVIEW',
   'EMERGENCY',
 ];
 

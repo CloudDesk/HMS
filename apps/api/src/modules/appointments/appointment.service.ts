@@ -1,6 +1,9 @@
+import { ophthalmologyAppointmentSchema, ophthalmologyAppointmentVisitType } from './appointment-ophthalmology.contract.js';
+import type { OphthalmologyAppointmentIntent } from './appointment-ophthalmology.contract.js';
+import type { ClientSession } from 'mongoose';
 import mongoose, { Types } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
-import { executeTransaction } from '../../shared/database/transaction.js';
+import { executeRequiredTransaction, executeTransaction } from '../../shared/database/transaction.js';
 import { env } from '../../config/env.js';
 import type { Doctor, DoctorAvailabilityDay } from '../doctors/doctor.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
@@ -146,6 +149,21 @@ export class AppointmentService {
     return appointment;
   }
 
+  async ophthalmologyBookingOptions(doctorId: string, resource: 'SERVICES' | 'SUB_SPECIALITIES', page: number, limit: number, userId: string) {
+    const doctor = await this.getActiveDoctor(doctorId); await this.repository.resolveBranchScope(userId, doctor.branch_id);
+    const eligible = await this.repository.isOphthalmologyDepartment(doctor.branch_id, doctor.department_id);
+    const result = eligible ? await this.repository.ophthalmologyBookingOptions(doctor.branch_id, doctor.department_id, resource, page, limit) : { data: [], meta: { total: 0, page, limit, totalPages: 1 } };
+    return { ...result, doctor_id: doctor.id, eligible, branch_id: doctor.branch_id, department_id: doctor.department_id };
+  }
+  private async validateOphthalmologyBooking(value: OphthalmologyAppointmentIntent | null | undefined, doctor: Doctor, visitType: Appointment['visit_type'], session?: ClientSession) {
+    if (value == null) return value;
+    const parsed = ophthalmologyAppointmentSchema.safeParse(value);
+    if (!parsed.success) throw new AppError('Ophthalmology appointment details are invalid', 400, 'VALIDATION_ERROR');
+    if (ophthalmologyAppointmentVisitType[parsed.data.visit_subtype] !== visitType) throw new AppError('Specialty visit type must match the shared appointment type', 400, 'OPHTHALMOLOGY_VISIT_TYPE_CONFLICT');
+    if (!await this.repository.validOphthalmologyBookingReferences(parsed.data, doctor.branch_id, doctor.department_id, session)) throw new AppError('Select active specialty options for the consultant branch and department', 400, 'OPHTHALMOLOGY_APPOINTMENT_REFERENCE_INVALID');
+    return parsed.data;
+  }
+
   async create(data: CreateAppointmentDTO, userId: string) {
     return this.createInternal(data, userId, true);
   }
@@ -252,6 +270,7 @@ export class AppointmentService {
       utcEndTime,
     );
 
+    await this.validateOphthalmologyBooking(original.ophthalmology, doctor, original.visit_type);
     const sequence = await this.sequenceService.getNextSequence('appointment');
     return this.repository.rescheduleAtomically(
       original,
@@ -262,6 +281,7 @@ export class AppointmentService {
         endTime: endTimeStr,
         duration_minutes: data.duration_minutes,
         visit_type: original.visit_type,
+        ophthalmology: original.ophthalmology ?? null,
         priority: original.priority,
         reason: original.reason,
         notes: null,
@@ -337,6 +357,7 @@ export class AppointmentService {
       this.getActiveDoctor(data.doctor_id),
     ]);
     if (enforceBranchScope) await this.repository.resolveBranchScope(userId, doctor.branch_id);
+    data = { ...data, ophthalmology: await this.validateOphthalmologyBooking(data.ophthalmology, doctor, data.visit_type) };
 
     await this.validateDoctorAvailability(
       doctor,
@@ -365,6 +386,7 @@ export class AppointmentService {
     );
 
     return executeTransaction(() => mongoose.startSession(), async (session) => {
+      await this.validateOphthalmologyBooking(data.ophthalmology, doctor, data.visit_type, session);
       const appointmentSequence = await this.sequenceService.getNextSequence(
         'appointment',
         session,
@@ -411,6 +433,10 @@ export class AppointmentService {
   async update(id: string, data: UpdateAppointmentDTO, userId: string) {
     const existing = await this.getById(id, userId);
     const doctor = await this.getActiveDoctor(data.doctor_id ?? existing.doctor_id);
+    if (data.expected_updated_at && new Date(data.expected_updated_at).getTime() !== existing.updated_at.getTime()) throw new AppError('Appointment changed; reload before retrying', 409, 'APPOINTMENT_VERSION_CONFLICT');
+    if (data.ophthalmology !== undefined && (!data.expected_updated_at || !['SCHEDULED', 'CONFIRMED'].includes(existing.status))) throw new AppError('Specialty scheduling edits require the original timestamp and an open appointment', 409, 'APPOINTMENT_VERSION_CONFLICT');
+    const validatedIntent = await this.validateOphthalmologyBooking(data.ophthalmology === undefined ? existing.ophthalmology : data.ophthalmology, doctor, data.visit_type ?? existing.visit_type);
+    if (data.ophthalmology !== undefined) data = { ...data, ophthalmology: validatedIntent };
     const scope = await this.repository.resolveBranchScope(userId, doctor.branch_id);
 
     const settings = await this.settingsRepository.get();
@@ -483,10 +509,13 @@ export class AppointmentService {
       utcEndTime,
     );
 
+    const persist = async (session?: ClientSession) => {
+      if (session) await this.validateOphthalmologyBooking(data.ophthalmology, doctor, data.visit_type ?? existing.visit_type, session);
     const appointment = await this.repository.update(
       id,
       {
         ...data,
+        expected_updated_at: existing.updated_at.toISOString(),
         doctor_id: doctor.id,
         doctorName: doctor.display_name,
         doctorSpecialization: doctor.specialization,
@@ -501,10 +530,11 @@ export class AppointmentService {
       },
       userId,
       scope,
+      session,
     );
 
     if (!appointment) {
-      throw new AppError('Appointment not found', 404, 'NOT_FOUND');
+      throw new AppError('Appointment changed; reload before retrying', 409, 'APPOINTMENT_VERSION_CONFLICT');
     }
 
     if (scheduleChanged) {
@@ -513,10 +543,14 @@ export class AppointmentService {
         appointment,
         data.reschedule_reason!.trim(),
         userId,
+        session,
       );
     }
 
+    if (session && data.ophthalmology !== undefined) await this.repository.auditOphthalmologyUpdated(existing, appointment, userId, session);
     return appointment;
+    };
+    return data.ophthalmology !== undefined ? executeRequiredTransaction(() => mongoose.startSession(), persist) : persist();
   }
 
   async updateStatus(id: string, data: UpdateAppointmentStatusDTO, userId: string) {

@@ -8,7 +8,7 @@ import type { z } from 'zod';
 import { useOpdVisit } from '../opd/useOpd';
 import { usePatientDocuments } from '../patients/usePatients';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
-import { useOphthalmologyConfigurations, useOphthalmologyContext, useOphthalmologyIntake, useOphthalmologyIntakeMutations, useOphthalmologyWorkflows } from './useOphthalmology';
+import { useOphthalmologyClinicalWorkspace, useOphthalmologyConfigurations, useOphthalmologyContext, useOphthalmologyIntake, useOphthalmologyIntakeMutations, useOphthalmologyWorkflows } from './useOphthalmology';
 import { compatibleSubtypes, consultationAreas } from './consultation-areas';
 
 export function useOphthalmologyWorkspaceFeature() {
@@ -21,24 +21,29 @@ export function useOphthalmologyWorkspaceFeature() {
   const parsedSubtype = subtypeSchema.safeParse(params.get('subtype'));
   const { user } = useAuth();
   const can = (screen: string, action = 'View') => Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen, action });
-  const canView = can('Ophthalmology Intake') && can('OPD Visits');
-  const canEdit = canView && can('Ophthalmology Intake', 'Edit');
+  const canReadIntake = can('Ophthalmology Intake') && can('OPD Visits');
+  const canView = canReadIntake || can('Ophthalmology Consultation') || can('Ophthalmology Optical Prescription');
+  const canEdit = canReadIntake && can('Ophthalmology Intake', 'Edit');
   const canConfigure = can('Ophthalmology Configuration');
-  const canEscalate = canView && can('Ophthalmology Intake', 'Escalate');
+  const canEscalate = canReadIntake && can('Ophthalmology Intake', 'Escalate');
   const areas = consultationAreas.filter((area) => can(area.screen));
   const selectedArea = areas.find((area) => area.id === params.get('area'));
-  const visitQuery = useOpdVisit(visitId || null, canView);
+  const sharedVisitQuery = useOpdVisit(visitId || null, canReadIntake);
+  const clinicalWorkspaceQuery = useOphthalmologyClinicalWorkspace(visitId, canView && !canReadIntake);
+  const visitQuery = canReadIntake ? sharedVisitQuery : { ...clinicalWorkspaceQuery, data: clinicalWorkspaceQuery.data?.visit };
   const visit = canView && visitQuery.data?.id === visitId ? visitQuery.data : undefined;
   const availableSubtypes = compatibleSubtypes(visit?.visit_type);
   const selectedSubtype = parsedSubtype.success && availableSubtypes.includes(parsedSubtype.data) ? parsedSubtype.data : availableSubtypes.length === 1 ? availableSubtypes[0] : undefined;
   const subtype = selectedSubtype ?? 'NEW_CONSULTATION';
-  const contextQuery = useOphthalmologyContext(visitId, Boolean(visit) && canView);
+  const intakeContextQuery = useOphthalmologyContext(visitId, Boolean(visit) && canReadIntake);
+  const contextQuery = canReadIntake ? intakeContextQuery : { ...clinicalWorkspaceQuery, data: clinicalWorkspaceQuery.data?.context,
+    refetch: () => clinicalWorkspaceQuery.refetch({ cancelRefetch: false }) };
   const candidate = canView ? contextQuery.data : undefined;
   const matchesScope = (value: { visit_id: string; patient_id: string; branch_id: string; department_id: string }) => Boolean(visit && value.visit_id === visit.id && value.patient_id === visit.patient_id && value.branch_id === visit.branch_id && value.department_id === visit.department_id);
   const context = candidate && matchesScope(candidate) ? candidate : undefined;
-  const intakeQuery = useOphthalmologyIntake(visitId, Boolean(context) && !contextQuery.isError && canView);
-  const intakeView = canView && context && intakeQuery.data && (!intakeQuery.data.intake || (matchesScope(intakeQuery.data.intake) && intakeQuery.data.intake.context_id === context.id)) && intakeQuery.data.alerts.every(matchesScope) ? intakeQuery.data : undefined;
-  const scopeError = Boolean(candidate && !context) || Boolean(context && intakeQuery.data && !intakeView);
+  const intakeQuery = useOphthalmologyIntake(visitId, Boolean(context) && !contextQuery.isError && canReadIntake);
+  const intakeView = canReadIntake && context && intakeQuery.data && (!intakeQuery.data.intake || (matchesScope(intakeQuery.data.intake) && intakeQuery.data.intake.context_id === context.id)) && intakeQuery.data.alerts.every(matchesScope) ? intakeQuery.data : undefined;
+  const scopeError = Boolean(candidate && !context) || Boolean(canReadIntake && context && intakeQuery.data && !intakeView);
   const branchId = visit?.branch_id ?? '';
   const editableVisit = Boolean(visit && !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(visit.status));
   const contextEditOpen = params.get('edit_context') === 'open' && canEdit && Boolean(context);
@@ -78,7 +83,7 @@ export function useOphthalmologyWorkspaceFeature() {
     visitQuery, contextQuery, intakeQuery, complaintsQuery, emergenciesQuery, completionQuery, workflowsQuery,
     complaints: lookupData(complaintsQuery), emergencies: lookupData(emergenciesQuery), completions: lookupData(completionQuery),
     workflows: lookupEnabled ? (workflowsQuery.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE' && item.visit_subtype === lookupSubtype) : [],
-    section: selectedArea?.section ?? (params.get('section') === 'completion' ? 'completion' : params.get('section') === 'clinical' ? 'clinical' : params.get('section') === 'tests' ? 'tests' : 'intake'), areas, selectedArea,
+    section: selectedArea?.section ?? (params.get('section') === 'completion' ? 'completion' : params.get('section') === 'clinical' ? 'clinical' : params.get('section') === 'tests' ? 'tests' : canReadIntake ? 'intake' : 'clinical'), areas, selectedArea,
     openArea: (id: string) => { const area = areas.find((item) => item.id === id); if (!area) return; const next = new URLSearchParams(search); next.set('area', area.id); next.delete('completion_action'); next.set('section', area.section); if (area.id === 'treatment') next.set('care_tab', 'treatment'); next.delete('task_id'); next.delete('amend'); next.delete('form_profile_id'); navigate(`/opd/ophthalmology?${next}`); },
     openShared: (tab: string) => { const target = consultationAreas.find((area) => 'tab' in area && area.tab === tab && can(area.screen)); if (target) navigate(`/opd/visit?id=${visitId}&tab=${encodeURIComponent(tab)}&specialty=ophthalmology`); },
     configurationPage, subtype, contextEditOpen, subtypeSelected: Boolean(selectedSubtype), availableSubtypes, actionError: actionError?.visitId === visitId ? actionError.message : null, reportsOpen, reportPage, canViewReports, reportsQuery,

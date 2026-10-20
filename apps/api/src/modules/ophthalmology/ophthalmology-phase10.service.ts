@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+import { ophthalmologyReportCsv } from './ophthalmology-report-csv.js';
 import { createHash } from 'node:crypto';
 import { Types } from 'mongoose';
 import { env } from '../../config/env.js';
@@ -7,7 +9,7 @@ import { executeRequiredTransaction } from '../../shared/database/transaction.js
 import { AppError } from '../../shared/errors/app-error.js';
 import type { OphthalmologyRepository } from './ophthalmology.repository.js';
 import type { OphthalmologyPhase10Repository } from './ophthalmology-phase10.repository.js';
-import type { CreateOphthalmologyPublicationDTO, OphthalmologyAttachmentListQuery, OphthalmologyDashboardQuery,
+import type { OphthalmologyPublicationListQuery, CreateOphthalmologyPublicationDTO, OphthalmologyAttachmentListQuery, OphthalmologyDashboardQuery,
   OphthalmologyReportQuery, OphthalmologyReportType, UploadOphthalmologyAttachmentDTO,
   WithdrawOphthalmologyPublicationDTO } from './ophthalmology-phase10.types.js';
 import type { OphthalmologyRequestMetadata } from './ophthalmology.types.js';
@@ -39,14 +41,14 @@ export class OphthalmologyPhase10Service {
     const requestFingerprint = fingerprint({ ...data, data: undefined, checksum_sha256: checksum });
     const eligible = await this.repository.attachmentEligibility(data.task_id, data.result_id);
     if (!eligible) throw new AppError('Ophthalmology task or matching result not found', 404, 'NOT_FOUND');
-    await this.scope(userId, eligible.task.branchId.toString());
+    await this.scope(userId, eligible.task.branchId.toString(), eligible.task.departmentId.toString());
     const allowedStatuses = ['IN_PROGRESS', 'DRAFT', 'COMPLETED', 'SUBMITTED_FOR_REVIEW', 'REVIEWED', 'REPEAT_REQUIRED'];
     if (!allowedStatuses.includes(eligible.task.status)) {
       throw new AppError('Attachments are not allowed in the current task state', 409, 'OPHTHALMOLOGY_INVALID_TRANSITION');
     }
     const replay = await this.repository.getAttachmentByIdempotency(eligible.task.branchId.toString(), normalizedKey);
     if (replay) {
-      if (replay.checksum_sha256 === checksum && replay.task_id === data.task_id && replay.result_id === (data.result_id ?? null)) return replay;
+      if (await this.repository.attachmentRequestMatches(eligible.task.branchId.toString(), normalizedKey, requestFingerprint)) return replay;
       throw new AppError('Idempotency key was reused with a different attachment request', 409, 'OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT');
     }
     let storageKey: string | null = null;
@@ -55,7 +57,8 @@ export class OphthalmologyPhase10Service {
         mimeType: data.mime_type, data: data.data })).storageKey;
       return await executeRequiredTransaction(this.repository, async (session) => {
         const current = await this.repository.attachmentEligibility(data.task_id, data.result_id, session);
-        if (!current || current.task.branchId.toString() !== eligible.task.branchId.toString()) {
+        if (!current || current.task.branchId.toString() !== eligible.task.branchId.toString() || current.task.version !== eligible.task.version
+          || !allowedStatuses.includes(current.task.status) || current.result?.version !== eligible.result?.version) {
           throw new AppError('The attachment source changed after upload', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
         }
         const patientDocument = await this.patients!.createDocument(current.task.patientId.toString(), {
@@ -85,7 +88,7 @@ export class OphthalmologyPhase10Service {
       if (storageKey) await this.storage.deleteIfExists(storageKey).catch(() => undefined);
       if (duplicateKey(error)) {
         const raced = await this.repository.getAttachmentByIdempotency(eligible.task.branchId.toString(), normalizedKey);
-        if (raced && raced.checksum_sha256 === checksum && raced.task_id === data.task_id && raced.result_id === (data.result_id ?? null)) return raced;
+        if (raced && await this.repository.attachmentRequestMatches(eligible.task.branchId.toString(), normalizedKey, requestFingerprint)) return raced;
       }
       throw error;
     }
@@ -97,6 +100,13 @@ export class OphthalmologyPhase10Service {
     return this.repository.listAttachments({ ...query, page: query.page ?? 1, limit: query.limit ?? 20 });
   }
 
+  async listPublications(query: OphthalmologyPublicationListQuery, userId: string) {
+    await this.scope(userId, query.branch_id);
+    if (query.visit_id) this.objectId(query.visit_id, 'Visit id is invalid');
+    if (query.source_id) this.objectId(query.source_id, 'Source id is invalid');
+    return this.repository.listPublications(query, await this.ophthalmology.resolveDepartmentScope(userId));
+  }
+
   async publish(data: CreateOphthalmologyPublicationDTO, key: string, userId: string, metadata: OphthalmologyRequestMetadata = {}) {
     this.objectId(data.source_id, 'Publication source id is invalid');
     const normalizedKey = key.trim();
@@ -104,7 +114,8 @@ export class OphthalmologyPhase10Service {
     const requestFingerprint = fingerprint(data);
     const eligible = await this.repository.publicationEligibility(data);
     if (!eligible) throw new AppError('The exact source version is not final, approved, or reviewed', 422, 'OPHTHALMOLOGY_REVIEW_REQUIRED');
-    await this.scope(userId, eligible.branchId.toString());
+    await this.scope(userId, eligible.branchId.toString(), eligible.departmentId.toString());
+    if (await this.repository.publicationLocked(eligible.contextId.toString())) throw new AppError('Reapprove the amended consultation before publishing', 409, 'OPHTHALMOLOGY_CONSULTATION_LOCKED');
     const replay = await this.repository.getPublicationByIdempotency(eligible.branchId.toString(), normalizedKey);
     if (replay) {
       if (replay.source_type === data.source_type && replay.source_id === data.source_id && replay.source_version === data.source_version) return replay;
@@ -113,13 +124,16 @@ export class OphthalmologyPhase10Service {
     try {
       return await executeRequiredTransaction(this.repository, async (session) => {
         const current = await this.repository.publicationEligibility(data, session);
+        if (current && await this.repository.publicationLocked(current.contextId.toString(), session)) throw new AppError('Reapprove the amended consultation before publishing', 409, 'OPHTHALMOLOGY_CONSULTATION_LOCKED');
         if (!current) throw new AppError('The exact source version is no longer eligible for publication', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
         const raced = await this.repository.getPublicationByIdempotency(current.branchId.toString(), normalizedKey, session);
         if (raced) {
           if (raced.source_type === data.source_type && raced.source_id === data.source_id && raced.source_version === data.source_version) return raced;
           throw new AppError('Idempotency key was reused with a different publication request', 409, 'OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT');
         }
+        if (!await this.repository.acquirePublicationFence(current.contextId.toString(), session)) throw new AppError('Publication context changed', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
         const publication = await this.repository.createPublication(current, data, normalizedKey, requestFingerprint, userId, session);
+        await this.repository.synchronizePublicationDocuments(publication, session);
         await this.repository.audit('ophthalmology.portal.published', userId, { publicationId: publication.id,
           contextId: publication.context_id, visitId: publication.visit_id, patientId: publication.patient_id,
           branchId: publication.branch_id, departmentId: publication.department_id, sourceType: publication.source_type,
@@ -141,13 +155,14 @@ export class OphthalmologyPhase10Service {
     if (!reason) throw new AppError('A withdrawal reason is required', 400, 'OPHTHALMOLOGY_REASON_REQUIRED');
     const current = await this.repository.getPublication(id);
     if (!current) throw new AppError('Ophthalmology publication not found', 404, 'NOT_FOUND');
-    await this.scope(userId, current.branch_id);
+    await this.scope(userId, current.branch_id, current.department_id);
     if (current.status !== data.expected_status || current.version !== data.expected_version) {
       throw new AppError('The publication changed after it was loaded', 409, 'OPHTHALMOLOGY_VERSION_CONFLICT');
     }
     return executeRequiredTransaction(this.repository, async (session) => {
       const withdrawn = await this.repository.withdrawPublication(id, data.expected_version, reason, userId, session);
       if (!withdrawn) throw new AppError('The publication changed after it was loaded', 409, 'OPHTHALMOLOGY_VERSION_CONFLICT');
+      await this.repository.synchronizePublicationDocuments(withdrawn, session);
       await this.repository.audit('ophthalmology.portal.withdrawn', userId, { publicationId: withdrawn.id,
         contextId: withdrawn.context_id, visitId: withdrawn.visit_id, patientId: withdrawn.patient_id,
         branchId: withdrawn.branch_id, departmentId: withdrawn.department_id, sourceType: withdrawn.source_type,
@@ -160,21 +175,44 @@ export class OphthalmologyPhase10Service {
   }
 
   async report(type: OphthalmologyReportType, query: OphthalmologyReportQuery, userId: string) {
-    await this.scope(userId, query.branch_id); this.range(query); return this.repository.report(type, {
+    await this.scope(userId, query.branch_id); this.range(query); this.validateReportBasis(type, query); return this.repository.report(type, {
       ...query, page: query.page ?? 1, limit: query.limit ?? 20,
-    });
+    }, await this.ophthalmology.resolveDepartmentScope(userId));
+  }
+  async exportReport(type: OphthalmologyReportType, query: OphthalmologyReportQuery, userId: string, metadata: OphthalmologyRequestMetadata = {}) {
+    await this.scope(userId, query.branch_id); this.range(query); this.validateReportBasis(type, query);
+    await executeRequiredTransaction(this.repository, (session) => this.repository.audit('ophthalmology.report.export_requested', userId,
+      { branchId: query.branch_id, reportType: type, volumeBasis: query.volume_basis ?? 'ORDERED_ENCOUNTERS', stationId: query.station_id ?? null, dateFrom: query.date_from ?? null, dateTo: query.date_to ?? null }, metadata, session));
+    return Readable.from(ophthalmologyReportCsv(type, this.repository.exportReport(type, query, await this.ophthalmology.resolveDepartmentScope(userId)), query.volume_basis), { objectMode: false });
   }
   async refreshDashboard(query: OphthalmologyDashboardQuery, userId: string) {
-    await this.scope(userId, query.branch_id); return this.repository.refreshDashboard(query.branch_id);
+    const departments = await this.dashboardDepartments(query.branch_id, userId); return this.repository.refreshDashboard(query.branch_id, departments);
   }
   async dashboard(query: OphthalmologyDashboardQuery, userId: string) {
-    await this.scope(userId, query.branch_id); const snapshot = await this.repository.getDashboard(query.branch_id);
-    if (!snapshot) throw new AppError('Ophthalmology dashboard snapshot is not ready', 503, 'DASHBOARD_NOT_READY'); return snapshot;
+    const departments = await this.dashboardDepartments(query.branch_id, userId); const snapshot = await this.repository.getDashboard(query.branch_id);
+    if (!snapshot || JSON.stringify((snapshot.departmentIds ?? []).map(String).sort()) !== JSON.stringify(departments)) {
+      throw new AppError('Ophthalmology dashboard scope has changed or has not been generated; refresh the snapshot', 503, 'DASHBOARD_NOT_READY');
+    }
+    return snapshot;
   }
 
-  private async scope(userId: string, branchId: string) {
+  private async dashboardDepartments(branchId: string, userId: string) {
+    await this.scope(userId, branchId);
+    const [departments, permitted] = await Promise.all([this.repository.activeDashboardDepartments(branchId), this.ophthalmology.resolveDepartmentScope(userId)]);
+    if (!departments.length || (permitted !== null && departments.some((id) => !permitted.includes(id)))) {
+      throw new AppError('The branch dashboard requires access to every included Ophthalmology department; use scoped reports for partial access', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
+    }
+    return departments;
+  }
+
+  private async scope(userId: string, branchId: string, departmentId?: string) {
     this.objectId(branchId, 'Branch id is invalid');
     if (!await this.ophthalmology.hasBranchAccess(userId, branchId)) throw new AppError('Branch access denied', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
+    if (departmentId) { const departments = await this.ophthalmology.resolveDepartmentScope(userId); if (departments !== null && !departments.includes(departmentId)) throw new AppError('Department access denied', 403, 'OPHTHALMOLOGY_SCOPE_DENIED'); }
+  }
+  private validateReportBasis(type: OphthalmologyReportType, query: OphthalmologyReportQuery) {
+    if (query.volume_basis && (type !== 'CLINICAL_VOLUME' || !['VISITS', 'ORDERED_ENCOUNTERS'].includes(query.volume_basis))) throw new AppError('Volume basis is supported only for clinical volume', 400, 'VALIDATION_ERROR');
+    if (query.volume_basis === 'VISITS' && query.station_id) throw new AppError('Station filtering applies to test orders; clear the station to view all clinical visits', 400, 'VALIDATION_ERROR');
   }
   private range(query: OphthalmologyReportQuery) {
     if (query.station_id) this.objectId(query.station_id, 'Station id is invalid');

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { queueCommandSchema, type QueueAction, type QueueTask } from '../../api/ophthalmology-queue';
 
 export const queueActionDefinitions: { action: QueueAction; label: string; screen: string; permission: string; statuses: QueueTask['status'][] }[] = [
+  { action: 'submit-for-review', label: 'Submit for review', screen: 'Ophthalmology Test Queue', permission: 'Complete', statuses: ['COMPLETED'] },
   { action: 'assign', label: 'Assign', screen: 'Ophthalmology Test Queue', permission: 'Assign', statuses: ['ORDERED'] },
   { action: 'reassign', label: 'Reassign', screen: 'Ophthalmology Test Queue', permission: 'Reassign', statuses: ['PATIENT_WAITING', 'PATIENT_CALLED', 'DRAFT'] },
   { action: 'call', label: 'Call patient', screen: 'Ophthalmology Test Queue', permission: 'Call', statuses: ['PATIENT_WAITING'] },
@@ -22,7 +23,7 @@ export function buildQueueCommand(task: QueueTask, action: QueueAction, values: 
       : action === 'request-repeat' ? { action, task_id: task.id, key, body: { ...body, ...assignment, reason: values.reason } }
         : action === 'route' ? { action, task_id: task.id, body: { ...body, target: values.target, reason: values.reason || null, ...(values.target === 'NEXT_STATION' ? { ...assignment, next_task_id: values.next_task_id } : {}) } }
           : action === 'start' ? { action, task_id: task.id, body: { ...body, device_code: values.device_code || null } }
-            : action === 'call' ? { action, task_id: task.id, body }
+            : (action === 'call' || action === 'submit-for-review') ? { action, task_id: task.id, body }
               : { action, task_id: task.id, body: { ...body, reason: values.reason } };
   return queueCommandSchema.parse(input);
 }

@@ -10,7 +10,7 @@ import type {
 export type OphthalmologyContextFields = {
   visitId: Types.ObjectId; patientId: Types.ObjectId; branchId: Types.ObjectId; departmentId: Types.ObjectId;
   doctorId: Types.ObjectId; visitSubtype: OphthalmologyVisitSubtype; affectedEye: OphthalmologyContextLaterality;
-  workflowStatus: OphthalmologyWorkflowStatus; configurationVersionId: Types.ObjectId;
+  publicationRevision?: number; workflowStatus: OphthalmologyWorkflowStatus; configurationVersionId: Types.ObjectId;
   workflowProfileVersionId: Types.ObjectId; version: number; createdBy: Types.ObjectId; updatedBy: Types.ObjectId;
   createdAt: Date; updatedAt: Date;
 };
@@ -52,6 +52,7 @@ const contextSchema = new Schema<OphthalmologyContextFields>({
   doctorId: { type: Schema.Types.ObjectId, ref: 'Doctor', required: true },
   visitSubtype: { type: String, enum: subtypes, required: true },
   affectedEye: { type: String, enum: ['OD', 'OS', 'OU', 'NOT_SPECIFIED'], required: true },
+  publicationRevision: { type: Number, min: 0, default: 0 },
   workflowStatus: { type: String, enum: ['CHECKED_IN', 'PRELIMINARY_EXAMINATION', 'AWAITING_DOCTOR', 'UNDER_CONSULTATION', 'TESTS_ORDERED', 'AWAITING_RESULTS', 'CLINICAL_REVIEW', 'REVIEW_COMPLETED', 'CONSULTATION_COMPLETED'], default: 'CHECKED_IN', required: true },
   configurationVersionId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyConfiguration', required: true },
   workflowProfileVersionId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyWorkflowProfile', required: true },
@@ -71,6 +72,7 @@ const configurationSchema = new Schema<OphthalmologyConfigurationFields>({
   deactivatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null }, deactivatedAt: { type: Date, default: null },
   deactivationReason: { type: String, default: null }, ...auditFields,
 }, { timestamps: true });
+configurationSchema.index({ branchId: 1, type: 1, status: 1, revision: -1, _id: -1 });
 configurationSchema.index({ branchId: 1, type: 1, code: 1, revision: 1 }, { unique: true });
 configurationSchema.index({ branchId: 1, type: 1, code: 1, status: 1, updatedAt: -1 });
 configurationSchema.index({ branchId: 1, type: 1, code: 1 }, { unique: true, partialFilterExpression: { status: 'ACTIVE' } });

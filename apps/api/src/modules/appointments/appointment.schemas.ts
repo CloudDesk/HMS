@@ -1,3 +1,4 @@
+import { ophthalmologyAppointmentJsonSchema } from './appointment-ophthalmology.contract.js';
 const appointmentStatusEnum = [
   'SCHEDULED',
   'CONFIRMED',
@@ -8,7 +9,7 @@ const appointmentStatusEnum = [
   'SKIPPED',
   'COMPLETED',
 ];
-const appointmentVisitTypeEnum = ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY'];
+const appointmentVisitTypeEnum = ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'REVIEW', 'EMERGENCY'];
 const appointmentPriorityEnum = ['ROUTINE', 'URGENT', 'EMERGENCY'];
 
 export const appointmentIdParamsSchema = {
@@ -53,6 +54,7 @@ export const createAppointmentBodySchema = {
     start_time: { type: 'string', minLength: 5, maxLength: 5 },
     duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
     visit_type: { type: 'string', enum: appointmentVisitTypeEnum },
+    ophthalmology: ophthalmologyAppointmentJsonSchema,
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
@@ -70,9 +72,11 @@ export const updateAppointmentBodySchema = {
     start_time: { type: 'string', minLength: 5, maxLength: 5 },
     duration_minutes: { type: 'integer', minimum: 5, maximum: 240 },
     visit_type: { type: 'string', enum: appointmentVisitTypeEnum },
+    ophthalmology: ophthalmologyAppointmentJsonSchema,
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    expected_updated_at: { type: 'string', format: 'date-time' },
     reschedule_reason: { type: ['string', 'null'], maxLength: 1000 },
   },
 } as const;

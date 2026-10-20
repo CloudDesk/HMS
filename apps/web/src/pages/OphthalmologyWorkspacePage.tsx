@@ -38,7 +38,7 @@ function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feat
 }
 export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
-  if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Ophthalmology Intake View and OPD Visits View are required.</div>;
+  if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Intake with OPD Visits View, or dedicated Consultation/Optical Prescription View is required.</div>;
   if (!f.visitId) return <div className="doc-card" role="alert">Select a valid OPD encounter to open ophthalmology.</div>;
   if (f.scopeError) return <div className="doc-card" role="alert">The returned clinical record does not match this patient encounter. Reopen the encounter before continuing.</div>;
   if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to consultation</button></div>;

@@ -32,6 +32,9 @@ export function useOphthalmologyIntakeMutations(visitId: string) {
 export function useOphthalmologyTasks(visitId: string, page: number, enabled: boolean) {
   return useQuery({ queryKey: [...ophthalmologyKeys.visit(visitId), 'tasks', page], queryFn: ({ signal }) => service.tasks(visitId, page, signal), enabled, retry: false });
 }
+export function useOphthalmologyComparisons(taskId: string, expectedVersion: number, page: number, enabled: boolean) {
+  return useQuery({ queryKey: ['ophthalmology', 'comparisons', taskId, expectedVersion, page], queryFn: ({ signal }) => service.comparisons(taskId, expectedVersion, page, signal), enabled, retry: false });
+}
 export function useOphthalmologyResult(taskId: string, enabled: boolean) {
   return useQuery({ queryKey: ['ophthalmology', 'result', taskId], queryFn: ({ signal }) => service.result(taskId, signal), enabled, retry: false });
 }
@@ -56,4 +59,11 @@ export function useOphthalmologyResultMutations(visitId: string, taskId: string)
     upload: useMutation({ mutationFn: (body: UploadOphthalmologyAttachment) => service.uploadAttachment(body), onSuccess: () => { void client.invalidateQueries({ queryKey: ['ophthalmology', 'attachments'] , predicate: (query) => query.queryKey[3] === taskId }); } }),
     complete: useMutation({ mutationFn: (body: CompleteOphthalmologyResult) => service.completeResult(taskId, body), onSuccess: refresh }),
   };
+}
+
+export function useOphthalmologyClinicalWorkspace(visitId: string, enabled: boolean) {
+  return useQuery({ queryKey: [...ophthalmologyKeys.visit(visitId), 'clinical-workspace'], queryFn: ({ signal }) => service.clinicalWorkspace(visitId, signal), enabled: enabled && Boolean(visitId), retry: false });
+}
+export function useOphthalmologyClinicalConfiguration(visitId: string, enabled: boolean) {
+  return useQuery({ queryKey: [...ophthalmologyKeys.visit(visitId), 'clinical-configuration'], queryFn: ({ signal }) => service.clinicalConfiguration(visitId, signal), enabled: enabled && Boolean(visitId), retry: false });
 }

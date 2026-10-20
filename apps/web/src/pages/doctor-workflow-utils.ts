@@ -88,6 +88,7 @@ export const groupAppointmentsByVisitType = (appointments: AppointmentResponse[]
       NEW_CONSULTATION: 0,
       FOLLOW_UP: 0,
       PROCEDURE: 0,
+      REVIEW: 0,
       EMERGENCY: 0,
     },
   );

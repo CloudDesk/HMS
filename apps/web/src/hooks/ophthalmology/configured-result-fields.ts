@@ -26,17 +26,18 @@ const roots: Record<TestFormType, readonly string[]> = {
 };
 export function configuredResultFields(type: TestFormType, laterality: string, fields: ResultField[], profile: Record<string, unknown>): ResultField[] {
   const result = [...fields];
+  const units = z.record(z.string(), z.string().min(1)).safeParse(profile.comparison_units).data ?? {};
   const allowed = z.record(z.string(), z.array(z.union([z.string(), z.number(), z.boolean()]))).safeParse(profile.allowed_values).data ?? {};
   const ranges = z.record(z.string(), z.object({ min: z.number().optional(), max: z.number().optional() })).safeParse(profile.numeric_ranges).data ?? {};
-  for (const path of new Set([...Object.keys(allowed), ...Object.keys(ranges)])) {
+  for (const path of new Set([...Object.keys(allowed), ...Object.keys(ranges), ...Object.keys(units)])) {
     const keys = path.split('.'); const root = keys[0];
     if (!root || !roots[type].includes(root) || keys.some((key) => ['__proto__', 'constructor', 'prototype'].includes(key)) || (laterality === 'OD' && keys.includes('OS')) || (laterality === 'OS' && keys.includes('OD')) || result.some((field) => field.path === path)) continue;
     const choices = allowed[path];
-    if (!ranges[path] && !choices?.length) continue;
-    const kind = ranges[path] || choices?.every((choice) => typeof choice === 'number') ? 'number' : choices?.every((choice) => typeof choice === 'boolean') ? 'boolean' : 'choice';
+    if (!ranges[path] && !units[path] && !choices?.length) continue;
+    const kind = ranges[path] || units[path] || choices?.every((choice) => typeof choice === 'number') ? 'number' : choices?.every((choice) => typeof choice === 'boolean') ? 'boolean' : 'choice';
     result.push({ path, label: keys.map((key) => key.replaceAll('_', ' ')).join(' · '), kind, ...(kind === 'choice' && choices ? { options: choices.filter((choice): choice is string => typeof choice === 'string') } : {}) });
   }
-  return result;
+  return result.map((field) => units[field.path] ? { ...field, label: `${field.label} (${units[field.path]})` } : field);
 }
 export function unavailableRequiredPaths(fields: ResultField[], payload: Record<string, unknown>, profile: Record<string, unknown>) {
   const required = z.array(z.string()).safeParse(profile.required_fields).data ?? [];

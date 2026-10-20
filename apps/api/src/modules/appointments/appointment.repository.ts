@@ -1,4 +1,8 @@
-import mongoose, { Types, type ClientSession, type SortOrder } from 'mongoose';
+import { DepartmentModel } from '../departments/department.model.js';
+import { ServiceModel } from '../services/service.model.js';
+import { OphthalmologyConfigurationModel } from '../ophthalmology/ophthalmology.model.js';
+import type { OphthalmologyAppointmentIntent } from './appointment-ophthalmology.contract.js';
+import mongoose, { Types, type ClientSession, type SortOrder, type PipelineStage } from 'mongoose';
 import { AppointmentModel, type AppointmentFields } from './appointment.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
@@ -81,6 +85,7 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   status: appointment.status,
   reason: appointment.reason ?? null,
   notes: appointment.notes ?? null,
+  ophthalmology: appointment.ophthalmology ?? null,
   rescheduled_from_id: appointment.rescheduledFromId?.toString() ?? null,
   rescheduled_to_id: appointment.rescheduledToId?.toString() ?? null,
   rescheduled_at: appointment.rescheduledAt ?? null,
@@ -119,12 +124,14 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   status: 'SCHEDULED' as const,
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
+  ophthalmology: data.ophthalmology ?? null,
   activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime),
   createdBy: toObjectId(userId),
   updatedBy: toObjectId(userId),
 });
 
 const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
+  ...(data.ophthalmology !== undefined ? { ophthalmology: data.ophthalmology } : {}),
   ...(data.doctor_id !== undefined ? { doctorId: toObjectId(data.doctor_id) } : {}),
   ...(data.doctorName !== undefined ? { doctorName: data.doctorName } : {}),
   ...(data.doctorSpecialization !== undefined ? { doctorSpecialization: data.doctorSpecialization } : {}),
@@ -291,6 +298,37 @@ export class AppointmentRepository {
     return appointment ? toAppointment(appointment) : undefined;
   }
 
+  async isOphthalmologyDepartment(branchId: string, departmentId: string, session?: ClientSession) {
+    const query = DepartmentModel.exists({ _id: toObjectId(departmentId), branchIds: toObjectId(branchId), status: 'ACTIVE', isClinical: true,
+      $or: [{ code: /^OPHTHALMOLOGY$/i }, { name: /^OPHTHALMOLOGY$/i }] }); if (session) query.session(session); return Boolean(await query);
+  }
+  async validOphthalmologyBookingReferences(intent: OphthalmologyAppointmentIntent, branchId: string, departmentId: string, session?: ClientSession) {
+    if (!await this.isOphthalmologyDepartment(branchId, departmentId, session)) return false;
+    if (intent.service_id) { const query = ServiceModel.exists({ _id: toObjectId(intent.service_id), departmentId: toObjectId(departmentId), serviceType: 'GENERAL', status: 'ACTIVE', deletedAt: null }); if (session) query.session(session); if (!await query) return false; }
+    if (intent.sub_speciality_configuration_id) {
+      const query = OphthalmologyConfigurationModel.findOne({ _id: toObjectId(intent.sub_speciality_configuration_id), branchId: toObjectId(branchId), type: 'SUB_SPECIALITY', status: 'ACTIVE' }).select('values.options'); if (session) query.session(session);
+      const configuration = await query.lean(); const options = configuration?.values.options;
+      if (!Array.isArray(options) || !options.some((entry: unknown) => typeof entry === 'string' ? entry === intent.sub_speciality_code : entry !== null && typeof entry === 'object' && 'code' in entry && entry.code === intent.sub_speciality_code && (!('active' in entry) || entry.active !== false))) return false;
+    }
+    return true;
+  }
+  async ophthalmologyBookingOptions(branchId: string, departmentId: string, resource: 'SERVICES' | 'SUB_SPECIALITIES', page: number, limit: number) {
+    if (resource === 'SERVICES') {
+      const filter = { departmentId: toObjectId(departmentId), serviceType: 'GENERAL' as const, status: 'ACTIVE' as const, deletedAt: null };
+      const [rows, total] = await Promise.all([ServiceModel.find(filter).select('code name').sort({ name: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(), ServiceModel.countDocuments(filter)]);
+      return { data: rows.map((row) => ({ id: row._id.toString(), code: row.code, label: row.name })), meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
+    }
+    const pipeline: PipelineStage[] = [
+      { $match: { branchId: toObjectId(branchId), type: 'SUB_SPECIALITY', status: 'ACTIVE' } }, { $sort: { revision: -1 as const, _id: -1 as const } },
+      { $group: { _id: '$code', latest: { $first: '$$ROOT' } } }, { $replaceRoot: { newRoot: '$latest' } }, { $unwind: '$values.options' },
+      { $project: { _id: 0, id: { $toString: '$_id' }, code: { $cond: [{ $eq: [{ $type: '$values.options' }, 'string'] }, '$values.options', '$values.options.code'] },
+        label: { $cond: [{ $eq: [{ $type: '$values.options' }, 'string'] }, '$values.options', { $ifNull: ['$values.options.label', '$values.options.code'] }] }, active: '$values.options.active' } },
+      { $match: { code: { $type: 'string', $ne: '' }, label: { $type: 'string' }, active: { $ne: false } } }, { $sort: { label: 1 as const, id: 1 as const, code: 1 as const } },
+    ];
+    const [rows, totals] = await Promise.all([OphthalmologyConfigurationModel.aggregate<{ id: string; code: string; label: string }>([...pipeline, { $skip: (page - 1) * limit }, { $limit: limit }, { $project: { id: 1, code: 1, label: 1 } }]), OphthalmologyConfigurationModel.aggregate<{ total: number }>([...pipeline, { $count: 'total' }])]);
+    const total = totals[0]?.total ?? 0; return { data: rows, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
+  }
+
   async create(data: AppointmentCreateRecord, userId: string, session?: ClientSession): Promise<Appointment> {
     const records = await AppointmentModel.create(
       [buildCreatePayload(data, userId)],
@@ -301,11 +339,11 @@ export class AppointmentRepository {
     return toAppointment(created.toObject<AppointmentLean>());
   }
 
-  async update(id: string, data: AppointmentUpdateRecord, userId: string, branchIds?: string[]): Promise<Appointment | undefined> {
+  async update(id: string, data: AppointmentUpdateRecord, userId: string, branchIds?: string[], session?: ClientSession): Promise<Appointment | undefined> {
     const appointment = await AppointmentModel.findOneAndUpdate(
-      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}) },
+      { _id: id, deletedAt: null, ...(branchIds ? { branchId: { $in: branchIds.map(toObjectId) } } : {}), ...(data.expected_updated_at ? { updatedAt: new Date(data.expected_updated_at) } : {}) },
       { $set: buildUpdatePayload(data, userId) },
-      { returnDocument: 'after', lean: true },
+      { returnDocument: 'after', lean: true, session },
     ).lean<AppointmentLean>();
 
     return appointment ? toAppointment(appointment) : undefined;
@@ -619,16 +657,19 @@ async auditCreated(appointment: Appointment, actorUserId: string, session?: Clie
     return created;
   }
 
-  async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string) {
-    await AuditLogModel.create({ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
+  async auditRescheduled(previous: Appointment, appointment: Appointment, reason: string, actorUserId: string, session?: ClientSession) {
+    await AuditLogModel.create([{ actorUserId, eventType: 'appointment.rescheduled', metadataJson: {
       appointmentId: appointment.id, appointmentNumber: appointment.appointment_number, patientId: appointment.patient_id,
       reason, previous: { doctorId: previous.doctor_id, appointmentDate: previous.appointment_date,
         startTime: previous.start_time, durationMinutes: previous.duration_minutes },
       next: { doctorId: appointment.doctor_id, appointmentDate: appointment.appointment_date,
         startTime: appointment.start_time, durationMinutes: appointment.duration_minutes },
-    } });
+    } }], session ? { session } : undefined);
   }
 
+  async auditOphthalmologyUpdated(previous: Appointment, next: Appointment, actorUserId: string, session: ClientSession) {
+    await AuditLogModel.create([{ actorUserId, eventType: 'appointment.ophthalmology.updated', metadataJson: { appointmentId: next.id, branchId: next.branch_id, before: previous.ophthalmology ?? null, after: next.ophthalmology ?? null, previousUpdatedAt: previous.updated_at, updatedAt: next.updated_at } }], { session });
+  }
   async nextAppointmentSequence(session?: ClientSession) {
     const query = AppointmentModel.countDocuments();
     return session ? query.session(session) : query;

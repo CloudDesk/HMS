@@ -18,7 +18,7 @@ export const ophthalmologyReportParamsSchema = {
   type: 'object', additionalProperties: false, required: ['reportType'], properties: { reportType: { type: 'string', enum: reportTypes } },
 } as const;
 export const ophthalmologyReportQuerySchema = {
-  type: 'object', additionalProperties: false, required: ['branch_id'], properties: { branch_id: objectId, station_id: objectId,
+  type: 'object', additionalProperties: false, required: ['branch_id'], properties: { branch_id: objectId, station_id: objectId, volume_basis: { type: 'string', enum: ['VISITS', 'ORDERED_ENCOUNTERS'] },
     date_from: { type: 'string', format: 'date-time' }, date_to: { type: 'string', format: 'date-time' },
     page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
 } as const;
@@ -29,4 +29,12 @@ export const ophthalmologyAttachmentListQuerySchema = {
   type: 'object', additionalProperties: false, required: ['branch_id'], properties: { branch_id: objectId,
     task_id: objectId, result_id: objectId, visit_id: objectId,
     page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+} as const;
+
+export const ophthalmologyPublicationListQuerySchema = {
+  type: 'object', additionalProperties: false, required: ['branch_id'], properties: {
+    branch_id: objectId, visit_id: objectId, source_id: objectId, source_version: { type: 'integer', minimum: 1 }, source_type: { type: 'string', enum: ['CONSULTATION_SUMMARY', 'OPTICAL_PRESCRIPTION', 'TEST_RESULT'] },
+    status: { type: 'string', enum: ['APPROVED_FOR_PORTAL', 'WITHDRAWN'] },
+    page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  },
 } as const;

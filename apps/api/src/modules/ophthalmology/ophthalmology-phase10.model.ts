@@ -34,6 +34,7 @@ const attachmentSchema = new Schema<OphthalmologyAttachmentFields>({
   idempotencyKey: { type: String, required: true, trim: true }, requestFingerprint: { type: String, required: true },
   uploadedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+attachmentSchema.index({ patientDocumentId: 1, patientId: 1 });
 attachmentSchema.index({ taskId: 1, patientDocumentId: 1 }, { unique: true });
 attachmentSchema.index({ branchId: 1, idempotencyKey: 1 }, { unique: true });
 attachmentSchema.index({ branchId: 1, taskId: 1, acquiredAt: -1 });
@@ -66,6 +67,7 @@ const publicationSchema = new Schema<OphthalmologyPublicationFields>({
   version: { type: Number, min: 0, default: 0, required: true },
 }, { timestamps: true });
 
+publicationSchema.index({ patientId: 1, status: 1, sourceType: 1, 'portalPayload.report_document_ids': 1 });
 publicationSchema.index({ branchId: 1, status: 1, publishedAt: -1 });
 publicationSchema.index({ patientId: 1, status: 1, publishedAt: -1 });
 publicationSchema.index({ visitId: 1, status: 1, publishedAt: -1 });
@@ -79,10 +81,11 @@ export const OphthalmologyPublicationModel = mongoose.model<OphthalmologyPublica
 );
 
 export type OphthalmologyDashboardSnapshotFields = {
-  branchId: Types.ObjectId; generatedAt: Date; metrics: Record<string, number>; createdAt: Date; updatedAt: Date;
+  branchId: Types.ObjectId; departmentIds: Types.ObjectId[]; generatedAt: Date; metrics: Record<string, number>; createdAt: Date; updatedAt: Date;
 };
 const dashboardSnapshotSchema = new Schema<OphthalmologyDashboardSnapshotFields>({
   branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true, unique: true },
+  departmentIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Department' }], default: [] },
   generatedAt: { type: Date, required: true }, metrics: { type: Schema.Types.Mixed, required: true },
 }, { timestamps: true });
 dashboardSnapshotSchema.index({ generatedAt: -1 });

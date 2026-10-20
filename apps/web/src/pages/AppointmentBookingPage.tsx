@@ -1,3 +1,5 @@
+import { AppointmentOphthalmologyFields } from '../components/AppointmentOphthalmologyFields';
+import { appointmentSpecialtyFormFields, emptyAppointmentSpecialtyForm, appointmentSpecialtyValue, validateAppointmentSpecialtyForm } from '../hooks/appointments/appointment-specialty-form';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,16 +41,20 @@ const bookingSchema = z.object({
   doctor_id: z.string().min(1, 'Doctor is required'),
   appointment_date: z.string().min(1, 'Date is required'),
   start_time: z.string().min(1, 'Time slot is required'),
-  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY']),
+  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'REVIEW', 'EMERGENCY']),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']),
   reason: z.string().optional(),
   notes: z.string().optional(),
-});
+  ...appointmentSpecialtyFormFields,
+}).superRefine(validateAppointmentSpecialtyForm);
 
-type BookingFormData = z.infer<typeof bookingSchema>;
+export type BookingFormData = z.infer<typeof bookingSchema>;
 
 export function AppointmentBookingPage() {
-  const { search } = useAppLocation();
+  const { search, pathname } = useAppLocation();
+  const specialtyOpen = new URLSearchParams(search).get('specialty_details') === 'open';
+  const specialtyPage = Number(new URLSearchParams(search).get('specialty_page') ?? 1);
+  const setSpecialtyQuery = (open: boolean, page: number) => { const next = new URLSearchParams(search); if (open) { next.set('specialty_details', 'open'); next.set('specialty_page', String(page)); } else { next.delete('specialty_details'); next.delete('specialty_page'); } navigate(`${pathname}?${next}`); };
   const initialPatientId = new URLSearchParams(search).get('patient') ?? '';
   const referralVisitId = new URLSearchParams(search).get('referral_visit') ?? '';
   const emergencyReferralId = new URLSearchParams(search).get('emergency_referral') ?? '';
@@ -62,6 +68,7 @@ const {
   watch,
   setValue,
   clearErrors,
+  setError,
   trigger,
   getValues,
   formState: { errors },
@@ -76,6 +83,7 @@ const {
       priority: 'ROUTINE',
       reason: '',
       notes: '',
+      ...emptyAppointmentSpecialtyForm,
     },
   });
 
@@ -87,6 +95,7 @@ const {
 
   const {
     state: {
+      specialtyServices, specialtyChoices, specialtyReady,
       initialPatientData,
       referral,
       patientResults,
@@ -111,6 +120,7 @@ const {
     referralVisitId,
     emergencyReferralId,
     emergencyBranchId,
+    { open: specialtyOpen, page: specialtyPage },
   );
 
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === selectedDoctorId), [doctors, selectedDoctorId]);
@@ -151,6 +161,7 @@ clearErrors('start_time');
 }, [
   appointmentDate,
   clearErrors,
+  setError,
   selectedDoctorId,
   setValue,
 ]);
@@ -215,6 +226,7 @@ clearErrors('start_time');
 
   const continueToConfirmation = async () => {
     const isValid = await trigger();
+    if (getValues('specialty_enabled') && !specialtyReady) { setError('root', { message: 'Refresh specialty options for the selected consultant before continuing.' }); return; }
     if (isValid && selectedSlot) {
       setStep(3);
     }
@@ -223,20 +235,21 @@ clearErrors('start_time');
   const submitBooking = async (data: BookingFormData) => {
     try {
       await handleCreateAppointment({
-        ...data,
+        patient_id: data.patient_id, doctor_id: data.doctor_id, appointment_date: data.appointment_date, start_time: data.start_time, visit_type: data.visit_type, priority: data.priority, ophthalmology: appointmentSpecialtyValue(data),
         duration_minutes: selectedSlotOption?.durationMinutes ?? 30,
         reason: data.reason?.trim() || null,
         notes: data.notes?.trim() || null,
       });
       navigate('/appointments/queue');
-    } catch {
-      // toast is handled by mutation
+    } catch (error) {
+      setError('root', { message: error instanceof Error ? error.message : 'Appointment could not be saved.' });
     }
   };
 
   return (
     <>
       <div className="appointment-page appointment-booking-page">
+        {errors.root && <p role="alert" className="form-error-banner">{errors.root.message}</p>}{errors.specialty_subtype && <p role="alert" className="form-error-banner">{errors.specialty_subtype.message}</p>}
         <section className="appointment-page-header">
           <div className="appointment-page-title">
             <h2>Book Appointment</h2>
@@ -397,6 +410,7 @@ clearErrors('start_time');
                 <select
                   id="booking-visit-type"
                   {...register('visit_type')}
+                  disabled={watch('specialty_enabled')}
                 >
                   {visitTypeOptions.map((type) => (
                     <option key={type} value={type}>
@@ -405,6 +419,7 @@ clearErrors('start_time');
                   ))}
                 </select>
               </div>
+              <AppointmentOphthalmologyFields register={register} watch={watch} setValue={setValue} state={{ specialtyServices, specialtyChoices, specialtyReady }} open={specialtyOpen} page={specialtyPage} setQuery={setSpecialtyQuery} referralBooking={Boolean(referralVisitId || emergencyReferralId)} />
               <div className="doc-field">
                 <label htmlFor="booking-priority">Priority</label>
                 <select
@@ -565,6 +580,7 @@ clearErrors('start_time');
               <strong>{appointmentPriorityLabels[priority]}</strong>
             </div>
           </div>
+          {watch('specialty_enabled') && <div className="appointment-summary-grid"><div><span>Specialty visit</span><strong>{watch('specialty_subtype').replaceAll('_', ' ')}</strong></div><div><span>Affected eye</span><strong>{watch('specialty_eye').replaceAll('_', ' ')}</strong></div><div><span>Sub-speciality</span><strong>{watch('specialty_code') || 'Not selected'}</strong></div><div><span>Referral</span><strong>{watch('specialty_referral_source') || 'Not recorded'} {watch('specialty_referred_by')}</strong></div></div>}
           <div className="appointment-form-actions">
             <button className="doc-btn" disabled={isSubmitting} onClick={() => setStep(2)} type="button">
               Back

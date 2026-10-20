@@ -234,6 +234,8 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
       if (visit.status !== 'COMPLETED') {
         await feature.actions.saveWorkspaceDraft({
           consultation: {
+            expected_version: consultation?.version ?? 0,
+            expected_status: consultation?.status ?? 'DRAFT',
             allergies: consultationForm.allergies.trim() || null,
             assessment: consultationForm.assessment.trim() || null,
             diagnoses: diagnoses.diagnosesForSave,
@@ -558,6 +560,8 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
     setUpdating('consultation-draft');
     try {
       const payload: SaveOpdConsultationPayload = {
+        expected_version: consultation?.version ?? 0,
+        expected_status: consultation?.status ?? 'DRAFT',
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
         diagnoses: diagnoses.diagnosesForSave,
@@ -643,6 +647,8 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
     setUpdating('prescription-submit');
     try {
       const consultationPayload: SaveOpdConsultationPayload = {
+        expected_version: consultation?.version ?? 0,
+        expected_status: consultation?.status ?? 'DRAFT',
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
         diagnoses: diagnoses.diagnosesForSave,
@@ -690,6 +696,8 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
     setUpdating('consultation-complete');
     try {
       const payload: SaveOpdConsultationPayload = {
+        expected_version: consultation?.version ?? 0,
+        expected_status: consultation?.status ?? 'DRAFT',
         allergies: consultationForm.allergies.trim() || null,
         assessment: consultationForm.assessment.trim() || null,
         diagnoses: diagnoses.diagnosesForSave,

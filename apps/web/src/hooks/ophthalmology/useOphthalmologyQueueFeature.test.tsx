@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   mutation: vi.fn(), queries: new Map<string, unknown[]>(),
   query: (name: string, args: unknown[]) => {
     state.queries.set(name, args);
-    const data = name === 'task' ? { id: '111111111111111111111111', visit_id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: state.taskBranch, department_id: '555555555555555555555555', context_id: '666666666666666666666666', assigned_user_id: '777777777777777777777777', status: 'PATIENT_WAITING', version: state.version }
+    const data = name === 'task-workspace' ? { context: { id: '666666666666666666666666' }, visit: { id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: '333333333333333333333333', department_id: '555555555555555555555555', status: 'IN_CONSULTATION' } } : name === 'task' ? { id: '111111111111111111111111', visit_id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: state.taskBranch, department_id: '555555555555555555555555', context_id: '666666666666666666666666', assigned_user_id: '777777777777777777777777', status: 'PATIENT_WAITING', version: state.version }
       : name === 'visit' ? { id: '222222222222222222222222', patient_id: '444444444444444444444444', branch_id: '333333333333333333333333', department_id: '555555555555555555555555', status: 'IN_CONSULTATION' }
         : { data: [], meta: { totalPages: 0 } };
     return { data, isError: false, isFetching: false, isLoading: false, refetch: vi.fn() };
@@ -24,9 +24,12 @@ vi.mock('../branches/useBranches', () => ({ useBranchesList: (...args: unknown[]
 vi.mock('./useOphthalmology', () => ({ useOphthalmologyContext: (...args: unknown[]) => state.query('context', args) }));
 vi.mock('./useOphthalmologyAdministration', () => ({ useOphthalmologyAdministrationList: (...args: unknown[]) => state.query(`admin-${args[0]}`, args) }));
 vi.mock('./useOphthalmologyQueue', () => ({
+  useOphthalmologyTaskWorkspace: (...args: unknown[]) => state.query('task-workspace', args),
   useOphthalmologyQueue: (...args: unknown[]) => state.query('list', args),
   useOphthalmologyQueueTask: (...args: unknown[]) => state.query(args[0] === '111111111111111111111111' ? 'task' : 'next-task', args),
-  useOphthalmologyQueueStation: (...args: unknown[]) => state.query('station', args),
+  useOphthalmologyAssignmentStations: (...args: unknown[]) => state.query('assignment-stations', args),
+  useOphthalmologyAssignmentMembers: (...args: unknown[]) => state.query('assignment-members', args),
+  useOphthalmologyAssignmentStation: (...args: unknown[]) => state.query('station', args),
   useOphthalmologyBoundWorkflow: (...args: unknown[]) => state.query('workflow', args),
   useOphthalmologyQueueMutations: () => ({ create: { mutateAsync: state.mutation, isPending: false }, action: { mutateAsync: state.mutation, isPending: false } }),
 }));
@@ -41,7 +44,14 @@ describe('queue permissions, scope and asynchronous actions', () => {
   it('does not expose cached denied tasks or fetch modal lookups', async () => {
     await act(async () => root.render(<Harness />));
     expect(feature.canView).toBe(false); expect(feature.task).toBeUndefined();
-    expect(state.queries.get('task')?.[1]).toBe(false); expect(state.queries.get('users')?.[1]).toBe(false); expect(state.queries.get('admin-stations')?.[2]).toBe(false);
+    expect(state.queries.get('task')?.[1]).toBe(false); expect(state.queries.get('assignment-members')?.[2]).toBe(false); expect(state.queries.get('assignment-stations')?.[2]).toBe(false);
+  });
+  it('loads task-scoped assignment lookups only when the action opens, without Configuration or Users View', async () => {
+    grant('Ophthalmology Test Queue'); grant('Ophthalmology Test Queue', 'Reassign');
+    await act(async () => root.render(<Harness />)); expect(state.queries.get('assignment-stations')?.[2]).toBe(false);
+    state.search += '&action=reassign'; await act(async () => root.render(<Harness />));
+    expect(feature.canConfigure).toBe(false); expect(state.queries.get('assignment-stations')?.[2]).toBe(true);
+    expect(state.queries.get('users')).toBeUndefined(); expect(state.queries.get('admin-stations')).toBeUndefined();
   });
   it('enables result entry with Queue and OPD Visits View without Intake View', async () => {
     grant('Ophthalmology Test Queue'); grant('OPD Visits'); await act(async () => root.render(<Harness />));
@@ -49,6 +59,7 @@ describe('queue permissions, scope and asynchronous actions', () => {
     expect(feature.resultWorkspace.context).toEqual({ id: '666666666666666666666666' });
     expect(state.queries.get('context')?.[1]).toBe(false);
   });
+  it('enables result entry from a task-scoped header without generic OPD Visits or Intake permission', async () => { grant('Ophthalmology Test Queue'); await act(async () => root.render(<Harness />)); expect(feature.canVisits).toBe(false); expect(feature.canReadContext).toBe(false); expect(feature.canEnterResults).toBe(true); expect(state.queries.get('visit')?.[1]).toBe(false); expect(state.queries.get('task-workspace')?.[1]).toBe(true); });
   it('rejects another branch before displaying or mutating its task', async () => {
     grant('Ophthalmology Test Queue'); grant('Ophthalmology Test Queue', 'Call'); state.taskBranch = '999999999999999999999999';
     await act(async () => root.render(<Harness />));

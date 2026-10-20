@@ -1,3 +1,4 @@
+import { useOphthalmologyTaskClinicalConfigurations } from './useOphthalmologyQueue';
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useOphthalmologyAttachmentDownload } from './useOphthalmologyAttachmentDownload';
@@ -5,7 +6,7 @@ import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { useAppLocation } from '../../routing/navigation';
 import { ophthalmologyIdSchema, type SaveOphthalmologyResult, type AmendOphthalmologyResult, type UploadOphthalmologyAttachment } from '../../api/ophthalmology';
-import { useOphthalmologyAttachments, useOphthalmologyConfigurations, useOphthalmologyResult, useOphthalmologyResultMutations, useOphthalmologyTask, useOphthalmologyTasks } from './useOphthalmology';
+import { useOphthalmologyAttachments, useOphthalmologyResult, useOphthalmologyResultMutations, useOphthalmologyTask, useOphthalmologyTasks } from './useOphthalmology';
 import type { OpdVisitResponse } from '../../api/opd';
 
 export type OphthalmologyResultWorkspace = {
@@ -35,9 +36,9 @@ export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWork
   const resultQuery = useOphthalmologyResult(taskId, canQuery && Boolean(task) && !taskQuery.isError);
   const result = enabled && resultQuery.data?.task_id === taskId && matchesScope(resultQuery.data) ? resultQuery.data : null;
   const scopeError = enabled && (Boolean(taskQuery.data && !task) || Boolean(resultQuery.data && !result));
-  const profilesQuery = useOphthalmologyConfigurations(workspace.visit?.branch_id ?? '', 'FORM_PROFILE', workspace.configurationPage, canQuery && workspace.canConfigure && Boolean(task) && can('Edit'));
-  const mutations = useOphthalmologyResultMutations(workspace.visitId, taskId);
   const canAmend = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'Ophthalmology Test Review', action: 'Amend' });
+  const profilesQuery = useOphthalmologyTaskClinicalConfigurations(taskId, 'FORM_PROFILE', workspace.configurationPage, canQuery && Boolean(task) && (can('Edit') || canAmend));
+  const mutations = useOphthalmologyResultMutations(workspace.visitId, taskId);
   const amending = params.get('amend') === '1' && canAmend && task?.status === 'COMPLETED' && result?.status === 'COMPLETED';
   const attachmentsOpen = params.get('attachments') === 'open';
   const rawAttachmentPage = Number(params.get('attachment_page') ?? 1);
@@ -45,8 +46,8 @@ export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWork
   const attachmentsQuery = useOphthalmologyAttachments(workspace.visit?.branch_id ?? '', taskId, attachmentPage, canQuery && attachmentsOpen && Boolean(task));
   const lookupsOpen = params.get('clinical_lookups') === 'open';
   const formType = result?.current.form_type ?? profilesQuery.data?.data.find((profile) => profile.id === params.get('form_profile_id'))?.values.form_type;
-  const productsQuery = useOphthalmologyConfigurations(workspace.visit?.branch_id ?? '', 'OPTICAL_PRODUCT', workspace.configurationPage, canQuery && workspace.canConfigure && lookupsOpen && formType === 'CONTACT_LENS');
-  const drugsQuery = useOphthalmologyConfigurations(workspace.visit?.branch_id ?? '', 'DRUG_OPTION', workspace.configurationPage, canQuery && workspace.canConfigure && lookupsOpen && formType === 'PAEDIATRIC_VISION');
+  const productsQuery = useOphthalmologyTaskClinicalConfigurations(taskId, 'OPTICAL_PRODUCT', workspace.configurationPage, canQuery && lookupsOpen && formType === 'CONTACT_LENS');
+  const drugsQuery = useOphthalmologyTaskClinicalConfigurations(taskId, 'DRUG_OPTION', workspace.configurationPage, canQuery && lookupsOpen && formType === 'PAEDIATRIC_VISION');
   const [error, setError] = useState<{ visitId: string; taskId: string; message: string } | null>(null);
   const lifecycle = useMemo(() => ({ active: true }), [workspace.visitId, taskId]);
   useLayoutEffect(() => { lifecycle.active = true; return () => { lifecycle.active = false; }; }, [lifecycle]);
@@ -58,12 +59,12 @@ export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWork
     ...downloads,
     section, canView: can('View'), page, taskId, tasksQuery, taskQuery, resultQuery, resultLoaded: resultQuery.isSuccess || resultQuery.data !== undefined, profilesQuery, task, result, scopeError, error: error?.visitId === workspace.visitId && error.taskId === taskId ? error.message : null,
     tasks: enabled ? (tasksQuery.data?.data ?? []).filter(matchesScope) : [],
-    profiles: enabled && workspace.canConfigure ? (profilesQuery.data?.data ?? []).filter((profile) => profile.branch_id === workspace.visit?.branch_id && profile.status === 'ACTIVE') : [],
+    profiles: enabled ? (profilesQuery.data?.data ?? []).filter((profile) => profile.branch_id === workspace.visit?.branch_id && profile.status === 'ACTIVE') : [],
     canEdit, canAmend: writable && canAmend && task?.status === 'COMPLETED' && result?.status === 'COMPLETED', amending,
     attachmentsOpen, attachmentPage, attachmentsQuery, attachments,
     lookupsOpen, productsQuery, drugsQuery,
-    products: canQuery && workspace.canConfigure && lookupsOpen ? (productsQuery.data?.data ?? []).filter((item) => item.branch_id === workspace.visit?.branch_id && item.status === 'ACTIVE') : [],
-    drugs: canQuery && workspace.canConfigure && lookupsOpen ? (drugsQuery.data?.data ?? []).filter((item) => item.branch_id === workspace.visit?.branch_id && item.status === 'ACTIVE') : [],
+    products: canQuery && lookupsOpen ? (productsQuery.data?.data ?? []).filter((item) => item.branch_id === workspace.visit?.branch_id && item.status === 'ACTIVE') : [],
+    drugs: canQuery && lookupsOpen ? (drugsQuery.data?.data ?? []).filter((item) => item.branch_id === workspace.visit?.branch_id && item.status === 'ACTIVE') : [],
     canAttach: writable && can('Edit') && Boolean(task && ['IN_PROGRESS', 'DRAFT', 'COMPLETED', 'SUBMITTED_FOR_REVIEW', 'REVIEWED', 'REPEAT_REQUIRED'].includes(task.status)),
     busy: mutations.save.isPending || mutations.complete.isPending || mutations.amend.isPending || mutations.upload.isPending,
     reload: async () => {

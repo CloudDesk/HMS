@@ -2,8 +2,6 @@ export const opdConsultationVisitParamsSchema = {
   type: 'object',
   required: ['visitId'],
   properties: {
-    expected_version: { type: 'integer', minimum: 0 },
-    expected_status: { type: 'string', enum: ['DRAFT', 'COMPLETED'] },
     visitId: { type: 'string', minLength: 1 },
   },
 } as const;
@@ -30,6 +28,8 @@ export const saveOpdConsultationBodySchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    expected_version: { type: 'integer', minimum: 0 },
+    expected_status: { type: 'string', enum: ['DRAFT', 'COMPLETED'] },
     chief_complaint: { type: ['string', 'null'] },
     history_present_illness: { type: ['string', 'null'] },
     past_history: { type: ['string', 'null'] },

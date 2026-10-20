@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const request = vi.hoisted(() => vi.fn());
 vi.mock('./client', () => ({ apiClient: { request } }));
-import { deferralWriteSchema, finalizationSchema, ophthalmologyCompletionApi, overrideWriteSchema, readinessSchema } from './ophthalmology-completion';
+import { amendmentWriteSchema, deferralWriteSchema, finalizationSchema, ophthalmologyCompletionApi, overrideWriteSchema, readinessSchema } from './ophthalmology-completion';
 const id = '111111111111111111111111'; const instant = '2026-10-16T00:00:00Z';
 const head = () => ({ id, context_id: id, visit_id: id, patient_id: id, branch_id: id, department_id: id, status: 'OPEN', version: 2, deferrals: [], overrides: [], completions: [], amendment_episodes: [], created_at: instant, updated_at: instant });
 describe('B5 completion metadata and controlled exceptions', () => {
@@ -43,7 +43,17 @@ describe('B5 completion metadata and controlled exceptions', () => {
     const parsed = finalizationSchema.parse({ ...head(), completions: [completion] });
     expect(parsed.completions[0]).not.toHaveProperty('summary_snapshot'); expect(parsed.completions[0]).not.toHaveProperty('configuration_snapshot'); expect(parsed.completions[0]).not.toHaveProperty('idempotency_key'); expect(parsed.completions[0]).not.toHaveProperty('request_fingerprint');
   });
-  it('has no completion, reopening or untyped amendment writer while their safety contracts are incomplete', () => {
-    expect(ophthalmologyCompletionApi).not.toHaveProperty('complete'); expect(ophthalmologyCompletionApi).not.toHaveProperty('reopen'); expect(ophthalmologyCompletionApi).not.toHaveProperty('amend'); expect(request).not.toHaveBeenCalled();
+  it('requires typed follow-up and treatment-plan corrections without arbitrary JSON', () => {
+    const base = { expected_version: 2, expected_status: 'AMENDMENT_OPEN', episode_id: id, reason: 'Correction' };
+    expect(amendmentWriteSchema.safeParse({ ...base, section: 'follow_up_decision', before_value: 'NO_FOLLOW_UP', after_value: null }).success).toBe(true);
+    expect(amendmentWriteSchema.safeParse({ ...base, section: 'follow_up_decision', before_value: 'NO_FOLLOW_UP', after_value: 'BOOKED' }).success).toBe(false);
+    expect(amendmentWriteSchema.safeParse({ ...base, section: 'treatment_plans', before_value: [], after_value: [{ treatment: 'Incomplete' }] }).success).toBe(false);
+  });
+  it('sends all frozen completion versions and stable replay key, rejecting malformed writes before transport', async () => {
+    const body = { expected_version: 2, expected_context_version: 3, expected_consultation_version: 4, expected_clinical_review_version: 5, expected_optical_prescription_version: null };
+    await expect(ophthalmologyCompletionApi.complete(id, body, 'short')).rejects.toThrow(); expect(request).not.toHaveBeenCalled();
+    request.mockResolvedValue({ ...head(), status: 'COMPLETED' }); await ophthalmologyCompletionApi.complete(id, body, 'stable-completion-key');
+    expect(request).toHaveBeenCalledWith(`/opd/visits/${id}/ophthalmology/complete`, { method: 'POST', headers: { 'Idempotency-Key': 'stable-completion-key' }, body });
+    request.mockClear(); await expect(ophthalmologyCompletionApi.amend(id, { expected_version: 2, expected_status: 'AMENDMENT_OPEN', episode_id: id, section: 'unknown', before_value: 'Before', after_value: 'After', reason: 'QA' } as never)).rejects.toThrow(); expect(request).not.toHaveBeenCalled();
   });
 });

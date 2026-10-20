@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { AppError } from '../../shared/errors/app-error.js';
 import { executeRequiredTransaction } from '../../shared/database/transaction.js';
 import type { AppointmentRepository } from '../appointments/appointment.repository.js';
@@ -72,6 +72,7 @@ export class OpdConsultationService {
 
   async complete(visitId: string, data: SaveOpdConsultationDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
+    await this.ensureGenericCompletionAllowed(visit);
     this.ensureOpenVisit(visit);
     this.ensureConsultationReady(visit);
     await this.ensureVitalsRecorded(visit.id);
@@ -83,6 +84,7 @@ export class OpdConsultationService {
     return executeRequiredTransaction(this.visitRepository, async (session) => {
       const transactionalVisit = await this.visitRepository.getById(visitId, scope, session);
       if (!transactionalVisit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+      await this.ensureGenericCompletionAllowed(transactionalVisit, session);
       this.ensureOpenVisit(transactionalVisit);
       this.ensureConsultationReady(transactionalVisit);
       const transactionalCurrent = await this.repository.getByVisit(visitId, session);
@@ -147,6 +149,12 @@ export class OpdConsultationService {
       }, session);
       return consultation;
     });
+  }
+
+  private async ensureGenericCompletionAllowed(visit: OpdVisit, session?: ClientSession) {
+    if (await this.repository.requiresOphthalmologyCompletion(visit.id, visit.department_id, visit.branch_id, session)) {
+      throw new AppError('Use the Ophthalmology completion workflow for this encounter', 409, 'OPHTHALMOLOGY_SPECIALTY_COMPLETION_REQUIRED');
+    }
   }
 
   private assertExpectedState(

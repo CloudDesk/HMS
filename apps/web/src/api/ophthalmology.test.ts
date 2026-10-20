@@ -6,6 +6,12 @@ import { initialIntake } from '../hooks/ophthalmology/intake-form';
 const id = '111111111111111111111111';
 describe('ophthalmology API requests', () => {
   beforeEach(() => request.mockReset());
+  it('binds comparison lookup to the saved version and validates the paginated projection', async () => {
+    request.mockResolvedValue({ task_id: id, result_id: id, expected_result_version: 3, data: [], meta: { total: 0, page: 2, limit: 20, totalPages: 1 } });
+    await ophthalmologyApi.comparisons(id, 3, 2);
+    expect(request.mock.calls[0]?.[0]).toBe(`/ophthalmology/test-tasks/${id}/result/comparisons?expected_result_version=3&page=2&limit=20`);
+    request.mockClear(); await expect(ophthalmologyApi.comparisons(id, -1, 1)).rejects.toThrow(); expect(request).not.toHaveBeenCalled();
+  });
   it('rejects invalid encounter IDs before sending requests', async () => {
     await expect(ophthalmologyApi.context('../another-visit')).rejects.toThrow(); expect(request).not.toHaveBeenCalled();
   });

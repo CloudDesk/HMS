@@ -8,7 +8,7 @@ import type { OpdVisitResponse } from '../../api/opd';
 import { eyeSchema, ophthalmologyIdSchema as id, type OphthalmologyContext } from '../../api/ophthalmology';
 import type { ClinicalReviewWrite, OpticalWrite, ResultReviewWrite } from '../../api/ophthalmology-care';
 import { useOpdConsultation } from '../opd/useOpd';
-import { useOphthalmologyConfigurations, useOphthalmologyResult, useOphthalmologyTasks } from './useOphthalmology';
+import { useOphthalmologyClinicalConfiguration, useOphthalmologyResult, useOphthalmologyTasks } from './useOphthalmology';
 import { useOphthalmologyQueueTask } from './useOphthalmologyQueue';
 import { useOphthalmologyCareMutations, useOphthalmologyClinicalReview, useOphthalmologyOpticalPrescription } from './useOphthalmologyCare';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
@@ -18,7 +18,7 @@ export const savedDiagnosisSchema = z.object({ code: z.string().min(1), display:
 export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
   const { search } = useAppLocation(); const params = new URLSearchParams(search); const { user } = useAuth();
   const can = (screen: string, action = 'View') => Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen, action });
-  const tab = params.get('care_tab') === 'optical' ? 'optical' : params.get('care_tab') === 'results' ? 'results' : 'treatment';
+  const tab = params.get('care_tab') === 'optical' ? 'optical' : params.get('care_tab') === 'results' ? 'results' : params.get('care_tab') === 'treatment' ? 'treatment' : can('Ophthalmology Consultation') ? 'treatment' : 'optical';
   const enabled = workspace.canView && Boolean(workspace.context && workspace.visit) && !workspace.scopeError && !workspace.visitQuery.isError && !workspace.contextQuery.isError;
   const active = enabled && (params.get('section') === 'clinical' || params.get('area') === 'treatment');
   const canClinical = can('Ophthalmology Consultation'); const canOptical = can('Ophthalmology Optical Prescription'); const canQueue = can('Ophthalmology Test Queue');
@@ -40,8 +40,9 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
   const resultQuery = useOphthalmologyResult(taskId, active && tab === 'results' && Boolean(task) && !taskQuery.isError);
   const result = canClinical && canQueue && task && resultQuery.data?.task_id === taskId && resultQuery.data.current.laterality === task.laterality && matches(resultQuery.data) ? resultQuery.data : null;
   const scopeError = Boolean(clinicalQuery.data && active && tab === 'treatment' && canClinical && !clinical) || Boolean(opticalQuery.data && active && tab === 'optical' && canOptical && !optical) || Boolean(consultationQuery.data && active && tab === 'treatment' && can('OPD Consultation') && !consultation) || Boolean(active && tab === 'results' && canClinical && canQueue && (taskQuery.data && !task || resultQuery.data && !result));
-  const configurationQuery = useOphthalmologyConfigurations(workspace.visit?.branch_id ?? '', 'COMPLETION_PROFILE', workspace.configurationPage, active && tab === 'optical' && canOptical && can('Ophthalmology Configuration'));
-  const configuration = active && tab === 'optical' && can('Ophthalmology Configuration') ? configurationQuery.data?.data.find((item) => item.id === workspace.context?.configuration_version_id && item.branch_id === workspace.visit?.branch_id && item.status === 'ACTIVE') : undefined;
+  const configurationQuery = useOphthalmologyClinicalConfiguration(workspace.visitId, active && tab === 'optical' && canOptical);
+  const bound = configurationQuery.data;
+  const configuration = active && tab === 'optical' && canOptical && bound && bound.id === workspace.context?.configuration_version_id && bound.branch_id === workspace.visit?.branch_id && bound.status === 'ACTIVE' ? bound : undefined;
   const options = (key: string) => { const parsed = z.array(z.string()).safeParse(configuration?.values[key]); return parsed.success ? parsed.data : null; };
   const mutations = useOphthalmologyCareMutations(workspace.visitId, workspace.visit?.branch_id ?? '');
   const lifecycle = useMemo(() => ({ active: true, pending: false }), [workspace.visitId, workspace.context?.id, tab, taskId]);
@@ -60,9 +61,11 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
   const canReview = writable && tab === 'results' && canClinical && canQueue && can('Ophthalmology Test Review', 'Review') && Boolean(task && ['COMPLETED', 'SUBMITTED_FOR_REVIEW'].includes(task.status) && result?.status === 'COMPLETED') && !taskQuery.isError && !resultQuery.isError && !taskQuery.isFetching && !resultQuery.isFetching;
   function checked<T extends { context_id: string; visit_id: string; patient_id: string; branch_id: string; department_id: string }>(saved: T) { if (!matches(saved)) throw new Error('Saved response does not match this patient encounter. Reload before retrying.'); return saved; }
   return {
+    showDiagnosisEditor: active && tab === 'treatment' && canClinical && can('Ophthalmology Consultation', 'Diagnose') && can('OPD Consultation', 'Edit') && Boolean(consultation && Number.isInteger(consultation.version)),
+    canEditDiagnosis: writable && tab === 'treatment' && canClinical && can('Ophthalmology Consultation', 'Diagnose') && can('OPD Consultation', 'Edit') && Boolean(consultation?.status === 'DRAFT' && Number.isInteger(consultation.version)) && consultationQuery.isSuccess && !consultationQuery.isError && !consultationQuery.isFetching,
     invalidTaskId: Boolean(params.get('review_task_id') && !taskId), tab, active, canClinical, canOptical, canQueue, clinicalQuery, opticalQuery, consultationQuery, clinical, optical, consultation, diagnoses, scopeError, canSaveClinical, canSaveOptical, canApproveOptical, canReview,
     tasksQuery, taskQuery, task, resultQuery, result, taskId, page, tasks: active && tab === 'results' && canClinical && canQueue ? (tasksQuery.data?.data ?? []).filter(matches) : [],
-    configuration, configurationQuery, lensTypes: options('lens_types'), materials: options('lens_materials'), coatings: options('coating_codes'), canConfigure: can('Ophthalmology Configuration'),
+    configuration, configurationQuery, lensTypes: options('lens_types'), materials: options('lens_materials'), coatings: options('coating_codes'), canConfigure: can('Ophthalmology Configuration'), canReadConfiguration: canOptical,
     busy: Object.values(mutations).some((mutation) => mutation.isPending), error: failure?.scope === lifecycle ? failure.message : null,
     saveClinical: (body: ClinicalReviewWrite) => canSaveClinical ? perform(async () => checked(await mutations.clinical.mutateAsync(body)), 'Treatment review draft saved.') : Promise.resolve(undefined),
     saveOptical: (body: OpticalWrite) => canSaveOptical ? perform(async () => { const allowed = (key: string, codes: string[]) => { const choices = options(key); return !choices || codes.every((code) => choices.some((choice) => choice.toUpperCase() === code.toUpperCase())); }; if (!allowed('lens_types', [body.lens_type]) || !allowed('lens_materials', [body.material]) || !allowed('coating_codes', body.coating_codes)) throw new Error('Select values from the bound active configuration.'); return checked(await mutations.optical.mutateAsync(body)); }, 'Optical prescription draft saved.') : Promise.resolve(undefined),

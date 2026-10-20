@@ -1,3 +1,7 @@
+import { useAuth } from '../../auth/useAuth';
+import { hasPermission } from '../../auth/access-control';
+import { appointmentSpecialtyQuerySchema } from '../../api/appointments-ophthalmology';
+import { useAppointmentSpecialtyOptions } from './useAppointmentSpecialty';
 import { useDoctorsList, useDoctorAvailableSlots } from '../doctors/useDoctors';
 import { usePatientsList, usePatientDetails } from '../patients/usePatients';
 import { useCreateAppointment, useAppointmentsList } from './useAppointments';
@@ -17,7 +21,14 @@ export function useAppointmentBookingFeature(
   referralVisitId = '',
   emergencyReferralId = '',
   emergencyBranchId = '',
+  specialtyOptions: { open: boolean; page: number } = { open: false, page: 1 },
 ) {
+  const { user } = useAuth();
+  const canSpecialty = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'Appointments', screen: 'Appointment Booking', action: 'Create' });
+  const lookup = appointmentSpecialtyQuerySchema.safeParse({ doctor_id: selectedDoctorId, resource: 'SERVICES', page: specialtyOptions.page, limit: 20 });
+  const specialtyServices = useAppointmentSpecialtyOptions(lookup.success ? lookup.data : null, canSpecialty && specialtyOptions.open);
+  const specialtyChoices = useAppointmentSpecialtyOptions(lookup.success ? { ...lookup.data, resource: 'SUB_SPECIALITIES' } : null, canSpecialty && specialtyOptions.open);
+  const specialtyReady = canSpecialty && Boolean(specialtyServices.isSuccess && !specialtyServices.isError && !specialtyServices.isFetching && specialtyServices.data?.doctor_id === selectedDoctorId && specialtyServices.data.eligible && specialtyChoices.isSuccess && !specialtyChoices.isError && !specialtyChoices.isFetching && specialtyChoices.data?.doctor_id === selectedDoctorId && specialtyChoices.data.eligible);
   const queryClient = useQueryClient();
   const referralQuery = useReceptionReferral(referralVisitId, Boolean(referralVisitId));
   const emergencyReferralQuery = useEmergencyReferral(
@@ -66,6 +77,8 @@ export function useAppointmentBookingFeature(
       utc_datetime = fromZonedTime(localDateTimeString, timezone).toISOString();
     }
     
+    if (payload.ophthalmology && !specialtyReady) throw new Error('Refresh the specialty options for the selected consultant before saving.');
+    if (payload.ophthalmology && (emergencyReferralQuery.data || referralQuery.data) && payload.visit_type === 'EMERGENCY') throw new Error('Use the Emergency workflow for emergency care; choose a consultation or review type for referral booking.');
     const finalPayload = { ...payload, utc_datetime };
 
     if (emergencyReferralQuery.data) {
@@ -79,6 +92,7 @@ export function useAppointmentBookingFeature(
           duration_minutes: payload.duration_minutes,
           visit_type: payload.visit_type === 'EMERGENCY' ? 'NEW_CONSULTATION' : payload.visit_type,
           priority: payload.priority,
+          ophthalmology: payload.ophthalmology,
           notes: payload.notes,
         },
       });
@@ -89,7 +103,7 @@ export function useAppointmentBookingFeature(
       return bookReferral.mutateAsync({ referralId: referralQuery.data.id, payload: {
         appointment_date: payload.appointment_date ?? '', start_time: payload.start_time ?? '', utc_datetime,
         duration_minutes: payload.duration_minutes, visit_type: payload.visit_type === 'EMERGENCY' ? 'NEW_CONSULTATION' : payload.visit_type,
-        priority: payload.priority, notes: payload.notes,
+        priority: payload.priority, notes: payload.notes, ophthalmology: payload.ophthalmology,
       } });
     }
     return createAppointment.mutateAsync(finalPayload);
@@ -97,6 +111,7 @@ export function useAppointmentBookingFeature(
 
   return {
     state: {
+      specialtyServices: canSpecialty ? specialtyServices : { ...specialtyServices, data: undefined }, specialtyChoices: canSpecialty ? specialtyChoices : { ...specialtyChoices, data: undefined }, specialtyReady,
       initialPatientData,
       referral,
       patientResults: patientResultsData?.data || [],

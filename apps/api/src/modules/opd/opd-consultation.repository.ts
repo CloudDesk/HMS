@@ -1,4 +1,6 @@
 import { Types, type ClientSession } from 'mongoose';
+import { DepartmentModel } from '../departments/department.model.js';
+import { OphthalmologyContextModel } from '../ophthalmology/ophthalmology.model.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { OpdConsultationModel, type OpdConsultationFields } from './opd-consultation.model.js';
 import type { OpdConsultation, OpdConsultationClinicalHistoryEntry, OpdStructuredDiagnosis, SaveOpdConsultationDTO } from './opd-consultation.types.js';
@@ -97,6 +99,17 @@ const buildUpdatePayload = (data: SaveOpdConsultationRecord, userId: string) => 
 
 
 export class OpdConsultationRepository {
+  async requiresOphthalmologyCompletion(visitId: string, departmentId: string, branchId: string, session?: ClientSession): Promise<boolean> {
+    const query = OphthalmologyContextModel.exists({ visitId: requiredObjectId(visitId) });
+    if (session) query.session(session);
+    if (await query) return true;
+    const department = DepartmentModel.exists({ _id: requiredObjectId(departmentId), branchIds: requiredObjectId(branchId),
+      status: 'ACTIVE', isClinical: true, deletedAt: null,
+      $or: [{ code: /^OPHTHALMOLOGY$/i }, { name: /^OPHTHALMOLOGY$/i }] });
+    if (session) department.session(session);
+    return Boolean(await department);
+  }
+
   async getByVisit(visitId: string, session?: ClientSession): Promise<OpdConsultation | null> {
     const query = OpdConsultationModel.findOne({
       visitId: requiredObjectId(visitId),

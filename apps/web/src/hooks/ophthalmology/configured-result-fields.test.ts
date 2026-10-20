@@ -17,4 +17,11 @@ describe('versioned detailed result field contracts', () => {
   it('cannot author server-derived paediatric age or guardian facts through a profile', () => {
     expect(configuredResultFields('PAEDIATRIC_VISION', 'OU', [], { numeric_ranges: { age_at_assessment_months: {} }, allowed_values: { guardian_recorded: [true] } })).toEqual([]);
   });
+  it('renders explicitly configured numeric comparison measurements with their unit labels', () => {
+    const profile = { comparison_units: { 'measurements.OD.thickness': 'QA_UNIT', 'measurements.OS.thickness': 'QA_UNIT' } };
+    const fields = configuredResultFields('OCT', 'OD', [], profile);
+    expect(fields).toEqual([{ path: 'measurements.OD.thickness', label: 'measurements · OD · thickness (QA_UNIT)', kind: 'number' }]);
+    expect(mergeResultEntries(fields, { [fieldEntryKey('measurements.OD.thickness')]: '0' }, {}, profile)).toEqual({ measurements: { OD: { thickness: 0 } } });
+  });
+
 });
