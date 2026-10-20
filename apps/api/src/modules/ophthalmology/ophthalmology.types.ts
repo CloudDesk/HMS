@@ -393,7 +393,7 @@ export type OphthalmologyAssignmentHistoryEntry = {
 };
 
 export type OphthalmologyTaskTransitionEntry = {
-  action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
+  action: 'SUBMITTED_FOR_REVIEW' | 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
   from_status: OphthalmologyTestTaskStatus;
   to_status: OphthalmologyTestTaskStatus;
   reason: string | null;
@@ -774,3 +774,5 @@ export type CompleteOphthalmologyConsultationDTO = { expected_version: number; e
 export type ReopenOphthalmologyConsultationDTO = { expected_version: number; expected_status: 'COMPLETED'; reason: string };
 export type AmendOphthalmologyConsultationDTO = { expected_version: number; expected_status: 'AMENDMENT_OPEN'; episode_id: string;
   section: string; before_value: unknown; after_value: unknown; reason: string };
+
+export type OphthalmologyAssignmentLookupQuery = { target_task_id?: string; station_id?: string; search?: string; page?: number; limit?: number };

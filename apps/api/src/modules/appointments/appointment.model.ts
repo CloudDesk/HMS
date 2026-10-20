@@ -1,7 +1,9 @@
+import type { OphthalmologyAppointmentIntent } from './appointment-ophthalmology.contract.js';
 import mongoose, { Schema, Types } from 'mongoose';
 import type { AppointmentPriority, AppointmentStatus, AppointmentVisitType } from './appointment.types.js';
 
 export type AppointmentFields = {
+  ophthalmology?: OphthalmologyAppointmentIntent | null;
   appointmentNumber: string;
   patientId: Types.ObjectId;
   patientNumber: string;
@@ -51,9 +53,10 @@ const appointmentSchema = new Schema<AppointmentFields>(
     startTime: { type: String },
     endTime: { type: String },
     durationMinutes: { type: Number, required: true },
+    ophthalmology: { type: new Schema<OphthalmologyAppointmentIntent>({ visit_subtype: { type: String, enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'EMERGENCY', 'POST_OPERATIVE', 'SCREENING', 'PROCEDURE_REVIEW'], required: true }, affected_eye: { type: String, enum: ['OD', 'OS', 'OU', 'NOT_SPECIFIED'], required: true }, service_id: { type: String, default: null }, sub_speciality_configuration_id: { type: String, default: null }, sub_speciality_code: { type: String, default: null }, referral_source: { type: String, enum: ['INTERNAL', 'EXTERNAL', null], default: null }, referred_by: { type: String, default: null } }, { _id: false }), default: null },
     visitType: {
       type: String,
-      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY'],
+      enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'REVIEW', 'EMERGENCY'],
       required: true,
     },
     priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], default: 'ROUTINE', required: true },

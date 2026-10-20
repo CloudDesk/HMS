@@ -17,7 +17,7 @@ const state = vi.hoisted(() => ({
 vi.mock('../../auth/useAuth', () => ({ useAuth: () => ({ user: { permissions: state.permissions, roles: [] } }) }));
 vi.mock('../../routing/navigation', () => ({ navigate: vi.fn(), useAppLocation: () => ({ search: state.search }) }));
 vi.mock('../opd/useOpd', () => ({ useOpdConsultation: (...args: unknown[]) => state.query('consultation', args) }));
-vi.mock('./useOphthalmology', () => ({ useOphthalmologyConfigurations: (...args: unknown[]) => state.query('configuration', args), useOphthalmologyTasks: (...args: unknown[]) => state.query('tasks', args), useOphthalmologyResult: (...args: unknown[]) => state.query('result', args) }));
+vi.mock('./useOphthalmology', () => ({ useOphthalmologyClinicalConfiguration: (...args: unknown[]) => { const query = state.query('configuration', args); const result = state.query('configuration', args).data; return { ...query, data: result && 'data' in result ? result.data?.[0] : undefined }; }, useOphthalmologyTasks: (...args: unknown[]) => state.query('tasks', args), useOphthalmologyResult: (...args: unknown[]) => state.query('result', args) }));
 vi.mock('./useOphthalmologyQueue', () => ({ useOphthalmologyQueueTask: (...args: unknown[]) => state.query('task', args) }));
 vi.mock('./useOphthalmologyCare', () => ({
   useOphthalmologyClinicalReview: (...args: unknown[]) => state.query('clinical', args), useOphthalmologyOpticalPrescription: (...args: unknown[]) => state.query('optical', args),
@@ -40,7 +40,7 @@ describe('B4 independent permissions, scoped queries and actions', () => {
     state.permissions = []; grant('Ophthalmology Optical Prescription'); grant('Ophthalmology Optical Prescription', 'Approve'); await act(async () => root.render(<Harness />)); expect(feature.canClinical).toBe(false); expect(feature.canApproveOptical).toBe(true); expect(feature.canSaveOptical).toBe(false); expect(state.queries.get('clinical')?.[1]).toBe(false);
   });
   it('requires configured optical choices before editing and never substitutes a different profile', async () => {
-    state.search = '?section=clinical&care_tab=optical'; grant('Ophthalmology Optical Prescription'); grant('Ophthalmology Optical Prescription', 'Edit'); await act(async () => root.render(<Harness />)); expect(feature.canSaveOptical).toBe(false);
+    state.search = '?section=clinical&care_tab=optical'; grant('Ophthalmology Optical Prescription'); grant('Ophthalmology Optical Prescription', 'Edit'); await act(async () => root.render(<Harness />)); expect(feature.canSaveOptical).toBe(true); expect(feature.canConfigure).toBe(false);
     grant('Ophthalmology Configuration'); await act(async () => root.render(<Harness />)); expect(feature.canSaveOptical).toBe(true); expect(feature.lensTypes).toEqual(['QA_LENS']); expect(feature.materials).toBeNull();
   });
   it('rejects another patient’s clinical data and blocks diagnosis-based treatment editing', async () => {

@@ -1,3 +1,4 @@
+import type { OphthalmologyAppointmentIntent } from './appointment-ophthalmology.contract.js';
 export type AppointmentStatus =
   | 'SCHEDULED'
   | 'CONFIRMED'
@@ -12,11 +13,13 @@ export type AppointmentVisitType =
   | 'NEW_CONSULTATION'
   | 'FOLLOW_UP'
   | 'PROCEDURE'
+  | 'REVIEW'
   | 'EMERGENCY';
 
 export type AppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 
 export type Appointment = {
+  ophthalmology?: OphthalmologyAppointmentIntent | null;
   id: string;
   appointment_number: string;
   patient_id: string;
@@ -77,6 +80,7 @@ export type AppointmentDashboardSummary = {
 };
 
 export type CreateAppointmentDTO = {
+  ophthalmology?: OphthalmologyAppointmentIntent | null;
   patient_id: string;
   doctor_id: string;
   utc_datetime?: string;
@@ -92,9 +96,9 @@ export type CreateAppointmentDTO = {
 export type UpdateAppointmentDTO = Partial<
   Pick<
     CreateAppointmentDTO,
-    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes'
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'ophthalmology'
   >
-> & { reschedule_reason?: string | null };
+> & { reschedule_reason?: string | null; expected_updated_at?: string };
 
 export type UpdateAppointmentStatusDTO = {
   status: AppointmentStatus;

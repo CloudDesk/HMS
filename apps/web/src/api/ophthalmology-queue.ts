@@ -1,3 +1,4 @@
+import { clinicalWorkspaceSchema, configurationSchema } from './ophthalmology';
 import { z } from 'zod';
 import { apiClient } from './client';
 import { eyeSchema, ophthalmologyIdSchema as id, taskSchema, taskStatusSchema } from './ophthalmology';
@@ -15,7 +16,7 @@ export const queueTaskSchema = taskSchema.extend({
   ordered_at: instant, assigned_at: instant.nullable(), waiting_since: instant.nullable(), called_at: instant.nullable(), unable_at: instant.nullable(), cancelled_at: instant.nullable(),
   reviewed_by: nullableId, reviewed_at: instant.nullable(), reviewed_clinical_version: version.nullable(), review_comment: z.string().nullable(),
   assignment_history: z.array(z.object({ action: z.enum(['ASSIGNED', 'REASSIGNED']), from_station_id: nullableId, to_station_id: id, from_user_id: nullableId, to_user_id: nullableId, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
-  transition_history: z.array(z.object({ action: z.enum(['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED']), from_status: taskStatusSchema, to_status: taskStatusSchema, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
+  transition_history: z.array(z.object({ action: z.enum(['SUBMITTED_FOR_REVIEW', 'CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED']), from_status: taskStatusSchema, to_status: taskStatusSchema, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
   routing_history: z.array(z.object({ target: z.enum(['NEXT_STATION', 'OPHTHALMOLOGIST']), target_task_id: nullableId, target_station_id: nullableId, reason: z.string().nullable(), actor_user_id: id, occurred_at: instant })),
   created_at: instant, updated_at: instant,
 });
@@ -41,6 +42,7 @@ const routeBody = z.object({ ...expected, expected_status: z.enum(['COMPLETED', 
   if (body.target === 'NEXT_STATION' && (body.expected_status === 'UNABLE_TO_PERFORM' || !body.next_task_id || !body.station_id)) ctx.addIssue({ code: 'custom', message: 'Select an existing ordered task and compatible station.', path: ['next_task_id'] });
 });
 export const queueCommandSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('submit-for-review'), task_id: id, body: z.object({ expected_version: version, expected_status: z.literal('COMPLETED') }).strict() }).strict(),
   z.object({ action: z.literal('assign'), task_id: id, body: z.object({ expected_version: version, expected_status: z.literal('ORDERED'), station_id: id, assigned_user_id: nullableId.optional() }).strict() }).strict(),
   z.object({ action: z.literal('reassign'), task_id: id, body: z.object({ ...expected, expected_status: z.enum(['PATIENT_WAITING', 'PATIENT_CALLED', 'DRAFT']), station_id: id, assigned_user_id: nullableId.optional(), reason }).strict() }).strict(),
   z.object({ action: z.literal('call'), task_id: id, body: z.object({ expected_version: version, expected_status: z.literal('PATIENT_WAITING') }).strict() }).strict(),
@@ -54,7 +56,17 @@ export const queueCommandSchema = z.discriminatedUnion('action', [
 export type QueueCommand = z.infer<typeof queueCommandSchema>;
 export type QueueAction = QueueCommand['action'];
 const pageSchema = z.object({ data: z.array(queueTaskSchema), meta: z.object({ page: version, limit: version, total: version, totalPages: version }) });
+export const assignmentLookupSchema = z.object({ target_task_id: id.optional(), station_id: id.optional(), search: z.string().max(120).optional(), page: z.number().int().positive().default(1), limit: z.number().int().min(1).max(100).default(20) }).strict();
+export type AssignmentLookup = z.infer<typeof assignmentLookupSchema>;
+export const queueStationSchema = stationSchema.pick({ id: true, branch_id: true, department_id: true, code: true, name: true, status: true, supported_test_types: true, devices: true, version: true }).extend({ actor_eligible: z.boolean() });
+const lookupMeta = z.object({ page: z.number().int().positive(), limit: z.number().int().positive().max(100), total: z.number().int().nonnegative(), totalPages: z.number().int().nonnegative() });
+const lookupPath = (taskId: string, tail: string, input: AssignmentLookup) => { const params = new URLSearchParams(); for (const [key, value] of Object.entries(assignmentLookupSchema.parse(input))) params.set(key, String(value)); return `/ophthalmology/test-tasks/${id.parse(taskId)}/${tail}?${params}`; };
 export const ophthalmologyQueueApi = {
+  workspace: async (taskId: string, signal?: AbortSignal) => clinicalWorkspaceSchema.parse(await apiClient.request<unknown>(`/ophthalmology/test-tasks/${id.parse(taskId)}/workspace`, { signal })),
+  clinicalConfigurations: async (taskId: string, type: 'FORM_PROFILE' | 'OPTICAL_PRODUCT' | 'DRUG_OPTION', page: number, signal?: AbortSignal) => { const query = z.object({ type: z.enum(['FORM_PROFILE', 'OPTICAL_PRODUCT', 'DRUG_OPTION']), page: z.number().int().positive(), limit: z.literal(20) }).parse({ type, page, limit: 20 }); return z.object({ data: z.array(configurationSchema), meta: lookupMeta }).parse(await apiClient.request<unknown>(`/ophthalmology/test-tasks/${id.parse(taskId)}/clinical-configurations?${new URLSearchParams({ type: query.type, page: String(query.page), limit: '20' })}`, { signal })); },
+  assignmentStations: async (taskId: string, query: AssignmentLookup, signal?: AbortSignal) => z.object({ data: z.array(queueStationSchema), meta: lookupMeta }).parse(await apiClient.request<unknown>(lookupPath(taskId, 'stations', query), { signal })),
+  assignmentStation: async (taskId: string, stationId: string, query: AssignmentLookup, signal?: AbortSignal) => queueStationSchema.parse(await apiClient.request<unknown>(lookupPath(taskId, `stations/${id.parse(stationId)}`, query), { signal })),
+  assignmentMembers: async (taskId: string, query: AssignmentLookup, signal?: AbortSignal) => z.object({ data: z.array(z.object({ id, full_name: z.string() })), meta: lookupMeta }).parse(await apiClient.request<unknown>(lookupPath(taskId, 'assignees', query), { signal })),
   list: async (params: QueueQuery, signal?: AbortSignal) => {
     const query = queueQuerySchema.parse(params); const search = new URLSearchParams();
     Object.entries(query).forEach(([name, value]) => { if (value !== undefined) search.set(name, String(value)); });

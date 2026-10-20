@@ -19,7 +19,7 @@ export type OphthalmologyTestTaskFields = {
   idempotencyKey: string; requestFingerprint: string;
   assignmentHistory: Array<{ action: 'ASSIGNED' | 'REASSIGNED'; fromStationId?: Types.ObjectId | null; toStationId: Types.ObjectId;
     fromUserId?: Types.ObjectId | null; toUserId?: Types.ObjectId | null; reason?: string | null; actorUserId: Types.ObjectId; occurredAt: Date }>;
-  transitionHistory: Array<{ action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
+  transitionHistory: Array<{ action: 'SUBMITTED_FOR_REVIEW' | 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED' | 'REPEAT_REQUESTED' | 'REVIEWED';
     fromStatus: OphthalmologyTestTaskStatus; toStatus: OphthalmologyTestTaskStatus; reason?: string | null;
     actorUserId: Types.ObjectId; occurredAt: Date }>;
   routingHistory: Array<{ target: OphthalmologyTaskRoutingTarget; targetTaskId?: Types.ObjectId | null; targetStationId?: Types.ObjectId | null;
@@ -39,7 +39,7 @@ const assignmentSchema = new Schema({
   occurredAt: { type: Date, required: true },
 }, { _id: false });
 const transitionSchema = new Schema({
-  action: { type: String, enum: ['CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED'], required: true },
+  action: { type: String, enum: ['SUBMITTED_FOR_REVIEW', 'CALLED', 'PATIENT_UNAVAILABLE', 'STARTED', 'DRAFT_SAVED', 'COMPLETED', 'AMENDED', 'UNABLE_TO_PERFORM', 'CANCELLED', 'REPEAT_REQUESTED', 'REVIEWED'], required: true },
   fromStatus: { type: String, required: true }, toStatus: { type: String, required: true }, reason: { type: String, default: null, trim: true },
   actorUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true }, occurredAt: { type: Date, required: true },
 }, { _id: false });

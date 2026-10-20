@@ -50,7 +50,7 @@ No backend feature implementation was performed while producing this matrix.
 | OPH-SCP-01 | 1, 2.1-2.4 | Enhance existing OPD; no separate Ophthalmology application. | PARTIAL | REUSED/OWNED | 2 | Confirm department activation. | Department and regression tests. |
 | OPH-SCP-02 | 2.2-2.3 | Reuse all named shared HMS domains; no duplicate source of truth. | ASSESS | REUSED/DEPENDENCY | 0, 10 | Shared contract review. | Duplicate-record/source tests. |
 | OPH-SCP-03 | 5.1 | Support New, Follow-up, Emergency, Post-operative, Screening, Procedure Review. | PARTIAL | OWNED/REUSED | 2 | DEC-02 subtype and shared-type mapping approved. | Enum/compatibility tests. |
-| OPH-SCP-04 | 5.2, Table 6 | Service, consultant, sub-speciality, affected eye, referral, priority, notes. | PARTIAL | REUSED/DEPENDENCY | 2 | Decide appointment-owned versus specialty-context data. | Cross-record tests. |
+| OPH-SCP-04 | 5.2, Table 6 | Service, consultant, sub-speciality, affected eye, referral, priority, notes. | IMPLEMENTED / ACCEPTANCE OPEN | REUSED/CONFIGURATION | 2 | Appointment owns scheduling intent; encounter owns confirmed findings. Scoped active lookups, DEC-02 REVIEW mapping, reschedule retention and conditional transactional intent edits implemented on 20 October. Clinical master values and live acceptance remain open. | Isolated replica-set booking/reference/scope/stale/audit rollback tests. |
 | OPH-SCP-05 | 1, 5 | One encounter and consolidated record across staff/stations. | MISSING | OWNED | 4, 8 | Design the aggregate/read model under DEC-05/DEC-09. | Multi-station end-to-end test. |
 | OPH-SCP-06 | 3.1 | Consistent OD/OS/OU/Bilateral/NA/Not Specified rules by record type. | MISSING | OWNED | 2 | DEC-03 canonical laterality contract approved. | Schema/persistence tests. |
 | OPH-SCP-07 | 3.1 | Copied findings create separate eye-specific values. | MISSING | OWNED | 5-7 | Decide copy provenance. | Eye-isolation/audit tests. |
@@ -521,3 +521,8 @@ Emergency bypass records the skipped stages and reason. It does not delete pendi
 ## Exit recommendation
 
 **APPROVED BACKEND IMPLEMENTATION COMPLETE; FRONTEND HANDOFF READY; PHASE 11 RELEASE VALIDATION PARTIALLY COMPLETE.** DEC-01 through DEC-12 remain binding project rules. Developer B may proceed against API contract version 1.10.0 and the live backend APIs. Phase 11 automated hardening corrected the direct optical-prescription permission boundary and passed the complete focused release suite. The owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, one unrelated API department-visibility regression, existing repository lint failures and four unrelated web-test failures remain recorded release conditions. No later backend phase or release has started.
+
+
+### 20 October 2026 comparison/report clarification
+
+The new exact-version comparison projection and protocol/eye/department/unit checks are documented in backend contract 1.12. Unit codes are explicit versioned FORM_PROFILE configuration, never guessed. Missing clinical options/thresholds/nested clinical semantics remain configuration/contract dependencies. Visit volume now includes no-test visits and linked scheduling subtype/sub-speciality; pending review includes exact unreviewed completed results before submission; repeat/unable reports expose current reasons and explicitly labelled current-task-status percentages. These changes do not close diagnosis/optical amendments, all clinical master schemas, downstream business reports or live clinical/storage/permission/responsive acceptance.

@@ -24,6 +24,7 @@ export const appointmentVisitTypeLabels: Record<ApiAppointmentVisitType, string>
   NEW_CONSULTATION: 'New Consultation',
   FOLLOW_UP: 'Follow-up',
   PROCEDURE: 'Procedure',
+  REVIEW: 'Review',
   EMERGENCY: 'Emergency',
 };
 

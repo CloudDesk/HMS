@@ -48,6 +48,7 @@ export type OphthalmologyReportType =
   | 'DIAGNOSTIC_UTILIZATION';
 
 export type OphthalmologyReportQuery = {
+  volume_basis?: 'VISITS' | 'ORDERED_ENCOUNTERS';
   branch_id: string;
   station_id?: string;
   date_from?: string;
@@ -109,3 +110,8 @@ export type OphthalmologyAttachmentListQuery = {
   limit?: number;
 };
 
+
+export type OphthalmologyPublicationListQuery = {
+  branch_id: string; visit_id?: string; source_id?: string; source_version?: number; source_type?: OphthalmologyPublicationSourceType;
+  status?: OphthalmologyPublicationStatus; page?: number; limit?: number;
+};

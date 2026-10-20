@@ -207,6 +207,7 @@ const stateActionSchema = (statuses: readonly string[]) => ({
   type: 'object', additionalProperties: false, required: ['expected_status', 'expected_version'],
   properties: { expected_status: { type: 'string', enum: statuses }, expected_version: version },
 } as const);
+export const submitOphthalmologyTestTaskBodySchema = stateActionSchema(['COMPLETED']);
 export const callOphthalmologyTestTaskBodySchema = stateActionSchema(['PATIENT_WAITING']);
 export const patientUnavailableOphthalmologyTestTaskBodySchema = {
   type: 'object', additionalProperties: false, required: ['expected_status', 'expected_version', 'reason'],
@@ -368,3 +369,11 @@ export const amendOphthalmologyConsultationBodySchema = {
     section: { type: 'string', minLength: 1, maxLength: 120 }, before_value: {}, after_value: {},
     reason: { type: 'string', minLength: 1, maxLength: 2000 } },
 } as const;
+
+export const ophthalmologyAssignmentLookupQuerySchema = { type: 'object', additionalProperties: false, properties: {
+  target_task_id: objectId, station_id: objectId, search: { type: 'string', maxLength: 120 },
+  page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+} } as const;
+export const ophthalmologyTaskStationParamsSchema = { type: 'object', additionalProperties: false, required: ['id', 'stationId'], properties: { id: objectId, stationId: objectId } } as const;
+
+export const ophthalmologyTaskClinicalConfigurationQuerySchema = { type: 'object', additionalProperties: false, required: ['type'], properties: { type: { type: 'string', enum: ['FORM_PROFILE', 'OPTICAL_PRODUCT', 'DRUG_OPTION'] }, page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 } } } as const;

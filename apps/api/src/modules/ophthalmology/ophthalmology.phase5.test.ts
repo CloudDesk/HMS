@@ -78,6 +78,24 @@ describe('Ophthalmology Phase 5 core clinical test results', () => {
     expect(await repository.getTestTask(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 2 });
   });
 
+  it('submits only a completed current result for review, preserves versions and rejects stale replay/non-members', async () => {
+    const entry = forms[0]; if (!entry) throw new Error('Missing core form');
+    const [form, payload] = entry; const { task, profile } = await createTaskAndProfile(form);
+    await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);
+    await service.completeTestResult(task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1, expected_result_version: 0 }, userId);
+    await OphthalmologyStationModel.updateOne({ _id: stationId }, { $set: { memberUserIds: [] } });
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_ASSIGNMENT_DENIED' });
+    await OphthalmologyStationModel.updateOne({ _id: stationId }, { $set: { memberUserIds: [userId] } });
+    const submitted = await service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, userId);
+    expect(submitted).toMatchObject({ status: 'SUBMITTED_FOR_REVIEW', version: 3, doctor_review_required: true });
+    expect(submitted.transition_history.at(-1)).toMatchObject({ action: 'SUBMITTED_FOR_REVIEW', from_status: 'COMPLETED', to_status: 'SUBMITTED_FOR_REVIEW' });
+    await expect(service.submitTestTaskForReview(task._id.toString(), { expected_status: 'COMPLETED', expected_version: 2 }, userId))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(await AuditLogModel.countDocuments({ eventType: 'ophthalmology.test_task.submitted_for_review' })).toBe(1);
+    expect(await repository.getTestResult(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 1 });
+  });
+
   it('updates one intended draft and rejects stale concurrent completion', async () => {
     const [form, payload] = forms[0]!; const { task, profile } = await createTaskAndProfile(form);
     const first = await service.saveTestResultDraft(task._id.toString(), draft(form, profile._id.toString(), payload), userId);

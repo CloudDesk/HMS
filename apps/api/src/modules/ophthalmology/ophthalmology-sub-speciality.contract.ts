@@ -1,0 +1,2 @@
+import { z } from 'zod';
+export const subSpecialityValuesSchema = z.object({ options: z.array(z.object({ code: z.string().trim().min(1).max(80), label: z.string().trim().min(1).max(160), active: z.boolean(), requires_description: z.boolean().optional() }).passthrough()).max(100).refine((options) => new Set(options.map((row) => row.code.toUpperCase())).size === options.length, 'Sub-speciality codes must be unique') }).passthrough();

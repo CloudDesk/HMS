@@ -205,7 +205,7 @@ export function useOpdVisitFeature() {
       canEditReferral: workspace.canEditReferral,
       canEditFollowUp: workspace.canEditFollowUp,
       canCreateVitals: workspace.canCreateVitals,
-      canOpenOphthalmology: canView('OPD', 'Ophthalmology Intake') && canView('OPD', 'OPD Visits'),
+      canOpenOphthalmology: (canView('OPD', 'Ophthalmology Intake') && canView('OPD', 'OPD Visits')) || canView('OPD', 'Ophthalmology Consultation') || canView('OPD', 'Ophthalmology Optical Prescription'),
     },
     actions: {
       openSpecialtyCompletion: () => { if (visit) navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}&section=completion`); },

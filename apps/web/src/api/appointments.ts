@@ -1,3 +1,4 @@
+import { appointmentSpecialtyOptionsSchema, appointmentSpecialtyQuerySchema, type AppointmentSpecialtyQuery, type AppointmentOphthalmologyIntent } from './appointments-ophthalmology';
 import { apiClient } from './client';
 
 export type ApiAppointmentStatus =
@@ -20,6 +21,7 @@ export type ApiAppointmentVisitType =
   | 'NEW_CONSULTATION'
   | 'FOLLOW_UP'
   | 'PROCEDURE'
+  | 'REVIEW'
   | 'EMERGENCY';
 
 export type ApiAppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
@@ -42,6 +44,7 @@ export type AppointmentConsultationIntake = {
 };
 
 export type AppointmentResponse = {
+  ophthalmology?: AppointmentOphthalmologyIntent | null;
   id: string;
   appointment_number: string;
   patient_id: string;
@@ -104,6 +107,7 @@ export type AppointmentListParams = Partial<{
 }>;
 
 export type SaveAppointmentPayload = {
+  ophthalmology?: AppointmentOphthalmologyIntent | null;
   patient_id: string;
   doctor_id: string;
   utc_datetime?: string;
@@ -116,7 +120,7 @@ export type SaveAppointmentPayload = {
   notes?: string | null;
   consultation_intake?: AppointmentConsultationIntake | null;
 };
-export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null };
+export type UpdateAppointmentPayload = Partial<SaveAppointmentPayload> & { reschedule_reason?: string | null; expected_updated_at?: string };
 
 export type UpdateAppointmentStatusPayload = {
   status: ApiAppointmentStatus;
@@ -137,6 +141,7 @@ const toQueryString = (params: AppointmentListParams) => {
 };
 
 export const appointmentsApi = {
+  ophthalmologyOptions: async (query: AppointmentSpecialtyQuery, signal?: AbortSignal) => { const parsed = appointmentSpecialtyQuerySchema.parse(query); const params = new URLSearchParams(Object.entries(parsed).map(([key, value]) => [key, String(value)])); return appointmentSpecialtyOptionsSchema.parse(await apiClient.request<unknown>(`/appointments/ophthalmology-options?${params}`, { signal })); },
   dashboardSummary(params: AppointmentListParams = {}) {
     return apiClient.request<AppointmentDashboardSummary>(`/appointments/dashboard-summary${toQueryString(params)}`);
   },

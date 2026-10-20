@@ -20,6 +20,12 @@ export const contextSchema = z.object({
   workflow_status: z.enum(['CHECKED_IN', 'PRELIMINARY_EXAMINATION', 'AWAITING_DOCTOR', 'UNDER_CONSULTATION', 'TESTS_ORDERED', 'AWAITING_RESULTS', 'CLINICAL_REVIEW', 'REVIEW_COMPLETED', 'CONSULTATION_COMPLETED']),
   configuration_version_id: ophthalmologyIdSchema, workflow_profile_version_id: ophthalmologyIdSchema, version,
 });
+export const clinicalWorkspaceSchema = z.object({ context: contextSchema.nullable(), visit: z.object({
+  id: ophthalmologyIdSchema, visit_number: z.string(), patient_id: ophthalmologyIdSchema, patient_number: z.string(), patient_name: z.string(), doctor_name: z.string(),
+  branch_id: ophthalmologyIdSchema, department_id: ophthalmologyIdSchema, visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'WALK_IN', 'REVIEW']),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), status: z.enum(['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']),
+  reason: z.string().nullable().optional(), notes: z.string().nullable().optional(),
+}) });
 export type OphthalmologyContext = z.infer<typeof contextSchema>;
 export const createContextSchema = z.object({ visit_subtype: subtypeSchema, affected_eye: contextEyeSchema, configuration_version_id: ophthalmologyIdSchema, workflow_profile_version_id: ophthalmologyIdSchema }).strict();
 export const updateContextSchema = z.object({ expected_version: version, visit_subtype: subtypeSchema.optional(), affected_eye: contextEyeSchema.optional(), workflow_profile_version_id: ophthalmologyIdSchema.optional() }).strict().refine((body) => body.visit_subtype !== undefined || body.affected_eye !== undefined || body.workflow_profile_version_id !== undefined, 'Change at least one context field.');
@@ -107,7 +113,12 @@ export type OphthalmologyPage<T> = { data: T[]; meta: z.infer<typeof metaSchema>
 export type ConfigurationType = 'COMPLAINT' | 'CLINICAL_THRESHOLD' | 'FORM_PROFILE' | 'COMPLETION_PROFILE' | 'OPTICAL_PRODUCT' | 'DRUG_OPTION' | 'IOL_CATALOGUE';
 const visitPath = (visitId: string) => `/opd/visits/${ophthalmologyIdSchema.parse(visitId)}/ophthalmology`;
 const taskPath = (taskId: string) => `/ophthalmology/test-tasks/${ophthalmologyIdSchema.parse(taskId)}`;
+export const comparisonPageSchema = z.object({ task_id: ophthalmologyIdSchema, result_id: ophthalmologyIdSchema, expected_result_version: version,
+  data: z.array(z.object({ result_id: ophthalmologyIdSchema, clinical_version: z.number().int().positive(), performed_at: instant,
+    form_type: z.enum(['VISUAL_FIELD', 'OCT']), eye: z.string().nullable(), eligible: z.boolean(), reason: z.string().nullable() })), meta: metaSchema });
 export const ophthalmologyApi = {
+  clinicalWorkspace: async (visitId: string, signal?: AbortSignal) => clinicalWorkspaceSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/workspace`, { signal })),
+  clinicalConfiguration: async (visitId: string, signal?: AbortSignal) => configurationSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/clinical-configuration`, { signal })),
   context: async (visitId: string, signal?: AbortSignal) => contextSchema.nullable().parse(await apiClient.request<unknown>(`${visitPath(visitId)}/context`, { signal })),
   createContext: async (visitId: string, body: z.infer<typeof createContextSchema>) => contextSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/context`, { method: 'POST', body: createContextSchema.parse(body) })),
   updateContext: async (visitId: string, body: UpdateOphthalmologyContext) => contextSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/context`, { method: 'PATCH', body: updateContextSchema.parse(body) })),
@@ -123,6 +134,7 @@ export const ophthalmologyApi = {
   workflows: async (branchId: string, subtype: z.infer<typeof subtypeSchema>, page: number, signal?: AbortSignal) => pageOf(workflowSchema).parse(await apiClient.request<unknown>(`/ophthalmology/workflow-profiles?${new URLSearchParams({ branch_id: ophthalmologyIdSchema.parse(branchId), visit_subtype: subtypeSchema.parse(subtype), status: 'ACTIVE', page: String(page), limit: '20' })}`, { signal })),
   tasks: async (visitId: string, page: number, signal?: AbortSignal) => pageOf(taskSchema).parse(await apiClient.request<unknown>(`/ophthalmology/test-tasks?${new URLSearchParams({ visit_id: ophthalmologyIdSchema.parse(visitId), page: String(page), limit: '20' })}`, { signal })),
   task: async (taskId: string, signal?: AbortSignal) => taskSchema.parse(await apiClient.request<unknown>(taskPath(taskId), { signal })),
+  comparisons: async (taskId: string, expectedVersion: number, page: number, signal?: AbortSignal) => comparisonPageSchema.parse(await apiClient.request<unknown>(`${taskPath(taskId)}/result/comparisons?${new URLSearchParams({ expected_result_version: String(version.parse(expectedVersion)), page: String(z.number().int().positive().parse(page)), limit: '20' })}`, { signal })),
   result: async (taskId: string, signal?: AbortSignal) => resultSchema.nullable().parse(await apiClient.request<unknown>(`${taskPath(taskId)}/result`, { signal })),
   saveResult: async (taskId: string, body: SaveOphthalmologyResult) => resultSchema.parse(await apiClient.request<unknown>(`${taskPath(taskId)}/result/draft`, { method: 'PUT', body: saveResultSchema.parse(body) })),
   completeResult: async (taskId: string, body: CompleteOphthalmologyResult) => resultSchema.parse(await apiClient.request<unknown>(`${taskPath(taskId)}/result/complete`, { method: 'POST', body: completeResultSchema.parse(body) })),

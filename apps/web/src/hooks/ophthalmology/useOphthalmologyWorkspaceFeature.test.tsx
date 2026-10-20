@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   queries: new Map<string, unknown[]>(), contextPatient: '222222222222222222222222',
   query: (name: string, args: unknown[]) => {
     state.queries.set(name, args);
+    if (name === 'clinical-workspace') return { data: { visit: { id: '111111111111111111111111', patient_id: '222222222222222222222222', branch_id: '333333333333333333333333', department_id: '444444444444444444444444', status: 'IN_CONSULTATION', visit_type: 'NEW_CONSULTATION' }, context: { id: '555555555555555555555555', visit_id: '111111111111111111111111', patient_id: state.contextPatient, branch_id: '333333333333333333333333', department_id: '444444444444444444444444' } }, isError: false, isPending: false, refetch: vi.fn() };
     const data = name === 'visit' ? { id: '111111111111111111111111', patient_id: '222222222222222222222222', branch_id: '333333333333333333333333', department_id: '444444444444444444444444', status: 'IN_CONSULTATION' }
       : name === 'context' ? { id: '555555555555555555555555', visit_id: '111111111111111111111111', patient_id: state.contextPatient, branch_id: '333333333333333333333333', department_id: '444444444444444444444444', doctor_id: '666666666666666666666666', visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OS', workflow_status: 'CHECKED_IN', configuration_version_id: '777777777777777777777777', workflow_profile_version_id: '888888888888888888888888', version: 0 }
       : name === 'intake' ? { intake: null, alerts: [], shared_history: { allergies: 'cached confidential data' } } : { data: [], meta: { page: 1, totalPages: 0 } };
@@ -20,6 +21,7 @@ vi.mock('../../routing/navigation', () => ({ navigate: vi.fn(), useAppLocation: 
 vi.mock('../opd/useOpd', () => ({ useOpdVisit: (...args: unknown[]) => state.query('visit', args) }));
 vi.mock('../patients/usePatients', () => ({ usePatientDocuments: (...args: unknown[]) => state.query('reports', args) }));
 vi.mock('./useOphthalmology', () => ({
+  useOphthalmologyClinicalWorkspace: (...args: unknown[]) => state.query('clinical-workspace', args),
   useOphthalmologyContext: (...args: unknown[]) => state.query('context', args),
   useOphthalmologyIntake: (...args: unknown[]) => state.query('intake', args),
   useOphthalmologyConfigurations: (...args: unknown[]) => state.query(`configuration-${args[1]}`, args),
@@ -41,6 +43,12 @@ describe('ophthalmology workspace permission and scope gates', () => {
     await act(async () => root.render(<Harness />));
     expect(state.queries.get('visit')?.[1]).toBe(false); expect(state.queries.get('context')?.[1]).toBe(false);
     expect(state.queries.get('intake')?.[1]).toBe(false); expect(feature?.intakeView).toBeUndefined(); expect(feature?.context).toBeUndefined();
+  });
+  it('uses a dedicated clinical header/context without fetching intake or requiring generic Visits View', async () => {
+    grant('OPD', 'Ophthalmology Consultation'); await act(async () => root.render(<Harness />));
+    expect(feature?.canView).toBe(true); expect(feature?.visit?.id).toBe('111111111111111111111111');
+    expect(state.queries.get('clinical-workspace')?.[1]).toBe(true); expect(state.queries.get('visit')?.[1]).toBe(false);
+    expect(state.queries.get('intake')?.[1]).toBe(false); expect(feature?.intakeView).toBeUndefined(); expect(feature?.scopeError).toBe(false);
   });
   it('exposes only authorised consultation areas and retains patient/visit scope in area navigation', async () => {
     grant('OPD', 'OPD Visits'); grant('OPD', 'Ophthalmology Intake');

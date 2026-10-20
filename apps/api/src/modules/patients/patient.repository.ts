@@ -1,4 +1,5 @@
-import { Types, type ClientSession, type SortOrder } from 'mongoose';
+import { OphthalmologyAttachmentModel, OphthalmologyPublicationModel } from '../ophthalmology/ophthalmology-phase10.model.js';
+import { Types, type ClientSession, type SortOrder, type PipelineStage } from 'mongoose';
 import {
   PatientDocumentModel,
   PatientModel,
@@ -456,7 +457,7 @@ export class PatientRepository {
     };
   }
 
-  async listDocuments(patientId: string, query: PatientDocumentListQuery = {}) {
+  async listDocuments(patientId: string, query: PatientDocumentListQuery = {}, portalOnly = false) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const filter: Record<string, unknown> = {
@@ -473,7 +474,7 @@ export class PatientRepository {
     if (query.procedure_id) filter.procedureId = new Types.ObjectId(query.procedure_id);
     if (query.context_type) filter.contextType = query.context_type;
 
-    const [documents, total] = await Promise.all([
+    const [documents, total] = portalOnly ? await this.portalDocumentPage(filter, page, limit) : await Promise.all([
       PatientDocumentModel.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -500,6 +501,32 @@ export class PatientRepository {
       ),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  private async portalDocumentPage(filter: Record<string, unknown>, page: number, limit: number): Promise<[PatientDocumentLean[], number]> {
+    const visibility: PipelineStage[] = [
+      { $match: filter },
+      { $lookup: { from: OphthalmologyAttachmentModel.collection.name, localField: '_id', foreignField: 'patientDocumentId', as: '_ophAttachments' } },
+      { $lookup: { from: OphthalmologyPublicationModel.collection.name, let: { documentId: '$_id', patientId: '$patientId' }, pipeline: [
+        { $match: { status: 'APPROVED_FOR_PORTAL', sourceType: 'TEST_RESULT', $expr: { $and: [
+          { $eq: ['$patientId', '$$patientId'] },
+          { $in: [{ $toString: '$$documentId' }, { $cond: [{ $isArray: '$portalPayload.report_document_ids' }, '$portalPayload.report_document_ids', []] }] },
+        ] } } }, { $limit: 1 }, { $project: { _id: 1 } },
+      ], as: '_ophPublications' } },
+      { $match: { $or: [{ '_ophAttachments.0': { $exists: false } }, { '_ophPublications.0': { $exists: true } }] } },
+      { $unset: ['_ophAttachments', '_ophPublications'] },
+    ];
+    const result = await PatientDocumentModel.aggregate<{ documents: PatientDocumentLean[]; totals: { total: number }[] }>([
+      ...visibility, { $facet: { documents: [{ $sort: { createdAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }], totals: [{ $count: 'total' }] } },
+    ]);
+    return [result[0]?.documents ?? [], result[0]?.totals[0]?.total ?? 0];
+  }
+
+  async isDocumentVisibleInPortal(patientId: string, documentId: string) {
+    const filter = { patientId: new Types.ObjectId(patientId), patientDocumentId: new Types.ObjectId(documentId) };
+    if (!await OphthalmologyAttachmentModel.exists(filter)) return true;
+    return Boolean(await OphthalmologyPublicationModel.exists({ patientId: filter.patientId, status: 'APPROVED_FOR_PORTAL', sourceType: 'TEST_RESULT',
+      'portalPayload.report_document_ids': documentId }));
   }
 
   async getDocument(patientId: string, documentId: string) {

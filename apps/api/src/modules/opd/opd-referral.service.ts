@@ -48,7 +48,7 @@ export class OpdReferralService {
     const appointment = await this.appointmentService.create({
       patient_id: referral.patient_id, doctor_id: referral.referred_doctor_id,
       appointment_date: data.appointment_date, start_time: data.start_time,
-      duration_minutes: data.duration_minutes, visit_type: data.visit_type,
+      duration_minutes: data.duration_minutes, visit_type: data.visit_type, utc_datetime: data.utc_datetime, ophthalmology: data.ophthalmology,
       priority: data.priority ?? referral.priority, reason: referral.reason,
       notes: data.notes?.trim() || `Booked from referral ${referral.id}`,
     }, userId);

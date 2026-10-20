@@ -1,3 +1,4 @@
+import { ophthalmologyPublicationSchema } from './ophthalmology-publications.schemas';
 import { z } from 'zod';
 
 export const publicPaginationMetaSchema = z.object({
@@ -253,6 +254,7 @@ export const portalInvoiceDetailsSchema = z.object({
 });
 
 export const patientPortalOverviewSchema = z.object({
+  ophthalmology_publications: z.array(ophthalmologyPublicationSchema).optional(),
   patient: z.object({
     id: z.string(),
     patient_number: z.string(),

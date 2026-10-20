@@ -1,3 +1,4 @@
+import type { OphthalmologyAppointmentIntent } from '../appointments/appointment-ophthalmology.contract.js';
 export type OpdReferralStatus = 'DRAFT' | 'SUBMITTED';
 export type OpdReferralType = 'INTERNAL' | 'EXTERNAL' | 'EMERGENCY';
 export type OpdReferralPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
@@ -49,10 +50,12 @@ export type SaveOpdReferralDTO = {
 
 export type OpdReferralListQuery = { booked?: boolean; page?: number; limit?: number };
 export type BookOpdReferralDTO = {
+  utc_datetime?: string;
   appointment_date: string;
   start_time: string;
   duration_minutes: number;
-  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE' | 'REVIEW';
+  ophthalmology?: OphthalmologyAppointmentIntent | null;
   priority?: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
   notes?: string | null;
 };

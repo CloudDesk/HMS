@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { requirePermission } from '../../middleware/require-permission.js';
+import { requireAnyPermission, requirePermission } from '../../middleware/require-permission.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
@@ -21,6 +21,11 @@ type AppointmentIdParams = {
 };
 
 export const registerAppointmentRoutes = async (app: FastifyInstance, services: ServiceRegistry) => {
+  app.get<{ Querystring: { doctor_id: string; resource: 'SERVICES' | 'SUB_SPECIALITIES'; page: number; limit: number } }>('/api/appointments/ophthalmology-options', {
+    preHandler: requireAnyPermission(services, [{ moduleName: 'Appointments', screen: 'Appointment Booking', action: 'Create' }, { moduleName: 'Appointments', screen: 'Appointment Booking', action: 'Edit' }]),
+    schema: { querystring: { type: 'object', additionalProperties: false, required: ['doctor_id', 'resource'], properties: { doctor_id: { type: 'string', pattern: '^[a-fA-F0-9]{24}$' }, resource: { type: 'string', enum: ['SERVICES', 'SUB_SPECIALITIES'] }, page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 } } } },
+  }, async (request) => ok(await services.appointments.ophthalmologyBookingOptions(request.query.doctor_id, request.query.resource, request.query.page, request.query.limit, request.user!.id)));
+
   app.get<{ Querystring: AppointmentListQuery }>('/api/appointments/dashboard-summary', {
     preHandler: requirePermission(services, 'Appointments', 'Appointment Records', 'View'),
     schema: { querystring: listAppointmentsQuerySchema },

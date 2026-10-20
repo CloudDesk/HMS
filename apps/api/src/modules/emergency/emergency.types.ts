@@ -1,3 +1,4 @@
+import type { OphthalmologyAppointmentIntent } from '../appointments/appointment-ophthalmology.contract.js';
 export type EmergencyTriageLevel =
   'LEVEL_1_CRITICAL' | 'LEVEL_2_HIGH' | 'LEVEL_3_MEDIUM' | 'LEVEL_4_LOW' | 'LEVEL_5_NON_URGENT';
 export type EmergencyStatus =
@@ -120,7 +121,8 @@ export type BookEmergencyReferralDTO = {
   start_time: string;
   utc_datetime: string;
   duration_minutes: number;
-  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE';
+  visit_type: 'NEW_CONSULTATION' | 'FOLLOW_UP' | 'PROCEDURE' | 'REVIEW';
+  ophthalmology?: OphthalmologyAppointmentIntent | null;
   priority?: EmergencyReferralPriority;
   notes?: string | null;
 };

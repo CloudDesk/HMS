@@ -1,3 +1,7 @@
+import { comparisonUnitsSchema, resultComparisonProblem } from './ophthalmology-result-comparison.js';
+import { subSpecialityValuesSchema } from './ophthalmology-sub-speciality.contract.js';
+import { clinicalCorrectionSchema } from './ophthalmology-clinical-correction.js';
+import type { OphthalmologyAssignmentLookupQuery, OphthalmologyStation } from './ophthalmology.types.js';
 import { createHash } from 'node:crypto';
 import { Types, type ClientSession } from 'mongoose';
 import { executeRequiredTransaction } from '../../shared/database/transaction.js';
@@ -84,6 +88,25 @@ export class OphthalmologyService {
     private readonly appointmentRepository?: AppointmentRepository,
     private readonly patientRepository?: PatientRepository,
   ) {}
+
+  async getClinicalWorkspace(visitId: string, userId: string) {
+    const visit = await this.getOphthalmologyVisit(visitId, userId);
+    const departments = await this.repository.resolveDepartmentScope(userId);
+    if (departments !== null && !departments.includes(visit.department_id)) throw new AppError('Clinical department access denied', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
+    return { visit: { id: visit.id, visit_number: visit.visit_number, patient_id: visit.patient_id, patient_number: visit.patient_number,
+      patient_name: visit.patient_name, doctor_name: visit.doctor_name, branch_id: visit.branch_id, department_id: visit.department_id,
+      visit_type: visit.visit_type, priority: visit.priority, status: visit.status }, context: await this.repository.getContextByVisit(visitId) };
+  }
+
+  async getClinicalConfiguration(visitId: string, userId: string) {
+    const workspace = await this.getClinicalWorkspace(visitId, userId);
+    if (!workspace.context) throw new AppError('Activate the encounter context first', 409, 'OPHTHALMOLOGY_CONTEXT_NOT_FOUND');
+    const configuration = await this.repository.getConfiguration(workspace.context.configuration_version_id);
+    if (!configuration || configuration.branch_id !== workspace.visit.branch_id || configuration.type !== 'COMPLETION_PROFILE') {
+      throw new AppError('Bound clinical configuration is unavailable', 409, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    }
+    return configuration;
+  }
 
   async getContext(visitId: string, userId: string) {
     await this.getOphthalmologyVisit(visitId, userId);
@@ -302,11 +325,19 @@ export class OphthalmologyService {
     });
   }
 
+  private validateComparisonUnits(type: string, values?: Record<string, unknown>) {
+    if (type === 'FORM_PROFILE' && values?.comparison_units !== undefined && !comparisonUnitsSchema.safeParse(values.comparison_units).success) {
+      throw new AppError('Comparison units require safe measurement paths and explicit unit codes', 400, 'VALIDATION_ERROR');
+    }
+  }
+
   async listConfigurations(query: OphthalmologyConfigurationListQuery, userId: string) {
     await this.requireBranchAccess(userId, query.branch_id); return this.repository.listConfigurations(query);
   }
   async createConfiguration(data: CreateOphthalmologyConfigurationDTO, userId: string, metadata: OphthalmologyRequestMetadata = {}) {
     await this.requireBranchAccess(userId, data.branch_id); this.validateObjectId(data.branch_id, 'Branch id is invalid');
+    if (data.type === 'SUB_SPECIALITY' && data.values?.options !== undefined && !subSpecialityValuesSchema.safeParse(data.values).success) throw new AppError('Sub-speciality options require unique codes, labels and active flags', 400, 'VALIDATION_ERROR');
+    this.validateComparisonUnits(data.type, data.values);
     const code = data.code.trim().toUpperCase();
     const revision = await this.repository.nextConfigurationRevision(data.branch_id, data.type, code);
     try {
@@ -323,6 +354,8 @@ export class OphthalmologyService {
     const current = await this.getScopedConfiguration(id, userId);
     if (current.status !== 'DRAFT') throw new AppError('Only draft configurations can be edited', 409, 'OPHTHALMOLOGY_FINALIZED');
     if (current.version !== data.expected_version) throw this.versionConflict('configuration');
+    if (current.type === 'SUB_SPECIALITY' && data.values !== undefined && !subSpecialityValuesSchema.safeParse(data.values).success) throw new AppError('Sub-speciality options require unique codes, labels and active flags', 400, 'VALIDATION_ERROR');
+    this.validateComparisonUnits(current.type, data.values);
     const updated = await this.repository.updateConfiguration(id, data, userId);
     if (!updated) throw this.versionConflict('configuration');
     await this.repository.audit('ophthalmology.configuration.updated', userId, { configurationId: id, branchId: current.branch_id,
@@ -337,6 +370,8 @@ export class OphthalmologyService {
     return executeRequiredTransaction(this.repository, async (session) => {
       const transactional = await this.repository.getConfiguration(id, session);
       if (!transactional || transactional.version !== data.expected_version || transactional.status !== 'DRAFT') throw this.versionConflict('configuration');
+      if (transactional.type === 'SUB_SPECIALITY') { const parsed = subSpecialityValuesSchema.safeParse(transactional.values); if (!parsed.success || !parsed.data.options.some((row) => row.active)) throw new AppError('Configure at least one active sub-speciality before activation', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED'); }
+      this.validateComparisonUnits(transactional.type, transactional.values);
       await this.repository.deactivateOtherConfigurations(transactional, userId, session);
       const activated = await this.repository.setConfigurationStatus(id, transactional.version, 'DRAFT', 'ACTIVE', userId, null, session);
       if (!activated) throw this.versionConflict('configuration');
@@ -510,6 +545,58 @@ export class OphthalmologyService {
     const task = await this.requireTestTask(id); if (!await this.repository.canViewTestTask(task, userId)) throw new AppError('Test task access denied', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
     return task;
   }
+  async getTaskWorkspace(id: string, userId: string) {
+    const task = await this.getTestTask(id, userId); return this.getClinicalWorkspace(task.visit_id, userId);
+  }
+  async listTaskClinicalConfigurations(id: string, query: { type: 'FORM_PROFILE' | 'OPTICAL_PRODUCT' | 'DRUG_OPTION'; page?: number; limit?: number }, userId: string) {
+    const task = await this.assignmentLookupTask(id, {}, userId);
+    return this.repository.listTaskClinicalConfigurations(task, query);
+  }
+  private async assignmentLookupTask(id: string, query: OphthalmologyAssignmentLookupQuery, userId: string) {
+    const source = await this.getTestTask(id, userId);
+    const departments = await this.repository.resolveDepartmentScope(userId);
+    if (departments !== null && !departments.includes(source.department_id)) throw new AppError('Task department access denied', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
+    if (!query.target_task_id || query.target_task_id === source.id) return source;
+    this.validateObjectId(query.target_task_id, 'Target task id is invalid');
+    const target = await this.getTestTask(query.target_task_id, userId);
+    if (target.context_id !== source.context_id || target.patient_id !== source.patient_id || target.visit_id !== source.visit_id || target.branch_id !== source.branch_id || target.department_id !== source.department_id || target.status !== 'ORDERED') throw new AppError('Target must be an ordered task in the same encounter', 409, 'OPHTHALMOLOGY_ROUTING_REQUIRED');
+    return target;
+  }
+  private queueStationProjection(station: OphthalmologyStation, actorEligible: boolean) {
+    return { id: station.id, branch_id: station.branch_id, department_id: station.department_id, code: station.code, name: station.name, status: station.status, supported_test_types: station.supported_test_types, devices: station.devices, version: station.version, actor_eligible: actorEligible };
+  }
+  async listAssignmentStations(id: string, query: OphthalmologyAssignmentLookupQuery, userId: string) {
+    const task = await this.assignmentLookupTask(id, query, userId); const result = await this.repository.listTaskStations(task, query);
+    return { ...result, data: result.data.map((station) => this.queueStationProjection(station, false)) };
+  }
+  async getAssignmentStation(id: string, stationId: string, query: OphthalmologyAssignmentLookupQuery, userId: string) {
+    this.validateObjectId(stationId, 'Station id is invalid'); const task = await this.assignmentLookupTask(id, query, userId);
+    const station = await this.repository.getStation(stationId);
+    if (!station || station.status !== 'ACTIVE' || station.branch_id !== task.branch_id || station.department_id !== task.department_id || !station.supported_test_types.includes(task.test_code)) throw new AppError('Compatible active station not found', 404, 'NOT_FOUND');
+    return this.queueStationProjection(station, await this.repository.eligibleTestAssignee(userId, station.id, task.branch_id, task.department_id));
+  }
+  async listAssignmentMembers(id: string, query: OphthalmologyAssignmentLookupQuery, userId: string) {
+    if (!query.station_id) throw new AppError('Select a station', 400, 'VALIDATION_ERROR');
+    await this.getAssignmentStation(id, query.station_id, query, userId);
+    const task = await this.assignmentLookupTask(id, query, userId); const station = await this.repository.getStation(query.station_id);
+    if (!station || station.status !== 'ACTIVE') throw new AppError('Active station not found', 404, 'NOT_FOUND');
+    return this.repository.listTaskAssignees(task, station, query);
+  }
+  async priorResultComparisons(id: string, query: { expected_result_version: number; page?: number; limit?: number }, userId: string) {
+    const task = await this.getTestTask(id, userId); const result = await this.repository.getTestResult(id);
+    if (!result || result.version !== query.expected_result_version) throw this.versionConflict('test result');
+    if (!['VISUAL_FIELD', 'OCT'].includes(result.current.form_type)) throw new AppError('This form does not support progression comparisons', 400, 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE');
+    const page = query.page ?? 1; const limit = query.limit ?? 20;
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new AppError('Invalid comparison page', 400, 'VALIDATION_ERROR');
+    const found = await this.repository.priorResultVersions(task, result, page, limit);
+    return { task_id: task.id, result_id: result.id, expected_result_version: result.version, ...found, data: found.data.map((prior) => {
+      const problem = resultComparisonProblem(result.current, prior, result.current.form_profile_snapshot, prior.profile);
+      return { result_id: prior.result_id, clinical_version: prior.clinical_version, performed_at: prior.performed_at,
+        form_type: prior.form_type, eye: typeof prior.payload.eye === 'string' ? prior.payload.eye : null,
+        eligible: problem === null, reason: problem };
+    }) };
+  }
+
   async getTestResult(id: string, userId: string) {
     await this.getTestTask(id, userId); const result = await this.repository.getTestResult(id);
     if (!result) throw new AppError('Ophthalmology test result not found', 404, 'OPHTHALMOLOGY_TEST_RESULT_NOT_FOUND'); return result;
@@ -741,7 +828,7 @@ export class OphthalmologyService {
     }
     await this.validateSpecializedResultReferences(task, data, profile.values, session);
     validateCoreTestPayload(data.form_type, payload, profile.values, status);
-    await this.validateResultComparison(task, data, session);
+    await this.validateResultComparison(task, data, profile.values, session);
     const documentIds = [...new Set([...(data.document_ids ?? []), ...this.collectDocumentIds(payload)])];
     for (const id of documentIds) this.validateObjectId(id, 'Result document id is invalid');
     if (documentIds.length && await this.repository.validPatientDocumentCount(task.patient_id, documentIds, session) !== documentIds.length) {
@@ -764,7 +851,7 @@ export class OphthalmologyService {
   }
 
   private async validateResultComparison(task: OphthalmologyTestTask,
-    data: SaveOphthalmologyTestResultDraftDTO | AmendOphthalmologyTestResultDTO, session?: ClientSession) {
+    data: SaveOphthalmologyTestResultDraftDTO | AmendOphthalmologyTestResultDTO, profileValues: Record<string, unknown>, session?: ClientSession) {
     if (data.form_type !== 'VISUAL_FIELD' && data.form_type !== 'OCT') return;
     const comparison = (data.payload as Record<string, unknown>).comparison as Record<string, unknown> | undefined;
     if (!comparison || comparison.outcome === 'NOT_COMPARED') return;
@@ -775,10 +862,12 @@ export class OphthalmologyService {
     const targetEye = ((data.payload as Record<string, unknown>).eye as string | undefined) ?? task.laterality;
     const lateralityCompatible = Boolean(version && (version.laterality === targetEye || version.laterality === 'OU' || targetEye === 'OU'));
     if (!prior || prior.id === (await this.repository.getTestResult(task.id, session))?.id || prior.patient_id !== task.patient_id
-      || prior.branch_id !== task.branch_id || !version || version.form_type !== data.form_type || !lateralityCompatible
+      || prior.branch_id !== task.branch_id || prior.department_id !== task.department_id || !version || version.form_type !== data.form_type || !lateralityCompatible
       || version.performed_at >= new Date(data.performed_at)) {
       throw new AppError('Comparison does not reference an eligible prior completed test version', 409, 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE');
     }
+    const problem = resultComparisonProblem(data, version, profileValues, version.form_profile_snapshot);
+    if (problem) throw new AppError(`Comparison is unavailable: ${problem.toLowerCase().replaceAll('_', ' ')}. Record Not Compared or select a compatible source.`, 409, 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE');
   }
 
   private async validateSpecializedResultReferences(task: OphthalmologyTestTask,
@@ -852,15 +941,7 @@ export class OphthalmologyService {
     return executeRequiredTransaction(this.repository, async (session) => {
       const current = await this.repository.getClinicalReviewByVisit(visitId, session);
       if ((current?.version ?? 0) !== data.expected_version) throw this.versionConflict('clinical review');
-      const diagnoses = await this.repository.getDiagnosisKeys(visitId, session);
-      if (diagnoses.length === 0) throw new AppError('At least one consultation diagnosis is required', 400, 'OPHTHALMOLOGY_DIAGNOSIS_REQUIRED');
-      for (const plan of data.treatment_plans) if (!diagnoses.some((item) => item.code === plan.diagnosis_code.trim().toUpperCase()
-        && (item.laterality === plan.diagnosis_laterality || item.laterality === 'NOT_APPLICABLE'))) {
-        throw new AppError('Every treatment plan must reference a current consultation diagnosis and laterality', 400, 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH');
-      }
-      if (!await this.repository.validateReviewReferences(context, data, session)) {
-        throw new AppError('A treatment plan reference is outside this visit, patient, or branch', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
-      }
+      await this.validateClinicalReviewReferences(context, data, session);
       let saved;
       try { saved = await this.repository.saveClinicalReviewDraft(context, data, userId, session); }
       catch (error) { if (duplicateKey(error)) throw this.versionConflict('clinical review'); throw error; }
@@ -908,6 +989,20 @@ export class OphthalmologyService {
         contextId: context.id, visitId, patientId: context.patient_id, branchId: context.branch_id,
         resultingVersion: saved.version, clinicalVersion: saved.current_clinical_version }, metadata, session); return saved;
     });
+  }
+
+  async submitTestTaskForReview(taskId: string, data: TaskStateActionDTO, userId: string,
+    metadata: OphthalmologyRequestMetadata = {}) {
+    if (data.expected_status !== 'COMPLETED') throw this.statusConflict('Only completed tests may be submitted for review');
+    const task = await this.requireScopedTask(taskId, userId);
+    return this.transitionTask(task, data, 'SUBMITTED_FOR_REVIEW', 'SUBMITTED_FOR_REVIEW', userId, null,
+      { doctorReviewRequired: true }, metadata, async (session) => {
+        await this.requireTaskStationMember(task, userId, 'submit a test for review', session);
+        const result = await this.repository.getTestResult(task.id, session);
+        if (!result || result.status !== 'COMPLETED' || result.current.status !== 'COMPLETED') {
+          throw new AppError('Complete the current test result before submitting for review', 409, 'OPHTHALMOLOGY_REVIEW_REQUIRED');
+        }
+      });
   }
 
   async reviewTestResult(taskId: string, data: OphthalmologyResultReviewDTO, userId: string,
@@ -1005,7 +1100,11 @@ export class OphthalmologyService {
       if (finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
       const readiness = await this.evaluateCompletionReadiness(transactionalContext, session);
       const unmet = readiness.requirements.filter((entry) => !entry.satisfied); const latestOverride = finalization.overrides.at(-1);
-      if (unmet.length > 0 && JSON.stringify([...latestOverride?.unmet_codes ?? []].sort()) !== JSON.stringify(unmet.map((entry) => entry.code).sort())) {
+      const requirementSnapshot = (entries: { code: string; details: string; resource_ids: string[] }[]) => this.fingerprint(entries
+        .map((entry) => ({ code: entry.code, details: entry.details, resource_ids: [...entry.resource_ids].sort() }))
+        .sort((a, b) => a.code.localeCompare(b.code)));
+      const completionConfiguration = await this.repository.getConfiguration(transactionalContext.configuration_version_id, session);
+      if (unmet.length > 0 && (completionConfiguration?.values.allow_override !== true || !latestOverride || requirementSnapshot(latestOverride.unmet_snapshot) !== requirementSnapshot(unmet))) {
         throw new AppError('Consultation completion requirements are not satisfied', 409, 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE', { requirements: unmet });
       }
       const initial = finalization.status === 'OPEN';
@@ -1025,8 +1124,8 @@ export class OphthalmologyService {
           { status: 'COMPLETED', notes: 'Ophthalmology consultation completed by doctor.' }, userId, undefined, session)) {
           throw new AppError('Linked appointment not found', 409, 'OPD_APPOINTMENT_CONFLICT');
         }
-        if (!await this.repository.setClinicalReviewCompleted(review.id, review.version, session)) throw this.versionConflict('clinical review');
       }
+      if (review.status === 'DRAFT' && !await this.repository.setClinicalReviewCompleted(review.id, review.version, session)) throw this.versionConflict('clinical review');
       const resultingContext = await this.repository.setContextWorkflowStatus(transactionalContext.id, transactionalContext.version,
         initial ? ['UNDER_CONSULTATION', 'CLINICAL_REVIEW', 'REVIEW_COMPLETED'] : ['CLINICAL_REVIEW'], 'CONSULTATION_COMPLETED', userId, session);
       if (!resultingContext) throw this.versionConflict('context');
@@ -1074,8 +1173,9 @@ export class OphthalmologyService {
       if (!reopened) throw this.versionConflict('consultation finalization');
       const updatedContext = await this.repository.setContextWorkflowStatus(context.id, context.version, ['CONSULTATION_COMPLETED'], 'CLINICAL_REVIEW', userId, session);
       if (!updatedContext) throw this.versionConflict('context');
+      const withdrawnPublications = await this.repository.withdrawConsultationPublications(context.id, `Consultation reopened: ${reason}`, userId, session);
       await this.repository.audit('ophthalmology.consultation.reopened', userId, { finalizationId: reopened.id, visitId,
-        patientId: context.patient_id, branchId: context.branch_id, reason, resultingVersion: reopened.version }, metadata, session); return reopened;
+        patientId: context.patient_id, branchId: context.branch_id, reason, withdrawnPublications, resultingVersion: reopened.version }, metadata, session); return reopened;
     });
   }
 
@@ -1089,8 +1189,27 @@ export class OphthalmologyService {
     return executeRequiredTransaction(this.repository, async (session) => {
       const finalization = await this.repository.getFinalizationByVisit(visitId, session);
       if (!finalization || finalization.status !== data.expected_status || finalization.version !== data.expected_version) throw this.versionConflict('consultation finalization');
+      if (!['patient_instructions', 'clinical_summary', 'follow_up_decision', 'treatment_plans'].includes(data.section)) throw new AppError('This amendment section requires a supported typed source correction', 422, 'OPHTHALMOLOGY_AMENDMENT_SECTION_UNSUPPORTED');
+      const parsed = clinicalCorrectionSchema.safeParse({ section: data.section, after_value: data.after_value });
+      if (!parsed.success) throw new AppError('Amendment section or value does not match a supported clinical source schema', 422, 'OPHTHALMOLOGY_AMENDMENT_SECTION_INVALID');
+      const correction = parsed.data;
+      const review = await this.repository.getClinicalReviewByVisit(visitId, session);
+      if (!review) throw new AppError('Clinical review source was not found', 409, 'OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT');
+      const before = review.current[correction.section];
+      if (JSON.stringify(canonicalize(before)) !== JSON.stringify(canonicalize(data.before_value))) throw this.versionConflict('amendment source');
+      if (correction.section === 'treatment_plans') {
+        for (const plan of correction.after_value) if (plan.id && !review.current.treatment_plans.some((previous) => previous.id === plan.id)) throw new AppError('Treatment plan identity is outside this source version', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
+        const proposed = { expected_version: review.version, clinical_summary: review.current.clinical_summary, treatment_plans: correction.after_value,
+          follow_up_decision: review.current.follow_up_decision, patient_instructions: review.current.patient_instructions };
+        this.validateReviewInput(proposed); await this.validateClinicalReviewReferences(context, proposed, session);
+        const beforeClinical = review.current.treatment_plans.map(({ clinician_user_id, ...plan }) => { void clinician_user_id; return plan; });
+        if (JSON.stringify(canonicalize(beforeClinical)) === JSON.stringify(canonicalize(correction.after_value))) throw new AppError('Amendment must change clinical source values', 400, 'VALIDATION_ERROR');
+      } else if ((typeof correction.after_value === 'string' ? correction.after_value.trim() || null : correction.after_value) === (before ?? null)) throw new AppError('Amendment must change clinical source values', 400, 'VALIDATION_ERROR');
+      if (correction.section === 'follow_up_decision') await this.validateClinicalReviewReferences(context, { expected_version: review.version, clinical_summary: review.current.clinical_summary, treatment_plans: review.current.treatment_plans, follow_up_decision: correction.after_value, patient_instructions: review.current.patient_instructions }, session);
+      const corrected = await this.repository.correctClinicalReviewSection(visitId, review.version, correction, userId, session);
+      if (!corrected) throw this.versionConflict('amendment source');
       const updated = await this.repository.appendAmendment(finalization.id, data.expected_version, data.episode_id,
-        { ...data, reason }, userId, session); if (!updated) throw this.versionConflict('consultation amendment');
+        { ...data, before_value: before ?? null, after_value: corrected.current[correction.section], reason }, userId, session); if (!updated) throw this.versionConflict('consultation amendment');
       await this.repository.audit('ophthalmology.consultation.amended', userId, { finalizationId: updated.id, episodeId: data.episode_id,
         visitId, patientId: context.patient_id, branchId: context.branch_id, section: data.section, reason,
         beforeValueHash: this.fingerprint(data.before_value), afterValueHash: this.fingerprint(data.after_value),
@@ -1119,15 +1238,25 @@ export class OphthalmologyService {
     const mandatoryCodes = new Set(Array.isArray(configuration.values.mandatory_test_codes)
       ? (configuration.values.mandatory_test_codes as unknown[]).filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.toUpperCase()) : []);
     const activeTasks = evidence.tasks.filter((task) => !['CANCELLED', 'UNABLE_TO_PERFORM', 'REPEAT_REQUIRED'].includes(task.status));
+    if (codes.includes('MANDATORY_TESTS_REVIEWED') && mandatoryCodes.size === 0) {
+      throw new AppError('Configure mandatory_test_codes for mandatory-test completion checks', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
+    }
+    const resolvedTask = (task: OphthalmologyTestTask) => {
+      if (deferred.has(`TEST_TASK:${task.id}`)) return true;
+      const result = evidence.results.find((entry) => entry.task_id === task.id);
+      return task.status === 'REVIEWED' && result?.status === 'COMPLETED' && result.current.status === 'COMPLETED'
+        && task.reviewed_clinical_version === result.current_clinical_version;
+    };
     const mandatoryTasks = activeTasks.filter((task) => mandatoryCodes.has(task.test_code));
+    const missingMandatoryCodes = [...mandatoryCodes].filter((code) => !mandatoryTasks.some((task) => task.test_code === code));
     const unresolvedOrders = evidence.clinical_orders.filter((order) => !['VERIFIED', 'COMPLETED'].includes(order.status)
       && !deferred.has(`CLINICAL_ORDER:${order.id}`));
     const checks: Record<OphthalmologyCompletionRequirementCode, { satisfied: boolean; details: string; resource_ids: string[] }> = {
       INTAKE_COMPLETED: { satisfied: intake?.status === 'COMPLETED', details: 'Ophthalmology intake must be completed.', resource_ids: intake ? [intake.id] : [] },
-      MANDATORY_TESTS_REVIEWED: { satisfied: mandatoryTasks.every((task) => task.status === 'REVIEWED' || deferred.has(`TEST_TASK:${task.id}`)),
-        details: 'Configured mandatory tests must be reviewed or explicitly deferred.', resource_ids: mandatoryTasks.filter((task) => task.status !== 'REVIEWED').map((task) => task.id) },
-      ALL_RESULTS_RESOLVED: { satisfied: activeTasks.every((task) => task.status === 'REVIEWED' || deferred.has(`TEST_TASK:${task.id}`)) && unresolvedOrders.length === 0,
-        details: 'All test and investigation results must be reviewed or explicitly deferred.', resource_ids: [...activeTasks.filter((task) => task.status !== 'REVIEWED' && !deferred.has(`TEST_TASK:${task.id}`)).map((task) => task.id), ...unresolvedOrders.map((order) => order.id)] },
+      MANDATORY_TESTS_REVIEWED: { satisfied: missingMandatoryCodes.length === 0 && mandatoryTasks.every(resolvedTask),
+        details: missingMandatoryCodes.length ? `Required test orders are missing: ${missingMandatoryCodes.join(', ')}.` : 'Configured mandatory tests must be reviewed or explicitly deferred.', resource_ids: mandatoryTasks.filter((task) => !resolvedTask(task)).map((task) => task.id) },
+      ALL_RESULTS_RESOLVED: { satisfied: activeTasks.every(resolvedTask) && unresolvedOrders.length === 0,
+        details: 'All test and investigation results must be reviewed or explicitly deferred.', resource_ids: [...activeTasks.filter((task) => !resolvedTask(task)).map((task) => task.id), ...unresolvedOrders.map((order) => order.id)] },
       ALERTS_ACKNOWLEDGED: { satisfied: alerts.every((alert) => alert.status === 'ACKNOWLEDGED'), details: 'All active alerts must be acknowledged.', resource_ids: alerts.filter((alert) => alert.status !== 'ACKNOWLEDGED').map((alert) => alert.id) },
       DIAGNOSIS_RECORDED: { satisfied: consultation.diagnoses.length > 0, details: 'At least one structured diagnosis must be recorded.', resource_ids: [consultation.id] },
       CLINICAL_REVIEW_RECORDED: { satisfied: Boolean(review?.current.clinical_summary.trim()), details: 'Doctor clinical review must be recorded.', resource_ids: review ? [review.id] : [] },
@@ -1165,6 +1294,17 @@ export class OphthalmologyService {
   private async assertConsultationWritable(visitId: string) {
     const finalization = await this.repository.getFinalizationByVisit(visitId);
     if (finalization && finalization.status !== 'OPEN') throw new AppError('Completed consultation is read-only; use the amendment workflow', 409, 'OPHTHALMOLOGY_CONSULTATION_LOCKED');
+  }
+  private async validateClinicalReviewReferences(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO, session: ClientSession) {
+      const diagnoses = await this.repository.getDiagnosisKeys(context.visit_id, session);
+      if (diagnoses.length === 0) throw new AppError('At least one consultation diagnosis is required', 400, 'OPHTHALMOLOGY_DIAGNOSIS_REQUIRED');
+      for (const plan of data.treatment_plans) if (!diagnoses.some((item) => item.code === plan.diagnosis_code.trim().toUpperCase()
+        && (item.laterality === plan.diagnosis_laterality || item.laterality === 'NOT_APPLICABLE'))) {
+        throw new AppError('Every treatment plan must reference a current consultation diagnosis and laterality', 400, 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH');
+      }
+      if (!await this.repository.validateReviewReferences(context, data, session)) {
+        throw new AppError('A treatment plan reference is outside this visit, patient, or branch', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
+      }
   }
   private validateReviewInput(data: SaveOphthalmologyClinicalReviewDraftDTO) {
     const keys = new Set<string>();
@@ -1262,7 +1402,7 @@ export class OphthalmologyService {
     });
   }
   private async transitionTask(task: OphthalmologyTestTask, data: TaskStateActionDTO, toStatus: OphthalmologyTestTask['status'],
-    action: 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED', userId: string, reason: string | null,
+    action: 'SUBMITTED_FOR_REVIEW' | 'CALLED' | 'PATIENT_UNAVAILABLE' | 'STARTED' | 'DRAFT_SAVED' | 'COMPLETED' | 'AMENDED' | 'UNABLE_TO_PERFORM' | 'CANCELLED', userId: string, reason: string | null,
     set: Record<string, unknown>, metadata: OphthalmologyRequestMetadata, guard?: (session: ClientSession) => Promise<void>) {
     await this.assertConsultationWritable(task.visit_id); this.assertExpected(task, data); return executeRequiredTransaction(this.repository, async (session) => {
       if (guard) await guard(session);

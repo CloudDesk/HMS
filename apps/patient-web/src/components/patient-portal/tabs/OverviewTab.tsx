@@ -1,3 +1,4 @@
+import { PortalOphthalmologyRecords } from '../PortalOphthalmologyRecords';
 import type { PatientPortalOverview } from '../../../api/patient-portal';
 import { Empty } from '../Empty';
 import { label, fullName } from '../../../utils/formatters';
@@ -280,6 +281,7 @@ export function OverviewTab({
           </div>
         </article>
       </section>
+      <PortalOphthalmologyRecords publications={data.ophthalmology_publications ?? []} />
     </>
   );
 }

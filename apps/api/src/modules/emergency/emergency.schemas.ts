@@ -1,3 +1,4 @@
+import { ophthalmologyAppointmentSchema } from '../appointments/appointment-ophthalmology.contract.js';
 import { z } from 'zod';
 const id = z.string().regex(/^[a-f\d]{24}$/i);
 const nullableText = (max: number) => z.string().trim().max(max).nullable().optional();
@@ -184,7 +185,8 @@ export const bookEmergencyReferralSchema = z.object({
   start_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   utc_datetime: z.string().datetime(),
   duration_minutes: z.number().int().min(5).max(240),
-  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE']),
+  visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'REVIEW']),
+  ophthalmology: ophthalmologyAppointmentSchema.nullable().optional(),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']).optional(),
   notes: nullableText(2000),
 });

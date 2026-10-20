@@ -90,7 +90,7 @@ describe('Ophthalmology Phase 6 advanced diagnostic results', () => {
 
   const createTaskAndProfile = async (form: OphthalmologyAdvancedTestFormType, suffix = '', laterality: 'OD' | 'OS' | 'OU' = 'OU') => {
     const profile = await OphthalmologyConfigurationModel.create({ branchId, type: 'FORM_PROFILE', code: `${form}${suffix}`, name: `${form} form`, revision: 1,
-      status: 'ACTIVE', values: { form_type: form, schema_version: '1.0', test_codes: [form], ...(form === 'GONIOSCOPY'
+      status: 'ACTIVE', values: { form_type: form, schema_version: '1.0', test_codes: [form], ...(form === 'VISUAL_FIELD' ? { comparison_units: { 'result_indices.mean_deviation': 'QA_UNIT' } } : {}), ...(form === 'GONIOSCOPY'
         ? { required_quadrants: ['superior', 'inferior'] } : {}) }, version: 0, createdBy: userId, updatedBy: userId });
     const task = await OphthalmologyTestTaskModel.create({ contextId, visitId, patientId, branchId, departmentId,
       testCatalogueVersionId: new Types.ObjectId(), workflowProfileVersionId: new Types.ObjectId(), testCode: form, testName: form,
@@ -146,9 +146,22 @@ describe('Ophthalmology Phase 6 advanced diagnostic results', () => {
     const completed = await service.completeTestResult(prior.task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1, expected_result_version: 0 }, userId);
     const current = await createTaskAndProfile('VISUAL_FIELD', 'CURRENT'); const compared = { ...payload('VISUAL_FIELD'),
       comparison: { outcome: 'STABLE', result_id: completed.id, clinical_version: 1 } };
+    for (const incompatible of [{ ...compared, program: 'QA_OTHER_PROTOCOL' }, { ...compared, eye: 'OS' }]) {
+      await expect(service.saveTestResultDraft(current.task._id.toString(), draft('VISUAL_FIELD', current.profile._id.toString(), incompatible), userId))
+        .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE' });
+    }
+    await OphthalmologyConfigurationModel.updateOne({ _id: current.profile._id }, { $set: { 'values.comparison_units': { 'result_indices.mean_deviation': 'WRONG_UNIT' } } });
+    await expect(service.saveTestResultDraft(current.task._id.toString(), draft('VISUAL_FIELD', current.profile._id.toString(), compared), userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_COMPARISON_INELIGIBLE' });
+    await OphthalmologyConfigurationModel.updateOne({ _id: current.profile._id }, { $set: { 'values.comparison_units': { 'result_indices.mean_deviation': 'QA_UNIT' } } });
     await service.saveTestResultDraft(current.task._id.toString(), draft('VISUAL_FIELD', current.profile._id.toString(), compared), userId);
     await expect(service.completeTestResult(current.task._id.toString(), { expected_task_status: 'DRAFT', expected_task_version: 1, expected_result_version: 0 }, userId))
       .resolves.toMatchObject({ status: 'COMPLETED' });
+    const candidates = await service.priorResultComparisons(current.task._id.toString(), { expected_result_version: 1, page: 1, limit: 1 }, userId);
+    expect(candidates).toMatchObject({ task_id: current.task._id.toString(), meta: { total: 1, limit: 1 }, data: [{ result_id: completed.id, clinical_version: 1, eligible: true, reason: null }] });
+    expect(candidates.data[0]).not.toHaveProperty('payload'); expect(candidates.data[0]).not.toHaveProperty('profile');
+    await expect(service.priorResultComparisons(current.task._id.toString(), { expected_result_version: 0 }, userId)).rejects.toMatchObject({ statusCode: 409 });
+    expect((await service.priorResultComparisons(current.task._id.toString(), { expected_result_version: 1, page: 2, limit: 1 }, userId)).data).toEqual([]);
     const invalid = await createTaskAndProfile('OCT', 'INVALID'); const wrongForm = { ...payload('OCT'),
       comparison: { outcome: 'WORSENED', result_id: completed.id, clinical_version: 1 } };
     await expect(service.saveTestResultDraft(invalid.task._id.toString(), draft('OCT', invalid.profile._id.toString(), wrongForm), userId))

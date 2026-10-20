@@ -1,5 +1,9 @@
 # HMS Ophthalmology OPD — Developer B (Frontend) Phase Prompts
 
+> **18 October 2026 implementation update:** The human user subsequently authorized backend and frontend remediation in this chat. That authorization supersedes the earlier frontend-only boundary for this remediation. Preserve the historical B0–B6 numbering and ownership rules for future independent frontend tasks. The current implementation/status evidence is in `HMS_OPHTHALMOLOGY_FULL_IMPLEMENTATION_PLAN.md` and `HMS_OPHTHALMOLOGY_FULL_IMPLEMENTATION_VERIFICATION.md`; none of B1–B6 should be called release-complete solely from previous feature checkpoints.
+
+Add these acceptance requirements to the corresponding phase prompts: original shared-OPD version bodies; mandatory-task presence and exact review versions; implemented submit-for-review; clinical-only workspace/bound-configuration access; structured diagnosis editing; frozen completion keys/versions; typed source correction/reapproval with publication withdrawal; exact-version publication status/history/withdrawal; portal-safe record/file visibility; authenticated full-filter CSV export. Preserve stale/dirty drafts, explicit permissions and server scope. Still resolve the detailed clinical/master/comparison/workflow semantics and live hospital acceptance gaps recorded in the current verification.
+
 ## Role and ownership
 
 You are **Developer B — Frontend**.
@@ -440,3 +444,8 @@ No backend, patient-portal, clinical master, permission seed or frontend impleme
 - **Known limitations and unresolved decisions:**
 - **Dependencies and exact handoff needed from Developer A:**
 - **Next action and responsible person:**
+
+
+## Current working-tree correction - 20 October 2026
+
+This dated update supersedes older pending statements only for the following implemented slices: appointment specialty scheduling intent and scoped paginated lookup/editor with approved REVIEW mapping; structured sub-speciality options; treatment-plan/follow-up source amendments; visit-based report population with linked booking subtype/sub-speciality; exact completed-result pending-review counts; current repeat/unable reasons and explicitly labelled status-rate denominators; and exact prior-version comparison lookup with protocol/eye/schema/department/configured-unit validation. Preserve all earlier safety, source-version, permission, error and live acceptance requirements. See backend contract 1.12 and HMS_OPHTHALMOLOGY_GAP_CLOSURE_20261020.md for exact contracts/evidence. Do not mark B1/B2 or the full release complete: seven other master editors/schemas, unsupported nested clinical semantics, diagnosis/optical source correction coverage, downstream business metrics and live clinical/storage/permission/responsive acceptance remain unresolved. No hospital clinical values or permissions were seeded.

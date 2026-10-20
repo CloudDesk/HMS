@@ -106,5 +106,6 @@ testResultSchema.index({ taskId: 1 }, { unique: true });
 testResultSchema.index({ contextId: 1, status: 1, updatedAt: -1 });
 testResultSchema.index({ patientId: 1, 'versions.formType': 1, updatedAt: -1 });
 testResultSchema.index({ branchId: 1, status: 1, updatedAt: -1 });
+testResultSchema.index({ patientId: 1, branchId: 1, departmentId: 1, 'versions.formType': 1 });
 
 export const OphthalmologyTestResultModel = mongoose.model<OphthalmologyTestResultFields>('OphthalmologyTestResult', testResultSchema);

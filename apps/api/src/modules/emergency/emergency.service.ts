@@ -235,6 +235,7 @@ export class EmergencyService {
       utc_datetime: data.utc_datetime,
       duration_minutes: data.duration_minutes,
       visit_type: data.visit_type,
+      ophthalmology: data.ophthalmology,
       priority: data.priority ?? referral.priority,
       reason: referral.reason,
       notes: data.notes?.trim() || `Booked from Emergency referral ${referral.encounter_number}`,

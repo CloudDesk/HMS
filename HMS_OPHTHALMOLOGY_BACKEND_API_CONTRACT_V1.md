@@ -2,19 +2,38 @@
 
 ## Contract status
 
-**Version:** 1.10.0
+**Version:** 1.12.0 (working tree gap-closure revision, 20 October 2026)
 
 **Baseline date:** 15 October 2026
 
 **Authority:** Ophthalmology FSD v1.0 plus approved DEC-01 through DEC-12
 
-**Implementation state:** Approved backend feature implementation and Phase 11 automated hardening complete; frontend integration ready; release validation partially complete
+**Implementation state:** Backend/staff/patient integration remediation implemented in the working tree; final verification and clinical release acceptance remain open. Historical phase completion does not certify every FSD detail.
 
 **Compatibility:** Additive to existing OPD and shared-domain APIs
 
-**Frontend handoff:** READY. Developer B may implement against version 1.10.0 using live APIs and the documented permission, validation, concurrency and error contracts. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance are release gates, not blockers to frontend implementation.
+**Frontend handoff:** READY. Developer B may implement against version 1.12.0 using live APIs and the documented permission, validation, concurrency and error contracts. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance are release gates, not blockers to frontend implementation.
 
 This contract freezes the backend vocabulary, ownership, endpoint families, lifecycle, concurrency, permission and error behavior required for phase-wise implementation. A consuming phase must update the contract with exact request/response schemas before exposing its routes. Missing clinical values and file/vendor policy inputs remain configuration dependencies and are never inferred.
+
+## 1.11 integration additions and corrections
+
+The user explicitly authorized backend and frontend remediation on 18 October 2026. This revision does not approve clinical scales, units, medication rules or workflow dependency semantics that are absent from the approved contract.
+
+| Contract | Behavior |
+|---|---|
+| Shared OPD save/order bodies | Optional `expected_version` / `expected_status` belong in strict JSON bodies; clinical editors send the original versions. Generic consultation completion rejects an authoritative Ophthalmology department/context with `OPHTHALMOLOGY_SPECIALTY_COMPLETION_REQUIRED`. |
+| `POST /api/ophthalmology/test-tasks/:id/submit-for-review` | Existing Test Queue Complete permission, exact COMPLETED status/version, active station membership and a current completed result; conditional transaction, history and audit. |
+| `GET /api/opd/visits/:visitId/ophthalmology/workspace` | Minimal patient/visit header and context for Intake/Consultation/Optical View, with authoritative branch/department scope. It grants no intake or generic consultation history access. |
+| `GET /api/opd/visits/:visitId/ophthalmology/clinical-configuration` | Bound clinical profile for Consultation/Optical View, scoped to the encounter. Configuration authoring remains separately protected. |
+| Completion readiness | Configured mandatory codes require real active tasks. Review must match a completed clinical version or an explicit deferral. Completion revalidates the full override snapshot and current allow-override configuration. |
+| Source amendments | Typed `clinical_summary` / `patient_instructions` compare actual before values, create an immutable clinical-review version and require reapproval. Unknown source sections fail explicitly. Reopen withdraws context publications in the same transaction. |
+| `GET /api/ophthalmology/publications` | Publication View; branch required, optional visit/source/type/version/status, page/limit; department-scoped pagination and metadata only. Replay material and portal payload are excluded. |
+| Publish/withdraw | Existing dedicated permissions. Publish requires current approved/reviewed exact clinical version and no open amendment. Context publication revision serializes publication against reopen. Attachment publication metadata is synchronized transactionally. |
+| Portal records/files | Allowlisted APPROVED_FOR_PORTAL payloads only. Ophthalmology files require active explicit report publication for both paginated listing and binary download; withdrawn/internal uploads stay inaccessible. Unrelated patient document behavior is retained. |
+| `GET /api/ophthalmology/reports/:reportType/export` | Both Reports View and Export; validates the same branch/station/order-date filters, applies authoritative department scope, ignores page/limit for export and streams all selected projection rows as CSV through a bounded cursor. Spreadsheet formulas are neutralized; export request is audited. Reports remain live reads, not a point-in-time analytics snapshot. |
+
+Full structured correction coverage, clinical nested field contracts/masters, workflow prerequisite/bypass semantics, eligible candidate projections and downstream surgery/follow-up/revenue reports remain tracked in the implementation verification. No release-complete assertion is made.
 
 ## General API conventions
 
@@ -526,3 +545,35 @@ Every applicable create, update, assign, reassign, call, start, draft, complete,
 | 1.1.0 | 15 October 2026 | Implemented and froze Phase 2 context, generic configuration, dedicated station/device/membership, workflow-profile, laterality, permission, scope, pagination, optimistic-concurrency, unique-index and transactional activation contracts. No clinical values were seeded. |
 | 1.0.1-draft | 15 October 2026 | Froze additive Phase 1 concurrency fields: visit, consultation, and clinical-order responses expose `version`; mutation bodies accept `expected_version` and `expected_status`. Existing clients may omit them, while repository compare-and-set still guards the server write. New Ophthalmology clients must send both for updates. Phase 1 visit/consultation finalization and order submission require transaction capability. |
 | 1.0.0-draft | 15 October 2026 | Initial Phase 0 contract from FSD v1.0 and approved DEC-01 through DEC-12. |
+
+
+## 1.12 working-tree additions - 20 October 2026
+
+These additions extend the earlier contract; they do not certify clinical release acceptance.
+
+### Appointment scheduling intent
+
+Existing appointment create/update/read support nullable `ophthalmology`: required `visit_subtype` and `affected_eye`; optional nullable `service_id`, `sub_speciality_configuration_id`, `sub_speciality_code`, `referral_source` and `referred_by`. Catalogue id/code are paired, references must be active and scoped to the selected consultant, and subtype must map to the shared visit type under DEC-02. REVIEW is now supported by Appointment persistence, schemas and shared referral adapters. Updates to specialty intent require the exact original `expected_updated_at`, a SCHEDULED/CONFIRMED appointment, conditional persistence and transactional audit. Ordinary rescheduling preserves intent; destination-doctor changes revalidate it.
+
+`GET /api/appointments/ophthalmology-options?doctor_id=<id>&resource=SERVICES|SUB_SPECIALITIES&page=1&limit=20` uses existing Appointment Booking Create/Edit permission and authoritative branch/department checks. It returns minimal paginated active choices with source doctor/branch/department and `eligible`; prices and clinical rules are not returned. SUB_SPECIALITY configuration options have explicit unique `code`, `label`, `active` and optional `requires_description`; activation needs at least one active option. No choices are seeded.
+
+### Clinical source corrections
+
+The existing controlled amendment endpoint additionally accepts `follow_up_decision` and `treatment_plans`. Corrections validate the exact original before snapshot, preserve existing plan identities, reject foreign/duplicate identities/references and no-ops, reuse draft clinical reference validation and update immutable source versions in the same transaction as the amendment journal/audit. Corrections produce DRAFT clinical source requiring reapproval; they do not mutate pharmacy, procedure, referral or appointment status merely because a plan field changes. Diagnosis/optical source correction coverage beyond existing dedicated workflows remains open.
+
+### Exact result comparisons
+
+FORM_PROFILE may explicitly declare `comparison_units` as a bounded map of safe numeric measurement paths to hospital-approved nonblank unit codes. Staff administration provides structured path/unit rows and preserves historical profile metadata. Comparison controls render these numeric paths with their configured units; no unit defaults or conversions exist.
+
+Progression requires an earlier exact completed version for the same patient, branch and department, a different result record, matching form/schema and exact tested eye, matching VF machine/program/strategy or OCT type/scan set, and identical nonempty unit maps with finite numeric values at each mapped path. Missing units or incompatible protocols reject the claimed comparison with OPHTHALMOLOGY_COMPARISON_INELIGIBLE; NOT_COMPARED remains valid without a prior reference. Outcome remains the clinician's explicit decision.
+
+`GET /api/ophthalmology/test-tasks/:id/result/comparisons?expected_result_version=<saved version>&page=1&limit=20` uses existing Test Queue View permission plus bound task access. It rejects stale source versions and returns task/result/version binding, minimal prior result id/clinical version/date/form/eye, eligibility/reason and pagination. The server counts all scoped earlier completed versions before paging; incompatible rows remain in the page with reasons. It never returns patient identifiers, result payloads, source comments or profile internals. Staff fetches only on explicit open with a matching saved unchanged result; save/completion/amendment revalidate eligibility.
+
+### Report populations
+
+Clinical volume accepts explicit `volume_basis=VISITS`, from authoritative active Ophthalmology departments and non-deleted OPD visits, including visits without contexts/tests. Dates filter visitDate, all statuses remain explicit, and station filters are rejected for VISITS. Legacy omitted basis retains ordered encounters. Minimal rows include doctor/branch/department/date/type/status and linked appointment scheduling subtype/sub-speciality when patient/branch/department/doctor references match. Missing appointment details remain null, not inferred. CSV streams the full same filtered population.
+
+PENDING_REVIEW includes submitted or review-required completed/stale-reviewed tasks only when the exact current result is completed and not reviewed at that version. Dashboard pending counts reuse this population. REPEAT_UNABLE returns current matching tasks with the latest recorded transition reason for that status. Its optional `summary` has basis CURRENT_TASK_STATUS, denominator_tasks, repeat_required_tasks, unable_tasks, and nullable percentage fields. Denominator is all tasks ordered under the same branch/department/station/order-date filters, including cancelled tasks and repeat children; empty denominator yields null percentages. This is not a historical repeat-event rate. CSV exports task rows/reasons, not the live summary. Surgery/follow-up/revenue report integration remains a separate authoritative-domain dependency.
+
+
+Dashboard scope safety: branch snapshots include only active authoritative Ophthalmology departments. Reading or refreshing requires access to every department included in the branch aggregate; partial-scope users use the existing filtered reports. Snapshots persist their department set. Legacy unbound snapshots or changed active department sets return DASHBOARD_NOT_READY until refreshed, rather than exposing an aggregate of unknown scope. Existing Dashboard permissions still apply, and no new grants or indexes are introduced.

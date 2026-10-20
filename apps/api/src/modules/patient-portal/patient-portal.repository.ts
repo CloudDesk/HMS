@@ -18,6 +18,7 @@ import { UserModel } from '../users/user.model.js';
 import { PatientAccessGrantModel, type PatientAccessRelationship } from './patient-access-grant.model.js';
 import { GuardianProfileModel, type GuardianRelationship } from './guardian-profile.model.js';
 import { buildPhoneMongoFilter } from '../../utils/phone.js';
+import { publicOphthalmologyPayload } from '../ophthalmology/ophthalmology-public-payload.js';
 import { OphthalmologyPublicationModel } from '../ophthalmology/ophthalmology-phase10.model.js';
 
 const objectId = (value?: string | null) => (value && Types.ObjectId.isValid(value) ? new Types.ObjectId(value) : undefined);
@@ -1025,7 +1026,7 @@ export class PatientPortalRepository {
       })),
       ophthalmology_publications: ophthalmologyPublications.map((publication) => ({
         id: String(publication._id), source_type: publication.sourceType, source_id: String(publication.sourceId),
-        source_version: publication.sourceVersion, published_at: publication.publishedAt, payload: publication.portalPayload,
+        source_version: publication.sourceVersion, published_at: publication.publishedAt, payload: publicOphthalmologyPayload(publication.sourceType, publication.portalPayload),
       })),
       purchased_medicines: pharmacyItems.flatMap((item) => {
         const invoice = pharmacyInvoiceById.get(String(item.invoiceId));

@@ -76,6 +76,7 @@ const appointmentVisitTypes: ApiAppointmentVisitType[] = [
   'NEW_CONSULTATION',
   'FOLLOW_UP',
   'PROCEDURE',
+  'REVIEW',
   'EMERGENCY',
 ];
 

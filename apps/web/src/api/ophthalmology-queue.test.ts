@@ -30,9 +30,10 @@ describe('ophthalmology queue contracts and transitions', () => {
     expect(queueCommandSchema.safeParse({ action: 'cancel', task_id: id, body: { expected_version: 2, expected_status: 'DRAFT', reason: '   ' } }).success).toBe(false);
     expect(request).not.toHaveBeenCalled();
   });
-  it('never invents a submission action from the enum', () => {
+  it('requires the implemented submission contract rather than an empty enum action', () => {
     expect(queueCommandSchema.safeParse({ action: 'submit-for-review', task_id: id, body: {} }).success).toBe(false);
-    expect(queueActionDefinitions.map((action) => action.action)).not.toContain('submit-for-review');
+    expect(queueActionDefinitions.map((action) => action.action)).toContain('submit-for-review');
+    expect(queueCommandSchema.safeParse({ action: 'submit-for-review', task_id: id, body: { expected_version: 2, expected_status: 'COMPLETED' } }).success).toBe(true);
   });
   it('requires existing next task/station and does not advance unable tasks to a next station', () => {
     const command = { action: 'route', task_id: id, body: { expected_status: 'COMPLETED', expected_version: 7, target: 'NEXT_STATION' } };

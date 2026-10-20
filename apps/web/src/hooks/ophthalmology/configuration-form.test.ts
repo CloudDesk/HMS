@@ -28,4 +28,13 @@ describe('structured clinical configuration editor', () => {
     const edited = configurationEditorValues({ ...baseline, numeric_ranges: [{ path: 'test_distance.value', min: 1, max: null }], allowed_values: [{ path: 'chart_type', kind: 'TEXT', choices: 'QA2' }] }, original.values, baseline);
     expect(edited).toMatchObject({ numeric_ranges: { 'test_distance.value': { min: 1, vendor: 'retain' } }, allowed_values: { opaque: [{ retain: true }], chart_type: ['QA2'] }, iop_thresholds: { opaque: true } });
   });
+  it('roundtrips explicit comparison units without seeding or overwriting unrelated profile metadata', () => {
+    const original = record({ form_type: 'VISUAL_FIELD', schema_version: 'QA', test_codes: ['QA'], vendor: { retain: true }, comparison_units: { 'result_indices.mean_deviation': 'QA_UNIT' } });
+    const baseline = configurationEditorDefaults(original);
+    expect(baseline.comparison_units).toEqual([{ path: 'result_indices.mean_deviation', unit: 'QA_UNIT' }]);
+    expect(configurationEditorValues({ ...baseline, comparison_units: [{ path: 'result_indices.mean_deviation', unit: 'QA_OTHER' }] }, original.values, baseline)).toMatchObject({ vendor: { retain: true }, comparison_units: { 'result_indices.mean_deviation': 'QA_OTHER' } });
+    expect(configurationEditorDefaults(null).comparison_units).toEqual([]);
+    expect(configurationEditorSchema.safeParse({ ...baseline, comparison_units: [{ path: 'result_indices.mean_deviation', unit: '' }] }).success).toBe(false);
+  });
+
 });

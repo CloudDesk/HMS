@@ -1,0 +1,10 @@
+import { z } from 'zod';
+const id = z.string().regex(/^[a-f\d]{24}$/i);
+export const appointmentOphthalmologySchema = z.object({ visit_subtype: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'EMERGENCY', 'POST_OPERATIVE', 'SCREENING', 'PROCEDURE_REVIEW']), affected_eye: z.enum(['OD', 'OS', 'OU', 'NOT_SPECIFIED']),
+  service_id: id.nullable().optional().default(null), sub_speciality_configuration_id: id.nullable().optional().default(null), sub_speciality_code: z.string().trim().min(1).max(80).nullable().optional().default(null), referral_source: z.enum(['INTERNAL', 'EXTERNAL']).nullable().optional().default(null), referred_by: z.string().trim().max(160).nullable().optional().default(null),
+}).strict().superRefine((value, ctx) => { if (Boolean(value.sub_speciality_configuration_id) !== Boolean(value.sub_speciality_code)) ctx.addIssue({ code: 'custom', path: ['sub_speciality_code'], message: 'Select a configured sub-speciality version' }); if (value.referred_by && !value.referral_source) ctx.addIssue({ code: 'custom', path: ['referral_source'], message: 'Choose internal or external referral context' }); });
+export type AppointmentOphthalmologyIntent = z.infer<typeof appointmentOphthalmologySchema>;
+export const appointmentSpecialtyQuerySchema = z.object({ doctor_id: id, resource: z.enum(['SERVICES', 'SUB_SPECIALITIES']), page: z.number().int().positive().default(1), limit: z.number().int().min(1).max(100).default(20) }).strict();
+export type AppointmentSpecialtyQuery = z.infer<typeof appointmentSpecialtyQuerySchema>;
+export const appointmentSpecialtyOptionsSchema = z.object({ doctor_id: id, branch_id: id, department_id: id, eligible: z.boolean(), data: z.array(z.object({ id, code: z.string(), label: z.string() })), meta: z.object({ total: z.number().int().nonnegative(), page: z.number().int().positive(), limit: z.number().int().positive().max(100), totalPages: z.number().int().positive() }) });
+export const appointmentSpecialtyVisitType = { NEW_CONSULTATION: 'NEW_CONSULTATION', FOLLOW_UP: 'FOLLOW_UP', EMERGENCY: 'EMERGENCY', POST_OPERATIVE: 'REVIEW', SCREENING: 'REVIEW', PROCEDURE_REVIEW: 'REVIEW' } as const;

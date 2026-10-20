@@ -1,4 +1,8 @@
-import mongoose, { Types, type ClientSession } from 'mongoose';
+import type { ClinicalCorrection } from './ophthalmology-clinical-correction.js';
+import type { OphthalmologyAssignmentLookupQuery } from './ophthalmology.types.js';
+import mongoose, { Types, type ClientSession, type PipelineStage } from 'mongoose';
+import { publicationDocumentIds, synchronizeAttachmentPublication } from './ophthalmology-phase10.repository.js';
+import { OphthalmologyPublicationModel } from './ophthalmology-phase10.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -519,6 +523,13 @@ export class OphthalmologyRepository {
     return { history_present_illness: item?.historyPresentIllness ?? null, past_history: item?.pastHistory ?? null,
       family_history: item?.familyHistory ?? null, allergies: item?.allergies ?? null };
   }
+  async resolveDepartmentScope(userId: string): Promise<string[] | null> {
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('departmentIds roleIds').lean();
+    if (!user) return [];
+    if (await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null })) return null;
+    return (user.departmentIds ?? []).map((id) => id.toString());
+  }
+
   async eligibleOphthalmologistUserIds(branchId: string, departmentId: string, session?: ClientSession) {
     const permissionQuery = PermissionModel.findOne({ module: 'OPD', screen: 'Ophthalmology Consultation', action: 'View', status: 'active', deletedAt: null }).select('_id');
     if (session) permissionQuery.session(session); const permission = await permissionQuery.lean(); if (!permission) return [];
@@ -565,6 +576,25 @@ export class OphthalmologyRepository {
     const query = OphthalmologyTestTaskModel.findById(oid(id)); if (session) query.session(session);
     const item = await query.lean<TestTaskRecord>(); return item ? toTestTask(item) : null;
   }
+  async priorResultVersions(task: OphthalmologyTestTask, current: OphthalmologyTestResult, page: number, limit: number) {
+    const pipeline: PipelineStage[] = [
+      { $match: { patientId: oid(task.patient_id), branchId: oid(task.branch_id), departmentId: oid(task.department_id), _id: { $ne: oid(current.id) }, 'versions.formType': current.current.form_type } },
+      { $unwind: '$versions' },
+      { $match: { 'versions.status': 'COMPLETED', 'versions.formType': current.current.form_type, 'versions.performedAt': { $lt: current.current.performed_at } } },
+      { $sort: { 'versions.performedAt': -1, _id: 1, 'versions.clinicalVersion': -1 } },
+    ];
+    type Prior = { result_id: string; clinical_version: number; form_type: string; form_schema_version: string; performed_at: Date; payload: Record<string, unknown>; profile: Record<string, unknown> };
+    const [data, counts] = await Promise.all([
+      OphthalmologyTestResultModel.aggregate<Prior>([...pipeline, { $skip: (page - 1) * limit }, { $limit: limit },
+        { $project: { _id: 0, result_id: { $toString: '$_id' }, clinical_version: '$versions.clinicalVersion', form_type: '$versions.formType', form_schema_version: '$versions.formSchemaVersion', performed_at: '$versions.performedAt',
+          payload: { eye: '$versions.payload.eye', machine: '$versions.payload.machine', program: '$versions.payload.program', strategy: '$versions.payload.strategy', oct_type: '$versions.payload.oct_type', requested_scans: '$versions.payload.requested_scans', result_indices: '$versions.payload.result_indices', measurements: '$versions.payload.measurements' },
+          profile: { comparison_units: '$versions.formProfileSnapshot.comparison_units' } } }]),
+      OphthalmologyTestResultModel.aggregate<{ total: number }>([...pipeline, { $count: 'total' }]),
+    ]);
+    const total = counts[0]?.total ?? 0;
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 } };
+  }
+
   async getTestResult(taskId: string, session?: ClientSession) {
     const query = OphthalmologyTestResultModel.findOne({ taskId: oid(taskId) }); if (session) query.session(session);
     const item = await query.lean<TestResultRecord>(); return item ? toTestResult(item) : null;
@@ -684,7 +714,7 @@ export class OphthalmologyRepository {
     return toTestTask(record.toObject<TestTaskRecord>());
   }
   async listTestTasks(query: OphthalmologyTestTaskListQuery, userId: string) {
-    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('branchIds roleIds').lean();
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('branchIds departmentIds roleIds').lean();
     if (!user) return { data: [], meta: pageMeta(0, query.page ?? 1, query.limit ?? 20) };
     const superAdmin = Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null }));
     const branches = query.branch_id ? [oid(query.branch_id)] : (superAdmin ? undefined : user.branchIds ?? []);
@@ -695,7 +725,7 @@ export class OphthalmologyRepository {
       status: 'active', deletedAt: null }) : null;
     const doctors = doctorRole ? await DoctorModel.find({ userId: oid(userId), status: 'ACTIVE', deletedAt: null,
       ...(branches ? { branchId: { $in: branches } } : {}) }).select('branchId departmentId').lean() : [];
-    const visibility: Record<string, unknown>[] = [{ assignedUserId: oid(userId) }, { stationId: { $in: stations.map((station) => station._id) } }];
+    const visibility: Record<string, unknown>[] = [{ createdBy: oid(userId), assignedUserId: null, status: 'ORDERED', departmentId: { $in: user.departmentIds ?? [] } }, { assignedUserId: oid(userId) }, { stationId: { $in: stations.map((station) => station._id) } }];
     for (const doctor of doctors) visibility.push({ doctorReviewRequired: true, branchId: doctor.branchId, departmentId: doctor.departmentId });
     const filter: Record<string, unknown> = { $or: visibility }; if (branches) filter.branchId = { $in: branches };
     if (query.station_id) filter.stationId = oid(query.station_id); if (query.assigned_user_id) filter.assignedUserId = oid(query.assigned_user_id);
@@ -714,8 +744,33 @@ export class OphthalmologyRepository {
   }
   async canViewTestTask(task: OphthalmologyTestTask, userId: string) {
     if (!await this.hasBranchAccess(userId, task.branch_id)) return false; if (task.assigned_user_id === userId) return true;
+    if (task.status === 'ORDERED' && !task.assigned_user_id && await UserModel.exists({ _id: oid(userId), status: 'active', deletedAt: null, departmentIds: oid(task.department_id) })
+      && await OphthalmologyTestTaskModel.exists({ _id: oid(task.id), createdBy: oid(userId) })) return true;
     if (task.station_id && await OphthalmologyStationModel.exists({ _id: oid(task.station_id), status: 'ACTIVE', memberUserIds: oid(userId) })) return true;
     return task.doctor_review_required && (await this.eligibleOphthalmologistUserIds(task.branch_id, task.department_id)).includes(userId);
+  }
+  async listTaskClinicalConfigurations(task: OphthalmologyTestTask, query: { type: 'FORM_PROFILE' | 'OPTICAL_PRODUCT' | 'DRUG_OPTION'; page?: number; limit?: number }) {
+    const filter: Record<string, unknown> = { branchId: oid(task.branch_id), type: query.type, status: 'ACTIVE' };
+    if (query.type === 'FORM_PROFILE') filter['values.test_codes'] = new RegExp(`^${escapeRegex(task.test_code)}$`, 'i');
+    const page = query.page ?? 1; const limit = query.limit ?? 20;
+    const [rows, total] = await Promise.all([OphthalmologyConfigurationModel.find(filter).sort({ code: 1, revision: -1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean<ConfigurationRecord[]>(), OphthalmologyConfigurationModel.countDocuments(filter)]);
+    return { data: rows.map(toConfiguration), meta: pageMeta(total, page, limit) };
+  }
+  async listTaskStations(task: OphthalmologyTestTask, query: OphthalmologyAssignmentLookupQuery) {
+    const filter: Record<string, unknown> = { branchId: oid(task.branch_id), departmentId: oid(task.department_id), status: 'ACTIVE', supportedTestTypes: task.test_code };
+    if (query.search) { const regex = new RegExp(escapeRegex(query.search), 'i'); filter.$or = [{ name: regex }, { code: regex }]; }
+    const page = query.page ?? 1; const limit = query.limit ?? 20;
+    const [rows, total] = await Promise.all([OphthalmologyStationModel.find(filter).sort({ name: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean<StationRecord[]>(), OphthalmologyStationModel.countDocuments(filter)]);
+    return { data: rows.map(toStation), meta: pageMeta(total, page, limit) };
+  }
+  async listTaskAssignees(task: OphthalmologyTestTask, station: OphthalmologyStation, query: OphthalmologyAssignmentLookupQuery) {
+    const permission = await PermissionModel.findOne({ module: 'OPD', screen: 'Ophthalmology Test Queue', action: 'Start', status: 'active', deletedAt: null }).select('_id').lean();
+    const roles = permission ? await RoleModel.find({ permissionIds: permission._id, status: 'active', deletedAt: null }).select('_id').lean() : [];
+    const filter: Record<string, unknown> = { _id: { $in: station.member_user_ids.map(oid) }, roleIds: { $in: roles.map((role) => role._id) }, branchIds: oid(task.branch_id), departmentIds: oid(task.department_id), status: 'active', deletedAt: null };
+    if (query.search) filter.fullName = new RegExp(escapeRegex(query.search), 'i');
+    const page = query.page ?? 1; const limit = query.limit ?? 20;
+    const [rows, total] = await Promise.all([UserModel.find(filter).select('_id fullName').sort({ fullName: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(), UserModel.countDocuments(filter)]);
+    return { data: rows.map((row) => ({ id: row._id.toString(), full_name: row.fullName })), meta: pageMeta(total, page, limit) };
   }
   async eligibleTestAssignee(userId: string, stationId: string, branchId: string, departmentId: string, session?: ClientSession) {
     const stationQuery = OphthalmologyStationModel.exists({ _id: oid(stationId), branchId: oid(branchId), departmentId: oid(departmentId),
@@ -1003,6 +1058,34 @@ export class OphthalmologyRepository {
       { $set: { status: 'AMENDMENT_OPEN', updatedBy: oid(userId) }, $push: { amendmentEpisodes: { _id: new Types.ObjectId(),
         sourceClinicalVersion, reason, status: 'OPEN', openedBy: oid(userId), openedAt: new Date(), changes: [] } }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<FinalizationRecord>(); return record ? toFinalization(record) : null;
+  }
+
+  async correctClinicalReviewSection(visitId: string, expectedVersion: number, correction: ClinicalCorrection, userId: string, session: ClientSession) {
+    const current = await OphthalmologyClinicalReviewModel.findOne({ visitId: oid(visitId), version: expectedVersion }).session(session).lean<ClinicalReviewRecord>();
+    const previous = current?.versions.find((version) => version.clinicalVersion === current.currentClinicalVersion);
+    if (!current || !previous) return null;
+    const next: OphthalmologyClinicalReviewVersionFields = { ...previous, clinicalVersion: current.currentClinicalVersion + 1,
+      ...(correction.section === 'patient_instructions' ? { patientInstructions: correction.after_value?.trim() || null } :
+        correction.section === 'clinical_summary' ? { clinicalSummary: correction.after_value } :
+        correction.section === 'follow_up_decision' ? { followUpDecision: correction.after_value } :
+        { treatmentPlans: correction.after_value.map((plan) => ({ _id: plan.id ? oid(plan.id) : new Types.ObjectId(),
+          diagnosisCode: plan.diagnosis_code, diagnosisLaterality: plan.diagnosis_laterality, treatment: plan.treatment, category: plan.category,
+          priority: plan.priority, status: plan.status, medicationPrescriptionId: plan.medication_prescription_id ? oid(plan.medication_prescription_id) : null,
+          clinicalOrderIds: plan.clinical_order_ids.map(oid), procedureRecommendationId: plan.procedure_recommendation_id ? oid(plan.procedure_recommendation_id) : null,
+          referralId: plan.referral_id ? oid(plan.referral_id) : null, followUpId: plan.follow_up_id ? oid(plan.follow_up_id) : null, clinicianUserId: oid(userId) })) }),
+      createdBy: oid(userId), createdAt: new Date() };
+    const record = await OphthalmologyClinicalReviewModel.findOneAndUpdate({ _id: current._id, version: expectedVersion },
+      { $set: { status: 'DRAFT', currentClinicalVersion: next.clinicalVersion, updatedBy: oid(userId) },
+        $push: { versions: next }, $inc: { version: 1 } }, { returnDocument: 'after', lean: true, session }).lean<ClinicalReviewRecord>();
+    return record ? toClinicalReview(record) : null;
+  }
+
+  async withdrawConsultationPublications(contextId: string, reason: string, userId: string, session: ClientSession) {
+    const sources = await OphthalmologyPublicationModel.find({ contextId: oid(contextId), status: 'APPROVED_FOR_PORTAL', sourceType: 'TEST_RESULT' }).select('patientId portalPayload').session(session).lean();
+    const result = await OphthalmologyPublicationModel.updateMany({ contextId: oid(contextId), status: 'APPROVED_FOR_PORTAL' },
+      { $set: { status: 'WITHDRAWN', withdrawnBy: oid(userId), withdrawnAt: new Date(), withdrawalReason: reason }, $inc: { version: 1 } }, { session });
+    for (const source of sources) await synchronizeAttachmentPublication(source.patientId.toString(), publicationDocumentIds(source.portalPayload), session);
+    return result.modifiedCount;
   }
 
   async appendAmendment(finalizationId: string, expectedVersion: number, episodeId: string, change: { section: string;

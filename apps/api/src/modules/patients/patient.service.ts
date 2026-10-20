@@ -276,7 +276,7 @@ export class PatientService {
     if (query.visit_id && !Types.ObjectId.isValid(query.visit_id)) {
       throw new AppError('OPD visit id is invalid', 400, 'VALIDATION_ERROR');
     }
-    return this.repository.listDocuments(patientId, query);
+    return this.repository.listDocuments(patientId, query, true);
   }
 
   async uploadDocumentForPortal(patientId: string, data: UploadPatientDocumentDTO, userId: string) {
@@ -315,7 +315,9 @@ export class PatientService {
 
   async downloadDocumentForPortal(patientId: string, documentId: string) {
     const document = await this.getActiveDocument(patientId, documentId);
+    if (!await this.repository.isDocumentVisibleInPortal(patientId, documentId)) throw new AppError('Patient document not found', 404, 'NOT_FOUND');
     const storedFile = await this.documentStorage.download(document.storage_key);
+    if (!await this.repository.isDocumentVisibleInPortal(patientId, documentId)) throw new AppError('Patient document not found', 404, 'NOT_FOUND');
     return { document, data: storedFile.data, contentType: storedFile.contentType ?? document.mime_type };
   }
 

@@ -72,6 +72,46 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
     'phase4-create-001', userId)).rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT' });
   });
 
+  it('exposes only the task encounter header and matching active clinical profiles', async () => {
+    const task = await create(); await OpdVisitModel.updateOne({ _id: visitId }, { $set: { notes: 'Private generic note' } });
+    const header = await service.getTaskWorkspace(task.id, userId); expect(header.visit.id).toBe(visitId); expect(header.visit).not.toHaveProperty('notes');
+    for (const [code, testCodes] of [['MATCH', ['visual_acuity']], ['OTHER', ['OTHER_TEST']]] as const) await OphthalmologyConfigurationModel.create({ branchId, type: 'FORM_PROFILE', code, name: code, revision: 1, status: 'ACTIVE', values: { form_type: 'VISUAL_ACUITY', schema_version: '1.0', test_codes: testCodes }, version: 0, createdBy: userId, updatedBy: userId });
+    const profiles = await service.listTaskClinicalConfigurations(task.id, { type: 'FORM_PROFILE', page: 1, limit: 1 }, userId);
+    expect(profiles.meta.total).toBe(1); expect(profiles.data[0]?.code).toBe('MATCH');
+    await UserModel.updateOne({ _id: userId }, { $set: { departmentIds: [] } });
+    await expect(service.getTaskWorkspace(task.id, userId)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.listTaskClinicalConfigurations(task.id, { type: 'FORM_PROFILE' }, userId)).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('returns scoped station/device metadata and only eligible assignees before pagination', async () => {
+    const task = await create(); const actor = await UserModel.findById(userId).lean();
+    const eligible = await UserModel.create({ username: 'eligible', fullName: 'Second Technician', email: 'second@example.test', passwordHash: 'unused', roleIds: actor!.roleIds, branchIds: [branchId], departmentIds: [departmentId], status: 'active' });
+    const ineligible = await UserModel.create({ username: 'ineligible', fullName: 'No Start Permission', email: 'hidden@example.test', passwordHash: 'unused', roleIds: [], branchIds: [branchId], departmentIds: [departmentId], status: 'active' });
+    await OphthalmologyStationModel.updateOne({ _id: stationId }, { $addToSet: { memberUserIds: { $each: [eligible._id, ineligible._id] } } });
+    const stations = await service.listAssignmentStations(task.id, { page: 1, limit: 1 }, userId);
+    expect(stations.meta.total).toBe(1); expect(stations.data[0]).not.toHaveProperty('member_user_ids');
+    expect(await service.getAssignmentStation(task.id, stationId, {}, userId)).toMatchObject({ actor_eligible: true, devices: [{ code: 'ETDRS' }] });
+    const first = await service.listAssignmentMembers(task.id, { station_id: stationId, page: 1, limit: 1 }, userId);
+    const second = await service.listAssignmentMembers(task.id, { station_id: stationId, page: 2, limit: 1 }, userId);
+    expect(first.meta.total).toBe(2); expect(second.meta.total).toBe(2);
+    expect(new Set([...first.data, ...second.data].map((row) => row.id))).toEqual(new Set([userId, eligible.id]));
+    expect(Object.keys(first.data[0] ?? {}).sort()).toEqual(['full_name', 'id']);
+    await UserModel.updateOne({ _id: eligible._id }, { $set: { status: 'inactive' } });
+    expect((await service.listAssignmentMembers(task.id, { station_id: stationId }, userId)).meta.total).toBe(1);
+    await expect(service.assignTestTask(task.id, { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: ineligible.id }, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_ASSIGNMENT_DENIED' });
+  });
+  it('rejects incompatible stations, foreign target encounters and unauthorized department lookups', async () => {
+    const task = await create();
+    await OphthalmologyStationModel.updateOne({ _id: stationId }, { $set: { supportedTestTypes: ['OTHER_TEST'] } });
+    expect((await service.listAssignmentStations(task.id, {}, userId)).meta.total).toBe(0);
+    await expect(service.getAssignmentStation(task.id, stationId, {}, userId)).rejects.toMatchObject({ statusCode: 404 });
+    const raw = await OphthalmologyTestTaskModel.findById(task.id).lean();
+    const target = await OphthalmologyTestTaskModel.create({ ...raw, _id: new Types.ObjectId(), contextId: new Types.ObjectId(), idempotencyKey: 'foreign-context' });
+    await expect(service.listAssignmentStations(task.id, { target_task_id: target.id }, userId)).rejects.toMatchObject({ statusCode: 409 });
+    await UserModel.updateOne({ _id: userId }, { $set: { departmentIds: [] } });
+    await expect(service.listAssignmentStations(task.id, {}, userId)).rejects.toMatchObject({ statusCode: 403 });
+  });
+
   it('enforces exact versions while assigning, calling, and starting with an eligible device', async () => {
     const task = await create(); const assigned = await service.assignTestTask(task.id,
       { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
@@ -80,6 +120,12 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
     const called = await service.callTestTask(task.id, { expected_status: 'PATIENT_WAITING', expected_version: assigned.version }, userId);
     const started = await service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version, device_code: 'ETDRS' }, userId);
     expect(started).toMatchObject({ status: 'IN_PROGRESS', device_code: 'ETDRS', assigned_user_id: userId, version: 3 });
+  });
+
+  it('lets a scoped creator discover its own unassigned order without exposing it to other department users', async () => {
+    const task = await create('unassigned-discovery');
+    expect((await service.listTestTasks({ branch_id: branchId }, userId)).data.map((row) => row.id)).toContain(task.id);
+    expect(await service.getTestTask(task.id, userId)).toMatchObject({ id: task.id, status: 'ORDERED' });
   });
 
   it('allows only one concurrent assignment and scopes the queue to station members', async () => {
