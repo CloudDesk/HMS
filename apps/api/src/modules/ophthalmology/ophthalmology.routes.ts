@@ -322,13 +322,23 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
   }, async (request) => ok(await services.ophthalmology.amendConsultation(request.params.visitId, request.body, request.user!.id, metadata(request))));
 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/context', {
-    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'View' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'View' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Optical Prescription', action: 'View' },
+    ]), schema: { params: ophthalmologyVisitParamsSchema },
   }, async (request) => ok(await services.ophthalmology.getContext(request.params.visitId, request.user!.id)));
   app.post<{ Params: VisitParams; Body: CreateOphthalmologyContextDTO }>('/api/opd/visits/:visitId/ophthalmology/context', {
-    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'Edit'), schema: { params: ophthalmologyVisitParamsSchema, body: createOphthalmologyContextBodySchema },
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'Edit' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Edit' },
+    ]), schema: { params: ophthalmologyVisitParamsSchema, body: createOphthalmologyContextBodySchema },
   }, async (request, reply) => reply.status(201).send(ok(await services.ophthalmology.createContext(request.params.visitId, request.body, request.user!.id, metadata(request)))));
   app.patch<{ Params: VisitParams; Body: UpdateOphthalmologyContextDTO }>('/api/opd/visits/:visitId/ophthalmology/context', {
-    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'Edit'), schema: { params: ophthalmologyVisitParamsSchema, body: updateOphthalmologyContextBodySchema },
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'Edit' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Edit' },
+    ]), schema: { params: ophthalmologyVisitParamsSchema, body: updateOphthalmologyContextBodySchema },
   }, async (request) => ok(await services.ophthalmology.updateContext(request.params.visitId, request.body, request.user!.id, metadata(request))));
 
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/intake', {
@@ -351,8 +361,15 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     schema: { params: ophthalmologyVisitAlertParamsSchema, body: acknowledgeOphthalmologyAlertBodySchema },
   }, async (request) => ok(await services.ophthalmology.acknowledgeAlert(request.params.visitId, request.params.id, request.body, request.user!.id, metadata(request))));
 
+  const configReadPermissions = [
+    { moduleName: 'OPD', screen: 'Ophthalmology Configuration', action: 'View' },
+    { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'View' },
+    { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'View' },
+    { moduleName: 'OPD', screen: 'OPD Visits', action: 'View' },
+  ];
+
   app.get<{ Querystring: OphthalmologyConfigurationListQuery }>('/api/ophthalmology/configurations', {
-    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Configuration', 'View'), schema: { querystring: ophthalmologyConfigurationListQuerySchema },
+    preHandler: requireAnyPermission(services, configReadPermissions), schema: { querystring: ophthalmologyConfigurationListQuerySchema },
   }, async (request) => ok(await services.ophthalmology.listConfigurations(request.query, request.user!.id)));
   app.post<{ Body: CreateOphthalmologyConfigurationDTO }>('/api/ophthalmology/configurations', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Configuration', 'Create'), schema: { body: createOphthalmologyConfigurationBodySchema },
@@ -384,7 +401,7 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
   }, async (request) => ok(await services.ophthalmology.deactivateStation(request.params.id, request.body, request.user!.id, metadata(request))));
 
   app.get<{ Querystring: OphthalmologyWorkflowProfileListQuery }>('/api/ophthalmology/workflow-profiles', {
-    preHandler: requirePermission(services, 'OPD', 'Ophthalmology Configuration', 'View'), schema: { querystring: ophthalmologyWorkflowProfileListQuerySchema },
+    preHandler: requireAnyPermission(services, configReadPermissions), schema: { querystring: ophthalmologyWorkflowProfileListQuerySchema },
   }, async (request) => ok(await services.ophthalmology.listWorkflowProfiles(request.query, request.user!.id)));
   app.get<{ Params: IdParams }>('/api/ophthalmology/workflow-profiles/:id', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Configuration', 'View'), schema: { params: ophthalmologyIdParamsSchema },

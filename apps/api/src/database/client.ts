@@ -15,6 +15,9 @@ export const connectDatabase = async () => {
     setServers(env.database.dnsServers);
   }
 
+  mongoose.set('autoCreate', false);
+  mongoose.set('autoIndex', false);
+
   await mongoose.connect(env.database.url, {
     maxPoolSize: env.database.poolSize,
     serverSelectionTimeoutMS: env.database.connectTimeoutSeconds * 1000,

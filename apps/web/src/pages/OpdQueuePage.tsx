@@ -88,11 +88,22 @@ export function OpdQueuePage() {
     setPage(1);
   }, [filters]);
 
+  const isOphthalmology = (v: OpdVisitResponse) => {
+    const dept = departments.find((d) => d.id === v.department_id);
+    const deptName = dept?.name?.toLowerCase() ?? '';
+    const spec = v.doctor_specialization?.toLowerCase() ?? '';
+    return deptName.includes('ophthalmolog') || spec.includes('ophthalmolog');
+  };
+
   const startConsultation = async (visit: OpdVisitResponse) => {
     if (!canEditVisit) return;
     try {
       await updateVisitStatus({ id: visit.id, payload: { status: 'IN_CONSULTATION' } });
-      navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
+      if (isOphthalmology(visit)) {
+        navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}`);
+      } else {
+        navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`);
+      }
     } catch (updateError) {
       toast.error(getOpdErrorMessage(updateError));
     }
@@ -155,7 +166,7 @@ export function OpdQueuePage() {
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
                   <td><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
                     {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED') && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
-                    {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`)} type="button">Consultation</button> : null}
+                    {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => { if (isOphthalmology(visit)) { navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}`); } else { navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`); } }} type="button">Consultation</button> : null}
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
                   </div></td>
                 </tr>

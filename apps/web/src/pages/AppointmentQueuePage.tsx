@@ -100,6 +100,13 @@ export function AppointmentQueuePage() {
     }
   } = useAppointmentQueueFeature();
 
+  const isOphthalmologyVisit = (v: OpdVisitResponse) => {
+    const dept = departments.find((d) => d.id === v.department_id);
+    const deptName = dept?.name?.toLowerCase() ?? '';
+    const spec = v.doctor_specialization?.toLowerCase() ?? '';
+    return deptName.includes('ophthalmolog') || spec.includes('ophthalmolog');
+  };
+
   useEffect(() => {
     const latest = callNotifications[0];
     if (!latest || latest.id === lastCallNotificationId.current) return;
@@ -371,7 +378,7 @@ export function AppointmentQueuePage() {
                             <button
                               className="doc-btn primary compact"
                               disabled={updating}
-                              onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
+                              onClick={() => navigate(isOphthalmologyVisit(linkedVisit) ? `/opd/ophthalmology?visit_id=${encodeURIComponent(linkedVisit.id)}` : `/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
                               title="Start consultation"
                               type="button"
                             >
@@ -382,7 +389,7 @@ export function AppointmentQueuePage() {
                           {isInConsultationAvailable && linkedVisit ? (
                             <button
                               className="doc-btn primary compact"
-                              onClick={() => navigate(`/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
+                              onClick={() => navigate(isOphthalmologyVisit(linkedVisit) ? `/opd/ophthalmology?visit_id=${encodeURIComponent(linkedVisit.id)}` : `/opd/consultation?id=${encodeURIComponent(linkedVisit.id)}`)}
                               title="Open consultation"
                               type="button"
                             >

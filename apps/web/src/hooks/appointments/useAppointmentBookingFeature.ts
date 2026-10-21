@@ -11,6 +11,8 @@ import { useTimezone } from '../../api/useSettings';
 import { fromZonedTime } from 'date-fns-tz';
 import { useQueryClient } from '@tanstack/react-query';
 import { appointmentsKeys } from './useAppointments';
+import { appointmentSpecialtyQuerySchema } from '../../api/appointments-ophthalmology';
+import { useAppointmentSpecialtyOptions } from './useAppointmentSpecialty';
 
 export function useAppointmentBookingFeature(
   initialPatientId: string,
@@ -29,7 +31,6 @@ export function useAppointmentBookingFeature(
   const specialtyChoices = useAppointmentSpecialtyOptions(lookup.success ? { ...lookup.data, resource: 'SUB_SPECIALITIES' } : null, canSpecialty && specialtyOptions.open);
   const specialtyReady = canSpecialty && Boolean(specialtyServices.isSuccess && !specialtyServices.isError && !specialtyServices.isFetching && specialtyServices.data?.doctor_id === selectedDoctorId && specialtyServices.data.eligible && specialtyChoices.isSuccess && !specialtyChoices.isError && !specialtyChoices.isFetching && specialtyChoices.data?.doctor_id === selectedDoctorId && specialtyChoices.data.eligible);
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const canViewDepartments = isSuperAdministrator(user?.roles ?? []) || hasPermission(
     user?.permissions ?? [], { module: 'Administration', screen: 'Departments', action: 'View' },
   );
@@ -115,6 +116,9 @@ export function useAppointmentBookingFeature(
 
   return {
     state: {
+      specialtyServices,
+      specialtyChoices,
+      specialtyReady,
       departments: departmentData?.data ?? [],
       initialPatientData,
       referral,

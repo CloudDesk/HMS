@@ -1,34 +1,89 @@
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createContextSchema, subtypeSchema, type OphthalmologyAlert } from '../api/ophthalmology';
+import type { OphthalmologyAlert } from '../api/ophthalmology';
 import { useOphthalmologyWorkspaceFeature, type OphthalmologyWorkspaceFeature } from '../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 import { OphthalmologyIntakeForm } from '../components/ophthalmology/OphthalmologyIntakeForm';
 import { OphthalmologyTestsWorkspace } from '../components/ophthalmology/OphthalmologyTestsWorkspace';
 import '../styles/ophthalmology.css';
-import { useOphthalmologyDraftGuard } from '../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { OphthalmologyCompletionWorkspace } from '../components/ophthalmology/OphthalmologyCompletionWorkspace';
 import { OphthalmologyCareWorkspace } from '../components/ophthalmology/OphthalmologyCareWorkspace';
 import { OphthalmologyContextEditor } from '../components/ophthalmology/OphthalmologyContextEditor';
 
 function ActivateContext({ feature: f }: { feature: OphthalmologyWorkspaceFeature }) {
-  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<z.infer<typeof createContextSchema>>({ resolver: zodResolver(createContextSchema), defaultValues: { ...(f.subtypeSelected ? { visit_subtype: f.subtype } : {}), configuration_version_id: '', workflow_profile_version_id: '' } });
-  useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'subtype']);
-  return <form className="doc-card" onSubmit={handleSubmit(async (body) => { await f.create(body); })}><h3>Activate ophthalmology for this encounter</h3><p>Select approved branch configuration. The server checks specialty, visit type and workflow compatibility.</p>
-    {!f.canConfigure && <p role="status">Configuration View permission is required to select approved profiles.</p>}
-    <fieldset className="oph-fieldset" disabled={!f.canEdit || !f.canConfigure || f.busy}>
-      <div className="doc-form-grid two"><label className="doc-field"><span>Visit subtype <span className="oph-required">*</span></span><select {...register('visit_subtype')} onChange={(event) => f.setQuery('subtype', event.target.value)}><option value="">Select compatible subtype</option>{subtypeSchema.options.map((subtype) => <option key={subtype} disabled={!f.availableSubtypes.includes(subtype)}>{subtype}</option>)}</select></label>
-        <label className="doc-field">Affected eye <span className="oph-required">*</span><select {...register('affected_eye')}><option value="">Select</option>{['OD', 'OS', 'OU', 'NOT_SPECIFIED'].map((eye) => <option key={eye}>{eye}</option>)}</select></label>
-        <label className="doc-field">Completion profile <span className="oph-required">*</span><select {...register('configuration_version_id')}><option value="">Select approved version</option>{f.completions.map((item) => <option key={item.id} value={item.id}>{item.name} · revision {item.revision}</option>)}</select></label>
-        <label className="doc-field">Workflow profile <span className="oph-required">*</span><select {...register('workflow_profile_version_id')}><option value="">Select approved version</option>{f.workflows.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+  const defaultSubtype = f.subtypeSelected ? f.subtype : f.availableSubtypes[0] ?? 'NEW_CONSULTATION';
+  const defaultCompletion = f.completions.find((item) => item.status === 'ACTIVE') ?? f.completions[0];
+  const defaultWorkflow = f.workflows.find((item) => item.status === 'ACTIVE') ?? f.workflows[0];
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (autoStarted.current) return;
+    if (defaultCompletion?.id && defaultWorkflow?.id && defaultSubtype && f.canEdit && !f.busy && !f.actionError) {
+      autoStarted.current = true;
+      void f.create({
+        visit_subtype: defaultSubtype,
+        affected_eye: 'OU',
+        configuration_version_id: defaultCompletion.id,
+        workflow_profile_version_id: defaultWorkflow.id,
+      });
+    }
+  }, [defaultCompletion, defaultWorkflow, defaultSubtype, f]);
+
+  const hasLoadedProfiles = Boolean(defaultCompletion && defaultWorkflow);
+  const isLoading = f.busy || f.completionQuery.isLoading || f.workflowsQuery.isLoading || (hasLoadedProfiles && !f.actionError);
+
+  if (isLoading) {
+    return (
+      <div className="doc-card" style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+        <MedicalLoader
+          text="Opening ophthalmology consultation..."
+          subtext="Setting up clinical workspace for this encounter"
+        />
       </div>
-      {[f.completionQuery, f.workflowsQuery].some((query) => query.isLoading) && <p role="status">Loading profiles…</p>}
-      {[f.completionQuery, f.workflowsQuery].some((query) => query.isError) && <p role="alert">Profiles could not be loaded. <button type="button" className="doc-btn" onClick={() => { void f.completionQuery.refetch(); void f.workflowsQuery.refetch(); }}>Retry</button></p>}
-      {Object.entries(errors).map(([name, error]) => <p role="alert" key={name}>{name.replaceAll('_', ' ')}: {error.message}</p>)}
-      <div className="oph-toolbar"><button type="button" className="doc-btn" disabled={f.configurationPage <= 1} onClick={() => f.setQuery('configuration_page', String(f.configurationPage - 1))}>Previous profiles</button><span>Page {f.configurationPage}</span><button type="button" className="doc-btn" disabled={f.configurationPage >= Math.max(f.completionQuery.data?.meta.totalPages ?? 0, f.workflowsQuery.data?.meta.totalPages ?? 0)} onClick={() => f.setQuery('configuration_page', String(f.configurationPage + 1))}>Next profiles</button><button className="doc-btn primary" type="submit">Activate encounter</button></div>
-    </fieldset>
-  </form>;
+    );
+  }
+
+  return (
+    <div className="doc-card" style={{ padding: '2rem 1.5rem' }}>
+      <h3>Ophthalmology Consultation Setup</h3>
+      <p>Could not automatically initialize the consultation workspace.</p>
+      {f.actionError && <p className="form-error-banner" role="alert">{f.actionError}</p>}
+      {(f.completionQuery.isError || f.workflowsQuery.isError) && (
+        <p className="form-error-banner" role="alert">
+          Master clinical profiles could not be loaded.
+          <button type="button" className="doc-btn" onClick={() => { void f.completionQuery.refetch(); void f.workflowsQuery.refetch(); }}>
+            Retry loading profiles
+          </button>
+        </p>
+      )}
+      {!hasLoadedProfiles && !f.completionQuery.isLoading && !f.workflowsQuery.isLoading && (
+        <p className="form-error-banner" role="alert">
+          No active completion or workflow profile found for this branch. Please ensure master profiles are published in Ophthalmology Configuration.
+        </p>
+      )}
+      {hasLoadedProfiles && f.actionError && (
+        <button
+          type="button"
+          className="doc-btn primary"
+          onClick={() => {
+            autoStarted.current = false;
+            void f.create({
+              visit_subtype: defaultSubtype,
+              affected_eye: 'OU',
+              configuration_version_id: defaultCompletion!.id,
+              workflow_profile_version_id: defaultWorkflow!.id,
+            });
+          }}
+        >
+          Retry opening consultation
+        </button>
+      )}
+    </div>
+  );
 }
+
 const acknowledgementSchema = z.object({ note: z.string().trim().max(1000) });
 function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feature: OphthalmologyWorkspaceFeature }) {
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof acknowledgementSchema>>({ resolver: zodResolver(acknowledgementSchema), defaultValues: { note: '' } });
@@ -36,6 +91,7 @@ function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feat
     {alert.status === 'ACKNOWLEDGED' ? <p>Acknowledged {alert.acknowledged_at ? new Date(alert.acknowledged_at).toLocaleString() : ''} · actor {alert.acknowledged_by} · {alert.acknowledgement_note || 'No note'}</p> : f.canEscalate && <form onSubmit={handleSubmit(async ({ note }) => { if (window.confirm('Acknowledge this emergency alert? The server requires an eligible ophthalmologist.')) await f.alert(alert, 'acknowledge', note || null); })}><fieldset disabled={f.busy || f.intakeQuery.isError} className="oph-fieldset"><label className="doc-field">Acknowledgement note<textarea {...register('note')} maxLength={1000} /></label>{errors.note && <p role="alert">{errors.note.message}</p>}<div className="oph-toolbar"><button type="button" className="doc-btn" onClick={() => void f.alert(alert, 'route', null)}>Retry clinician routing</button><button type="submit" className="doc-btn">Acknowledge alert</button></div></fieldset></form>}
   </section>;
 }
+
 export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
   if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Intake with OPD Visits View, or dedicated Consultation/Optical Prescription View is required.</div>;

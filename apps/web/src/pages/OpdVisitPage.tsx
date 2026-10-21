@@ -504,6 +504,15 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
   const navigateAway = (path: string) => { if (confirmLeave()) navigate(path); };
 
   useEffect(() => {
+    if (visit && visit.doctor_specialization?.toLowerCase().includes('ophthalmolog')) {
+      const search = new URLSearchParams(window.location.search);
+      if (!search.get('tab') && !search.get('specialty') && !search.get('no_redirect')) {
+        navigate(`/opd/ophthalmology?visit_id=${visit.id}`, { replace: true });
+      }
+    }
+  }, [visit]);
+
+  useEffect(() => {
     setVitalsForm(vitalsFormFromRecord(vitals));
   }, [vitals]);
 
@@ -990,7 +999,7 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
           </button>
         </div>
         <div className="opd-page-actions">
-          {visit && feature.state.canOpenOphthalmology && <button className="doc-btn" type="button" onClick={() => navigateAway(`/opd/ophthalmology?visit_id=${visit.id}`)}>Ophthalmology intake</button>}
+          {visit && feature.state.canOpenOphthalmology && <button className="doc-btn" type="button" onClick={() => navigateAway(`/opd/ophthalmology?visit_id=${visit.id}`)}><i className="ph ph-eye" aria-hidden="true" style={{ marginRight: '0.4rem' }} />Ophthalmology Consultation</button>}
           <button
             className="doc-btn primary"
             disabled={!visit || visit.status !== 'COMPLETED' || updating === 'call-next'}

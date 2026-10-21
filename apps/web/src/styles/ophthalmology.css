@@ -25,3 +25,27 @@
 @media (max-width: 640px) { .oph-workspace .doc-form-grid.two { grid-template-columns: 1fr; } .oph-workspace .doc-card { padding: 14px; } }
 
 .oph-attachment-metadata { overflow-wrap: anywhere; }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .oph-printable, .oph-printable * {
+    visibility: visible;
+  }
+  .oph-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .oph-no-print {
+    display: none !important;
+  }
+}

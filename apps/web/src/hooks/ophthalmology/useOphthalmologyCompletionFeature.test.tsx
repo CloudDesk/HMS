@@ -19,7 +19,17 @@ vi.mock('../../routing/navigation', () => ({ navigate: vi.fn(), useAppLocation: 
 vi.mock('../doctors/useDoctors', () => ({ useDoctorsList: (...args: unknown[]) => state.query('doctors', args) }));
 vi.mock('../opd/useOpd', () => ({ useOpdClinicalOrder: (...args: unknown[]) => state.query(`order-${args[1]}`, args) }));
 vi.mock('./useOphthalmology', () => ({ useOphthalmologyTasks: (...args: unknown[]) => state.query('tasks', args) }));
-vi.mock('./useOphthalmologyCompletion', () => ({ useOphthalmologyReadiness: (...args: unknown[]) => state.query('readiness', args), useOphthalmologyCompletionHistory: (...args: unknown[]) => state.query('history', args), useOphthalmologyCompletionMutations: () => ({ defer: { isPending: false, mutateAsync: state.mutation }, override: { isPending: false, mutateAsync: state.mutation } }) }));
+vi.mock('./useOphthalmologyCompletion', () => ({
+  useOphthalmologyReadiness: (...args: unknown[]) => state.query('readiness', args),
+  useOphthalmologyCompletionHistory: (...args: unknown[]) => state.query('history', args),
+  useOphthalmologyCompletionMutations: () => ({ defer: { isPending: false, mutateAsync: state.mutation }, override: { isPending: false, mutateAsync: state.mutation } }),
+  useOphthalmologySummary: (...args: unknown[]) => state.query('summary', args),
+  useOphthalmologyFinalizationMutations: () => ({ complete: { isPending: false, mutateAsync: state.mutation }, reopen: { isPending: false, mutateAsync: state.mutation }, amend: { isPending: false, mutateAsync: state.mutation } }),
+}));
+vi.mock('./useOphthalmologyPublications', () => ({
+  useOphthalmologyPublications: (...args: unknown[]) => state.query('publications', args),
+  useOphthalmologyPublicationMutations: () => ({ publish: { isPending: false, mutateAsync: state.mutation }, withdraw: { isPending: false, mutateAsync: state.mutation } }),
+}));
 import { useOphthalmologyCompletionFeature, type CompletionWorkspace } from './useOphthalmologyCompletionFeature';
 describe('B5 scoped metadata and authorized exception gates', () => {
   let root: Root; let container: HTMLDivElement; let feature: ReturnType<typeof useOphthalmologyCompletionFeature>;

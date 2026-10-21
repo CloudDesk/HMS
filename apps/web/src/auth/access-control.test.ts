@@ -69,12 +69,32 @@ describe('staff route access control', () => {
       .find((module) => module.key === 'administration');
 
     expect(administration?.links).toEqual([
-      { href: '/administration/medicines', label: 'Medicine Master' },
+      { href: '/administration/medicines', label: 'Medicine Master', icon: 'ph-pill' },
     ]);
     expect(canAccessRoute('/administration/users', permissions)).toBe(false);
     expect(canAccessRoute('/administration', permissions)).toBe(false);
   });
 
+
+  it('hides configured department modules from doctors', () => {
+    const permissions = [
+      permission('Administration', 'Medicines'),
+      permission('Emergency', 'Encounters'),
+    ];
+    const roles = [{ id: 'r1', code: 'DOCTOR', name: 'Doctor' }];
+    const departments = [
+      {
+        id: 'd1',
+        code: 'OPT',
+        name: 'Ophthalmology',
+        hiddenModules: ['administration'],
+      },
+    ];
+
+    const modules = getAccessibleSidebarModules(permissions, roles, departments);
+    expect(modules.some((m) => m.key === 'administration')).toBe(false);
+    expect(modules.some((m) => m.key === 'emergency')).toBe(true);
+  });
   it('allows the shared Surgery workspace when any independently rendered section is viewable', () => {
     expect(canAccessRoute('/surgery', [permission('Surgery', 'Bookings')])).toBe(true);
     expect(canAccessRoute('/surgery', [permission('Surgery', 'Schedule')])).toBe(true);

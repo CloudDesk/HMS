@@ -41,6 +41,10 @@ export const amendmentWriteSchema = z.discriminatedUnion('section', [
 export type CompleteWrite = z.infer<typeof completeWriteSchema>;
 export type ReopenWrite = z.infer<typeof reopenWriteSchema>;
 export type AmendmentWrite = z.infer<typeof amendmentWriteSchema>;
+export type ConsultationSummaryData = {
+  finalization: Finalization | null;
+  summary: Record<string, unknown>;
+};
 const path = (visitId: string) => `/opd/visits/${id.parse(visitId)}/ophthalmology`;
 export const ophthalmologyCompletionApi = {
   complete: async (visitId: string, body: CompleteWrite, key: string) => finalizationSchema.parse(await apiClient.request<unknown>(`${path(visitId)}/complete`, { method: 'POST', headers: { 'Idempotency-Key': z.string().min(8).max(200).parse(key) }, body: completeWriteSchema.parse(body) })),
@@ -48,6 +52,7 @@ export const ophthalmologyCompletionApi = {
   amend: async (visitId: string, body: AmendmentWrite) => finalizationSchema.parse(await apiClient.request<unknown>(`${path(visitId)}/amendments`, { method: 'POST', body: amendmentWriteSchema.parse(body) })),
   readiness: async (visitId: string, signal?: AbortSignal) => readinessSchema.parse(await apiClient.request<unknown>(`${path(visitId)}/completion-readiness`, { signal })),
   history: async (visitId: string, signal?: AbortSignal) => finalizationSchema.nullable().parse(await apiClient.request<unknown>(`${path(visitId)}/completion-history`, { signal })),
+  summary: async (visitId: string, signal?: AbortSignal) => apiClient.request<{ finalization: Finalization | null; summary: Record<string, unknown> }>(`${path(visitId)}/summary`, { signal }),
   defer: async (visitId: string, body: DeferralWrite) => finalizationSchema.parse(await apiClient.request<unknown>(`${path(visitId)}/result-deferrals`, { method: 'POST', body: deferralWriteSchema.parse(body) })),
   override: async (visitId: string, body: OverrideWrite) => finalizationSchema.parse(await apiClient.request<unknown>(`${path(visitId)}/completion-overrides`, { method: 'POST', body: overrideWriteSchema.parse(body) })),
 };

@@ -9,6 +9,7 @@ const nullableText = (max: number) => z.string().max(max).nullable();
 export const eyeSchema = z.enum(['OD', 'OS', 'OU', 'NOT_APPLICABLE']);
 export const contextEyeSchema = z.enum(['OD', 'OS', 'OU', 'NOT_SPECIFIED']);
 export const subtypeSchema = z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'EMERGENCY', 'POST_OPERATIVE', 'SCREENING', 'PROCEDURE_REVIEW']);
+export type OphthalmologyVisitSubtype = z.infer<typeof subtypeSchema>;
 export const coreFormSchema = z.enum(['VISUAL_ACUITY', 'LENSOMETRY', 'AUTOREFRACTION_KERATOMETRY', 'OBJECTIVE_REFRACTION', 'SUBJECTIVE_REFRACTION', 'INTRAOCULAR_PRESSURE', 'SLIT_LAMP_ANTERIOR_SEGMENT', 'POSTERIOR_FUNDUS_EXAM']);
 export const testFormSchema = z.enum([...coreFormSchema.options, 'PACHYMETRY', 'COLOUR_VISION', 'MOTILITY_SQUINT_BINOCULAR', 'DRY_EYE', 'VISUAL_FIELD', 'OCT', 'FUNDUS_PHOTOGRAPHY', 'CORNEAL_TOPOGRAPHY', 'BIOMETRY_IOL', 'B_SCAN', 'GONIOSCOPY', 'CONTACT_LENS', 'PAEDIATRIC_VISION']);
 export type TestFormType = z.infer<typeof testFormSchema>;

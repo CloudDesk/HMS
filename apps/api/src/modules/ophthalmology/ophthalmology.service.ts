@@ -1342,7 +1342,13 @@ export class OphthalmologyService {
     }
   }
   private async requireDoctor(context: OphthalmologyContext, userId: string) {
-    const doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    let doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    if (!doctorId && await this.repository.isSuperAdmin(userId)) {
+      const visit = await this.visitRepository.getById(context.visit_id);
+      if (visit?.doctor_id) return visit.doctor_id;
+      const anyDoctor = await this.repository.getAnyActiveDoctorId(context.branch_id);
+      if (anyDoctor) return anyDoctor;
+    }
     if (!doctorId) throw new AppError('An active Ophthalmology doctor is required', 403, 'OPHTHALMOLOGY_DOCTOR_REQUIRED'); return doctorId;
   }
 
@@ -1429,7 +1435,11 @@ export class OphthalmologyService {
   private async getOphthalmologyVisit(visitId: string, userId: string) {
     this.validateObjectId(visitId, 'OPD visit id is invalid'); const scope = await this.visitRepository.resolveBranchScope(userId);
     const visit = await this.visitRepository.getById(visitId, scope); if (!visit) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
-    await this.requireOphthalmologyDepartment(visit.department_id, visit.branch_id); return visit;
+    const isSuperAdmin = await this.repository.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      await this.requireOphthalmologyDepartment(visit.department_id, visit.branch_id);
+    }
+    return visit;
   }
   private async requireOphthalmologyDepartment(departmentId: string, branchId: string) {
     if (!await this.repository.isActiveOphthalmologyDepartment(departmentId, branchId)) {

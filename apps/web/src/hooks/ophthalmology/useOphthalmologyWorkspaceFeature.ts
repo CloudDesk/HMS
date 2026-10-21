@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { navigate, useAppLocation } from '../../routing/navigation';
-import { ophthalmologyIdSchema, subtypeSchema, type OphthalmologyAlert, type SaveOphthalmologyIntake, type UpdateOphthalmologyContext, type createContextSchema } from '../../api/ophthalmology';
+import { ophthalmologyIdSchema, subtypeSchema, type OphthalmologyVisitSubtype, type OphthalmologyAlert, type SaveOphthalmologyIntake, type UpdateOphthalmologyContext, type createContextSchema } from '../../api/ophthalmology';
 import type { z } from 'zod';
 import { useOpdVisit } from '../opd/useOpd';
 import { usePatientDocuments } from '../patients/usePatients';
@@ -32,9 +32,19 @@ export function useOphthalmologyWorkspaceFeature() {
   const clinicalWorkspaceQuery = useOphthalmologyClinicalWorkspace(visitId, canView && !canReadIntake);
   const visitQuery = canReadIntake ? sharedVisitQuery : { ...clinicalWorkspaceQuery, data: clinicalWorkspaceQuery.data?.visit };
   const visit = canView && visitQuery.data?.id === visitId ? visitQuery.data : undefined;
+  const defaultSubtypeFromVisit = (visitType?: string): OphthalmologyVisitSubtype => {
+    if (visitType === 'FOLLOW_UP') return 'FOLLOW_UP';
+    if (visitType === 'EMERGENCY') return 'EMERGENCY';
+    if (visitType === 'REVIEW' || visitType === 'POST_OPERATIVE') return 'POST_OPERATIVE';
+    return 'NEW_CONSULTATION';
+  };
   const availableSubtypes = compatibleSubtypes(visit?.visit_type);
-  const selectedSubtype = parsedSubtype.success && availableSubtypes.includes(parsedSubtype.data) ? parsedSubtype.data : availableSubtypes.length === 1 ? availableSubtypes[0] : undefined;
-  const subtype = selectedSubtype ?? 'NEW_CONSULTATION';
+  const selectedSubtype = parsedSubtype.success && availableSubtypes.includes(parsedSubtype.data)
+    ? parsedSubtype.data
+    : availableSubtypes.includes(defaultSubtypeFromVisit(visit?.visit_type))
+      ? defaultSubtypeFromVisit(visit?.visit_type)
+      : availableSubtypes[0] ?? 'NEW_CONSULTATION';
+  const subtype = selectedSubtype;
   const intakeContextQuery = useOphthalmologyContext(visitId, Boolean(visit) && canReadIntake);
   const contextQuery = canReadIntake ? intakeContextQuery : { ...clinicalWorkspaceQuery, data: clinicalWorkspaceQuery.data?.context,
     refetch: () => clinicalWorkspaceQuery.refetch({ cancelRefetch: false }) };
@@ -48,11 +58,11 @@ export function useOphthalmologyWorkspaceFeature() {
   const editableVisit = Boolean(visit && !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(visit.status));
   const contextEditOpen = params.get('edit_context') === 'open' && canEdit && Boolean(context);
   const lookupSubtype = contextEditOpen ? parsedSubtype.success && availableSubtypes.includes(parsedSubtype.data) ? parsedSubtype.data : context?.visit_subtype ?? subtype : subtype;
-  const lookupEnabled = canView && canConfigure && canEdit && editableVisit && Boolean(branchId) && !scopeError;
+  const lookupEnabled = canView && canEdit && editableVisit && Boolean(branchId) && !scopeError;
   const complaintsQuery = useOphthalmologyConfigurations(branchId, 'COMPLAINT', configurationPage, lookupEnabled && Boolean(context));
   const emergenciesQuery = useOphthalmologyConfigurations(branchId, 'CLINICAL_THRESHOLD', configurationPage, lookupEnabled && Boolean(context));
   const completionQuery = useOphthalmologyConfigurations(branchId, 'COMPLETION_PROFILE', configurationPage, lookupEnabled && contextQuery.data === null);
-  const workflowsQuery = useOphthalmologyWorkflows(branchId, lookupSubtype, configurationPage, lookupEnabled && ((contextQuery.data === null && Boolean(selectedSubtype)) || contextEditOpen));
+  const workflowsQuery = useOphthalmologyWorkflows(branchId, lookupSubtype, configurationPage, lookupEnabled && (contextQuery.data === null || contextEditOpen));
   const mutations = useOphthalmologyIntakeMutations(visitId);
   const reportsOpen = params.get('reports') === 'open';
   const reportPageRaw = Number(params.get('report_page') ?? 1);

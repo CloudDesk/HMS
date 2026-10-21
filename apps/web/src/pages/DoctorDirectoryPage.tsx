@@ -87,7 +87,7 @@ const doctorFormSchema = z
     if (
       form.mode === 'edit' &&
       form.status !== form.originalStatus &&
-      form.statusReason.trim().length < 3
+      (form.statusReason?.trim() ?? '').length < 3
     ) {
       context.addIssue({
         code: 'custom',
@@ -98,7 +98,7 @@ const doctorFormSchema = z
 
     if (
       form.mode === 'create' &&
-      form.availability.some(
+      form.availability?.some(
         (day) => day.is_available && day.working_blocks.length === 0,
       )
     ) {
@@ -111,9 +111,9 @@ const doctorFormSchema = z
 
     if (form.mode === 'create' && form.createLoginAccount) {
       if (
-        !form.employeeCode.trim() ||
-        !form.username.trim() ||
-        !form.loginEmail.trim()
+        !form.employeeCode?.trim() ||
+        !form.username?.trim() ||
+        !form.loginEmail?.trim()
       ) {
         context.addIssue({
           code: 'custom',

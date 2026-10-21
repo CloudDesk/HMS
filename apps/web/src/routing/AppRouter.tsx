@@ -241,15 +241,15 @@ export function AppRouter() {
     content = <OpdDashboardPage />;
   } else if (pathname === '/opd/ophthalmology/reports') {
     title = 'Ophthalmology Reports';
-    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Reports'];
+    breadcrumbs = ['Home', 'Reports', 'Ophthalmology Reports'];
     content = <OphthalmologyReportsPage />;
   } else if (pathname === '/opd/ophthalmology/queue') {
-    title = 'My Ophthalmology Test Queue';
-    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Queue'];
+    title = 'Diagnostic Test Queue';
+    breadcrumbs = ['Home', 'OPD', 'Diagnostic Test Queue'];
     content = <OphthalmologyQueuePage />;
   } else if (pathname === '/opd/ophthalmology/configuration') {
     title = 'Ophthalmology Configuration';
-    breadcrumbs = ['Home', 'OPD', 'Ophthalmology Configuration'];
+    breadcrumbs = ['Home', 'Administration', 'Ophthalmology Configuration'];
     content = <OphthalmologyConfigurationPage />;
   } else if (pathname === '/opd/ophthalmology') {
     title = 'Ophthalmology Workspace';

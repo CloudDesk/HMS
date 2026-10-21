@@ -7,10 +7,10 @@ import { eyeSchema, saveIntakeSchema, type SaveOphthalmologyIntake, type Ophthal
 import { configuredIntakeOptions, initialIntake, intakeCompletionIssues, hasPositiveEyeHistory, clearPositiveEyeHistory } from '../../hooks/ophthalmology/intake-form';
 import type { OphthalmologyWorkspaceFeature } from '../../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 
-const nullable = (value: string) => value.trim() ? value : null;
-const numeric = (value: string) => value === '' ? null : Number(value);
-const isoDate = (value: string) => value ? new Date(`${value}T00:00:00`).toISOString() : '';
-const dateInput = (value: string | null) => value ? format(new Date(value), 'yyyy-MM-dd') : '';
+const nullable = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
+const numeric = (value: unknown) => value === '' || value == null ? null : Number(value);
+const isoDate = (value: string | null | undefined) => value ? new Date(`${value}T00:00:00`).toISOString() : '';
+const dateInput = (value: string | null | undefined) => value ? format(new Date(value), 'yyyy-MM-dd') : '';
 const eyeOptions = ['OD', 'OS', 'OU', 'NOT_APPLICABLE'];
 type Props = { feature: OphthalmologyWorkspaceFeature; context: OphthalmologyContext; view: OphthalmologyIntakeView };
 
@@ -28,6 +28,17 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
     const localVersion = getValues('expected_version');
     if (!isDirty && (localVersion === null || (view.intake && view.intake.version >= localVersion))) reset(initialIntake(context, view.intake));
   }, [context, view.intake, reset, getValues, isDirty]);
+  useEffect(() => {
+    if (!getValues('complaint_configuration_version_id') && f.complaints.length > 0) {
+      const activeComplaint = f.complaints.find((item) => item.status === 'ACTIVE') ?? f.complaints[0];
+      if (activeComplaint) setValue('complaint_configuration_version_id', activeComplaint.id, { shouldDirty: false });
+    }
+    if (!getValues('emergency_configuration_version_id') && f.emergencies.length > 0) {
+      const activeEmergency = f.emergencies.find((item) => item.status === 'ACTIVE') ?? f.emergencies[0];
+      if (activeEmergency) setValue('emergency_configuration_version_id', activeEmergency.id, { shouldDirty: false });
+    }
+  }, [f.complaints, f.emergencies, getValues, setValue]);
+
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'edit_context']);
   const disabled = !f.canEdit || f.busy || isSubmitting || view.intake?.status === 'COMPLETED' || f.intakeQuery.isError || f.contextQuery.isError;
   const complaint = f.complaints.find((item) => item.id === values.complaint_configuration_version_id);
@@ -54,13 +65,13 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
     </div>
     {f.actionError && <p className="form-error-banner" role="alert">{f.actionError} Your entries are retained. For a stale record, reload before retrying.</p>}
     {Object.entries(errors).map(([name, error]) => <p key={name} className="form-error-banner" role="alert">{name.replaceAll('_', ' ')}: {error.message ?? 'Check the entries in this section.'}</p>)}
-    {!f.canConfigure && <p role="status">Configuration View permission is required to load clinical choices. Saved entries remain visible.</p>}
+
     <fieldset disabled={disabled} className="oph-fieldset">
-      <section className="doc-card"><h3>Complaint and emergency configuration</h3><div className="doc-form-grid two">{configurationSelect('complaint_configuration_version_id', 'Complaint configuration', f.complaints)}{configurationSelect('emergency_configuration_version_id', 'Emergency screening configuration', f.emergencies)}</div>
+      <details className="doc-card" style={{ marginBottom: '1rem' }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Active configuration versions (auto-selected)</summary><div className="doc-form-grid two">{configurationSelect('complaint_configuration_version_id', 'Complaint configuration', f.complaints)}{configurationSelect('emergency_configuration_version_id', 'Emergency screening configuration', f.emergencies)}</div>
         {[f.complaintsQuery, f.emergenciesQuery].some((query) => query.isLoading) && <p role="status">Loading configuration…</p>}
         {[f.complaintsQuery, f.emergenciesQuery].some((query) => query.isError) && <p role="alert">Configuration lookup failed. <button type="button" className="doc-btn" onClick={() => { void f.complaintsQuery.refetch(); void f.emergenciesQuery.refetch(); }}>Retry configuration</button></p>}
         <div className="oph-toolbar"><button type="button" className="doc-btn" disabled={f.configurationPage <= 1} onClick={() => f.setQuery('configuration_page', String(f.configurationPage - 1))}>Previous configurations</button><span>Page {f.configurationPage}</span><button type="button" className="doc-btn" disabled={f.configurationPage >= Math.max(f.complaintsQuery.data?.meta.totalPages ?? 0, f.emergenciesQuery.data?.meta.totalPages ?? 0)} onClick={() => f.setQuery('configuration_page', String(f.configurationPage + 1))}>Next configurations</button></div>
-      </section>
+      </details>
       <section className="doc-card"><h3>Chief complaint <span className="oph-required">*</span></h3>{codes('complaint_codes', complaintOptions)}<div className="doc-form-grid two">
         <label className="doc-field"><span>Affected eye <span className="oph-required">*</span></span><select {...register('affected_eye')}>{['OD', 'OS', 'OU', 'NOT_SPECIFIED'].map((eye) => <option key={eye}>{eye}</option>)}</select></label>
         <label className="doc-field"><span>Duration <span className="oph-required">*</span></span><input type="number" min="0" max="1000" step="any" {...register('duration_value', { setValueAs: numeric })} /></label>

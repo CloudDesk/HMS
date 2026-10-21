@@ -306,6 +306,19 @@ export class OphthalmologyRepository {
     return Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null }));
   }
 
+  async isSuperAdmin(userId: string): Promise<boolean> {
+    const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null }).select('roleIds').lean();
+    if (!user) return false;
+    return Boolean(await RoleModel.exists({ _id: { $in: user.roleIds ?? [] }, code: 'SUPER_ADMIN', status: 'active', deletedAt: null }));
+  }
+
+  async getAnyActiveDoctorId(branchId: string, departmentId?: string): Promise<string | null> {
+    const filter: Record<string, unknown> = { branchId: oid(branchId), status: 'ACTIVE', deletedAt: null };
+    if (departmentId) filter.departmentId = oid(departmentId);
+    const doc = await DoctorModel.findOne(filter).select('_id').lean();
+    return doc?._id.toString() ?? null;
+  }
+
   async isActiveOphthalmologyDepartment(departmentId: string, branchId: string) {
     return Boolean(await DepartmentModel.exists({
       _id: oid(departmentId), branchIds: oid(branchId), status: 'ACTIVE', isClinical: true, deletedAt: null,

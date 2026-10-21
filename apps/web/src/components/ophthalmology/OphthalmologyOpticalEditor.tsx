@@ -17,8 +17,9 @@ function initial(record: OpticalPrescription | null): Partial<Editor> {
   return { expected_version: record.version, prescription_type: current.prescription_type, power: current.power, pupillary_distance: current.pupillary_distance, segment_height: current.segment_height, lens_type: current.lens_type, material: current.material, coating_codes: current.coating_codes, usage_instructions: current.usage_instructions, valid_until: current.valid_until, review_date: current.review_date };
 }
 const optionalNumber = (value: string) => value === '' ? null : Number(value);
-export function OphthalmologyOpticalEditor({ feature: f }: { feature: OphthalmologyCareFeature; workspace: CareWorkspace }) {
+export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature: OphthalmologyCareFeature; workspace: CareWorkspace }) {
   const [baseline, setBaseline] = useState(f.optical);
+  const [showSlip, setShowSlip] = useState(false);
   const { register, control, handleSubmit, setValue, setError, reset, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({ resolver: zodResolver(editorSchema), defaultValues: initial(baseline) });
   const values = useWatch({ control });
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'care_tab', 'area']);
@@ -50,6 +51,79 @@ export function OphthalmologyOpticalEditor({ feature: f }: { feature: Ophthalmol
     </fieldset>
     <button type="button" className="doc-btn primary" disabled={!f.canApproveOptical || f.busy || isDirty || changed || !baseline || baseline.status !== 'DRAFT'} onClick={async () => { if (baseline && window.confirm(`Approve saved optical prescription version ${baseline.version}? Approval locks its contents.`)) { const saved = await f.approveOptical(baseline.version); if (saved) apply(saved); } }}>Approve saved optical prescription</button>
     {f.optical?.current.approved_at && <p>Approved by doctor {f.optical.current.approver_doctor_id} · {new Date(f.optical.current.approved_at).toLocaleString()}</p>}
+    {baseline && (
+      <div className="oph-toolbar oph-no-print">
+        <button type="button" className="doc-btn" onClick={() => setShowSlip((prev) => !prev)}>
+          {showSlip ? 'Hide spectacle slip' : 'Preview & print spectacle slip'}
+        </button>
+        {showSlip && (
+          <button type="button" className="doc-btn primary" onClick={() => window.print()}>
+            Print spectacle slip
+          </button>
+        )}
+      </div>
+    )}
+    {showSlip && baseline && (
+      <section className="doc-card oph-printable" style={{ marginTop: '16px', border: '2px solid #2563eb' }}>
+        <div className="oph-toolbar oph-no-print" style={{ justifyContent: 'space-between' }}>
+          <h4>Spectacle Dispensing Prescription</h4>
+          <button type="button" className="doc-btn primary" onClick={() => window.print()}>
+            Print Spectacle Slip
+          </button>
+        </div>
+        <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', marginBottom: '12px' }}>
+          <p><strong>Encounter:</strong> {workspace.visitId} · <strong>Version:</strong> {baseline.version} · <strong>Status:</strong> {baseline.status}</p>
+          <p><strong>Prescription Type:</strong> {baseline.current.prescription_type} · <strong>Lens:</strong> {baseline.current.lens_type} ({baseline.current.material})</p>
+          {baseline.current.coating_codes?.length > 0 && <p><strong>Coatings:</strong> {baseline.current.coating_codes.join(', ')}</p>}
+        </div>
+        <div className="oph-table-scroll">
+          <table className="doc-table" style={{ width: '100%', marginBottom: '16px' }}>
+            <thead>
+              <tr>
+                <th>Eye</th>
+                <th>Sphere (SPH)</th>
+                <th>Cylinder (CYL)</th>
+                <th>Axis</th>
+                <th>Addition (ADD)</th>
+                <th>Prism / Base</th>
+                <th>Segment Ht</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(['OD', 'OS'] as const).map((eye) => {
+                const p = baseline.current.power?.[eye];
+                const seg = baseline.current.segment_height?.[eye];
+                return (
+                  <tr key={eye}>
+                    <td><strong>{eye === 'OD' ? 'OD (Right Eye)' : 'OS (Left Eye)'}</strong></td>
+                    <td>{p?.sphere !== null && p?.sphere !== undefined ? (p.sphere > 0 ? `+${p.sphere.toFixed(2)}` : p.sphere.toFixed(2)) : '—'}</td>
+                    <td>{p?.cylinder !== null && p?.cylinder !== undefined ? (p.cylinder > 0 ? `+${p.cylinder.toFixed(2)}` : p.cylinder.toFixed(2)) : '—'}</td>
+                    <td>{p?.axis !== null && p?.axis !== undefined ? `${p.axis}°` : '—'}</td>
+                    <td>{p?.addition !== null && p?.addition !== undefined ? (p.addition > 0 ? `+${p.addition.toFixed(2)}` : p.addition.toFixed(2)) : '—'}</td>
+                    <td>{p?.prism ? `${p.prism} ${p.prism_base ?? ''}` : '—'}</td>
+                    <td>{seg !== null && seg !== undefined ? `${seg} mm` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginBottom: '12px' }}>
+          <p><strong>Pupillary Distance (PD):</strong> {baseline.current.pupillary_distance?.format === 'BINOCULAR' ? `${baseline.current.pupillary_distance.binocular} mm (Binocular)` : baseline.current.pupillary_distance ? `OD: ${baseline.current.pupillary_distance.OD ?? '—'} mm, OS: ${baseline.current.pupillary_distance.OS ?? '—'} mm (Monocular)` : '—'}</p>
+          <p><strong>Usage Instructions:</strong> {baseline.current.usage_instructions}</p>
+          <p><strong>Valid Until:</strong> {new Date(baseline.current.valid_until).toLocaleDateString()} {baseline.current.review_date ? `· Review Date: ${new Date(baseline.current.review_date).toLocaleDateString()}` : ''}</p>
+        </div>
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <p><strong>Dispensing Optician:</strong> ________________________</p>
+          </div>
+          <div>
+            <p><strong>Prescribing Doctor:</strong> {baseline.current.approver_doctor_id ?? 'Doctor Review Pending'}</p>
+            {baseline.current.approved_at && <p><strong>Approved:</strong> {new Date(baseline.current.approved_at).toLocaleString()}</p>}
+          </div>
+        </div>
+      </section>
+    )}
     {f.error && <p role="alert" className="form-error-banner">{f.error} Your entries are retained.</p>}
     <h4>Saved optical versions</h4>{f.optical?.history.map((entry) => <details key={entry.clinical_version}><summary>Clinical version {entry.clinical_version} · {entry.status} · {new Date(entry.created_at).toLocaleString()}</summary><p>{entry.prescription_type} · {entry.lens_type} · {entry.material} · valid until {new Date(entry.valid_until).toLocaleString()}</p>{(['OD', 'OS'] as const).map((eye) => <p key={eye}>{eye}: {entry.power[eye] ? `SPH ${entry.power[eye]?.sphere}, CYL ${entry.power[eye]?.cylinder ?? '—'}, AXIS ${entry.power[eye]?.axis ?? '—'}, ADD ${entry.power[eye]?.addition ?? '—'}` : 'Not prescribed'}</p>)}<p>{entry.usage_instructions}</p></details>)}
   </form>;

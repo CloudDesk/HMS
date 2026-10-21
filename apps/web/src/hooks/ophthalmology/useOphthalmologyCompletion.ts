@@ -4,6 +4,9 @@ import type { DeferralWrite, OverrideWrite, CompleteWrite, ReopenWrite, Amendmen
 export function useOphthalmologyReadiness(visitId: string, enabled: boolean) {
   return useQuery({ queryKey: ['ophthalmology', 'visit', visitId, 'readiness'], queryFn: ({ signal }) => service.completion.readiness(visitId, signal), enabled, retry: false });
 }
+export function useOphthalmologySummary(visitId: string, enabled: boolean) {
+  return useQuery({ queryKey: ['ophthalmology', 'visit', visitId, 'summary'], queryFn: ({ signal }) => service.completion.summary(visitId, signal), enabled, retry: false });
+}
 export function useOphthalmologyCompletionHistory(visitId: string, enabled: boolean) {
   return useQuery({ queryKey: ['ophthalmology', 'visit', visitId, 'completion-history'], queryFn: ({ signal }) => service.completion.history(visitId, signal), enabled, retry: false });
 }

@@ -45,7 +45,7 @@ export function configurationEditorValues(form: ConfigurationEditor, original: R
   const values = structuredClone(original);
   const clinicalKeys = ['entries', 'form_type', 'schema_version', 'test_codes', 'required_fields', 'required_quadrants', 'numeric_ranges', 'allowed_values', 'comparison_units', 'iop_low', 'iop_high', 'iop_asymmetry', 'iop_low_code', 'iop_high_code', 'iop_asymmetry_code', 'iop_within_code', 'paediatric_max_age_years', 'required_requirements', 'mandatory_test_codes', 'allow_override'] as const;
   if (baseline && baseline.type === form.type && clinicalKeys.every((key) => JSON.stringify(form[key]) === JSON.stringify(baseline[key]))) return values;
-  if (['COMPLAINT', 'CLINICAL_THRESHOLD', 'TEST_CATALOGUE', 'SUB_SPECIALITY'].includes(form.type)) {
+  if (form.type !== 'FORM_PROFILE' && form.type !== 'COMPLETION_PROFILE') {
     const key = form.type === 'CLINICAL_THRESHOLD' ? 'criteria' : form.type === 'TEST_CATALOGUE' ? 'tests' : 'options';
     const previous = z.array(z.record(z.string(), z.unknown())).safeParse(original[key]).data ?? [];
     values[key] = form.entries.map((entry) => ({ ...previous.find((old) => typeof old.code === 'string' && old.code.toUpperCase() === entry.code.toUpperCase()), code: entry.code.toUpperCase(), ...(key === 'tests' ? { name: entry.label } : { label: entry.label }), active: entry.active, ...(key === 'options' ? { requires_description: entry.requires_description } : {}) }));

@@ -34,6 +34,18 @@ const authRoleSchema = {
   },
 } as const;
 
+const authDepartmentSchema = {
+  type: 'object',
+  required: ['id', 'code', 'name', 'hiddenModules'],
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string' },
+    code: { type: 'string' },
+    name: { type: 'string' },
+    hiddenModules: { type: 'array', items: { type: 'string' } },
+  },
+} as const;
+
 export const authUserResponseDataSchema = {
   type: 'object',
   required: ['id', 'username', 'email', 'fullName', 'status', 'lastLoginAt', 'branches', 'permissions', 'roles'],
@@ -48,6 +60,7 @@ export const authUserResponseDataSchema = {
     branches: { type: 'array', items: authBranchSchema },
     permissions: { type: 'array', items: authPermissionSchema },
     roles: { type: 'array', items: authRoleSchema },
+    departments: { type: 'array', items: authDepartmentSchema },
   },
 } as const;
 

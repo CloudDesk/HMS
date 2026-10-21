@@ -61,7 +61,8 @@ const bookingSchema = z.object({
   past_history: z.string().optional(),
   family_history: z.string().optional(),
   allergies: z.string().optional(),
-});
+  ...appointmentSpecialtyFormFields,
+}).superRefine(validateAppointmentSpecialtyForm);
 
 export type BookingFormData = z.infer<typeof bookingSchema>;
 
@@ -86,6 +87,7 @@ export function AppointmentBookingPage() {
     watch,
     setValue,
     clearErrors,
+    setError,
     trigger,
     getValues,
     formState: { errors },
@@ -104,6 +106,7 @@ export function AppointmentBookingPage() {
       past_history: '',
       family_history: '',
       allergies: '',
+      ...emptyAppointmentSpecialtyForm,
     },
   });
 
@@ -116,6 +119,9 @@ export function AppointmentBookingPage() {
 
   const {
     state: {
+      specialtyServices,
+      specialtyChoices,
+      specialtyReady,
       departments,
       initialPatientData,
       referral,

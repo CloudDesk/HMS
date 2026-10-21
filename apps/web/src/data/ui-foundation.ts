@@ -50,9 +50,6 @@ export const sidebarModules: SidebarModule[] = [
     links: [
       { href: '/opd/consultation', label: 'Consultation', icon: 'ph-chats-circle' },
       { href: '/opd/queue', label: 'Waiting Queue', icon: 'ph-clock' },
-      { href: '/opd/ophthalmology/configuration', label: 'Ophthalmology Configuration', icon: 'ph-eye' },
-      { href: '/opd/ophthalmology/reports', label: 'Ophthalmology Reports', icon: 'ph-chart-bar' },
-      { href: '/opd/ophthalmology/queue', label: 'My Ophthalmology Test Queue', icon: 'ph-list-checks' },
     ],
   },
   {
@@ -154,6 +151,7 @@ export const sidebarModules: SidebarModule[] = [
     icon: 'ph-chart-bar',
     links: [
       { href: '/reports/library', label: 'Reports', icon: 'ph-chart-bar' },
+      { href: '/opd/ophthalmology/reports', label: 'Ophthalmology Reports', icon: 'ph-chart-bar' },
     ],
   },
   {
@@ -168,6 +166,7 @@ export const sidebarModules: SidebarModule[] = [
       { href: '/administration/medicines', label: 'Medicine Master', icon: 'ph-pill' },
       { href: '/administration/branches', label: 'Branch Management', icon: 'ph-tree-structure' },
       { href: '/administration/consent-templates', label: 'Consent Templates', icon: 'ph-file-text' },
+      { href: '/opd/ophthalmology/configuration', label: 'Ophthalmology Configuration', icon: 'ph-eye' },
       { href: '/administration/settings', label: 'System Settings', icon: 'ph-gear' },
     ],
   },
