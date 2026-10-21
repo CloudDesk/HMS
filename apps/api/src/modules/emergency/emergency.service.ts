@@ -1,5 +1,5 @@
 import { AppError } from '../../shared/errors/app-error.js';
-import { executeTransaction } from '../../shared/database/transaction.js';
+import { executeRequiredTransaction, executeTransaction } from '../../shared/database/transaction.js';
 import type { OpdClinicalOrderRepository } from '../opd/opd-clinical-order.repository.js';
 import type { OpdPrescriptionRepository } from '../opd/opd-prescription.repository.js';
 import type { PatientService } from '../patients/patient.service.js';
@@ -240,27 +240,39 @@ export class EmergencyService {
       reason: referral.reason,
       notes: data.notes?.trim() || `Booked from Emergency referral ${referral.encounter_number}`,
     }, actor);
-    const linked = await this.repository.linkReferralAppointment(id, branchId, appointment, actor);
+    const cancelUnlinkedAppointment = async () => {
+      try {
+        await this.appointments.updateStatus(appointment.id,
+          { status: 'CANCELLED', notes: 'Emergency referral booking did not link; automatic rollback' }, actor);
+      } catch {
+        throw new AppError('The appointment could not be linked or automatically cancelled. Review the appointment before retrying.',
+          409, 'EMERGENCY_REFERRAL_BOOKING_RECONCILIATION_REQUIRED', { appointment_id: appointment.id });
+      }
+    };
+    let linked: Awaited<ReturnType<EmergencyRepository['linkReferralAppointment']>>;
+    try {
+      linked = await executeRequiredTransaction(this.repository, async (session) => {
+        const result = await this.repository.linkReferralAppointment(id, branchId, appointment, actor, session);
+        if (!result) return null;
+        await this.repository.audit('emergency.referral.booked', actor, metadata, {
+          encounterId: id, patientId: referral.patient_id, branchId, appointmentId: appointment.id,
+          targetDoctorId: referral.referred_doctor_id,
+        }, session);
+        return result;
+      });
+    } catch (error: unknown) {
+      // Reconcile an uncertain commit before cancelling an appointment that may be linked.
+      const recovered = await this.repository.getReferral(id, branchId);
+      if (recovered?.appointment_id === appointment.id) return recovered;
+      await cancelUnlinkedAppointment();
+      throw error;
+    }
     if (!linked) {
-      await this.appointments.updateStatus(
-        appointment.id,
-        { status: 'CANCELLED', notes: 'Emergency referral was booked concurrently; automatic rollback' },
-        actor,
-      );
+      await cancelUnlinkedAppointment();
       const concurrent = await this.repository.getReferral(id, branchId);
       if (concurrent?.appointment_id) return concurrent;
       throw new AppError('Emergency referral was booked concurrently; refresh the queue', 409, 'EMERGENCY_REFERRAL_BOOKING_CONFLICT');
     }
-    await executeTransaction(this.repository, async (session) => {
-      await this.repository.audit('emergency.referral.booked', actor, metadata, {
-        encounterId: id,
-        patientId: referral.patient_id,
-        branchId,
-        appointmentId: appointment.id,
-        targetDoctorId: referral.referred_doctor_id,
-      }, session);
-      return true;
-    });
     return linked;
   }
   async create(data: CreateEmergencyDTO, actor: string, metadata: EmergencyMetadata) {

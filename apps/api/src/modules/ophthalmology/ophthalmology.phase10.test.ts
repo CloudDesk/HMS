@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -144,6 +144,21 @@ describe('Ophthalmology Phase 10 publication and reporting', () => {
     expect(await service.publish(input, 'phase10-result', userId)).toMatchObject({ id: first.id });
     await expect(service.publish({ source_type: 'CONSULTATION_SUMMARY', source_id: finalizationId, source_version: 1 },
       'phase10-result', userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_IDEMPOTENCY_CONFLICT' });
+  });
+
+  it('rolls back a downstream publication failure and permits the same-key retry without duplicate fulfillment', async () => {
+    const input = { source_type: 'CONSULTATION_SUMMARY' as const, source_id: finalizationId, source_version: 1 };
+    const audit = vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('Publication audit unavailable'));
+    try {
+      await expect(service.publish(input, 'publication-retry', userId)).rejects.toThrow('Publication audit unavailable');
+      expect(await OphthalmologyPublicationModel.countDocuments()).toBe(0);
+      expect(await OphthalmologyConsultationFinalizationModel.findById(finalizationId).lean()).toMatchObject({ status: 'COMPLETED' });
+      const published = await service.publish(input, 'publication-retry', userId);
+      expect(published.status).toBe('APPROVED_FOR_PORTAL');
+      expect((await service.publish(input, 'publication-retry', userId)).id).toBe(published.id);
+      expect(await OphthalmologyPublicationModel.countDocuments()).toBe(1);
+      expect(await PatientTimelineEventModel.countDocuments({ eventType: 'OPHTHALMOLOGY_PORTAL_PUBLISHED' })).toBe(1);
+    } finally { audit.mockRestore(); }
   });
 
   it('blocks new publication while a consultation amendment is open', async () => {

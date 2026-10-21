@@ -2,6 +2,11 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppointmentRepository } from '../appointments/appointment.repository.js';
+import { AppointmentModel } from '../appointments/appointment.model.js';
+import { EmergencyEncounterModel } from '../emergency/emergency.model.js';
+import { EmergencyRepository } from '../emergency/emergency.repository.js';
+import { SequenceService } from '../../shared/sequence/sequence.service.js';
+import { OphthalmologyAlertModel } from './ophthalmology-intake.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
@@ -9,6 +14,9 @@ import { DoctorModel } from '../doctors/doctor.model.js';
 import { NotificationRepository } from '../notifications/notification.repository.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
+import { OpdFollowUpModel } from '../opd/opd-follow-up.model.js';
+import { OpdPrescriptionModel } from '../opd/opd-prescription.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/surgery.model.js';
 import { OpdConsultationService } from '../opd/opd-consultation.service.js';
 import { OpdVitalsRepository } from '../opd/opd-vitals.repository.js';
 import { OpdConsultationRepository } from '../opd/opd-consultation.repository.js';
@@ -79,6 +87,102 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
   const completion = (expectedVersion = 0, contextVersion = 0, consultationVersion = 0, reviewVersion = 0) => ({
     expected_version: expectedVersion, expected_context_version: contextVersion, expected_consultation_version: consultationVersion,
     expected_clinical_review_version: reviewVersion,
+  });
+
+  it.each(['ACTIVE', 'ACKNOWLEDGED'] as const)('does not allow %s emergency screening to authorize routine sign-off or overrides', async (status) => {
+    const context = await OphthalmologyContextModel.findById(contextId).lean(); if (!context) throw new Error('Missing context');
+    await OphthalmologyAlertModel.create({ contextId, visitId, intakeId: new Types.ObjectId(), patientId: context.patientId,
+      branchId: context.branchId, departmentId: context.departmentId, type: 'EMERGENCY_SCREENING', status, sourceVersion: 1,
+      criterionCodes: ['SUDDEN_VISION_LOSS'], reason: 'Screening requires urgent assessment', triggeredBy: userId, triggeredAt: new Date() });
+    // Even omitting the receipt requirement cannot bypass the clinical guard.
+    await OphthalmologyConfigurationModel.updateOne({ _id: context.configurationVersionId }, { $set: { 'values.required_requirements': ['DIAGNOSIS_RECORDED'] } });
+    await expect(service.getCompletionReadiness(visitId, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    await expect(service.overrideCompletion(visitId, { expected_version: 0, expected_unmet_codes: ['ALERTS_ACKNOWLEDGED'], reason: 'Receipt is not clearance' }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    await expect(service.completeConsultation(visitId, completion(), 'emergency-guard', userId))
+      .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    expect(await OphthalmologyConsultationFinalizationModel.countDocuments()).toBe(0);
+    expect(await OpdVisitModel.findById(visitId).lean()).toMatchObject({ status: 'IN_CONSULTATION', version: 0 });
+  });
+
+  it('reuses the Emergency referral appointment chain with validated source metadata and no duplicate encounters', async () => {
+    const visit = await OpdVisitModel.findById(visitId).lean(); if (!visit) throw new Error('Missing visit');
+    const appointment = await AppointmentModel.create({ appointmentNumber: 'TRACE-APPT', patientId: visit.patientId,
+      patientNumber: visit.patientNumber, patientName: visit.patientName, doctorId: visit.doctorId, doctorName: visit.doctorName,
+      doctorSpecialization: visit.doctorSpecialization, branchId: visit.branchId, departmentId: visit.departmentId,
+      durationMinutes: 20, visitType: 'NEW_CONSULTATION', priority: 'URGENT', status: 'CHECKED_IN' });
+    await OpdVisitModel.updateOne({ _id: visitId }, { $set: { appointmentId: appointment._id } });
+    const emergency = await EmergencyEncounterModel.create({ encounterNumber: 'TRACE-ER', emergencyIdentifier: 'TRACE-ID',
+      branchId: visit.branchId, departmentId: new Types.ObjectId(), patientId: visit.patientId, patientName: visit.patientName,
+      arrivalMode: 'WALK_IN', arrivalAt: new Date(), chiefComplaint: 'Private emergency assessment', createdBy: userId, updatedBy: userId,
+      referral: { sourceType: 'EMERGENCY_ENCOUNTER', targetDepartmentId: visit.departmentId, targetDepartmentName: 'Ophthalmology',
+        targetDoctorId: visit.doctorId, priority: 'URGENT', reason: 'Private reason', clinicalNotes: 'Private note', status: 'SUBMITTED',
+        submittedAt: new Date(), submittedBy: userId } });
+    const emergencyRepository = new EmergencyRepository(new SequenceService());
+    const appointmentDto = await new AppointmentRepository().getById(appointment.id); if (!appointmentDto) throw new Error('Missing appointment');
+    expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(),
+      { ...appointmentDto, patient_id: new Types.ObjectId().toString() }, userId)).toBeNull();
+    expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(), appointmentDto, userId))
+      .toMatchObject({ appointment_id: appointment.id });
+    expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(), appointmentDto, userId)).toBeNull();
+    const summary = await service.getConsultationSummary(visitId, userId);
+    expect(summary.summary.emergency_source).toMatchObject({ emergency_encounter_id: emergency.id, appointment_id: appointment.id,
+      visit_id: visitId, patient_id: visit.patientId.toString() });
+    expect(JSON.stringify(summary.summary.emergency_source)).not.toContain('Private');
+    expect((await service.getConsultationSummary(visitId, userId)).summary.emergency_source).toEqual(summary.summary.emergency_source);
+    expect(await OpdVisitModel.countDocuments()).toBe(1); expect(await EmergencyEncounterModel.countDocuments()).toBe(1);
+    await expect(OpdVisitModel.create({ ...visit, _id: new Types.ObjectId(), visitNumber: 'TRACE-DUP', appointmentId: appointment._id }))
+      .rejects.toMatchObject({ code: 11000 });
+    await AppointmentModel.updateOne({ _id: appointment._id }, { $set: { patientId: new Types.ObjectId() } });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.emergency_source).toBeNull();
+    await AppointmentModel.updateOne({ _id: appointment._id }, { $set: { patientId: visit.patientId } });
+    await EmergencyEncounterModel.create({ ...emergency.toObject(), _id: new Types.ObjectId(), encounterNumber: 'TRACE-ER-2',
+      emergencyIdentifier: 'TRACE-ID-2', referral: { ...emergency.referral, appointmentId: appointment._id } });
+    await expect(service.getConsultationSummary(visitId, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_SOURCE_CONFLICT' });
+  });
+
+  it('allows clinical sign-off with draft follow-up fulfillment, preserves the signed snapshot, and refreshes source status', async () => {
+    const consultation = await OpdConsultationModel.findOne({ visitId }).lean(); if (!consultation) throw new Error('Missing consultation');
+    const visit = await OpdVisitModel.findById(visitId).lean(); if (!visit) throw new Error('Missing visit');
+    const prescription = await OpdPrescriptionModel.create({ sourceType: 'OPD_VISIT', sourceId: visitId, visitId,
+      branchId: visit.branchId, patientId: visit.patientId, patientNumber: visit.patientNumber, patientName: visit.patientName,
+      doctorId: visit.doctorId, doctorName: visit.doctorName, status: 'SUBMITTED', items: [] });
+    const followUp = await OpdFollowUpModel.create({ visitId, consultationId: consultation._id, patientId: consultation.patientId,
+      patientNumber: consultation.patientNumber, patientName: consultation.patientName, originatingDoctorId: consultation.doctorId,
+      originatingDoctorName: consultation.doctorName, status: 'DRAFT', reminderType: 'NONE', notes: 'Arrange review' });
+    const completed = await service.completeConsultation(visitId, completion(), 'pending-follow-up', userId);
+    expect(completed.status).toBe('COMPLETED');
+    expect(await service.completeConsultation(visitId, completion(), 'pending-follow-up', userId)).toEqual(completed);
+    expect((await service.getConsultationSummary(visitId, userId)).summary.follow_ups[0]).toMatchObject({ status: 'DRAFT', appointment_id: null });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.medication_prescriptions[0]).toMatchObject({ status: 'SUBMITTED' });
+    // Simulate the shared scheduling owner completing its independent operation.
+    await OpdFollowUpModel.updateOne({ _id: followUp._id }, { $set: { status: 'SCHEDULED', nextVisitDate: new Date('2026-11-01T00:00:00Z'), appointmentId: new Types.ObjectId() } });
+    // Pharmacy owns this state; the specialty projection must read it, not infer it.
+    await OpdPrescriptionModel.updateOne({ _id: prescription._id }, { $set: { status: 'DISPENSED' } });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.medication_prescriptions[0]).toMatchObject({ status: 'DISPENSED' });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.follow_ups[0]).toMatchObject({ status: 'SCHEDULED', follow_up_date: '2026-11-01T00:00:00.000Z' });
+    expect(await repository.getFinalizationByVisit(visitId)).toEqual(completed);
+    expect(await OpdFollowUpModel.countDocuments()).toBe(1);
+  });
+
+  it('reads procedure booking completion only from the linked same-patient record', async () => {
+    const visit = await OpdVisitModel.findById(visitId).lean(); if (!visit) throw new Error('Missing visit');
+    const source = { patientId: visit.patientId, patientNumber: visit.patientNumber, patientName: visit.patientName,
+      branchId: visit.branchId, departmentId: visit.departmentId, departmentName: 'Ophthalmology', serviceId: new Types.ObjectId(),
+      serviceName: 'Configured procedure', createdBy: userId, updatedBy: userId };
+    const recommendation = await ProcedureRecommendationModel.create({ ...source, recommendationNumber: 'TRACE-PROC',
+      recommendingDoctorId: visit.doctorId, recommendingDoctorName: visit.doctorName, encounterType: 'OPD_VISIT', encounterId: visitId,
+      clinicalReason: 'Recorded plan', status: 'BOOKED' });
+    const booking = await ProcedureBookingModel.create({ ...source, recommendationId: recommendation._id, bookingNumber: 'TRACE-BOOK',
+      doctorId: visit.doctorId, doctorName: visit.doctorName, scheduledStart: new Date('2026-10-20T00:00:00Z'),
+      scheduledEnd: new Date('2026-10-20T00:30:00Z'), durationMinutes: 30, status: 'BOOKED' });
+    await ProcedureRecommendationModel.updateOne({ _id: recommendation._id }, { $set: { bookingId: booking._id } });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.procedure_recommendations[0])
+      .toMatchObject({ procedure_name: 'Configured procedure', status: 'BOOKED', booking_status: 'BOOKED', reason: 'Recorded plan' });
+    await ProcedureBookingModel.updateOne({ _id: booking._id }, { $set: { status: 'COMPLETED' } });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.procedure_recommendations[0]?.booking_status).toBe('COMPLETED');
+    await ProcedureBookingModel.updateOne({ _id: booking._id }, { $set: { patientId: new Types.ObjectId() } });
+    expect((await service.getConsultationSummary(visitId, userId)).summary.procedure_recommendations[0]?.booking_status).toBeNull();
   });
 
   it('reviews the exact completed clinical result version and rejects stale review requests', async () => {
@@ -194,6 +298,39 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     const outcomes = await Promise.allSettled([0, 1].map((index) => service.completeConsultation(visitId, completion(), `p9-race-${index}`, userId)));
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
+  });
+
+  it('rejects a treatment plan whose diagnosis changed after saving, without partial finalization', async () => {
+    await OpdConsultationModel.updateOne({ visitId }, { $set: { 'diagnoses.0.laterality': 'OD' } });
+    await expect(service.completeConsultation(visitId, completion(), 'changed-diagnosis', userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH' });
+    expect(await OphthalmologyConsultationFinalizationModel.countDocuments()).toBe(0);
+    expect(await OpdVisitModel.findById(visitId).lean()).toMatchObject({ status: 'IN_CONSULTATION', version: 0 });
+    expect(await OphthalmologyClinicalReviewModel.findOne({ visitId }).lean()).toMatchObject({ status: 'DRAFT', version: 0 });
+    expect(await PatientTimelineEventModel.countDocuments()).toBe(0);
+  });
+
+  it('revalidates linked follow-ups at sign-off and permits retry after restoring the valid source', async () => {
+    const consultation = await OpdConsultationModel.findOne({ visitId }).lean();
+    if (!consultation) throw new Error('Missing consultation fixture');
+    const followUp = await OpdFollowUpModel.create({ visitId, consultationId: consultation._id,
+      patientId: consultation.patientId, patientNumber: consultation.patientNumber, patientName: consultation.patientName,
+      originatingDoctorId: consultation.doctorId, originatingDoctorName: consultation.doctorName,
+      status: 'DRAFT', reminderType: 'NONE' });
+    const review = await repository.getClinicalReviewByVisit(visitId);
+    if (!review) throw new Error('Missing review fixture');
+    const saved = await service.saveClinicalReviewDraft(visitId, { ...review.current, expected_version: review.version,
+      treatment_plans: review.current.treatment_plans.map((plan) => ({ ...plan, follow_up_id: followUp.id })) }, userId);
+    const context = await repository.getContextByVisit(visitId);
+    if (!context) throw new Error('Missing context fixture');
+    const body = completion(0, context.version, 0, saved.version);
+    await OpdFollowUpModel.updateOne({ _id: followUp._id }, { $set: { deletedAt: new Date() } });
+    await expect(service.completeConsultation(visitId, body, 'follow-up-retry', userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
+    expect(await OphthalmologyConsultationFinalizationModel.countDocuments()).toBe(0);
+    expect(await OpdVisitModel.findById(visitId).lean()).toMatchObject({ status: 'IN_CONSULTATION', version: 0 });
+    await OpdFollowUpModel.updateOne({ _id: followUp._id }, { $set: { deletedAt: null } });
+    expect(await service.completeConsultation(visitId, body, 'follow-up-retry', userId)).toMatchObject({ status: 'COMPLETED' });
   });
 
   it('rolls back shared and specialty completion when audit persistence fails', async () => {

@@ -2,6 +2,16 @@
 
 ## Contract status
 
+### 21 October three-gap safety correction (working tree)
+
+Acknowledgement remains receipt only (`ACTIVE | ACKNOWLEDGED`). Routine test start/save/finalize and consultation readiness/override/sign-off now reject an existing `EMERGENCY_SCREENING` alert with `409 OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED`, including after acknowledgement. Emergency-priority testing, clinician documentation, read-only review and existing Emergency workflows remain available. No clearance transition or disposition values have been approved or added; routine resumption for such an encounter remains blocked until the clinical owner approves and the application implements that contract. Completion overrides cannot supply clearance.
+
+The existing consultation summary adds nullable `summary.emergency_source`: `{ emergency_encounter_id, encounter_number, appointment_id, visit_id, patient_id, referred_at, priority }`. It is derived only through the existing Emergency referral appointment relationship after destination visit/appointment/patient/branch/department validation. It contains no Emergency clinical notes. Conflicting multiple source referrals return `409 OPHTHALMOLOGY_SOURCE_CONFLICT`; an absent or invalid relationship is never reported as linked. This read does not create/reuse by patient match alone, or create any encounter. Same-branch direct appointment links are supported; cross-branch or rescheduled-appointment ancestry needs an approved extension.
+
+Emergency referral booking validates patient/target department/target doctor in its conditional repository link. The link and `emergency.referral.booked` audit now use one required transaction. Appointment creation remains owned by Appointments; failed linking cancels the newly created appointment using its existing status service. An uncertain commit is reread before compensation. Failed cancellation returns `409 EMERGENCY_REFERRAL_BOOKING_RECONCILIATION_REQUIRED` with `appointment_id` for manual review before retry. A process failure between the independent Appointment operation and linking still needs a durable cross-service idempotency/reconciliation contract; this change does not claim a distributed transaction.
+
+Existing summary downstream projections now retain actual recommendation/referral/follow-up `status`, nullable `appointment_id` for referral/follow-up, and nullable `booking_id`/`booking_status` for recommendations. Booking status requires matching booking, recommendation, patient and branch. Follow-up date is mapped from `nextVisitDate`; procedure name/reason from `serviceName`/`clinicalReason`. Medication request status already reflects the shared prescription lifecycle, including Pharmacy's `DISPENSED`. These source states are separate from doctor sign-off; `SUBMITTED`, `SCHEDULED` and `BOOKED` do not establish whole-journey completion. No aggregate fulfillment enum or new mutation endpoint is introduced. Existing clinical prerequisites and signed snapshots remain authoritative; current summary reads can refresh downstream states independently.
+
 **Version:** 1.12.0 (working tree gap-closure revision, 20 October 2026)
 
 **Baseline date:** 15 October 2026

@@ -570,11 +570,14 @@ export class EmergencyRepository {
     ).lean<EmergencyLean>();
     return row ? emergencyReferralDto(row) : null;
   }
-  async linkReferralAppointment(id: string, branchId: string, appointment: Appointment, actor: string) {
+  async linkReferralAppointment(id: string, branchId: string, appointment: Appointment, actor: string, session?: ClientSession) {
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
         _id: oid(id),
         branchId: oid(branchId),
+        patientId: oid(appointment.patient_id),
+        'referral.targetDepartmentId': oid(appointment.department_id),
+        'referral.targetDoctorId': oid(appointment.doctor_id),
         'referral.status': 'SUBMITTED',
         'referral.appointmentId': null,
       },
@@ -588,7 +591,7 @@ export class EmergencyRepository {
           updatedBy: oid(actor),
         },
       },
-      { returnDocument: 'after' },
+      { returnDocument: 'after', session },
     ).lean<EmergencyLean>();
     return row ? emergencyReferralDto(row) : null;
   }

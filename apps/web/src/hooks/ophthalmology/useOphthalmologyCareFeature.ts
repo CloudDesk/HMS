@@ -51,7 +51,7 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
   async function perform<T>(operation: () => Promise<T>, message: string) {
     if (lifecycle.pending) return undefined; lifecycle.pending = true; setFailure(null);
     try { const saved = await operation(); if (!lifecycle.active) return undefined; toast.success(message); return saved; }
-    catch (error) { if (lifecycle.active) setFailure({ scope: lifecycle, message: getOpdErrorMessage(error) }); return undefined; }
+    catch (error) { if (lifecycle.active) { const message = getOpdErrorMessage(error); setFailure({ scope: lifecycle, message }); toast.error(message); } return undefined; }
     finally { lifecycle.pending = false; }
   }
   const writable = active && editable && !scopeError;
@@ -59,6 +59,9 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
   const canSaveOptical = writable && tab === 'optical' && canOptical && (can('Ophthalmology Optical Prescription', 'Create') || can('Ophthalmology Optical Prescription', 'Edit')) && opticalQuery.isSuccess && !opticalQuery.isError && !opticalQuery.isFetching && optical?.status !== 'APPROVED' && Boolean(configuration) && !configurationQuery.isError;
   const canApproveOptical = writable && tab === 'optical' && canOptical && can('Ophthalmology Optical Prescription', 'Approve') && optical?.status === 'DRAFT' && !opticalQuery.isError && !opticalQuery.isFetching;
   const canReview = writable && tab === 'results' && canClinical && canQueue && can('Ophthalmology Test Review', 'Review') && Boolean(task && ['COMPLETED', 'SUBMITTED_FOR_REVIEW'].includes(task.status) && result?.status === 'COMPLETED') && !taskQuery.isError && !resultQuery.isError && !taskQuery.isFetching && !resultQuery.isFetching;
+  const canRequestRepeat = writable && tab === 'results' && canClinical && canQueue && can('Ophthalmology Test Review', 'Request Repeat')
+    && Boolean(task && ['COMPLETED', 'SUBMITTED_FOR_REVIEW'].includes(task.status) && !task.repeat_task_id && result?.status === 'COMPLETED')
+    && !taskQuery.isError && !resultQuery.isError && !taskQuery.isFetching && !resultQuery.isFetching;
   function checked<T extends { context_id: string; visit_id: string; patient_id: string; branch_id: string; department_id: string }>(saved: T) { if (!matches(saved)) throw new Error('Saved response does not match this patient encounter. Reload before retrying.'); return saved; }
   return {
     showDiagnosisEditor: active && tab === 'treatment' && canClinical && can('Ophthalmology Consultation', 'Diagnose') && can('OPD Consultation', 'Edit') && Boolean(consultation && Number.isInteger(consultation.version)),
@@ -73,6 +76,8 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
     reviewResult: (body: ResultReviewWrite) => canReview && task ? perform(async () => { const saved = checked(await mutations.review.mutateAsync({ taskId: task.id, body })); if (saved.id !== task.id) throw new Error('The review response does not match the selected task. Reload before retrying.'); return saved; }, 'Selected clinical result version reviewed.') : Promise.resolve(undefined),
     openShared: (tab: string, screen: string) => { if (can(screen)) navigate(`/opd/visit?id=${workspace.visitId}&tab=${encodeURIComponent(tab)}&specialty=ophthalmology`); },
     openSourceResult: () => { if (task && canQueue) navigate(`/opd/ophthalmology/queue?branch_id=${task.branch_id}&visit_id=${task.visit_id}&task_id=${task.id}&section=tests`); },
+    canRequestRepeat,
+    requestRepeat: () => { if (canRequestRepeat && task) navigate(`/opd/ophthalmology/queue?branch_id=${task.branch_id}&visit_id=${task.visit_id}&task_id=${task.id}&action=request-repeat`); },
     canShared: (screen: string) => can(screen),
   };
 }

@@ -47,6 +47,15 @@ describe('B5 scoped metadata and authorized exception gates', () => {
     grant('OPD', 'Ophthalmology Consultation'); state.historyError = true; await act(async () => root.render(<Harness />)); expect(feature.writable).toBe(false);
     state.historyError = false; state.contextError = true; await act(async () => root.render(<Harness />)); expect(feature.writable).toBe(false); expect(feature.active).toBe(true); expect(state.queries.get('readiness')?.[1]).toBe(false);
   });
+  it('does not fetch publication data on completion mount or refresh; publication tools own that permission-gated workflow', async () => {
+    grant('OPD', 'Ophthalmology Consultation');
+    await act(async () => root.render(<Harness />));
+    await act(async () => { await feature.refresh(); });
+    expect(state.queries.has('publications')).toBe(false);
+    grant('OPD', 'Ophthalmology Portal Publication');
+    await act(async () => root.render(<Harness />));
+    expect(state.queries.has('publications')).toBe(false);
+  });
   it('rejects another patient finalization and never enables exception actions on a completed head', async () => {
     grant('OPD', 'Ophthalmology Consultation'); state.history = { ...head(), patient_id: 'aaaaaaaaaaaaaaaaaaaaaaaa' }; await act(async () => root.render(<Harness />)); expect(feature.scopeError).toBe(true); expect(feature.history).toBeNull(); expect(feature.writable).toBe(false);
     state.history = { ...head(), status: 'COMPLETED' }; await act(async () => root.render(<Harness />)); expect(feature.writable).toBe(false);

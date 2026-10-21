@@ -1,5 +1,11 @@
 # Ophthalmology backend/frontend completion execution
 
+## 21 October combined-workflow resume checkpoint
+
+Follow-on three-gap implementation: reuse the existing Emergency referral/appointment source chain with a validated metadata projection; keep acknowledged alerts behind a backend routine-care guard pending approved disposition rules; expose actual downstream source statuses separately from clinical approval. Current evidence and new shared-file changes are recorded at the top of the combined gap-closure report. No clinical clearance values or whole-journey completion state are invented.
+
+See [HMS_OPHTHALMOLOGY_COMBINED_WORKFLOW_GAP_CLOSURE.md](HMS_OPHTHALMOLOGY_COMBINED_WORKFLOW_GAP_CLOSURE.md) for the current source audit, preserved fixes, exact verification results, Emergency linkage/alert disposition boundaries and remaining staging UAT. Assessment remains PARTIALLY ALIGNED — GAPS REMAIN. This checkpoint does not mark historical phases or live clinical acceptance complete and does not start the next Scope 2 phase.
+
 18 October 2026. User explicitly requested full backend and frontend implementation after the source audit. This expands the previous frontend-only boundary to the existing Ophthalmology and additive shared backend/staff frontend integration. Preserve current 46a6e7f checkout plus two existing B6 test corrections and verification artifact. Do not start the unrelated Scope2 IP/Emergency release. Reuse PROJECT_RULES, engineering checklist, FSD v1.0, approved DEC-01–12, alignment matrix, actual models/repositories/services/routes/permissions and existing OPD UI; HMS Local is absent.
 
 ## Dependency order and gap notes

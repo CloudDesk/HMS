@@ -130,6 +130,15 @@ describe('Ophthalmology Phase 3 intake and emergency workflow', () => {
     const acknowledged = await service.acknowledgeAlert(visitId, result.alert!.id,
       { expected_version: result.alert!.version, expected_status: 'ACTIVE', note: 'Reviewed immediately' }, userId);
     expect(acknowledged).toMatchObject({ status: 'ACKNOWLEDGED', acknowledged_by: userId, acknowledgement_note: 'Reviewed immediately', version: 2 });
+    expect(await repository.getAlert(result.alert!.id)).toMatchObject({ status: 'ACKNOWLEDGED', version: 2 });
+    expect((await repository.getContextByVisit(visitId))?.workflow_status).toBe('AWAITING_DOCTOR');
+    await expect(service.acknowledgeAlert(visitId, result.alert!.id,
+      { expected_version: result.alert!.version, expected_status: 'ACTIVE' }, userId))
+      .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_VERSION_CONFLICT' });
+    await expect(service.acknowledgeAlert(visitId, result.alert!.id,
+      { expected_version: acknowledged.version, expected_status: 'ACTIVE' }, userId))
+      .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_VERSION_CONFLICT' });
+    expect(await repository.getAlert(result.alert!.id)).toMatchObject({ status: 'ACKNOWLEDGED', version: 2 });
     expect(await AuditLogModel.countDocuments({ eventType: { $in: ['ophthalmology.intake.completed', 'ophthalmology.emergency_alert.created',
       'ophthalmology.emergency_alert.acknowledged'] } })).toBe(3);
   });

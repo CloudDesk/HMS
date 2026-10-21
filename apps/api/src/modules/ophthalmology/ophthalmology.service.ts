@@ -1114,6 +1114,11 @@ export class OphthalmologyService {
         throw this.statusConflict('Shared OPD consultation is not ready for completion');
       }
       if (!initial && finalization.status !== 'AMENDMENT_OPEN') throw this.statusConflict('Consultation is already completed');
+      // Draft references may have changed since the plan was saved. A completion
+      // override cannot approve a plan linked to another or deleted clinical record.
+      await this.validateClinicalReviewReferences(transactionalContext, {
+        ...review.current, expected_version: review.version,
+      }, session);
       let completedConsultation = consultation;
       if (initial) {
         completedConsultation = await this.consultationRepository!.saveForVisit({ ...consultation,
@@ -1157,7 +1162,10 @@ export class OphthalmologyService {
     await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
     const [finalization, projection] = await Promise.all([this.repository.getFinalizationByVisit(visitId), this.repository.getDoctorReviewProjection(context)]);
     const summary = this.mapDoctorReviewSummary(projection);
-    return { finalization, summary };
+    const sources = await this.repository.getEmergencyReferralTrace(context);
+    if (sources.length > 1) throw new AppError('Multiple Emergency referrals reference this appointment. Review the source records before continuing.',
+      409, 'OPHTHALMOLOGY_SOURCE_CONFLICT');
+    return { finalization, summary: { ...summary, emergency_source: sources[0] ?? null } };
   }
 
   private mapDoctorReviewSummary(projection: {
@@ -1238,21 +1246,28 @@ export class OphthalmologyService {
       })),
       procedure_recommendations: (projection.procedure_recommendations ?? []).map((pr) => ({
         id: (pr as Record<string, { toString(): string }>)._id?.toString() ?? (pr.id as string),
-        procedure_name: (pr.procedureName as string) ?? (pr.procedure_name as string) ?? '',
-        urgency: (pr.urgency as string) ?? 'ROUTINE',
+        status: pr.status as string | undefined,
+        booking_id: pr.bookingId?.toString() ?? null,
+        booking_status: (pr.bookingStatus as string) ?? null,
+        procedure_name: (pr.serviceName as string) ?? '',
+        urgency: (pr.urgency as string) ?? null,
         target_date: pr.targetDate ? new Date(pr.targetDate as string | Date).toISOString() : (pr.target_date as string) ?? null,
-        reason: (pr.reason as string) ?? '',
+        reason: (pr.clinicalReason as string) ?? '',
       })),
       referrals: (projection.referrals ?? []).map((r) => ({
         id: (r as Record<string, { toString(): string }>)._id?.toString() ?? (r.id as string),
-        target_department_name: (r.targetDepartmentName as string) ?? (r.target_department_name as string) ?? '',
-        target_doctor_name: (r.targetDoctorName as string) ?? (r.target_doctor_name as string) ?? null,
+        status: r.status as string | undefined,
+        appointment_id: r.appointmentId?.toString() ?? null,
+        target_department_name: (r.specialty as string) ?? (r.targetDepartmentName as string) ?? '',
+        target_doctor_name: (r.referredDoctorName as string) ?? (r.targetDoctorName as string) ?? null,
         reason: (r.reason as string) ?? '',
       })),
       follow_ups: (projection.follow_ups ?? []).map((f) => ({
         id: (f as Record<string, { toString(): string }>)._id?.toString() ?? (f.id as string),
-        follow_up_date: f.followUpDate ? new Date(f.followUpDate as string | Date).toISOString() : (f.follow_up_date as string) ?? null,
-        instructions: (f.instructions as string) ?? '',
+        status: f.status as string | undefined,
+        appointment_id: f.appointmentId?.toString() ?? null,
+        follow_up_date: f.nextVisitDate ? new Date(f.nextVisitDate as string | Date).toISOString() : null,
+        instructions: (f.notes as string) ?? '',
       })),
     };
   }
@@ -1318,6 +1333,7 @@ export class OphthalmologyService {
   }
 
   private async evaluateCompletionReadiness(context: OphthalmologyContext, session?: ClientSession): Promise<OphthalmologyCompletionReadiness> {
+    await this.requireEmergencyClearance(context.id, session);
     const configuration = await this.requireCompletionConfiguration(context, session);
     const required = configuration.values.required_requirements;
     if (!Array.isArray(required) || required.length === 0) throw new AppError('Completion profile requires required_requirements', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
@@ -1487,15 +1503,7 @@ export class OphthalmologyService {
       || !await this.repository.eligibleTestAssignee(userId, task.station_id, task.branch_id, task.department_id, session)) {
       throw new AppError('Only the eligible assigned station user may start this test', 403, 'OPHTHALMOLOGY_ASSIGNMENT_DENIED');
     }
-    const alerts = await this.repository.getAlertsByContext(task.context_id, session);
-    const hasActiveEmergency = alerts.some((alert) => alert.type === 'EMERGENCY_SCREENING' && alert.status === 'ACTIVE');
-    if (hasActiveEmergency && task.priority !== 'EMERGENCY') {
-      throw new AppError(
-        'An active emergency alert requires clinical acknowledgement before routine testing may proceed',
-        409,
-        'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED',
-      );
-    }
+    if (task.priority !== 'EMERGENCY') await this.requireEmergencyClearance(task.context_id, session);
     const station = await this.repository.getStation(task.station_id, session);
     if (deviceCode) { const device = station?.devices.find((entry) => entry.code === deviceCode); if (!device || device.status !== 'ACTIVE'
       || device.calibration_status === 'DUE' || (device.calibration_status === 'CURRENT' && device.calibration_due_at && device.calibration_due_at <= new Date())) {
@@ -1524,6 +1532,16 @@ export class OphthalmologyService {
           reason, previousVersion: task.version, resultingVersion: updated.version }, metadata, session); return updated;
     });
   }
+  private async requireEmergencyClearance(contextId: string, session?: ClientSession) {
+    const alerts = await this.repository.getAlertsByContext(contextId, session);
+    // The approved alert contract records receipt only; neither existing status
+    // constitutes clinical clearance. Do not infer clearance from acknowledgement.
+    if (alerts.some((alert) => alert.type === 'EMERGENCY_SCREENING')) {
+      throw new AppError('Emergency clinical disposition is not recorded. Acknowledgement does not clear routine care; continue the Emergency pathway.',
+        409, 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED');
+    }
+  }
+
   private configuredTests(configuration: OphthalmologyConfiguration) {
     const raw = configuration.values.tests; if (!Array.isArray(raw) || raw.length === 0) throw new AppError('Active test catalogue has no tests', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
     return raw.filter((entry) => typeof entry !== 'object' || entry === null || !('active' in entry) || (entry as Record<string, unknown>).active === true).map((entry) => {

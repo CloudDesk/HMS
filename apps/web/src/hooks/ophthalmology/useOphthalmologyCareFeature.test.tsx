@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthPermission } from '../../auth/auth-types';
 const state = vi.hoisted(() => ({
   permissions: [] as AuthPermission[], search: '?section=clinical&care_tab=treatment', patient: '222222222222222222222222', resultEye: 'OD', save: vi.fn(),
+  taskStatus: 'COMPLETED', repeatTaskId: null as string | null,
   queries: new Map<string, unknown[]>(), query: (name: string, args: unknown[]) => {
     state.queries.set(name, args);
     const scope = { id: '555555555555555555555555', visit_id: '111111111111111111111111', context_id: '555555555555555555555555', patient_id: state.patient, branch_id: '333333333333333333333333', department_id: '444444444444444444444444' };
     const data = name === 'clinical' ? { ...scope, status: 'DRAFT', version: 3 }
       : name === 'optical' ? { ...scope, status: 'DRAFT', version: 5 }
         : name === 'consultation' ? { ...scope, diagnoses: [{ code: 'QA', display: 'QA diagnosis', codingSystem: 'QA', type: 'PRIMARY', laterality: 'OS', status: 'SUSPECTED' }] }
-          : name === 'configuration' ? { data: [{ id: '666666666666666666666666', branch_id: scope.branch_id, status: 'ACTIVE', name: 'QA configuration', values: { lens_types: ['QA_LENS'] } }] } : name === 'task' ? { ...scope, id: '777777777777777777777777', laterality: 'OD', status: 'COMPLETED', version: 4 } : name === 'result' ? { ...scope, id: '888888888888888888888888', task_id: '777777777777777777777777', current: { laterality: state.resultEye }, current_clinical_version: 2, version: 3, status: 'COMPLETED' } : { data: [], meta: { totalPages: 0 } };
+          : name === 'configuration' ? { data: [{ id: '666666666666666666666666', branch_id: scope.branch_id, status: 'ACTIVE', name: 'QA configuration', values: { lens_types: ['QA_LENS'] } }] } : name === 'task' ? { ...scope, id: '777777777777777777777777', laterality: 'OD', status: state.taskStatus, repeat_task_id: state.repeatTaskId, version: 4 } : name === 'result' ? { ...scope, id: '888888888888888888888888', task_id: '777777777777777777777777', current: { laterality: state.resultEye }, current_clinical_version: 2, version: 3, status: 'COMPLETED' } : { data: [], meta: { totalPages: 0 } };
     return { data, isError: false, isFetching: false, isSuccess: true, isLoading: false, refetch: vi.fn() };
   },
 }));
@@ -24,6 +25,7 @@ vi.mock('./useOphthalmologyCare', () => ({
   useOphthalmologyCareMutations: () => Object.fromEntries(['clinical', 'optical', 'approve', 'review'].map((key) => [key, { isPending: false, mutateAsync: state.save }])),
 }));
 import { useOphthalmologyCareFeature, type CareWorkspace } from './useOphthalmologyCareFeature';
+import { navigate } from '../../routing/navigation';
 
 describe('B4 independent permissions, scoped queries and actions', () => {
   let root: Root; let container: HTMLDivElement; let feature: ReturnType<typeof useOphthalmologyCareFeature>;
@@ -32,6 +34,22 @@ describe('B4 independent permissions, scoped queries and actions', () => {
   function Harness() { feature = useOphthalmologyCareFeature(workspace()); return null; }
   beforeEach(() => { state.search = '?section=clinical&care_tab=treatment'; state.permissions = []; state.patient = '222222222222222222222222'; state.resultEye = 'OD'; state.queries.clear(); state.save.mockReset(); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+  it('routes a permitted repeat to the existing queue and refuses denied, foreign, reviewed or already-repeated results', async () => {
+    vi.mocked(navigate).mockClear(); state.taskStatus = 'COMPLETED'; state.repeatTaskId = null;
+    state.search = '?section=clinical&care_tab=results&review_task_id=777777777777777777777777';
+    grant('Ophthalmology Consultation'); grant('Ophthalmology Test Queue');
+    await act(async () => root.render(<Harness />)); feature.requestRepeat(); expect(navigate).not.toHaveBeenCalled();
+    grant('Ophthalmology Test Review', 'Request Repeat');
+    await act(async () => root.render(<Harness />)); expect(feature.canRequestRepeat).toBe(true); feature.requestRepeat();
+    expect(navigate).toHaveBeenCalledWith('/opd/ophthalmology/queue?branch_id=333333333333333333333333&visit_id=111111111111111111111111&task_id=777777777777777777777777&action=request-repeat');
+    vi.mocked(navigate).mockClear();
+    state.patient = '999999999999999999999999'; await act(async () => root.render(<Harness />)); feature.requestRepeat(); expect(navigate).not.toHaveBeenCalled();
+    state.patient = '222222222222222222222222'; state.taskStatus = 'REVIEWED';
+    await act(async () => root.render(<Harness />)); feature.requestRepeat(); expect(navigate).not.toHaveBeenCalled();
+    state.taskStatus = 'COMPLETED'; state.repeatTaskId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+    await act(async () => root.render(<Harness />)); feature.requestRepeat(); expect(navigate).not.toHaveBeenCalled();
+    state.repeatTaskId = null;
+  });
   it('does not fetch or expose denied cached clinical or optical records', async () => {
     await act(async () => root.render(<Harness />)); expect(feature.clinical).toBeNull(); expect(feature.optical).toBeNull(); expect(feature.canSaveClinical).toBe(false); expect(state.queries.get('clinical')?.[1]).toBe(false); expect(state.queries.get('optical')?.[1]).toBe(false);
   });

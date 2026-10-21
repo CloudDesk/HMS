@@ -7,13 +7,16 @@ import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { DepartmentModel } from '../departments/department.model.js';
 import { DoctorModel } from '../doctors/doctor.model.js';
+import { AppointmentModel } from '../appointments/appointment.model.js';
+import { EmergencyEncounterModel } from '../emergency/emergency.model.js';
 import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
 import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
 import { OpdFollowUpModel } from '../opd/opd-follow-up.model.js';
+import { OpdVisitModel } from '../opd/opd-visit.model.js';
 import { OpdPrescriptionModel } from '../opd/opd-prescription.model.js';
 import { OpdReferralModel } from '../opd/opd-referral.model.js';
 import { PatientDocumentModel, PatientModel } from '../patients/patient.model.js';
-import { ProcedureRecommendationModel } from '../surgery/surgery.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/surgery.model.js';
 import { PermissionModel } from '../permissions/permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
@@ -926,6 +929,9 @@ export class OphthalmologyRepository {
       status: 'ACTIVE', deletedAt: null }).select('_id'); if (session) query.session(session); return (await query.lean())?._id.toString() ?? null;
   }
   async validateReviewReferences(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO, session: ClientSession) {
+    // Follow-ups inherit scope from their visit; the shared model has no branchId.
+    if (!await OpdVisitModel.exists({ _id: oid(context.visit_id), patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).session(session)) return false;
     for (const plan of data.treatment_plans) {
       if (plan.medication_prescription_id && !await OpdPrescriptionModel.exists({ _id: oid(plan.medication_prescription_id), visitId: oid(context.visit_id),
         patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
@@ -936,7 +942,7 @@ export class OphthalmologyRepository {
       if (plan.referral_id && !await OpdReferralModel.exists({ _id: oid(plan.referral_id), visitId: oid(context.visit_id),
         patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
       if (plan.follow_up_id && !await OpdFollowUpModel.exists({ _id: oid(plan.follow_up_id), visitId: oid(context.visit_id),
-        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+        patientId: oid(context.patient_id), deletedAt: null }).session(session)) return false;
     }
     return true;
   }
@@ -945,6 +951,23 @@ export class OphthalmologyRepository {
     const item = await query.lean(); return (item?.diagnoses ?? []).map((diagnosis) => ({ code: diagnosis.code.trim().toUpperCase(),
       laterality: diagnosis.laterality ?? 'NOT_APPLICABLE' }));
   }
+  async getEmergencyReferralTrace(context: OphthalmologyContext) {
+    const visit = await OpdVisitModel.findOne({ _id: oid(context.visit_id), patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).select('appointmentId').lean();
+    if (!visit?.appointmentId) return [];
+    const appointmentId = visit.appointmentId.toString();
+    const appointment = await AppointmentModel.exists({ _id: visit.appointmentId, patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null });
+    if (!appointment) return [];
+    // Trace metadata only: never expose Emergency assessment/notes through an OPD permission.
+    const sources = await EmergencyEncounterModel.find({ branchId: oid(context.branch_id), patientId: oid(context.patient_id),
+      'referral.appointmentId': visit.appointmentId, 'referral.targetDepartmentId': oid(context.department_id) })
+      .select('_id encounterNumber referral.submittedAt referral.priority').limit(2).lean();
+    return sources.map((source) => ({ emergency_encounter_id: source._id.toString(), encounter_number: source.encounterNumber,
+      appointment_id: appointmentId, visit_id: context.visit_id, patient_id: context.patient_id,
+      referred_at: source.referral?.submittedAt ?? null, priority: source.referral?.priority ?? null }));
+  }
+
   async getDoctorReviewProjection(context: OphthalmologyContext, session?: ClientSession) {
     const scope = { visitId: oid(context.visit_id), patientId: oid(context.patient_id) };
     const [patient, consultation, tasks, results, prescriptions, orders, procedures, referrals, followUps, clinicalReview, opticalPrescription] = await Promise.all([
@@ -961,8 +984,13 @@ export class OphthalmologyRepository {
     ]);
     const previousResults = await OphthalmologyTestResultModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id),
       visitId: { $ne: oid(context.visit_id) } }).sort({ updatedAt: -1 }).limit(50).select('-__v').session(session ?? null).lean();
+    const bookings = await ProcedureBookingModel.find({ _id: { $in: procedures.flatMap((entry) => entry.bookingId ? [entry.bookingId] : []) },
+      patientId: oid(context.patient_id), branchId: oid(context.branch_id), recommendationId: { $in: procedures.map((entry) => entry._id) } })
+      .select('_id recommendationId status').session(session ?? null).lean();
     return { context, patient, consultation, tasks, results, previous_results: previousResults, medication_prescriptions: prescriptions,
-      clinical_orders: orders, procedure_recommendations: procedures, referrals, follow_ups: followUps, clinical_review: clinicalReview,
+      clinical_orders: orders, procedure_recommendations: procedures.map((entry) => ({ ...entry,
+        bookingStatus: bookings.find((booking) => booking._id.equals(entry.bookingId) && booking.recommendationId.equals(entry._id))?.status ?? null })),
+      referrals, follow_ups: followUps, clinical_review: clinicalReview,
       optical_prescription: opticalPrescription };
   }
 

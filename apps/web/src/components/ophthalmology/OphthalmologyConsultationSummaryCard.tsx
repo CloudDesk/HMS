@@ -1,7 +1,8 @@
 import { queueTime } from '../../hooks/ophthalmology/queue-actions';
 import type { OphthalmologyCompletionFeature } from '../../hooks/ophthalmology/useOphthalmologyCompletionFeature';
+import { getOpdErrorMessage } from '../../pages/opd-utils';
 
-export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: OphthalmologyCompletionFeature }) {
+export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: { summaryQuery: Pick<OphthalmologyCompletionFeature['summaryQuery'], 'data' | 'isLoading' | 'isError' | 'error' | 'refetch'> } }) {
   const data = f.summaryQuery.data;
 
   if (f.summaryQuery.isLoading) {
@@ -18,7 +19,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
           </button>
         </div>
         <p className="doc-error-text" role="alert">
-          Failed to load consolidated consultation summary. Please retry.
+          Failed to load consolidated consultation summary. {getOpdErrorMessage(f.summaryQuery.error)}
         </p>
       </section>
     );
@@ -39,15 +40,16 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
   }
 
   const s = data.summary as {
+    emergency_source?: { emergency_encounter_id: string; encounter_number: string; appointment_id: string; visit_id: string; patient_id: string } | null;
     patient?: { patientNumber?: string; firstName?: string; lastName?: string; dateOfBirth?: string; gender?: string; allergies?: string[] };
     consultation?: { assessment?: string; diagnoses?: Array<{ code: string; display: string; laterality?: string; status?: string; type?: string }> };
     clinical_review?: { current?: { clinical_summary?: string; treatment_plans?: Array<{ diagnosis_code: string; diagnosis_laterality: string; treatment: string; category: string; priority: string; status: string }>; follow_up_decision?: string; patient_instructions?: string } };
     optical_prescription?: { status?: string; current?: { prescription_type?: string; lens_type?: string; material?: string; valid_until?: string; usage_instructions?: string; power?: { OD?: { sphere?: number; cylinder?: number; axis?: number; addition?: number }; OS?: { sphere?: number; cylinder?: number; axis?: number; addition?: number } }; pupillary_distance?: { format?: string; binocular?: number; OD?: number; OS?: number } } };
     tasks?: Array<{ id: string; test_name: string; laterality: string; status: string; priority: string; completed_at?: string }>;
     medication_prescriptions?: Array<{ id: string; status?: string; medications?: Array<{ medicine_name?: string; dosage?: string; frequency?: string; duration?: string; instructions?: string }> }>;
-    procedure_recommendations?: Array<{ id: string; procedure_name?: string; urgency?: string; target_date?: string; reason?: string }>;
-    referrals?: Array<{ id: string; target_department_name?: string; target_doctor_name?: string; reason?: string }>;
-    follow_ups?: Array<{ id: string; follow_up_date?: string; instructions?: string }>;
+    procedure_recommendations?: Array<{ id: string; status?: string; booking_id?: string | null; booking_status?: string | null; procedure_name?: string; urgency?: string | null; target_date?: string; reason?: string }>;
+    referrals?: Array<{ id: string; status?: string; appointment_id?: string | null; target_department_name?: string; target_doctor_name?: string; reason?: string }>;
+    follow_ups?: Array<{ id: string; status?: string; appointment_id?: string | null; follow_up_date?: string; instructions?: string }>;
     previous_results?: Array<{ id: string; current?: { form_type: string; performed_at: string; payload: Record<string, unknown> } }>;
   };
 
@@ -77,7 +79,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
         </div>
         <div>
           <p>
-            <strong>Encounter Status:</strong> {finalization?.status ?? 'IN_PROGRESS'}
+            <strong>Clinical Sign-off Status:</strong> {finalization?.status ?? 'IN_PROGRESS'}
           </p>
           {latestApproval && (
             <p>
@@ -86,6 +88,14 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
           )}
         </div>
       </div>
+
+      <p>Clinical sign-off does not confirm downstream fulfillment or completion of the patient journey. Source statuses below reflect the latest retrieved records; submitted requests and scheduled appointments are not proof of care delivered.</p>
+      {s.emergency_source && <p><strong>Emergency referral source:</strong> {s.emergency_source.encounter_number} · Emergency encounter {s.emergency_source.emergency_encounter_id} · Appointment {s.emergency_source.appointment_id} · OPD encounter {s.emergency_source.visit_id}</p>}
+
+      <h4>Medication Requests</h4>
+      {s.medication_prescriptions?.length ? s.medication_prescriptions.map((prescription) => <p key={prescription.id}>
+        Prescription {prescription.id} · Source status: {prescription.status ?? 'Not recorded'}. Dispensing must be checked in Pharmacy.
+      </p>) : <p>No medication requests recorded.</p>}
 
       <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
 
@@ -236,17 +246,17 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
           <h4>Continuing Care & Recommendations</h4>
           {s.procedure_recommendations?.map((p) => (
             <p key={p.id}>
-              <strong>Surgery/Procedure Recommended:</strong> {p.procedure_name} ({p.urgency}) · Target: {p.target_date ? new Date(p.target_date).toLocaleDateString() : 'Unspecified'} · Reason: {p.reason || 'None'}
+              <strong>Surgery/Procedure Recommended:</strong> {p.procedure_name} · Source status: {p.status ?? 'Not recorded'} · Booking: {p.booking_id ?? 'Not linked'} · Booking status: {p.booking_status ?? 'Not available'} · Reason: {p.reason || 'Not recorded'}
             </p>
           ))}
           {s.referrals?.map((r) => (
             <p key={r.id}>
-              <strong>Referral:</strong> To {r.target_department_name} ({r.target_doctor_name ?? 'Any Specialist'}) · Reason: {r.reason}
+              <strong>Referral:</strong> To {r.target_department_name} ({r.target_doctor_name ?? 'Any Specialist'}) · Source status: {r.status ?? 'Not recorded'} · Appointment: {r.appointment_id ?? 'Not linked'} · Reason: {r.reason}
             </p>
           ))}
           {s.follow_ups?.map((f) => (
             <p key={f.id}>
-              <strong>Follow-up Scheduled:</strong> {f.follow_up_date ? new Date(f.follow_up_date).toLocaleDateString() : 'Routine'} · Instructions: {f.instructions || 'Standard'}
+              <strong>Follow-up:</strong> Source status: {f.status ?? 'Not recorded'} · Appointment: {f.appointment_id ?? 'Not linked'} · Date: {f.follow_up_date ? new Date(f.follow_up_date).toLocaleDateString() : 'Not recorded'} · Instructions: {f.instructions || 'Not recorded'}
             </p>
           ))}
         </>

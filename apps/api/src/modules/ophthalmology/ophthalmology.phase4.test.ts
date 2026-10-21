@@ -188,7 +188,7 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
       assigned_user_id: userId, reason: 'Result quality insufficient' }, 'phase4-repeat-001', userId)).id).toBe(repeat.id);
   });
 
-  it('blocks routine task starting when an unacknowledged emergency alert exists, but permits emergency tasks', async () => {
+  it('blocks routine task starting after acknowledgement as well as before it, but permits emergency tasks', async () => {
     const task = await create('emergency-guard-test');
     const assigned = await service.assignTestTask(task.id,
       { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
@@ -206,6 +206,12 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
       .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
 
     await OphthalmologyAlertModel.updateOne({ _id: alert._id }, { $set: { status: 'ACKNOWLEDGED' } });
+
+    await expect(service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version }, userId))
+      .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    expect(await repository.getTestTask(task.id)).toMatchObject({ status: 'PATIENT_CALLED', version: called.version });
+    // Fixture marks this task as an existing urgent-priority order, not clearance.
+    await OphthalmologyTestTaskModel.updateOne({ _id: task.id }, { $set: { priority: 'EMERGENCY' } });
 
     const started = await service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version, device_code: 'ETDRS' }, userId);
     expect(started).toMatchObject({ status: 'IN_PROGRESS' });

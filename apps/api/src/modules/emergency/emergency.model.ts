@@ -279,6 +279,7 @@ encounterSchema.index({ departmentId: 1, status: 1, arrivalAt: 1 });
 encounterSchema.index({ patientId: 1, createdAt: -1 }, { sparse: true });
 encounterSchema.index({ patientName: 1, encounterNumber: 1 });
 encounterSchema.index({ branchId: 1, 'referral.status': 1, 'referral.submittedAt': -1 });
+encounterSchema.index({ branchId: 1, patientId: 1, 'referral.appointmentId': 1 });
 encounterSchema.index({ 'referral.targetDoctorId': 1, 'referral.status': 1, 'referral.submittedAt': -1 });
 encounterSchema.index(
   { inpatientAdmissionId: 1 },

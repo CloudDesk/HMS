@@ -13,6 +13,7 @@ import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import type { OphthalmologyCoreTestFormType, SaveOphthalmologyTestResultDraftDTO } from './ophthalmology.types.js';
 import { OphthalmologyTestResultModel } from './ophthalmology-test-result.model.js';
+import { OphthalmologyAlertModel } from './ophthalmology-intake.model.js';
 import { OphthalmologyTestTaskModel } from './ophthalmology-test-task.model.js';
 import { OphthalmologyConfigurationModel, OphthalmologyStationModel } from './ophthalmology.model.js';
 import { OphthalmologyRepository } from './ophthalmology.repository.js';
@@ -78,6 +79,24 @@ describe('Ophthalmology Phase 5 core clinical test results', () => {
     expect(await repository.getTestTask(task._id.toString())).toMatchObject({ status: 'COMPLETED', version: 2 });
   });
 
+  it('guards direct result writes when an emergency is acknowledged after a routine task started', async () => {
+    const entry = forms[0]; if (!entry) throw new Error('Missing core form');
+    const [form, payload] = entry; const { task, profile } = await createTaskAndProfile(form);
+    const body = draft(form, profile.id, payload);
+    await service.saveTestResultDraft(task.id, body, userId);
+    await OphthalmologyAlertModel.create({ contextId, visitId, patientId, branchId, departmentId, intakeId: new Types.ObjectId(),
+      type: 'EMERGENCY_SCREENING', status: 'ACKNOWLEDGED', sourceVersion: 1, criterionCodes: ['SUDDEN_VISION_LOSS'],
+      reason: 'Emergency reassessment', triggeredBy: userId, triggeredAt: new Date() });
+    const expected = { expected_task_status: 'DRAFT' as const, expected_task_version: 1, expected_result_version: 0 };
+    await expect(service.saveTestResultDraft(task.id, { ...body, ...expected }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    await expect(service.completeTestResult(task.id, expected, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+    expect(await repository.getTestResult(task.id)).toMatchObject({ status: 'DRAFT', version: 0 });
+    await OphthalmologyTestTaskModel.updateOne({ _id: task._id }, { $set: { priority: 'EMERGENCY' } });
+    expect(await service.completeTestResult(task.id, expected, userId)).toMatchObject({ status: 'COMPLETED' });
+  });
+
   it('submits only a completed current result for review, preserves versions and rejects stale replay/non-members', async () => {
     const entry = forms[0]; if (!entry) throw new Error('Missing core form');
     const [form, payload] = entry; const { task, profile } = await createTaskAndProfile(form);
@@ -106,6 +125,30 @@ describe('Ophthalmology Phase 5 core clinical test results', () => {
       expected_task_status: 'DRAFT', expected_task_version: 2, expected_result_version: 1 }, userId)));
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
+  });
+
+  it('preserves a rejected result through repeat failure, retry and exact idempotent replay', async () => {
+    const entry = forms[0]; if (!entry) throw new Error('Missing core form');
+    const [form, payload] = entry; const { task, profile } = await createTaskAndProfile(form);
+    const taskId = task._id.toString();
+    await service.saveTestResultDraft(taskId, draft(form, profile._id.toString(), payload), userId);
+    const original = await service.completeTestResult(taskId, { expected_task_status: 'DRAFT', expected_task_version: 1,
+      expected_result_version: 0 }, userId);
+    const body = { expected_status: 'COMPLETED' as const, expected_version: 2, station_id: stationId,
+      assigned_user_id: userId, reason: 'Recorded result needs a repeat measurement' };
+    vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('repeat audit unavailable'));
+    await expect(service.repeatTestTask(taskId, body, 'result-repeat-retry', userId)).rejects.toThrow('repeat audit unavailable');
+    expect(await repository.getTestTask(taskId)).toMatchObject({ status: 'COMPLETED', version: 2, repeat_task_id: null });
+    expect(await repository.getRepeatTask(taskId)).toBeNull();
+    expect(await repository.getTestResult(taskId)).toEqual(original);
+    const repeat = await service.repeatTestTask(taskId, body, 'result-repeat-retry', userId);
+    expect(repeat).toMatchObject({ status: 'PATIENT_WAITING', repeat_of_task_id: taskId });
+    expect(await repository.getTestTask(taskId)).toMatchObject({ status: 'REPEAT_REQUIRED', repeat_task_id: repeat.id });
+    expect(await repository.getTestResult(taskId)).toEqual(original);
+    expect(await service.repeatTestTask(taskId, body, 'result-repeat-retry', userId)).toEqual(repeat);
+    await expect(service.repeatTestTask(taskId, { ...body, reason: 'Different reason' }, 'result-repeat-retry', userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REPEAT_CONFLICT' });
+    expect(await OphthalmologyTestTaskModel.countDocuments({ repeatOfTaskId: task._id })).toBe(1);
   });
 
   it.each(forms)('retains completed %s history through a reasoned correction', async (form, payload) => {

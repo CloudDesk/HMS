@@ -8,6 +8,7 @@ import { DoctorModel } from '../doctors/doctor.model.js';
 import { NotificationRepository } from '../notifications/notification.repository.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { OpdConsultationModel } from '../opd/opd-consultation.model.js';
+import { OpdFollowUpModel } from '../opd/opd-follow-up.model.js';
 import { OpdVisitModel } from '../opd/opd-visit.model.js';
 import { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import { PatientModel } from '../patients/patient.model.js';
@@ -79,6 +80,29 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
     await expect(service.saveClinicalReviewDraft(visitId, wrong, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH' });
     const outcomes = await Promise.allSettled([0, 1].map(() => service.saveClinicalReviewDraft(visitId, review(), userId)));
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+  });
+
+  it('links a shared follow-up without a branch field and rejects foreign or deleted references', async () => {
+    const consultation = await OpdConsultationModel.findOne({ visitId }).lean();
+    if (!consultation) throw new Error('Missing consultation fixture');
+    const followUp = await OpdFollowUpModel.create({ visitId, consultationId: consultation._id,
+      patientId: consultation.patientId, patientNumber: consultation.patientNumber, patientName: consultation.patientName,
+      originatingDoctorId: consultation.doctorId, originatingDoctorName: consultation.doctorName,
+      status: 'DRAFT', reminderType: 'NONE' });
+    expect(followUp.toObject()).not.toHaveProperty('branchId');
+    const body = { ...review(), treatment_plans: review().treatment_plans.map((plan) => ({ ...plan, follow_up_id: followUp.id })) };
+    const saved = await service.saveClinicalReviewDraft(visitId, body, userId);
+    expect(saved.current.treatment_plans[0]?.follow_up_id).toBe(followUp.id);
+    const update = { ...body, expected_version: saved.version };
+    for (const invalid of [
+      { visitId: new Types.ObjectId(), patientId: consultation.patientId, deletedAt: null },
+      { visitId: new Types.ObjectId(visitId), patientId: new Types.ObjectId(), deletedAt: null },
+      { visitId: new Types.ObjectId(visitId), patientId: consultation.patientId, deletedAt: new Date() },
+    ]) {
+      await OpdFollowUpModel.updateOne({ _id: followUp._id }, { $set: invalid });
+      await expect(service.saveClinicalReviewDraft(visitId, update, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
+      expect((await repository.getClinicalReviewByVisit(visitId))?.version).toBe(saved.version);
+    }
   });
 
   it('versions and approves a separately governed optical prescription', async () => {
