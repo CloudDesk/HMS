@@ -58,7 +58,7 @@ export function useOphthalmologyWorkspaceFeature() {
   const editableVisit = Boolean(visit && !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(visit.status));
   const contextEditOpen = params.get('edit_context') === 'open' && canEdit && Boolean(context);
   const lookupSubtype = contextEditOpen ? parsedSubtype.success && availableSubtypes.includes(parsedSubtype.data) ? parsedSubtype.data : context?.visit_subtype ?? subtype : subtype;
-  const lookupEnabled = canView && canEdit && editableVisit && Boolean(branchId) && !scopeError;
+  const lookupEnabled = canView && canConfigure && editableVisit && Boolean(branchId) && !scopeError;
   const complaintsQuery = useOphthalmologyConfigurations(branchId, 'COMPLAINT', configurationPage, lookupEnabled && Boolean(context));
   const emergenciesQuery = useOphthalmologyConfigurations(branchId, 'CLINICAL_THRESHOLD', configurationPage, lookupEnabled && Boolean(context));
   const completionQuery = useOphthalmologyConfigurations(branchId, 'COMPLETION_PROFILE', configurationPage, lookupEnabled && contextQuery.data === null);

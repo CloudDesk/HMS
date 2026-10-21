@@ -13,6 +13,7 @@ import { PermissionModel } from '../permissions/permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
 import { OphthalmologyTestTaskModel } from './ophthalmology-test-task.model.js';
+import { OphthalmologyAlertModel } from './ophthalmology-intake.model.js';
 import { OphthalmologyConfigurationModel, OphthalmologyContextModel, OphthalmologyStationModel, OphthalmologyWorkflowProfileModel } from './ophthalmology.model.js';
 import { OphthalmologyRepository } from './ophthalmology.repository.js';
 import { OphthalmologyService } from './ophthalmology.service.js';
@@ -25,7 +26,7 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
 
   beforeAll(async () => {
     mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri());
-    await Promise.all([OphthalmologyTestTaskModel.init(), OphthalmologyContextModel.init(), OphthalmologyConfigurationModel.init(),
+    await Promise.all([OphthalmologyTestTaskModel.init(), OphthalmologyAlertModel.init(), OphthalmologyContextModel.init(), OphthalmologyConfigurationModel.init(),
       OphthalmologyStationModel.init(), OphthalmologyWorkflowProfileModel.init(), OpdVisitModel.init(), OpdClinicalOrderModel.init()]);
   });
   beforeEach(async () => {
@@ -187,7 +188,30 @@ describe('Ophthalmology Phase 4 test queue orchestration', () => {
       assigned_user_id: userId, reason: 'Result quality insufficient' }, 'phase4-repeat-001', userId)).id).toBe(repeat.id);
   });
 
-  it('keeps clinical-order linkage read-only and records operational audit history', async () => {
+  it('blocks routine task starting when an unacknowledged emergency alert exists, but permits emergency tasks', async () => {
+    const task = await create('emergency-guard-test');
+    const assigned = await service.assignTestTask(task.id,
+      { expected_status: 'ORDERED', expected_version: 0, station_id: stationId, assigned_user_id: userId }, userId);
+    const called = await service.callTestTask(task.id, { expected_status: 'PATIENT_WAITING', expected_version: assigned.version }, userId);
+
+    const alert = await OphthalmologyAlertModel.create({
+      contextId: new Types.ObjectId((await service.getTestTask(task.id, userId)).context_id),
+      intakeId: new Types.ObjectId(), visitId: new Types.ObjectId(visitId),
+      patientId: new Types.ObjectId(patientId), branchId: new Types.ObjectId(branchId), departmentId: new Types.ObjectId(departmentId),
+      type: 'EMERGENCY_SCREENING', status: 'ACTIVE', sourceVersion: 1, criterionCodes: ['SUDDEN_VISION_LOSS'],
+      reason: 'Sudden vision loss', notifiedUserIds: [], triggeredBy: new Types.ObjectId(userId), triggeredAt: new Date(), version: 0,
+    });
+
+    await expect(service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version }, userId))
+      .rejects.toMatchObject({ statusCode: 409, code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED' });
+
+    await OphthalmologyAlertModel.updateOne({ _id: alert._id }, { $set: { status: 'ACKNOWLEDGED' } });
+
+    const started = await service.startTestTask(task.id, { expected_status: 'PATIENT_CALLED', expected_version: called.version, device_code: 'ETDRS' }, userId);
+    expect(started).toMatchObject({ status: 'IN_PROGRESS' });
+  });
+
+    it('keeps clinical-order linkage read-only and records operational audit history', async () => {
     const order = await OpdClinicalOrderModel.create({ sourceType: 'OPD_VISIT', sourceId: visitId, visitId, patientId,
       patientNumber: 'P-OPH-P4', patientName: 'Phase Four Patient', doctorId: new Types.ObjectId(), doctorName: 'Dr Ophthalmology', branchId,
       orderType: 'IMAGING', status: 'SUBMITTED', priority: 'ROUTINE', items: [{ serviceId: new Types.ObjectId(), serviceName: 'Fundus Image',

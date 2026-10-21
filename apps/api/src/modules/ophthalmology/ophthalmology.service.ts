@@ -33,6 +33,8 @@ import type {
   OphthalmologyWorkflowStatus,
   OphthalmologyTestTask,
   OphthalmologyTestTaskListQuery,
+  OphthalmologyClinicalReview,
+  OphthalmologyOpticalPrescription,
   CreateOphthalmologyTestTaskDTO,
   AssignOphthalmologyTestTaskDTO,
   ReassignOphthalmologyTestTaskDTO,
@@ -1153,8 +1155,106 @@ export class OphthalmologyService {
 
   async getConsultationSummary(visitId: string, userId: string) {
     await this.getOphthalmologyVisit(visitId, userId); const context = await this.requireContextForVisit(visitId);
-    const [finalization, summary] = await Promise.all([this.repository.getFinalizationByVisit(visitId), this.repository.getDoctorReviewProjection(context)]);
+    const [finalization, projection] = await Promise.all([this.repository.getFinalizationByVisit(visitId), this.repository.getDoctorReviewProjection(context)]);
+    const summary = this.mapDoctorReviewSummary(projection);
     return { finalization, summary };
+  }
+
+  private mapDoctorReviewSummary(projection: {
+    context: OphthalmologyContext;
+    patient: Record<string, unknown> | null;
+    consultation: Record<string, unknown> | null;
+    tasks: Record<string, unknown>[];
+    results: Record<string, unknown>[];
+    previous_results: Record<string, unknown>[];
+    medication_prescriptions: Record<string, unknown>[];
+    clinical_orders: Record<string, unknown>[];
+    procedure_recommendations: Record<string, unknown>[];
+    referrals: Record<string, unknown>[];
+    follow_ups: Record<string, unknown>[];
+    clinical_review: OphthalmologyClinicalReview | null;
+    optical_prescription: OphthalmologyOpticalPrescription | null;
+  }) {
+    return {
+      context: projection.context,
+      patient: projection.patient ? {
+        id: (projection.patient as Record<string, { toString(): string }>)._id?.toString(),
+        patientNumber: projection.patient.patientNumber as string | undefined,
+        firstName: projection.patient.firstName as string | undefined,
+        lastName: projection.patient.lastName as string | undefined,
+        dateOfBirth: projection.patient.dateOfBirth ? new Date(projection.patient.dateOfBirth as string | Date).toISOString() : null,
+        gender: (projection.patient.gender as string) ?? null,
+        allergies: (projection.patient.allergies as string[]) ?? [],
+        alerts: (projection.patient.alerts as string[]) ?? [],
+      } : null,
+      consultation: projection.consultation ? {
+        id: (projection.consultation as Record<string, { toString(): string }>)._id?.toString(),
+        assessment: (projection.consultation.assessment as string) ?? '',
+        diagnoses: ((projection.consultation.diagnoses as Array<Record<string, unknown>>) ?? []).map((d) => ({
+          code: d.code as string,
+          display: d.display as string,
+          laterality: (d.laterality as string) ?? 'NOT_APPLICABLE',
+          status: (d.status as string) ?? 'CONFIRMED',
+          type: (d.type as string) ?? 'PRIMARY',
+        })),
+      } : null,
+      clinical_review: projection.clinical_review,
+      optical_prescription: projection.optical_prescription,
+      tasks: (projection.tasks ?? []).map((t) => {
+        const tid = (t as Record<string, { toString(): string }>)._id?.toString() ?? (t.id as string);
+        const tname = (t.testName as string) ?? (t.test_name as string) ?? (t.testCode as string) ?? '';
+        const compAt = t.completedAt ? new Date(t.completedAt as string | Date).toISOString() : (t.completed_at as string) ?? null;
+        return {
+          id: tid,
+          test_code: (t.testCode as string) ?? (t.test_code as string),
+          test_name: tname,
+          laterality: (t.laterality as string) ?? 'NOT_APPLICABLE',
+          status: t.status as string,
+          priority: t.priority as string,
+          completed_at: compAt,
+        };
+      }),
+      results: projection.results,
+      previous_results: projection.previous_results,
+      medication_prescriptions: (projection.medication_prescriptions ?? []).map((p) => {
+        const pid = (p as Record<string, { toString(): string }>)._id?.toString() ?? (p.id as string);
+        const rawMeds = (p.items as Array<Record<string, unknown>>) ?? (p.medications as Array<Record<string, unknown>>) ?? [];
+        return {
+          id: pid,
+          status: p.status as string | undefined,
+          medications: rawMeds.map((m) => ({
+            medicine_name: (m.medicineName as string) ?? (m.medicine_name as string) ?? '',
+            dosage: (m.dosage as string) ?? '',
+            frequency: (m.frequency as string) ?? '',
+            duration: (m.duration as string) ?? '',
+            instructions: (m.instructions as string) ?? '',
+          })),
+        };
+      }),
+      clinical_orders: (projection.clinical_orders ?? []).map((o) => ({
+        id: (o as Record<string, { toString(): string }>)._id?.toString() ?? (o.id as string),
+        order_type: (o.orderType as string) ?? (o.order_type as string),
+        status: o.status as string,
+      })),
+      procedure_recommendations: (projection.procedure_recommendations ?? []).map((pr) => ({
+        id: (pr as Record<string, { toString(): string }>)._id?.toString() ?? (pr.id as string),
+        procedure_name: (pr.procedureName as string) ?? (pr.procedure_name as string) ?? '',
+        urgency: (pr.urgency as string) ?? 'ROUTINE',
+        target_date: pr.targetDate ? new Date(pr.targetDate as string | Date).toISOString() : (pr.target_date as string) ?? null,
+        reason: (pr.reason as string) ?? '',
+      })),
+      referrals: (projection.referrals ?? []).map((r) => ({
+        id: (r as Record<string, { toString(): string }>)._id?.toString() ?? (r.id as string),
+        target_department_name: (r.targetDepartmentName as string) ?? (r.target_department_name as string) ?? '',
+        target_doctor_name: (r.targetDoctorName as string) ?? (r.target_doctor_name as string) ?? null,
+        reason: (r.reason as string) ?? '',
+      })),
+      follow_ups: (projection.follow_ups ?? []).map((f) => ({
+        id: (f as Record<string, { toString(): string }>)._id?.toString() ?? (f.id as string),
+        follow_up_date: f.followUpDate ? new Date(f.followUpDate as string | Date).toISOString() : (f.follow_up_date as string) ?? null,
+        instructions: (f.instructions as string) ?? '',
+      })),
+    };
   }
 
   async getCompletionHistory(visitId: string, userId: string) {
@@ -1342,14 +1442,11 @@ export class OphthalmologyService {
     }
   }
   private async requireDoctor(context: OphthalmologyContext, userId: string) {
-    let doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
-    if (!doctorId && await this.repository.isSuperAdmin(userId)) {
-      const visit = await this.visitRepository.getById(context.visit_id);
-      if (visit?.doctor_id) return visit.doctor_id;
-      const anyDoctor = await this.repository.getAnyActiveDoctorId(context.branch_id);
-      if (anyDoctor) return anyDoctor;
+    const doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    if (!doctorId) {
+      throw new AppError('An active Ophthalmology doctor is required', 403, 'OPHTHALMOLOGY_DOCTOR_REQUIRED');
     }
-    if (!doctorId) throw new AppError('An active Ophthalmology doctor is required', 403, 'OPHTHALMOLOGY_DOCTOR_REQUIRED'); return doctorId;
+    return doctorId;
   }
 
   private resultRequiresDoctorReview(formType: string, payload: Record<string, unknown>, reliability: string) {
@@ -1389,6 +1486,15 @@ export class OphthalmologyService {
     if (!task.station_id || task.assigned_user_id !== userId
       || !await this.repository.eligibleTestAssignee(userId, task.station_id, task.branch_id, task.department_id, session)) {
       throw new AppError('Only the eligible assigned station user may start this test', 403, 'OPHTHALMOLOGY_ASSIGNMENT_DENIED');
+    }
+    const alerts = await this.repository.getAlertsByContext(task.context_id, session);
+    const hasActiveEmergency = alerts.some((alert) => alert.type === 'EMERGENCY_SCREENING' && alert.status === 'ACTIVE');
+    if (hasActiveEmergency && task.priority !== 'EMERGENCY') {
+      throw new AppError(
+        'An active emergency alert requires clinical acknowledgement before routine testing may proceed',
+        409,
+        'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED',
+      );
     }
     const station = await this.repository.getStation(task.station_id, session);
     if (deviceCode) { const device = station?.devices.find((entry) => entry.code === deviceCode); if (!device || device.status !== 'ACTIVE'

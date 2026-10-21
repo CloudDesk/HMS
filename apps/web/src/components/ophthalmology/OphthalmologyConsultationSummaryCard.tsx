@@ -8,7 +8,23 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
     return <section className="doc-card"><p role="status">Loading consolidated consultation summary…</p></section>;
   }
 
-  if (f.summaryQuery.isError || !data?.summary) {
+  if (f.summaryQuery.isError) {
+    return (
+      <section className="doc-card">
+        <div className="oph-toolbar">
+          <h4>Consolidated Consultation Summary</h4>
+          <button type="button" className="doc-btn danger" onClick={() => void f.summaryQuery.refetch()}>
+            Retry Summary
+          </button>
+        </div>
+        <p className="doc-error-text" role="alert">
+          Failed to load consolidated consultation summary. Please retry.
+        </p>
+      </section>
+    );
+  }
+
+  if (!data?.summary) {
     return (
       <section className="doc-card">
         <div className="oph-toolbar">
@@ -26,7 +42,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
     patient?: { patientNumber?: string; firstName?: string; lastName?: string; dateOfBirth?: string; gender?: string; allergies?: string[] };
     consultation?: { assessment?: string; diagnoses?: Array<{ code: string; display: string; laterality?: string; status?: string; type?: string }> };
     clinical_review?: { current?: { clinical_summary?: string; treatment_plans?: Array<{ diagnosis_code: string; diagnosis_laterality: string; treatment: string; category: string; priority: string; status: string }>; follow_up_decision?: string; patient_instructions?: string } };
-    optical_prescription?: { current?: { prescription_type?: string; lens_type?: string; material?: string; valid_until?: string; usage_instructions?: string; power?: { OD?: { sphere?: number; cylinder?: number; axis?: number; addition?: number }; OS?: { sphere?: number; cylinder?: number; axis?: number; addition?: number } }; pupillary_distance?: { format?: string; binocular?: number; OD?: number; OS?: number } } };
+    optical_prescription?: { status?: string; current?: { prescription_type?: string; lens_type?: string; material?: string; valid_until?: string; usage_instructions?: string; power?: { OD?: { sphere?: number; cylinder?: number; axis?: number; addition?: number }; OS?: { sphere?: number; cylinder?: number; axis?: number; addition?: number } }; pupillary_distance?: { format?: string; binocular?: number; OD?: number; OS?: number } } };
     tasks?: Array<{ id: string; test_name: string; laterality: string; status: string; priority: string; completed_at?: string }>;
     medication_prescriptions?: Array<{ id: string; status?: string; medications?: Array<{ medicine_name?: string; dosage?: string; frequency?: string; duration?: string; instructions?: string }> }>;
     procedure_recommendations?: Array<{ id: string; procedure_name?: string; urgency?: string; target_date?: string; reason?: string }>;
@@ -140,7 +156,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
 
       {s.optical_prescription?.current && (
         <>
-          <h4>Approved Optical Prescription</h4>
+          <h4>{s.optical_prescription?.status === 'APPROVED' ? 'Approved Optical Prescription' : 'Draft Optical Prescription (Pending Approval)'}</h4>
           <p>
             Type: {s.optical_prescription.current.prescription_type} · Lens: {s.optical_prescription.current.lens_type} · Material: {s.optical_prescription.current.material} · Valid until: {s.optical_prescription.current.valid_until ? new Date(s.optical_prescription.current.valid_until).toLocaleDateString() : 'N/A'}
           </p>
@@ -195,15 +211,19 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
               </tr>
             </thead>
             <tbody>
-              {s.tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>{task.test_name}</td>
-                  <td>{task.laterality}</td>
-                  <td>{task.status}</td>
-                  <td>{task.priority}</td>
-                  <td>{task.completed_at ? queueTime(task.completed_at) : '—'}</td>
-                </tr>
-              ))}
+              {s.tasks.map((task) => {
+                const name = task.test_name ?? (task as Record<string, unknown>).testName ?? '';
+                const comp = task.completed_at ?? (task as Record<string, unknown>).completedAt;
+                return (
+                  <tr key={task.id}>
+                    <td>{name}</td>
+                    <td>{task.laterality}</td>
+                    <td>{task.status}</td>
+                    <td>{task.priority}</td>
+                    <td>{comp ? queueTime(comp as string) : '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

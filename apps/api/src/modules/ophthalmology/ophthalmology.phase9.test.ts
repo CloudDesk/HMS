@@ -17,6 +17,7 @@ import { OpdVisitRepository } from '../opd/opd-visit.repository.js';
 import { PatientRepository } from '../patients/patient.repository.js';
 import { PatientTimelineEventModel, PatientModel } from '../patients/patient.model.js';
 import { UserModel } from '../users/user.model.js';
+import { RoleModel } from '../roles/role.model.js';
 import { OphthalmologyPublicationModel } from './ophthalmology-phase10.model.js';
 import { OphthalmologyConsultationFinalizationModel } from './ophthalmology-consultation.model.js';
 import { OphthalmologyClinicalReviewModel } from './ophthalmology-review.model.js';
@@ -183,6 +184,13 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     const outsider = await UserModel.create({ username: 'oph.p9.outsider', email: 'oph.p9.outsider@example.test', fullName: 'Not Doctor', passwordHash: 'none',
       roleIds: [], branchIds: [context!.branchId], departmentIds: [context!.departmentId], status: 'active' });
     await expect(service.completeConsultation(visitId, completion(), 'outsider', outsider._id.toString())).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_DOCTOR_REQUIRED' });
+
+    // Non-doctor SUPER_ADMIN must also be rejected without doctor fallback
+    const superAdminRole = await RoleModel.create({ code: 'SUPER_ADMIN', name: 'Super Admin', status: 'active' });
+    const adminUser = await UserModel.create({ username: 'oph.p9.admin', email: 'oph.p9.admin@example.test', fullName: 'Admin Non-Doctor', passwordHash: 'none',
+      roleIds: [superAdminRole._id], branchIds: [context!.branchId], departmentIds: [context!.departmentId], status: 'active' });
+    await expect(service.completeConsultation(visitId, completion(), 'admin-impersonation', adminUser._id.toString()))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_DOCTOR_REQUIRED' });
     const outcomes = await Promise.allSettled([0, 1].map((index) => service.completeConsultation(visitId, completion(), `p9-race-${index}`, userId)));
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter((item) => item.status === 'rejected')).toHaveLength(1);
@@ -246,4 +254,16 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     expect(await AuditLogModel.countDocuments({ eventType: { $in: ['ophthalmology.consultation.reopened',
       'ophthalmology.consultation.amended', 'ophthalmology.consultation.amendment_approved'] } })).toBe(3);
   });
+  it('returns properly mapped doctor review summary with clean typed contract', async () => {
+    const summaryData = await service.getConsultationSummary(visitId, userId);
+    expect(summaryData.summary).toBeDefined();
+    expect(summaryData.summary.tasks).toBeDefined();
+    expect(Array.isArray(summaryData.summary.tasks)).toBe(true);
+    if (summaryData.summary.tasks.length > 0) {
+      expect(summaryData.summary.tasks[0]).toHaveProperty('test_name');
+      expect(summaryData.summary.tasks[0]).toHaveProperty('laterality');
+      expect(summaryData.summary.tasks[0]).toHaveProperty('status');
+    }
+  });
+
 });
