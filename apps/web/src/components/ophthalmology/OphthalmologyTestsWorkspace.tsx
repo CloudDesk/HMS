@@ -12,6 +12,7 @@ import { configuredResultFields, unavailableRequiredPaths } from '../../hooks/op
 import { OphthalmologyResultAttachments } from './OphthalmologyResultAttachments';
 import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import { removeAcquisition, resultAcquisitions, selectedDocuments } from '../../hooks/ophthalmology/result-acquisitions';
+import { OphthalmologyExaminationDashboard } from './OphthalmologyExaminationDashboard';
 
 type EditorProps = { f: OphthalmologyResultFeature; workspace: OphthalmologyResultWorkspace; task: OphthalmologyTask; result: OphthalmologyResult | null; profileId: string; profile: Record<string, unknown>; formType: TestFormType; schemaVersion: string };
 function CoreResultEditor({ f, workspace, task: latestTask, result: latestResult, profileId, profile: latestProfile, formType, schemaVersion }: EditorProps) {
@@ -133,8 +134,16 @@ export function OphthalmologyTestsWorkspace({ workspace }: { workspace: Ophthalm
   const form = profile && f.task ? profileForm(profile, f.task.test_code) : null;
   if (!f.canView) return <p role="alert">Ophthalmology Test Queue View permission is required.</p>;
   if (f.scopeError) return <p role="alert">The selected task/result does not belong to this encounter. Reopen the task.</p>;
-  return <section><div className="oph-toolbar"><h3>Existing test tasks</h3><button type="button" className="doc-btn" disabled={f.taskId !== ''} onClick={() => workspace.setQuery('section', 'intake')}>{workspace.returnLabel ?? 'Return to intake'}</button></div>
-    {!f.taskId && <><p>Select an existing authorized task. Assignment, calling and starting tasks belong to the queue phase.</p>{f.tasksQuery.isLoading && <p role="status">Loading tasks…</p>}{f.tasksQuery.isError && <p role="alert">Tasks could not be loaded. <button type="button" className="doc-btn" onClick={() => void f.tasksQuery.refetch()}>Retry</button></p>}{!f.tasksQuery.isLoading && !f.tasksQuery.isError && !f.tasks.length && <p>No existing tasks on this page.</p>}<div className="oph-options">{f.tasks.map((task) => <button type="button" className="doc-btn" key={task.id} onClick={() => workspace.setQuery('task_id', task.id)}>{task.test_name} · {task.laterality} · {task.status}</button>)}</div><div className="oph-toolbar"><button type="button" className="doc-btn" disabled={f.page <= 1} onClick={() => workspace.setQuery('task_page', String(f.page - 1))}>Previous tasks</button><span>Page {f.page}</span><button type="button" className="doc-btn" disabled={f.page >= (f.tasksQuery.data?.meta.totalPages ?? 0)} onClick={() => workspace.setQuery('task_page', String(f.page + 1))}>Next tasks</button></div></>}
+  return <section>
+    {!f.taskId && <OphthalmologyExaminationDashboard feature={f} workspace={workspace} />}
+    {f.taskId && (
+      <div className="oph-toolbar" style={{ marginTop: '20px' }}>
+        <h3>Clinical Task Result Editor</h3>
+        <button type="button" className="doc-btn" onClick={() => workspace.setQuery('task_id', '')}>
+          ← Back to Examination Dashboard
+        </button>
+      </div>
+    )}
     {f.taskId && (f.taskQuery.isLoading || f.resultQuery.isLoading) && <p role="status">Loading test result…</p>}
     {f.taskId && (f.taskQuery.isError || f.resultQuery.isError) && <p role="alert">Task/result could not be loaded. Editing is disabled.<button type="button" className="doc-btn" onClick={() => { void f.taskQuery.refetch(); void f.resultQuery.refetch(); }}>Retry task/result</button></p>}
     {f.task && f.resultLoaded && !f.result && <section className="doc-card"><label className="doc-field">Approved form profile<select value={profileId} onChange={(event) => { if (!profileId || window.confirm('Changing form profile discards unsaved result entries. Continue?')) workspace.setQuery('form_profile_id', event.target.value); }}><option value="">Select matching profile</option>{f.profiles.filter((item) => profileForm(item.values, f.task?.test_code ?? '')).map((item) => <option key={item.id} value={item.id}>{item.name} · revision {item.revision}</option>)}</select></label>{f.profilesQuery.isLoading && <p role="status">Loading form profiles…</p>}{f.profilesQuery.isError && <p role="alert">Form profiles could not be loaded. <button type="button" className="doc-btn" onClick={() => void f.profilesQuery.refetch()}>Retry profiles</button></p>}<p>All 21 form families have initial controls. Detailed substructures and clinical master selections remain pending where noted.</p></section>}
