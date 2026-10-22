@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
@@ -51,7 +51,11 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
   const deferralLookupsUnavailable = deferring && (doctorsQuery.isError || doctorsQuery.isFetching || can('Ophthalmology Test Queue') && (tasksQuery.isError || tasksQuery.isFetching) || can('OPD Clinical Orders') && (labQuery.isError || labQuery.isFetching || imagingQuery.isError || imagingQuery.isFetching));
   const mutations = useOphthalmologyCompletionMutations(workspace.visitId);
   const finalizationMutations = useOphthalmologyFinalizationMutations(workspace.visitId);
-  const summaryQuery = useOphthalmologySummary(workspace.visitId, active && canView);
+  const summaryEnabled = canQuery && !scopeError;
+  const summarySourceQuery = useOphthalmologySummary(workspace.visitId, summaryEnabled);
+  const summaryQuery = { ...summarySourceQuery, data: summaryEnabled ? summarySourceQuery.data : undefined,
+    refetch: async () => summaryEnabled ? summarySourceQuery.refetch() : summarySourceQuery };
+  const completionRequest = useRef<{ fingerprint: string; key: string } | null>(null);
   const lifecycle = useMemo(() => ({ active: true, pending: false }), [workspace.visitId, workspace.context?.id, action]);
   useLayoutEffect(() => { lifecycle.active = true; return () => { lifecycle.active = false; }; }, [lifecycle]);
   const [failure, setFailure] = useState<{ scope: typeof lifecycle; message: string } | null>(null);
@@ -76,13 +80,12 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
     tasksQuery, tasks, labQuery, imagingQuery, orders, doctorsQuery, doctors, canReadTasks: can('Ophthalmology Test Queue'), canReadOrders: can('OPD Clinical Orders'), canReadDoctors: permitted('Doctors', 'Doctor Directory'),
     canComplete, canReopen, canAmend, summaryQuery,
     busy: mutations.defer.isPending || mutations.override.isPending || finalizationMutations.complete.isPending || finalizationMutations.reopen.isPending, error: failure?.scope === lifecycle ? failure.message : null, setQuery, linkFor,
-    refresh: async () => { if (active) await Promise.all([workspace.contextQuery.refetch(), readinessQuery.refetch(), historyQuery.refetch(), summaryQuery.refetch()]); },
+    refresh: async () => { if (active) { await workspace.contextQuery.refetch(); if (canQuery && !scopeError) await Promise.all([readinessQuery.refetch(), historyQuery.refetch(), summaryQuery.refetch()]); } },
     openRequirement: (code: CompletionCode) => { const link = linkFor(code); if (!link) return; if (link.shared) navigate(`/opd/visit?id=${workspace.visitId}&tab=${link.shared}&specialty=ophthalmology`); else setQuery({ area: null, completion_action: null, section: link.section ?? null, care_tab: link.care_tab ?? null }); },
     defer: (body: DeferralWrite) => writable && !deferralLookupsUnavailable && canOverride && action === 'defer' && doctors.some((doctor) => doctor.id === body.responsible_doctor_id) && (body.source_type === 'TEST_TASK' ? tasks.some((task) => task.id === body.source_id) : orders.some((order) => order.id === body.source_id)) ? perform(() => mutations.defer.mutateAsync(body), 'Result deferral recorded. This does not mark the result reviewed.') : Promise.resolve(undefined),
     override: (body: OverrideWrite) => writable && canOverride && action === 'override' && unmet.length > 0 && body.expected_unmet_codes.length === unmet.length && [...body.expected_unmet_codes].sort().join() === unmet.map((row) => row.code).sort().join() ? perform(() => mutations.override.mutateAsync(body), 'Authorized override recorded. Consultation completion remains separate.') : Promise.resolve(undefined),
     complete: () => {
       if (!writable || !canComplete || !readiness) return Promise.resolve(undefined);
-      const key = crypto.randomUUID();
       const body: CompleteWrite = {
         expected_version: history?.version ?? 0,
         expected_context_version: readiness.context_version,
@@ -90,10 +93,13 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
         expected_clinical_review_version: readiness.clinical_review_version ?? 1,
         expected_optical_prescription_version: readiness.optical_prescription_version ?? null,
       };
+      const fingerprint = JSON.stringify({ visitId: workspace.visitId, contextId: workspace.context?.id, body });
+      if (completionRequest.current?.fingerprint !== fingerprint) completionRequest.current = { fingerprint, key: crypto.randomUUID() };
+      const key = completionRequest.current.key;
       return perform(() => finalizationMutations.complete.mutateAsync({ body, key }), 'Ophthalmology consultation approved and completed.');
     },
     reopen: (reason: string) => {
-      if (!canReopen || history?.status !== 'COMPLETED') return Promise.resolve(undefined);
+      if (!canQuery || scopeError || staleContext || !knownHead || !canReopen || history?.status !== 'COMPLETED') return Promise.resolve(undefined);
       const body: ReopenWrite = {
         expected_version: history.version,
         expected_status: 'COMPLETED',

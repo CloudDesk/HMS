@@ -97,6 +97,9 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
         Prescription {prescription.id} · Source status: {prescription.status ?? 'Not recorded'}. Dispensing must be checked in Pharmacy.
       </p>) : <p>No medication requests recorded.</p>}
 
+      <h4>Billing & Invoicing</h4>
+      <p>Specialty clinical completion does not establish or finalize an invoice. Invoice generation, service charge mapping, and payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.</p>
+
       <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
 
       <h4>Structured Assessment & Diagnoses</h4>

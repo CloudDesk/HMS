@@ -23,6 +23,8 @@ describe('clinical summary source statuses', () => {
     expect(html).toContain('Dispensing must be checked in Pharmacy');
     expect(html).not.toContain('Follow-up Scheduled');
     expect(html).not.toContain('patient journey completed');
+    expect(html).toContain('Billing &amp; Invoicing');
+    expect(html).toContain('no automated charge mapping is confirmed');
   });
 
   it('shows a validated source trace and the actual scheduling status without inferring care delivered', () => {

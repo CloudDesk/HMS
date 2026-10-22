@@ -1,4 +1,5 @@
 import { OphthalmologyConsultationSummaryCard } from './OphthalmologyConsultationSummaryCard';
+import { OphthalmologyBillingCard } from './OphthalmologyBillingCard';
 import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
 import { OphthalmologyFinalizationTools } from './OphthalmologyFinalizationTools';
 import { useOphthalmologyCompletionFeature, type CompletionWorkspace } from '../../hooks/ophthalmology/useOphthalmologyCompletionFeature';
@@ -29,6 +30,7 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
     </section>
     <section className="doc-card"><p>Original approved versions remain read-only. Supported text corrections use a separate amendment episode and source version; other sections require their typed correction workflow.</p></section>
     <OphthalmologyConsultationSummaryCard feature={f} />
+    <OphthalmologyBillingCard workspace={workspace} />
     {(f.action === 'defer' || f.action === 'override') && f.finalizationVersion !== undefined && <OphthalmologyCompletionActionDialog key={`${workspace.visitId}:${f.action}`} feature={f} action={f.action} />}
     {f.error && !f.action && <p className="form-error-banner" role="alert">{f.error}</p>}
   </section>;

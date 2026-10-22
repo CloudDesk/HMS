@@ -571,6 +571,7 @@ export class EmergencyRepository {
     return row ? emergencyReferralDto(row) : null;
   }
   async linkReferralAppointment(id: string, branchId: string, appointment: Appointment, actor: string, session?: ClientSession) {
+    if (appointment.branch_id !== branchId) return null;
     const row = await EmergencyEncounterModel.findOneAndUpdate(
       {
         _id: oid(id),

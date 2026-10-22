@@ -956,12 +956,14 @@ export class OphthalmologyRepository {
       branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).select('appointmentId').lean();
     if (!visit?.appointmentId) return [];
     const appointmentId = visit.appointmentId.toString();
-    const appointment = await AppointmentModel.exists({ _id: visit.appointmentId, patientId: oid(context.patient_id),
-      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null });
+    const appointment = await AppointmentModel.findOne({ _id: visit.appointmentId, patientId: oid(context.patient_id),
+      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).select('doctorId').lean();
     if (!appointment) return [];
     // Trace metadata only: never expose Emergency assessment/notes through an OPD permission.
     const sources = await EmergencyEncounterModel.find({ branchId: oid(context.branch_id), patientId: oid(context.patient_id),
-      'referral.appointmentId': visit.appointmentId, 'referral.targetDepartmentId': oid(context.department_id) })
+      'referral.appointmentId': visit.appointmentId, 'referral.targetDepartmentId': oid(context.department_id),
+      'referral.sourceType': 'EMERGENCY_ENCOUNTER', 'referral.status': 'SUBMITTED',
+      'referral.targetDoctorId': appointment.doctorId })
       .select('_id encounterNumber referral.submittedAt referral.priority').limit(2).lean();
     return sources.map((source) => ({ emergency_encounter_id: source._id.toString(), encounter_number: source.encounterNumber,
       appointment_id: appointmentId, visit_id: context.visit_id, patient_id: context.patient_id,

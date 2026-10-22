@@ -68,7 +68,22 @@ $hmsWebChanged = @(git diff --name-only -- 'apps/web/**/*.ts' 'apps/web/**/*.tsx
 npx eslint @hmsWebChanged apps/web/src/components/ophthalmology/OphthalmologyConsultationSummaryCard.test.tsx
 ```
 
-`git diff --check` passed. Final six repository-wide typecheck/lint/build commands are running at this checkpoint. Assessment remains PARTIALLY ALIGNED — GAPS REMAIN. Branch/HEAD unchanged, no commit/push/PR/deployment.
+`git diff --check` passed. Final repository-wide results, collected again after the latest repository checkpoint:
+
+| Exact command | Result |
+|---|---|
+| `npm run typecheck --workspace=@hms/api` | PASS, exit 0 |
+| `npm run lint --workspace=@hms/api` | FAIL, exit 1: 50 existing errors in Insurance repository/service/tests and Patient service |
+| `npm run build --workspace=@hms/api` | PASS, exit 0 |
+| `npm run typecheck --workspace=@hms/web` | PASS, exit 0 |
+| `npm run lint --workspace=@hms/web` | FAIL, exit 1: 14 existing errors in DoctorSignatureCard, PatientAvatar test, PatientCardModal, PatientProfileHeader, AuthenticatedMediaImage, AppointmentBookingPage, AppointmentCalendarPage, PatientProfilePage and UserManagementPage |
+| `npm run build --workspace=@hms/web` | PASS, exit 0 |
+
+All failing lint paths have an empty diff from baseline `8ca7dc3` to current HEAD. Workflow-owned API/web lint passed separately above. No unrelated lint repair was attempted. Final check logs were captured at `C:/Users/lenovo/AppData/Local/Temp/hms-final-checks-20261021/` (api/web typecheck, lint and build logs).
+
+Latest repository observation: branch `DEV-OPHTHALMOLOGY-F-V2`, HEAD `334605dd45e75a47149da43f65e2e339120c6a77`. Commits `3dd05ad` and `334605d` appeared after the previous checkpoint; this agent did not create them. Earlier source edits and the audit are now committed in that baseline; the latter commit changes only generated build info. Audit hash is unchanged. Current follow-on edits add UAT/decision documentation and three raster prototype assets, not production code. See [staging UAT and owner decisions](HMS_OPHTHALMOLOGY_STAGING_UAT_AND_DECISIONS.md) and [prototype images and exact prompts](docs/ophthalmology-prototypes-20261021/README.md).
+
+Fresh supported-browser discovery returned `Local browser use is disabled in Work settings`. Browser acceptance remains **BLOCKED / NOT VERIFIED**; no bypass or repeated retry. Assessment remains **PARTIALLY ALIGNED — GAPS REMAIN**. No branch switch, commit, push, PR or deployment was performed by this agent. No next phase started.
 
 ## Historical baseline and scope
 

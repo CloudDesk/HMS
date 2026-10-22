@@ -56,6 +56,26 @@ describe('B5 scoped metadata and authorized exception gates', () => {
     await act(async () => root.render(<Harness />));
     expect(state.queries.has('publications')).toBe(false);
   });
+  it('blocks summary queries and reopening when the context is unavailable', async () => {
+    grant('OPD', 'Ophthalmology Consultation'); grant('OPD', 'Ophthalmology Consultation', 'Reopen');
+    state.history = { ...head(), status: 'COMPLETED' }; state.contextError = true;
+    await act(async () => root.render(<Harness />));
+    expect(state.queries.get('summary')?.[1]).toBe(false);
+    await act(async () => { await feature.reopen('Correction needed'); });
+    expect(state.mutation).not.toHaveBeenCalled();
+  });
+  it('reuses completion request identity after an uncertain failure and renews it for changed versions', async () => {
+    grant('OPD', 'Ophthalmology Consultation'); grant('OPD', 'Ophthalmology Consultation', 'Complete');
+    state.mutation.mockRejectedValue(new Error('Response interrupted'));
+    await act(async () => root.render(<Harness />));
+    await act(async () => { await feature.complete(); });
+    await act(async () => { await feature.complete(); });
+    expect(state.mutation).toHaveBeenCalledTimes(2);
+    expect(state.mutation.mock.calls[0]?.[0]).toEqual(state.mutation.mock.calls[1]?.[0]);
+    state.history = head(); await act(async () => root.render(<Harness />));
+    await act(async () => { await feature.complete(); });
+    expect(state.mutation.mock.calls[2]?.[0].key).not.toBe(state.mutation.mock.calls[0]?.[0].key);
+  });
   it('rejects another patient finalization and never enables exception actions on a completed head', async () => {
     grant('OPD', 'Ophthalmology Consultation'); state.history = { ...head(), patient_id: 'aaaaaaaaaaaaaaaaaaaaaaaa' }; await act(async () => root.render(<Harness />)); expect(feature.scopeError).toBe(true); expect(feature.history).toBeNull(); expect(feature.writable).toBe(false);
     state.history = { ...head(), status: 'COMPLETED' }; await act(async () => root.render(<Harness />)); expect(feature.writable).toBe(false);

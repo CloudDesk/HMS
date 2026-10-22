@@ -120,6 +120,9 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
         submittedAt: new Date(), submittedBy: userId } });
     const emergencyRepository = new EmergencyRepository(new SequenceService());
     const appointmentDto = await new AppointmentRepository().getById(appointment.id); if (!appointmentDto) throw new Error('Missing appointment');
+    expect((await service.getConsultationSummary(visitId, userId)).summary.emergency_source).toBeNull();
+    expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(),
+      { ...appointmentDto, branch_id: new Types.ObjectId().toString() }, userId)).toBeNull();
     expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(),
       { ...appointmentDto, patient_id: new Types.ObjectId().toString() }, userId)).toBeNull();
     expect(await emergencyRepository.linkReferralAppointment(emergency.id, visit.branchId.toString(), appointmentDto, userId))
@@ -131,6 +134,13 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     expect(JSON.stringify(summary.summary.emergency_source)).not.toContain('Private');
     expect((await service.getConsultationSummary(visitId, userId)).summary.emergency_source).toEqual(summary.summary.emergency_source);
     expect(await OpdVisitModel.countDocuments()).toBe(1); expect(await EmergencyEncounterModel.countDocuments()).toBe(1);
+    for (const field of ['patientId', 'branchId', 'referral.targetDepartmentId', 'referral.targetDoctorId']) {
+      const original = field === 'patientId' ? visit.patientId : field === 'branchId' ? visit.branchId
+        : field === 'referral.targetDepartmentId' ? visit.departmentId : visit.doctorId;
+      await EmergencyEncounterModel.updateOne({ _id: emergency._id }, { $set: { [field]: new Types.ObjectId() } });
+      expect((await service.getConsultationSummary(visitId, userId)).summary.emergency_source).toBeNull();
+      await EmergencyEncounterModel.updateOne({ _id: emergency._id }, { $set: { [field]: original } });
+    }
     await expect(OpdVisitModel.create({ ...visit, _id: new Types.ObjectId(), visitNumber: 'TRACE-DUP', appointmentId: appointment._id }))
       .rejects.toMatchObject({ code: 11000 });
     await AppointmentModel.updateOne({ _id: appointment._id }, { $set: { patientId: new Types.ObjectId() } });
