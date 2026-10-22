@@ -160,7 +160,7 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
             {view.intake ? ` · v${view.intake.version}` : ''}
           </span>
         </div>
-        <div className="oph-intake-header-right">
+        {/* <div className="oph-intake-header-right">
           <button type="button" className="doc-btn" disabled={f.busy} onClick={() => { f.setQuery('section', 'tests'); }}>
             Open test forms
           </button>
@@ -181,7 +181,7 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
           <button type="button" className="doc-btn" disabled={f.busy} onClick={() => { f.back(); }}>
             Return to consultation
           </button>
-        </div>
+        </div> */}
       </div>
 
       {f.actionError && (
@@ -320,23 +320,12 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
             </div>
           </div>
 
-          {/* Associated Symptoms */}
-          <div style={{ marginTop: '22px' }}>
-            <h4 style={{ margin: '0 0 6px', fontSize: '0.94rem', fontWeight: 700, color: '#1e293b' }}>
-              Associated Symptoms
-            </h4>
-            <p style={{ margin: '0 0 10px', fontSize: '0.82rem', color: '#64748b' }}>
-              Secondary symptoms accompanying the chief complaint.
-            </p>
-            {codes('associated_symptom_codes', complaintOptions, 'secondary')}
-          </div>
-
-          <label className="doc-field" style={{ marginTop: '14px' }}>
-            <span>Clinical Description / Other Specific Complaint</span>
+          <label className="doc-field" style={{ marginTop: '18px' }}>
+            <span>Clinical Description & Associated Symptoms (HPI Details)</span>
             <textarea
               rows={3}
               maxLength={4000}
-              placeholder="Record detailed onset circumstances, pain characteristics, vision changes, or description of unlisted complaints..."
+              placeholder="Record detailed onset circumstances, pain characteristics, vision changes, or secondary/associated symptoms accompanying the chief complaint..."
               {...register('description', { setValueAs: nullable })}
             />
           </label>

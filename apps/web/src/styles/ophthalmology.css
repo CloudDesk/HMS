@@ -160,20 +160,20 @@ html, body {
   height: 0;
 }
 .oph-step-tab {
-  flex: 1 1 0%;
-  min-width: 0;
-  padding: 10px 14px;
+  flex: 1 1 auto;
+  min-width: max-content;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   color: #64748b;
-  font-size: 0.83rem;
+  font-size: 0.82rem;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
@@ -188,8 +188,6 @@ html, body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .oph-step-label-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .oph-step-number {

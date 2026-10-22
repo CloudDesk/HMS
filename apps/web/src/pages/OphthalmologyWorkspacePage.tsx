@@ -108,23 +108,20 @@ export function OphthalmologyWorkspacePage() {
   if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to consultation</button></div>;
   if (!f.visit || f.contextQuery.isPending) return <p role="status">Loading ophthalmology encounter…</p>;
 
-  const currentStep: 'intake' | 'examination' | 'care' | 'optical' | 'summary' =
-    f.section === 'tests'
-      ? 'examination'
-      : isOptical
+  const currentStep: 'examination' | 'care' | 'optical' | 'summary' =
+    isOptical
       ? 'optical'
       : f.section === 'clinical'
       ? 'care'
       : f.section === 'completion'
       ? 'summary'
-      : 'intake';
+      : 'examination';
 
   const steps = [
-    { id: 'intake', num: 1, label: 'Intake & Complaints', icon: 'ph-clipboard-text', action: () => f.setQuery('section', 'intake') },
-    { id: 'examination', num: 2, label: 'Comprehensive Examination', icon: 'ph-eye', action: () => f.setQuery('section', 'tests') },
-    { id: 'care', num: 3, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
-    { id: 'optical', num: 4, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
-    { id: 'summary', num: 5, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
+    { id: 'examination', num: 1, label: 'Comprehensive Examination', icon: 'ph-eye', action: () => f.setQuery('section', 'tests') },
+    { id: 'care', num: 2, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
+    { id: 'optical', num: 3, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
+    { id: 'summary', num: 4, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
   ] as const;
 
   const stepIndex = steps.findIndex((s) => s.id === currentStep);
@@ -178,7 +175,7 @@ export function OphthalmologyWorkspacePage() {
               </div>
             </div>
           </div>
-
+{/* 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {f.context && f.canEdit && (
               <button className="doc-btn" type="button" disabled={f.busy} onClick={() => f.setQuery('edit_context', 'open')}>
@@ -193,7 +190,7 @@ export function OphthalmologyWorkspacePage() {
             <button className="doc-btn" type="button" onClick={f.back}>
               <i className="ph ph-arrow-left" style={{ marginRight: '4px' }} /> Return to Consultation
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Hidden semantic elements to maintain test compatibility */}
@@ -218,7 +215,7 @@ export function OphthalmologyWorkspacePage() {
         )}
       </section>
 
-      {/* Sequential 5-Tab Navigation Stepper */}
+      {/* Sequential 4-Tab Navigation Stepper */}
       {f.context && (
         <nav className="oph-stepper-nav" aria-label="Ophthalmology consultation areas">
           {steps.map((step) => (
@@ -273,13 +270,8 @@ export function OphthalmologyWorkspacePage() {
         </p>
       )}
 
-      {/* Tab 1: Intake & Complaints */}
-      {f.context && f.intakeView && !f.contextEditOpen && f.section === 'intake' && (
-        <OphthalmologyIntakeForm key={`${f.visitId}-${f.context.id}`} context={f.context} view={f.intakeView} feature={f} />
-      )}
-
-      {/* Tab 2: Comprehensive Examination */}
-      {f.context && !f.contextEditOpen && f.section === 'tests' && (
+      {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
+      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'intake' || f.section === 'overview') && (
         <OphthalmologyTestsWorkspace workspace={f} />
       )}
 
