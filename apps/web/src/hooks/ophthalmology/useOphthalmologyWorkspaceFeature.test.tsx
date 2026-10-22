@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthPermission } from '../../auth/auth-types';
 
 const state = vi.hoisted(() => ({
-  save: vi.fn(), update: vi.fn(),
+  save: vi.fn(), update: vi.fn(), escalate: vi.fn(),
   permissions: [] as AuthPermission[], search: '?visit_id=111111111111111111111111',
   queries: new Map<string, unknown[]>(), contextPatient: '222222222222222222222222',
   query: (name: string, args: unknown[]) => {
@@ -26,7 +26,7 @@ vi.mock('./useOphthalmology', () => ({
   useOphthalmologyIntake: (...args: unknown[]) => state.query('intake', args),
   useOphthalmologyConfigurations: (...args: unknown[]) => state.query(`configuration-${args[1]}`, args),
   useOphthalmologyWorkflows: (...args: unknown[]) => state.query('workflows', args),
-  useOphthalmologyIntakeMutations: () => Object.fromEntries(['create', 'update', 'save', 'complete', 'alert'].map((key) => [key, { isPending: false, mutateAsync: key === 'save' ? state.save : key === 'update' ? state.update : vi.fn() }])),
+  useOphthalmologyIntakeMutations: () => Object.fromEntries(['create', 'update', 'save', 'complete', 'alert', 'escalate'].map((key) => [key, { isPending: false, mutateAsync: key === 'save' ? state.save : key === 'update' ? state.update : key === 'escalate' ? state.escalate : vi.fn() }])),
 }));
 import { useOphthalmologyWorkspaceFeature } from './useOphthalmologyWorkspaceFeature';
 import { initialIntake } from './intake-form';
@@ -132,5 +132,21 @@ describe('ophthalmology workspace permission and scope gates', () => {
     let returned: unknown;
     await act(async () => { resolveUpdate({ id: '555555555555555555555555' }); returned = await pending; });
     expect(returned).toBeUndefined();
+  });
+  it('triggers emergency escalation with escalate grant and passes urgency and red-flags', async () => {
+    grant('OPD', 'OPD Visits'); grant('OPD', 'Ophthalmology Intake'); grant('OPD', 'Ophthalmology Intake', 'Escalate');
+    await act(async () => root.render(<Harness />));
+    expect(feature?.canEscalate).toBe(true);
+    state.escalate.mockResolvedValueOnce({ id: 'alert-123' });
+    let result: unknown;
+    await act(async () => {
+      result = await feature?.escalate('Suspected acute angle-closure glaucoma', ['CRIT-01'], 'EMERGENCY');
+    });
+    expect(state.escalate).toHaveBeenCalledWith({
+      reason: 'Suspected acute angle-closure glaucoma',
+      trigger_findings: ['CRIT-01'],
+      urgency: 'EMERGENCY',
+    });
+    expect(result).toEqual({ id: 'alert-123' });
   });
 });

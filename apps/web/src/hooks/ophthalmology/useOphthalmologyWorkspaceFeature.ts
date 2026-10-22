@@ -110,6 +110,7 @@ export function useOphthalmologyWorkspaceFeature() {
       return perform(() => mutations.complete.mutateAsync({ expected_status: 'DRAFT', expected_version: intake.version, expected_context_version: context.version }), 'Intake completed. Emergency routing was processed by the server.');
     },
     alert: (alert: OphthalmologyAlert, action: 'route' | 'acknowledge', note: string | null) => canEscalate && editableVisit && matchesScope(alert) && alert.status === 'ACTIVE' && !scopeError ? perform(() => mutations.alert.mutateAsync({ id: alert.id, action, body: { expected_version: alert.version, expected_status: 'ACTIVE', ...(action === 'acknowledge' ? { note } : {}) } }), action === 'route' ? 'Emergency routing processed.' : 'Emergency alert acknowledged.') : Promise.resolve(undefined),
+    escalate: (reason: string, triggerFindings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => canEscalate && editableVisit && !scopeError ? perform(() => mutations.escalate.mutateAsync({ reason, trigger_findings: triggerFindings, urgency: urgency ?? 'EMERGENCY' }), 'Emergency escalation processed. On-duty ophthalmologists notified.') : Promise.resolve(undefined),
   };
 }
 export type OphthalmologyWorkspaceFeature = ReturnType<typeof useOphthalmologyWorkspaceFeature>;

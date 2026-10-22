@@ -108,6 +108,12 @@ const completeResultSchema = z.object({ expected_task_status: z.literal('DRAFT')
 export type CompleteOphthalmologyResult = z.infer<typeof completeResultSchema>;
 const alertActionSchema = z.object({ expected_version: version, expected_status: z.literal('ACTIVE'), note: nullableText(1000).optional() }).strict();
 export type AlertAction = z.infer<typeof alertActionSchema>;
+const escalateAlertSchema = z.object({
+  reason: z.string().min(1).max(2000),
+  trigger_findings: z.array(z.string().max(200)).max(20).optional(),
+  urgency: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']).optional(),
+}).strict();
+export type EscalateAlertBody = z.infer<typeof escalateAlertSchema>;
 const metaSchema = z.object({ page: z.number().int().positive(), limit: z.number().int().positive(), total: version, totalPages: version });
 const pageOf = <T extends z.ZodType>(schema: T) => z.object({ data: z.array(schema), meta: metaSchema });
 export type OphthalmologyPage<T> = { data: T[]; meta: z.infer<typeof metaSchema> };
@@ -130,6 +136,10 @@ export const ophthalmologyApi = {
     const parsed = alertActionSchema.parse(body);
     const request = action === 'route' ? { expected_version: parsed.expected_version, expected_status: parsed.expected_status } : parsed;
     return alertSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/alerts/${ophthalmologyIdSchema.parse(alertId)}/${action}`, { method: 'POST', body: request }));
+  },
+  escalateAlert: async (visitId: string, body: EscalateAlertBody) => {
+    const request = escalateAlertSchema.parse(body);
+    return alertSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/alerts/escalate`, { method: 'POST', body: request }));
   },
   configurations: async (branchId: string, type: ConfigurationType, page: number, signal?: AbortSignal) => pageOf(configurationSchema).parse(await apiClient.request<unknown>(`/ophthalmology/configurations?${new URLSearchParams({ branch_id: ophthalmologyIdSchema.parse(branchId), type, status: 'ACTIVE', page: String(page), limit: '20' })}`, { signal })),
   workflows: async (branchId: string, subtype: z.infer<typeof subtypeSchema>, page: number, signal?: AbortSignal) => pageOf(workflowSchema).parse(await apiClient.request<unknown>(`/ophthalmology/workflow-profiles?${new URLSearchParams({ branch_id: ophthalmologyIdSchema.parse(branchId), visit_subtype: subtypeSchema.parse(subtype), status: 'ACTIVE', page: String(page), limit: '20' })}`, { signal })),
