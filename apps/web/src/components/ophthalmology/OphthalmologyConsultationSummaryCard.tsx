@@ -51,6 +51,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
     referrals?: Array<{ id: string; status?: string; appointment_id?: string | null; target_department_name?: string; target_doctor_name?: string; reason?: string }>;
     follow_ups?: Array<{ id: string; status?: string; appointment_id?: string | null; follow_up_date?: string; instructions?: string }>;
     previous_results?: Array<{ id: string; current?: { form_type: string; performed_at: string; payload: Record<string, unknown> } }>;
+    invoices?: Array<{ invoiceNumber: string; status: string; totalAmount: number; paidAmount: number; balanceAmount: number; invoiceDate?: string | null }>;
   };
 
   const finalization = data.finalization;
@@ -98,7 +99,39 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
       </p>) : <p>No medication requests recorded.</p>}
 
       <h4>Billing & Invoicing</h4>
-      <p>Specialty clinical completion does not establish or finalize an invoice. Invoice generation, service charge mapping, and payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.</p>
+      {s.invoices && s.invoices.length > 0 ? (
+        <>
+          <p>The following invoices were retrieved for this encounter. Payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.</p>
+          <div className="oph-table-scroll">
+            <table className="doc-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Status</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Invoice Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.invoices.map((inv, idx) => (
+                  <tr key={idx}>
+                    <td>{inv.invoiceNumber}</td>
+                    <td>{inv.status}</td>
+                    <td>{inv.totalAmount.toFixed(2)}</td>
+                    <td>{inv.paidAmount.toFixed(2)}</td>
+                    <td>{inv.balanceAmount.toFixed(2)}</td>
+                    <td>{inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString() : 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <p>Specialty clinical completion does not establish or finalize an invoice. Invoice generation, service charge mapping, and payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.</p>
+      )}
 
       <hr style={{ margin: '12px 0', border: 0, borderTop: '1px solid #e5e7eb' }} />
 

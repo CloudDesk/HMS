@@ -776,3 +776,39 @@ export type AmendOphthalmologyConsultationDTO = { expected_version: number; expe
   section: string; before_value: unknown; after_value: unknown; reason: string };
 
 export type OphthalmologyAssignmentLookupQuery = { target_task_id?: string; station_id?: string; search?: string; page?: number; limit?: number };
+
+export type EscalateOphthalmologyEmergencyDTO = {
+  reason: string;
+  trigger_findings?: string[];
+  urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+};
+
+export type OphthalmologyPatientJourneyStatus = {
+  context: OphthalmologyContext;
+  journey_completed: boolean;
+  unmet_obligations: string[];
+  stages: {
+    preliminary_intake: { completed: boolean; status: string; emergency_alert: boolean };
+    diagnostic_testing: { total: number; completed: number; pending: number; all_completed: boolean };
+    clinical_consultation: { completed: boolean; status: string; clinical_review_version: number | null };
+    optical_dispensing: { requested: boolean; approved: boolean; version: number | null; status: string | null };
+    downstream_care: {
+      prescriptions_count: number;
+      clinical_orders_count: number;
+      procedure_recommendations_count: number;
+      referrals_count: number;
+      follow_ups_count: number;
+    };
+    billing: {
+      invoices_count: number;
+      total_amount: number;
+      paid_amount: number;
+      balance_amount: number;
+      is_settled: boolean;
+    };
+    portal_publication: {
+      published: boolean;
+      version: number | null;
+    };
+  };
+};

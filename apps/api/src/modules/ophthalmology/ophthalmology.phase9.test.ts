@@ -32,6 +32,7 @@ import { OphthalmologyClinicalReviewModel } from './ophthalmology-review.model.j
 import { OphthalmologyTestResultModel } from './ophthalmology-test-result.model.js';
 import { OphthalmologyTestTaskModel } from './ophthalmology-test-task.model.js';
 import { OphthalmologyConfigurationModel, OphthalmologyContextModel } from './ophthalmology.model.js';
+import { BillingInvoiceModel } from '../billing/billing.model.js';
 import { OphthalmologyRepository } from './ophthalmology.repository.js';
 import { OphthalmologyService } from './ophthalmology.service.js';
 
@@ -45,7 +46,7 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri());
     await Promise.all([OphthalmologyConsultationFinalizationModel.init(), OphthalmologyClinicalReviewModel.init(),
       OphthalmologyContextModel.init(), OphthalmologyConfigurationModel.init(), OpdVisitModel.init(), OpdConsultationModel.init(),
-      PatientTimelineEventModel.init(), OphthalmologyTestTaskModel.init(), OphthalmologyTestResultModel.init()]);
+      PatientTimelineEventModel.init(), OphthalmologyTestTaskModel.init(), OphthalmologyTestResultModel.init(), BillingInvoiceModel.init()]);
   });
   beforeEach(async () => {
     vi.restoreAllMocks(); await mongoose.connection.db?.dropDatabase();
@@ -413,4 +414,62 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     }
   });
 
+  it('escalates emergency clinical alert and activates fail-closed routine test booking guard', async () => {
+    const alert = await service.escalateEmergency(visitId, {
+      reason: 'Acute intraocular pressure spike OD with severe pain',
+      trigger_findings: ['IOP_SPIKE', 'ACUTE_ANGLE_CLOSURE'],
+      urgency: 'EMERGENCY',
+    }, userId);
+
+    expect(alert).toMatchObject({
+      type: 'EMERGENCY_SCREENING',
+      status: 'ACTIVE',
+      reason: 'Acute intraocular pressure spike OD with severe pain',
+      criterion_codes: ['IOP_SPIKE', 'ACUTE_ANGLE_CLOSURE'],
+    });
+
+    // Verify emergency escalation activates clinical emergency guard blocking completion readiness
+    await expect(service.getCompletionReadiness(visitId, userId)).rejects.toMatchObject({
+      code: 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED',
+    });
+  });
+
+  it('projects billing invoices into doctor review consultation summary and evaluates journey status', async () => {
+    const source = await OphthalmologyContextModel.findById(contextId).lean();
+    if (!source) throw new Error('Missing context');
+
+    await BillingInvoiceModel.create({
+      invoiceNumber: 'INV-OPH-2026-999',
+      patientId: source.patientId,
+      visitId: source.visitId,
+      branchId: source.branchId,
+      invoiceDate: new Date(),
+      status: 'PARTIALLY_PAID',
+      subtotal: 3500,
+      discountAmount: 0,
+      taxAmount: 0,
+      totalAmount: 3500,
+      paidAmount: 1000,
+      balanceAmount: 2500,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const summary = await service.getConsultationSummary(visitId, userId);
+    expect(summary.summary).toHaveProperty('invoices');
+    const invoices = (summary.summary as unknown as { invoices: Array<{ invoiceNumber: string; balanceAmount: number; status: string }> }).invoices;
+    expect(invoices).toHaveLength(1);
+    expect(invoices[0]).toMatchObject({
+      invoiceNumber: 'INV-OPH-2026-999',
+      balanceAmount: 2500,
+      status: 'PARTIALLY_PAID',
+    });
+
+    const journey = await service.getPatientJourneyStatus(visitId, userId);
+    expect(journey.journey_completed).toBe(false);
+    expect(journey.stages.billing.invoices_count).toBe(1);
+    expect(journey.stages.billing.balance_amount).toBe(2500);
+    expect(journey.stages.billing.is_settled).toBe(false);
+    expect(journey.unmet_obligations.length).toBeGreaterThan(0);
+  });
 });

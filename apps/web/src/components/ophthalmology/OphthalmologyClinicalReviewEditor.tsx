@@ -6,6 +6,7 @@ import { clinicalReviewWriteSchema, treatmentWriteSchema, type ClinicalReview } 
 import type { OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
 import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import { EditorErrors } from './OphthalmologyConfigurationEditor';
+import { OphthalmologyTreatmentLinks } from './OphthalmologyTreatmentLinks';
 
 const rowSchema = treatmentWriteSchema.extend({ priority: z.union([treatmentWriteSchema.shape.priority, z.literal('')]), status: z.union([treatmentWriteSchema.shape.status, z.literal('')]), diagnosis_laterality: z.union([treatmentWriteSchema.shape.diagnosis_laterality, z.literal('')]) });
 const editorSchema = z.object({ ...clinicalReviewWriteSchema.shape, treatment_plans: z.array(rowSchema).max(100) });
@@ -16,6 +17,7 @@ function initial(record: ClinicalReview | null): Editor {
 }
 export function OphthalmologyClinicalReviewEditor({ feature: f }: { feature: OphthalmologyCareFeature }) {
   const [baseline, setBaseline] = useState(f.clinical);
+  const [linkRow, setLinkRow] = useState<string | null>(null);
   const { register, control, handleSubmit, setValue, setError, reset, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({ resolver: zodResolver(editorSchema), defaultValues: initial(baseline) });
   const rows = useFieldArray({ control, name: 'treatment_plans' });
   const watched = useWatch({ control, name: 'treatment_plans' });
@@ -36,7 +38,11 @@ export function OphthalmologyClinicalReviewEditor({ feature: f }: { feature: Oph
         <label className="doc-field"><span>Priority <span className="oph-required">*</span></span><select {...register(`treatment_plans.${index}.priority`)}><option value="">Select</option>{treatmentWriteSchema.shape.priority.options.map((value) => <option key={value}>{value}</option>)}</select></label>
         <label className="doc-field"><span>Status <span className="oph-required">*</span></span><select {...register(`treatment_plans.${index}.status`)}><option value="">Select</option>{treatmentWriteSchema.shape.status.options.map((value) => <option key={value}>{value}</option>)}</select></label>
       </div><label className="doc-field"><span>Treatment <span className="oph-required">*</span></span><textarea maxLength={4000} {...register(`treatment_plans.${index}.treatment`)} /></label>
-        <p>Saved care references are retained. Create or edit their source records in the shared encounter.</p>{[row.medication_prescription_id, ...row.clinical_order_ids ?? [], row.procedure_recommendation_id, row.referral_id, row.follow_up_id].filter(Boolean).map((reference, item) => <p key={item}>{reference}</p>)}
+        <p>Saved care references are retained. Create or edit their source records in the shared encounter.</p>{[watched[index]?.medication_prescription_id, ...watched[index]?.clinical_order_ids ?? [], watched[index]?.procedure_recommendation_id, watched[index]?.referral_id, watched[index]?.follow_up_id].filter(Boolean).map((reference, item) => <p key={item}>{reference}</p>)}
+        <button type="button" className="doc-btn" onClick={() => setLinkRow(linkRow === row.id ? null : row.id)}>{linkRow === row.id ? 'Close care references' : 'Link saved care records'}</button>
+        {linkRow === row.id && <OphthalmologyTreatmentLinks workspace={f.workspace} values={watched[index] ?? row}
+          onSelect={(key, value) => setValue(`treatment_plans.${index}.${key}`, value, { shouldDirty: true, shouldValidate: true })}
+          onOrders={(values) => setValue(`treatment_plans.${index}.clinical_order_ids`, values, { shouldDirty: true, shouldValidate: true })} />}
         <button type="button" className="doc-btn" onClick={() => { if (window.confirm('Remove this treatment row from the draft?')) rows.remove(index); }}>Remove treatment</button>
       </section>)}
       <button type="button" className="doc-btn" disabled={rows.fields.length >= 100 || !f.diagnoses.length} onClick={() => rows.append({ diagnosis_code: '', diagnosis_laterality: '', treatment: '', category: '', priority: '', status: '' })}>Add treatment</button>

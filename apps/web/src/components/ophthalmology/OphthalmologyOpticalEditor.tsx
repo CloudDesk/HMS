@@ -102,8 +102,13 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
       style={{ padding: '24px' }}
       onSubmit={handleSubmit(async (formValues) => {
         try {
+          const cleanPower = {
+            OD: formValues.power?.OD?.sphere != null ? formValues.power.OD : null,
+            OS: formValues.power?.OS?.sphere != null ? formValues.power.OS : null,
+          };
           const body = opticalWriteSchema.parse({
             ...formValues,
+            power: cleanPower,
             coating_codes: (formValues.coating_codes ?? []).map((code) => code.trim()).filter(Boolean),
             expected_version: baseline?.version ?? 0,
           });

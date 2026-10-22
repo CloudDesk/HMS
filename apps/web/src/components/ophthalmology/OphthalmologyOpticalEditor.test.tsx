@@ -14,8 +14,8 @@ describe('optical saved draft, conflict and approval interaction', () => {
   const workspace: CareWorkspace = { visitId: id, canView: true, scopeError: false, visitQuery: { isError: false }, contextQuery: { isError: false }, configurationPage: 1, setQuery: vi.fn() };
   beforeEach(() => { saveOptical.mockReset(); approveOptical.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
-  function instructions() { const textarea = [...container.querySelectorAll('label')].find((label) => label.textContent?.startsWith('Usage instructions'))?.querySelector('textarea'); if (!textarea) throw new Error('Missing instructions'); return textarea; }
-  function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent === 'Approve saved optical prescription'); if (!button) throw new Error('Missing approval'); return button; }
+  function instructions() { const textarea = [...container.querySelectorAll('label')].find((label) => label.textContent?.toLowerCase().includes('usage instructions'))?.querySelector('textarea'); if (!textarea) throw new Error('Missing instructions'); return textarea; }
+  function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.toLowerCase().includes('approve optical')); if (!button) throw new Error('Missing approval'); return button; }
   async function type(value: string) { await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(instructions(), value); instructions().dispatchEvent(new Event('input', { bubbles: true })); }); }
   async function submit() { await act(async () => container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
   it('does not approve dirty values and retains original version and untouched eye on save failure', async () => {
