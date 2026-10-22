@@ -821,9 +821,30 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
               </div>
             </div>
             {(values.emergency_criterion_codes ?? []).length > 0 && (
-              <span className="oph-badge oph-badge-red">
-                ⚠️ {(values.emergency_criterion_codes ?? []).length} Red Flags Present
-              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span className="oph-badge oph-badge-red">
+                  ⚠️ {(values.emergency_criterion_codes ?? []).length} Red Flags Present
+                </span>
+                {f.canEscalate && (
+                  <button
+                    type="button"
+                    className="doc-btn danger"
+                    style={{ padding: '4px 10px', fontSize: '0.82rem' }}
+                    disabled={f.busy}
+                    onClick={() => {
+                      if (window.confirm('Immediately escalate this emergency alert to on-duty ophthalmologists and block routine testing?')) {
+                        void f.escalate(
+                          values.other_urgent_condition_detail || `Emergency red flags identified: ${(values.emergency_criterion_codes ?? []).join(', ')}`,
+                          values.emergency_criterion_codes,
+                          'EMERGENCY'
+                        );
+                      }
+                    }}
+                  >
+                    Immediate Emergency Escalation
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
