@@ -138,7 +138,7 @@ export function OphthalmologyWorkspacePage() {
     if (nextStep) {
       nextStep.action();
     } else {
-      f.setQuery('section', 'completion');
+      f.setQuery('finalization_action', 'complete');
     }
   };
 

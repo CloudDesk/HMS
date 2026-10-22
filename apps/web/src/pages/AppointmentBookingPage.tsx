@@ -113,6 +113,38 @@ export function AppointmentBookingPage() {
   const [hpiOnset, setHpiOnset] = useState<string>('');
   const [hpiProgression, setHpiProgression] = useState<string>('');
   const [hpiSeverity, setHpiSeverity] = useState<string>('');
+  const [openIntakeSections, setOpenIntakeSections] = useState<{
+    complaints: boolean;
+    hpi: boolean;
+    history: boolean;
+    allergies: boolean;
+    notes: boolean;
+  }>({
+    complaints: true,
+    hpi: true,
+    history: false,
+    allergies: false,
+    notes: false,
+  });
+
+  const toggleIntakeSection = (section: keyof typeof openIntakeSections) => {
+    setOpenIntakeSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const allIntakeOpen = Object.values(openIntakeSections).every(Boolean);
+  const toggleAllIntakeSections = () => {
+    const nextState = !allIntakeOpen;
+    setOpenIntakeSections({
+      complaints: nextState,
+      hpi: nextState,
+      history: nextState,
+      allergies: nextState,
+      notes: nextState,
+    });
+  };
   const timezone = useTimezone();
 
   const {
@@ -1097,6 +1129,8 @@ export function AppointmentBookingPage() {
                         borderBottom: '1px solid #f1f5f9',
                         paddingBottom: '0.75rem',
                         marginBottom: '1rem',
+                        flexWrap: 'wrap',
+                        gap: '8px',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -1124,553 +1158,850 @@ export function AppointmentBookingPage() {
                           </p>
                         </div>
                       </div>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: '#2563eb',
-                          background: '#eff6ff',
-                          padding: '3px 10px',
-                          borderRadius: '999px',
-                          border: '1px solid #bfdbfe',
-                        }}
-                      >
-                        {(watch('reason') || '').split(',').map((s) => s.trim()).filter(Boolean).length} Selected
-                      </span>
-                    </div>
-
-                    {/* 1. Chief Complaints Chip Selection */}
-                    <div style={{ marginBottom: '1.1rem' }}>
-                      <label
-                        htmlFor="booking-reason"
-                        style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.4rem' }}
-                      >
-                        Presenting Ophthalmic Complaints <span style={{ color: '#2563eb', fontWeight: 500 }}>(Click tags to toggle)</span>
-                      </label>
-                      <div className="hms-complaint-chips-wrap">
-                        {ophthalmicComplaints.map((tag) => {
-                          const isSelected = (watch('reason') || '').split(',').map((s) => s.trim()).includes(tag);
-                          return (
-                            <button
-                              className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
-                              key={tag}
-                              onClick={() => toggleComplaintTag(tag)}
-                              style={
-                                isSelected
-                                  ? { background: '#2563eb', color: '#ffffff', borderColor: '#2563eb', fontWeight: 700 }
-                                  : {}
-                              }
-                              type="button"
-                            >
-                              <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
-                              {tag}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <textarea
-                        id="booking-reason"
-                        placeholder="Enter or refine presenting symptoms and chief complaint summary"
-                        rows={2}
-                        style={{
-                          width: '100%',
-                          marginTop: '0.4rem',
-                          borderRadius: '8px',
-                          border: '1px solid #cbd5e1',
-                          padding: '0.5rem 0.75rem',
-                          fontSize: '0.84rem',
-                        }}
-                        {...register('reason')}
-                      />
-                      {errors.reason ? <small className="field-error">{errors.reason.message}</small> : null}
-                    </div>
-
-                    {/* 2. Structured Presentation & HPI Box */}
-                    <div
-                      style={{
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '10px',
-                        padding: '1rem',
-                        marginBottom: '1.1rem',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          marginBottom: '0.75rem',
-                          color: '#1e293b',
-                          fontWeight: 700,
-                          fontSize: '0.86rem',
-                        }}
-                      >
-                        <i className="ph ph-clock-counter-clockwise" style={{ color: '#2563eb' }} />
-                        <span>Presentation & History of Present Illness (HPI)</span>
-                      </div>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                          gap: '0.85rem',
-                        }}
-                      >
-                        {/* Affected Eye */}
-                        <div>
-                          <label
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            Affected Eye
-                          </label>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {[
-                              { id: 'OD', label: 'OD (Right)' },
-                              { id: 'OS', label: 'OS (Left)' },
-                              { id: 'OU', label: 'OU (Both)' },
-                            ].map((eye) => (
-                              <button
-                                key={eye.id}
-                                type="button"
-                                className={`doc-btn ${hpiEye === eye.id ? 'primary' : ''}`}
-                                style={{
-                                  flex: 1,
-                                  padding: '4px 6px',
-                                  fontSize: '0.78rem',
-                                  minHeight: '32px',
-                                  justifyContent: 'center',
-                                }}
-                                onClick={() => {
-                                  setHpiEye(eye.id as 'OD' | 'OS' | 'OU');
-                                  syncHpiToField(eye.id as 'OD' | 'OS' | 'OU');
-                                }}
-                              >
-                                {eye.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Duration */}
-                        <div>
-                          <label
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            Duration
-                          </label>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <input
-                              type="number"
-                              min="1"
-                              max="365"
-                              placeholder="e.g. 2"
-                              value={hpiDurationValue}
-                              onChange={(e) => {
-                                setHpiDurationValue(e.target.value);
-                                syncHpiToField(undefined, e.target.value);
-                              }}
-                              style={{
-                                width: '70px',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                fontSize: '0.82rem',
-                              }}
-                            />
-                            <select
-                              value={hpiDurationUnit}
-                              onChange={(e) => {
-                                setHpiDurationUnit(e.target.value);
-                                syncHpiToField(undefined, undefined, e.target.value);
-                              }}
-                              style={{
-                                flex: 1,
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: '1px solid #cbd5e1',
-                                fontSize: '0.82rem',
-                              }}
-                            >
-                              <option value="DAY">day(s)</option>
-                              <option value="WEEK">week(s)</option>
-                              <option value="MONTH">month(s)</option>
-                              <option value="YEAR">year(s)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Onset */}
-                        <div>
-                          <label
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            Onset
-                          </label>
-                          <select
-                            value={hpiOnset}
-                            onChange={(e) => {
-                              setHpiOnset(e.target.value);
-                              syncHpiToField(undefined, undefined, undefined, e.target.value);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '0.82rem',
-                            }}
-                          >
-                            <option value="">Select Onset</option>
-                            <option value="SUDDEN">Sudden</option>
-                            <option value="GRADUAL">Gradual</option>
-                            <option value="UNKNOWN">Unknown</option>
-                          </select>
-                        </div>
-
-                        {/* Progression */}
-                        <div>
-                          <label
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            Progression
-                          </label>
-                          <select
-                            value={hpiProgression}
-                            onChange={(e) => {
-                              setHpiProgression(e.target.value);
-                              syncHpiToField(undefined, undefined, undefined, undefined, e.target.value);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '0.82rem',
-                            }}
-                          >
-                            <option value="">Select Progression</option>
-                            <option value="IMPROVING">Improving</option>
-                            <option value="STABLE">Stable</option>
-                            <option value="WORSENING">Worsening</option>
-                            <option value="INTERMITTENT">Intermittent</option>
-                          </select>
-                        </div>
-
-                        {/* Severity */}
-                        <div>
-                          <label
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.35rem',
-                            }}
-                          >
-                            Severity
-                          </label>
-                          <select
-                            value={hpiSeverity}
-                            onChange={(e) => {
-                              setHpiSeverity(e.target.value);
-                              syncHpiToField(undefined, undefined, undefined, undefined, undefined, e.target.value);
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontSize: '0.82rem',
-                            }}
-                          >
-                            <option value="">Select Severity</option>
-                            <option value="MILD">Mild</option>
-                            <option value="MODERATE">Moderate</option>
-                            <option value="SEVERE">Severe</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: '0.75rem' }}>
-                        <label
-                          htmlFor="booking-hpi"
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={toggleAllIntakeSections}
                           style={{
-                            fontSize: '0.78rem',
+                            background: '#f8fafc',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                            color: '#334155',
+                            cursor: 'pointer',
                             fontWeight: 600,
-                            color: '#475569',
-                            display: 'block',
-                            marginBottom: '0.25rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
                           }}
                         >
-                          HPI Narrative & Associated Symptoms
-                        </label>
-                        <textarea
-                          id="booking-hpi"
-                          placeholder="Detailed timeline, triggers, vision changes, or pain characteristics"
-                          rows={2}
+                          <i className={`ph ph-${allIntakeOpen ? 'caret-up' : 'caret-down'}`} />
+                          <span>{allIntakeOpen ? 'Collapse All' : 'Expand All'}</span>
+                        </button>
+                        <span
                           style={{
-                            width: '100%',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            padding: '0.5rem 0.75rem',
-                            fontSize: '0.82rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: '#2563eb',
+                            background: '#eff6ff',
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            border: '1px solid #bfdbfe',
                           }}
-                          {...register('history_present_illness')}
-                        />
+                        >
+                          {(watch('reason') || '').split(',').map((s) => s.trim()).filter(Boolean).length} Selected
+                        </span>
                       </div>
                     </div>
 
-                    {/* 3. Past Ophthalmic & Medical History */}
-                    <div
-                      style={{
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '10px',
-                        padding: '1rem',
-                        marginBottom: '1.1rem',
-                      }}
-                    >
+                    {/* Section 1: Chief Complaints & Presenting Symptoms */}
+                    <div style={{ marginBottom: '10px' }}>
                       <div
+                        onClick={() => toggleIntakeSection('complaints')}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          marginBottom: '0.5rem',
+                          padding: '10px 14px',
+                          background: openIntakeSections.complaints ? '#f8fafc' : '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: openIntakeSections.complaints ? '10px 10px 0 0' : '10px',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease',
                         }}
                       >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            1
+                          </span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b' }}>
+                            Chief Complaints & Presenting Symptoms
+                          </span>
+                          {!openIntakeSections.complaints && Boolean(watch('reason')) && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#2563eb',
+                                background: '#eff6ff',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {watch('reason')}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            {openIntakeSections.complaints ? 'Collapse' : 'Expand'}
+                          </span>
+                          <i className={`ph ph-caret-${openIntakeSections.complaints ? 'up' : 'down'}`} />
+                        </div>
+                      </div>
+
+                      {openIntakeSections.complaints && (
                         <div
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            color: '#1e293b',
-                            fontWeight: 700,
-                            fontSize: '0.86rem',
+                            border: '1px solid #e2e8f0',
+                            borderTop: 'none',
+                            borderRadius: '0 0 10px 10px',
+                            padding: '14px',
+                            background: '#ffffff',
                           }}
                         >
-                          <i className="ph ph-article" style={{ color: '#0284c7' }} />
-                          <span>Past Ophthalmic & Medical History</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setValue('past_history', 'No significant prior ophthalmic history', { shouldDirty: true })}
-                          style={{
-                            background: '#f1f5f9',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '6px',
-                            padding: '2px 8px',
-                            fontSize: '0.74rem',
-                            color: '#475569',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                          }}
-                        >
-                          No Significant History
-                        </button>
-                      </div>
-
-                      <div className="hms-complaint-chips-wrap" style={{ marginBottom: '0.5rem' }}>
-                        {commonEyeHistory.map((tag) => {
-                          const isSelected = (watch('past_history') || '').split(',').map((s) => s.trim()).includes(tag);
-                          return (
-                            <button
-                              className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
-                              key={tag}
-                              onClick={() => toggleHistoryTag(tag)}
-                              style={
-                                isSelected
-                                  ? { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7', fontWeight: 700 }
-                                  : {}
-                              }
-                              type="button"
-                            >
-                              <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
-                              {tag}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                          gap: '0.75rem',
-                        }}
-                      >
-                        <div>
                           <label
-                            htmlFor="booking-past-history"
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.25rem',
-                            }}
+                            htmlFor="booking-reason"
+                            style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.4rem' }}
                           >
-                            Past Ocular Surgeries & Systemic Conditions
+                            Presenting Ophthalmic Complaints <span style={{ color: '#2563eb', fontWeight: 500 }}>(Click tags to toggle)</span>
                           </label>
+                          <div className="hms-complaint-chips-wrap">
+                            {ophthalmicComplaints.map((tag) => {
+                              const isSelected = (watch('reason') || '').split(',').map((s) => s.trim()).includes(tag);
+                              return (
+                                <button
+                                  className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
+                                  key={tag}
+                                  onClick={() => toggleComplaintTag(tag)}
+                                  style={
+                                    isSelected
+                                      ? { background: '#2563eb', color: '#ffffff', borderColor: '#2563eb', fontWeight: 700 }
+                                      : {}
+                                  }
+                                  type="button"
+                                >
+                                  <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
                           <textarea
-                            id="booking-past-history"
-                            placeholder="Previous ocular surgeries, laser treatments, systemic diseases (DM, HTN)"
+                            id="booking-reason"
+                            placeholder="Enter or refine presenting symptoms and chief complaint summary"
                             rows={2}
                             style={{
                               width: '100%',
-                              borderRadius: '6px',
+                              marginTop: '0.4rem',
+                              borderRadius: '8px',
                               border: '1px solid #cbd5e1',
                               padding: '0.5rem 0.75rem',
-                              fontSize: '0.82rem',
+                              fontSize: '0.84rem',
                             }}
-                            {...register('past_history')}
+                            {...register('reason')}
                           />
+                          {errors.reason ? <small className="field-error">{errors.reason.message}</small> : null}
                         </div>
-                        <div>
-                          <label
-                            htmlFor="booking-family-history"
-                            style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              color: '#475569',
-                              display: 'block',
-                              marginBottom: '0.25rem',
-                            }}
-                          >
-                            Family Eye History
-                          </label>
-                          <textarea
-                            id="booking-family-history"
-                            placeholder="Family history of Glaucoma, AMD, Keratoconus, Strabismus"
-                            rows={2}
-                            style={{
-                              width: '100%',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              padding: '0.5rem 0.75rem',
-                              fontSize: '0.82rem',
-                            }}
-                            {...register('family_history')}
-                          />
-                        </div>
-                      </div>
+                      )}
                     </div>
 
-                    {/* 4. Allergies & Drug Sensitivities */}
-                    <div
-                      style={{
-                        background: '#fef2f2',
-                        border: '1px solid #fecaca',
-                        borderRadius: '10px',
-                        padding: '1rem',
-                        marginBottom: '1.1rem',
-                      }}
-                    >
+                    {/* Section 2: Presentation & History of Present Illness (HPI) */}
+                    <div style={{ marginBottom: '10px' }}>
                       <div
+                        onClick={() => toggleIntakeSection('hpi')}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.5rem',
-                          marginBottom: '0.5rem',
-                          color: '#991b1b',
-                          fontWeight: 700,
-                          fontSize: '0.86rem',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: openIntakeSections.hpi ? '#f8fafc' : '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: openIntakeSections.hpi ? '10px 10px 0 0' : '10px',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <i className="ph ph-warning-circle" style={{ color: '#dc2626' }} />
-                        <span>Allergies & Drug Sensitivities</span>
-                      </div>
-
-                      <div className="hms-complaint-chips-wrap" style={{ marginBottom: '0.5rem' }}>
-                        {commonAllergies.map((tag) => {
-                          const isSelected = (watch('allergies') || '').split(',').map((s) => s.trim()).includes(tag);
-                          return (
-                            <button
-                              className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
-                              key={tag}
-                              onClick={() => toggleAllergyTag(tag)}
-                              style={
-                                isSelected
-                                  ? { background: '#dc2626', color: '#ffffff', borderColor: '#dc2626', fontWeight: 700 }
-                                  : { borderColor: '#fca5a5', color: '#7f1d1d' }
-                              }
-                              type="button"
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            2
+                          </span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b' }}>
+                            Presentation &amp; History of Present Illness (HPI)
+                          </span>
+                          {!openIntakeSections.hpi && Boolean(watch('history_present_illness')) && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#0369a1',
+                                background: '#e0f2fe',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}
                             >
-                              <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
-                              {tag}
-                            </button>
-                          );
-                        })}
+                              {watch('history_present_illness')?.slice(0, 50)}...
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            {openIntakeSections.hpi ? 'Collapse' : 'Expand'}
+                          </span>
+                          <i className={`ph ph-caret-${openIntakeSections.hpi ? 'up' : 'down'}`} />
+                        </div>
                       </div>
 
-                      <div>
-                        <textarea
-                          id="booking-allergies"
-                          placeholder="Document all known drug allergies (e.g. Penicillin, Sulfa, Dilating drops, Preservatives) or enter NKDA"
-                          rows={2}
+                      {openIntakeSections.hpi && (
+                        <div
                           style={{
-                            width: '100%',
-                            borderRadius: '6px',
-                            border: '1px solid #fca5a5',
-                            padding: '0.5rem 0.75rem',
-                            fontSize: '0.82rem',
-                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderTop: 'none',
+                            borderRadius: '0 0 10px 10px',
+                            padding: '14px',
+                            background: '#f8fafc',
                           }}
-                          {...register('allergies')}
-                        />
-                      </div>
+                        >
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                              gap: '0.85rem',
+                            }}
+                          >
+                            {/* Affected Eye */}
+                            <div>
+                              <label
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.35rem',
+                                }}
+                              >
+                                Affected Eye
+                              </label>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                {[
+                                  { id: 'OD', label: 'OD (Right)' },
+                                  { id: 'OS', label: 'OS (Left)' },
+                                  { id: 'OU', label: 'OU (Both)' },
+                                ].map((eye) => (
+                                  <button
+                                    key={eye.id}
+                                    type="button"
+                                    className={`doc-btn ${hpiEye === eye.id ? 'primary' : ''}`}
+                                    style={{
+                                      flex: 1,
+                                      padding: '4px 6px',
+                                      fontSize: '0.78rem',
+                                      minHeight: '32px',
+                                      justifyContent: 'center',
+                                    }}
+                                    onClick={() => {
+                                      setHpiEye(eye.id as 'OD' | 'OS' | 'OU');
+                                      syncHpiToField(eye.id as 'OD' | 'OS' | 'OU');
+                                    }}
+                                  >
+                                    {eye.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Duration */}
+                            <div>
+                              <label
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.35rem',
+                                }}
+                              >
+                                Duration
+                              </label>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="365"
+                                  placeholder="e.g. 2"
+                                  value={hpiDurationValue}
+                                  onChange={(e) => {
+                                    setHpiDurationValue(e.target.value);
+                                    syncHpiToField(undefined, e.target.value);
+                                  }}
+                                  style={{
+                                    width: '70px',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '0.82rem',
+                                  }}
+                                />
+                                <select
+                                  value={hpiDurationUnit}
+                                  onChange={(e) => {
+                                    setHpiDurationUnit(e.target.value);
+                                    syncHpiToField(undefined, undefined, e.target.value);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    fontSize: '0.82rem',
+                                  }}
+                                >
+                                  <option value="DAY">day(s)</option>
+                                  <option value="WEEK">week(s)</option>
+                                  <option value="MONTH">month(s)</option>
+                                  <option value="YEAR">year(s)</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Onset */}
+                            <div>
+                              <label
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.35rem',
+                                }}
+                              >
+                                Onset
+                              </label>
+                              <select
+                                value={hpiOnset}
+                                onChange={(e) => {
+                                  setHpiOnset(e.target.value);
+                                  syncHpiToField(undefined, undefined, undefined, e.target.value);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: '0.82rem',
+                                }}
+                              >
+                                <option value="">Select Onset</option>
+                                <option value="SUDDEN">Sudden</option>
+                                <option value="GRADUAL">Gradual</option>
+                                <option value="UNKNOWN">Unknown</option>
+                              </select>
+                            </div>
+
+                            {/* Progression */}
+                            <div>
+                              <label
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.35rem',
+                                }}
+                              >
+                                Progression
+                              </label>
+                              <select
+                                value={hpiProgression}
+                                onChange={(e) => {
+                                  setHpiProgression(e.target.value);
+                                  syncHpiToField(undefined, undefined, undefined, undefined, e.target.value);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: '0.82rem',
+                                }}
+                              >
+                                <option value="">Select Progression</option>
+                                <option value="IMPROVING">Improving</option>
+                                <option value="STABLE">Stable</option>
+                                <option value="WORSENING">Worsening</option>
+                                <option value="INTERMITTENT">Intermittent</option>
+                              </select>
+                            </div>
+
+                            {/* Severity */}
+                            <div>
+                              <label
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.35rem',
+                                }}
+                              >
+                                Severity
+                              </label>
+                              <select
+                                value={hpiSeverity}
+                                onChange={(e) => {
+                                  setHpiSeverity(e.target.value);
+                                  syncHpiToField(undefined, undefined, undefined, undefined, undefined, e.target.value);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: '0.82rem',
+                                }}
+                              >
+                                <option value="">Select Severity</option>
+                                <option value="MILD">Mild</option>
+                                <option value="MODERATE">Moderate</option>
+                                <option value="SEVERE">Severe</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: '0.75rem' }}>
+                            <label
+                              htmlFor="booking-hpi"
+                              style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                color: '#475569',
+                                display: 'block',
+                                marginBottom: '0.25rem',
+                              }}
+                            >
+                              HPI Narrative &amp; Associated Symptoms
+                            </label>
+                            <textarea
+                              id="booking-hpi"
+                              placeholder="Detailed timeline, triggers, vision changes, or pain characteristics"
+                              rows={2}
+                              style={{
+                                width: '100%',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                padding: '0.5rem 0.75rem',
+                                fontSize: '0.82rem',
+                              }}
+                              {...register('history_present_illness')}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* 5. Special Clinic Instructions */}
-                    <div>
-                      <label
-                        htmlFor="booking-notes"
+                    {/* Section 3: Past Ophthalmic & Medical History */}
+                    <div style={{ marginBottom: '10px' }}>
+                      <div
+                        onClick={() => toggleIntakeSection('history')}
                         style={{
-                          fontSize: '0.82rem',
-                          fontWeight: 600,
-                          color: '#334155',
-                          display: 'block',
-                          marginBottom: '0.35rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: openIntakeSections.history ? '#f8fafc' : '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: openIntakeSections.history ? '10px 10px 0 0' : '10px',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        Special Clinic Instructions / Operational Notes
-                      </label>
-                      <textarea
-                        id="booking-notes"
-                        placeholder="Transport assistance, wheelchair required, pupil dilation consent, interpreter required, or referral remarks"
-                        rows={2}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#e0f2fe',
+                              color: '#0284c7',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            3
+                          </span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b' }}>
+                            Past Ophthalmic &amp; Medical History
+                          </span>
+                          {!openIntakeSections.history && Boolean(watch('past_history')) && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#0284c7',
+                                background: '#e0f2fe',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {watch('past_history')}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            {openIntakeSections.history ? 'Collapse' : 'Expand'}
+                          </span>
+                          <i className={`ph ph-caret-${openIntakeSections.history ? 'up' : 'down'}`} />
+                        </div>
+                      </div>
+
+                      {openIntakeSections.history && (
+                        <div
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderTop: 'none',
+                            borderRadius: '0 0 10px 10px',
+                            padding: '14px',
+                            background: '#f8fafc',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginBottom: '0.5rem',
+                            }}
+                          >
+                            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+                              Common Ocular &amp; Systemic Conditions
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setValue('past_history', 'No significant prior ophthalmic history', { shouldDirty: true })}
+                              style={{
+                                background: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '3px 9px',
+                                fontSize: '0.74rem',
+                                color: '#475569',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                              }}
+                            >
+                              No Significant History
+                            </button>
+                          </div>
+
+                          <div className="hms-complaint-chips-wrap" style={{ marginBottom: '0.5rem' }}>
+                            {commonEyeHistory.map((tag) => {
+                              const isSelected = (watch('past_history') || '').split(',').map((s) => s.trim()).includes(tag);
+                              return (
+                                <button
+                                  className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
+                                  key={tag}
+                                  onClick={() => toggleHistoryTag(tag)}
+                                  style={
+                                    isSelected
+                                      ? { background: '#0284c7', color: '#ffffff', borderColor: '#0284c7', fontWeight: 700 }
+                                      : {}
+                                  }
+                                  type="button"
+                                >
+                                  <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                              gap: '0.75rem',
+                            }}
+                          >
+                            <div>
+                              <label
+                                htmlFor="booking-past-history"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.25rem',
+                                }}
+                              >
+                                Past Ocular Surgeries &amp; Systemic Conditions
+                              </label>
+                              <textarea
+                                id="booking-past-history"
+                                placeholder="Previous ocular surgeries, laser treatments, systemic diseases (DM, HTN)"
+                                rows={2}
+                                style={{
+                                  width: '100%',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  padding: '0.5rem 0.75rem',
+                                  fontSize: '0.82rem',
+                                }}
+                                {...register('past_history')}
+                              />
+                            </div>
+                            <div>
+                              <label
+                                htmlFor="booking-family-history"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  display: 'block',
+                                  marginBottom: '0.25rem',
+                                }}
+                              >
+                                Family Eye History
+                              </label>
+                              <textarea
+                                id="booking-family-history"
+                                placeholder="Family history of Glaucoma, AMD, Keratoconus, Strabismus"
+                                rows={2}
+                                style={{
+                                  width: '100%',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  padding: '0.5rem 0.75rem',
+                                  fontSize: '0.82rem',
+                                }}
+                                {...register('family_history')}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 4: Allergies & Drug Sensitivities */}
+                    <div style={{ marginBottom: '10px' }}>
+                      <div
+                        onClick={() => toggleIntakeSection('allergies')}
                         style={{
-                          width: '100%',
-                          borderRadius: '8px',
-                          border: '1px solid #cbd5e1',
-                          padding: '0.5rem 0.75rem',
-                          fontSize: '0.82rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: openIntakeSections.allergies ? '#fef2f2' : '#ffffff',
+                          border: '1px solid #fecaca',
+                          borderRadius: openIntakeSections.allergies ? '10px 10px 0 0' : '10px',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease',
                         }}
-                        {...register('notes')}
-                      />
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            <i className="ph ph-warning" />
+                          </span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#991b1b' }}>
+                            Allergies &amp; Drug Sensitivities
+                          </span>
+                          {!openIntakeSections.allergies && Boolean(watch('allergies')) && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#b91c1c',
+                                background: '#fee2e2',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {watch('allergies')}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b91c1c' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            {openIntakeSections.allergies ? 'Collapse' : 'Expand'}
+                          </span>
+                          <i className={`ph ph-caret-${openIntakeSections.allergies ? 'up' : 'down'}`} />
+                        </div>
+                      </div>
+
+                      {openIntakeSections.allergies && (
+                        <div
+                          style={{
+                            border: '1px solid #fecaca',
+                            borderTop: 'none',
+                            borderRadius: '0 0 10px 10px',
+                            padding: '14px',
+                            background: '#fef2f2',
+                          }}
+                        >
+                          <div className="hms-complaint-chips-wrap" style={{ marginBottom: '0.5rem' }}>
+                            {commonAllergies.map((tag) => {
+                              const isSelected = (watch('allergies') || '').split(',').map((s) => s.trim()).includes(tag);
+                              return (
+                                <button
+                                  className={`hms-complaint-tag ${isSelected ? 'selected' : ''}`}
+                                  key={tag}
+                                  onClick={() => toggleAllergyTag(tag)}
+                                  style={
+                                    isSelected
+                                      ? { background: '#dc2626', color: '#ffffff', borderColor: '#dc2626', fontWeight: 700 }
+                                      : { borderColor: '#fca5a5', color: '#7f1d1d' }
+                                  }
+                                  type="button"
+                                >
+                                  <i className={`ph ${isSelected ? 'ph-check' : 'ph-plus-circle'}`} />
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div>
+                            <textarea
+                              id="booking-allergies"
+                              placeholder="Document all known drug allergies (e.g. Penicillin, Sulfa, Dilating drops, Preservatives) or enter NKDA"
+                              rows={2}
+                              style={{
+                                width: '100%',
+                                borderRadius: '6px',
+                                border: '1px solid #fca5a5',
+                                padding: '0.5rem 0.75rem',
+                                fontSize: '0.82rem',
+                                background: '#ffffff',
+                              }}
+                              {...register('allergies')}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 5: Special Clinic Instructions */}
+                    <div>
+                      <div
+                        onClick={() => toggleIntakeSection('notes')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: openIntakeSections.notes ? '#f8fafc' : '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: openIntakeSections.notes ? '10px 10px 0 0' : '10px',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: '#f1f5f9',
+                              color: '#475569',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            5
+                          </span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b' }}>
+                            Special Clinic Instructions &amp; Operational Notes
+                          </span>
+                          {!openIntakeSections.notes && Boolean(watch('notes')) && (
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#475569',
+                                background: '#f1f5f9',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {watch('notes')?.slice(0, 45)}...
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            {openIntakeSections.notes ? 'Collapse' : 'Expand'}
+                          </span>
+                          <i className={`ph ph-caret-${openIntakeSections.notes ? 'up' : 'down'}`} />
+                        </div>
+                      </div>
+
+                      {openIntakeSections.notes && (
+                        <div
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderTop: 'none',
+                            borderRadius: '0 0 10px 10px',
+                            padding: '14px',
+                            background: '#ffffff',
+                          }}
+                        >
+                          <textarea
+                            id="booking-notes"
+                            placeholder="Transport assistance, wheelchair required, pupil dilation consent, interpreter required, or referral remarks"
+                            rows={2}
+                            style={{
+                              width: '100%',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              padding: '0.5rem 0.75rem',
+                              fontSize: '0.82rem',
+                            }}
+                            {...register('notes')}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

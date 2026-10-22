@@ -23,6 +23,8 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
   const [vaOdNearCorr, setVaOdNearCorr] = useState('N6 (Reading 35cm)');
   const [vaOsNearCorr, setVaOsNearCorr] = useState('N6 (Reading 35cm)');
   const [vaLensWorn, setVaLensWorn] = useState('Progressive PAL (Anti-Reflective, 4 years old)');
+  const [vaColorVision, setVaColorVision] = useState('15/15 Normal OU');
+  const [vaNotes, setVaNotes] = useState('Pinhole improves OD from 6/36 to 6/18, suggesting refractive deficit.');
 
   // 2. Refraction State
   const [refTab, setRefTab] = useState<'ar' | 'subj' | 'final'>('ar');
@@ -251,12 +253,27 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                 <div style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic', marginBottom: '8px' }}>
                   Pinhole improves OD from 6/36 to 6/18, suggesting refractive deficit.
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px', marginTop: '4px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Color Vision (Ishihara)</label>
+                    <select value={vaColorVision} onChange={(e) => setVaColorVision(e.target.value)} className="oph-exam-select">
+                      <option>15/15 Normal OU</option>
+                      <option>Deficient (OD)</option>
+                      <option>Deficient (OS)</option>
+                      <option>Not Tested</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Acuity Notes / Remarks</label>
+                    <textarea rows={2} className="oph-exam-textarea" value={vaNotes} onChange={(e) => setVaNotes(e.target.value)} placeholder="Unaided baseline remarks..." />
+                  </div>
+                </div>
               </div>
             ) : (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
                   <span style={{ fontWeight: 600, color: '#475569' }}>Correction:</span>
-                  <select value={vaCorrType} onChange={(e) => setVaCorrType(e.target.value)} style={{ width: '180px', padding: '4px 8px' }}>
+                  <select value={vaCorrType} onChange={(e) => setVaCorrType(e.target.value)} className="oph-exam-select" style={{ width: '180px', padding: '4px 8px' }}>
                     <option>Presenting Spectacles</option>
                     <option>Best Corrected (BCVA)</option>
                     <option>Contact Lenses</option>
@@ -300,11 +317,26 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                     <tr>
                       <td>Lens Worn</td>
                       <td colSpan={2}>
-                        <input type="text" value={vaLensWorn} onChange={(e) => setVaLensWorn(e.target.value)} style={{ fontSize: '0.78rem' }} />
+                        <input type="text" value={vaLensWorn} onChange={(e) => setVaLensWorn(e.target.value)} className="oph-exam-input" style={{ fontSize: '0.78rem' }} />
                       </td>
                     </tr>
                   </tbody>
                 </table>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px', marginTop: '4px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Color Vision (Ishihara)</label>
+                    <select value={vaColorVision} onChange={(e) => setVaColorVision(e.target.value)} className="oph-exam-select">
+                      <option>15/15 Normal OU</option>
+                      <option>Deficient (OD)</option>
+                      <option>Deficient (OS)</option>
+                      <option>Not Tested</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Acuity Notes / Remarks</label>
+                    <textarea rows={2} className="oph-exam-textarea" value={vaNotes} onChange={(e) => setVaNotes(e.target.value)} placeholder="Corrected acuity remarks..." />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -374,7 +406,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>PD (Dist)</label>
-                    <input type="text" value={arPd} onChange={(e) => setArPd(e.target.value)} />
+                    <input type="text" value={arPd} onChange={(e) => setArPd(e.target.value)} className="oph-exam-input" />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Capture Instrument & Notes</label>
@@ -427,11 +459,11 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Near Add</label>
-                    <input type="text" value={subjAdd} onChange={(e) => setSubjAdd(e.target.value)} />
+                    <input type="text" value={subjAdd} onChange={(e) => setSubjAdd(e.target.value)} className="oph-exam-input" />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Duochrome</label>
-                    <select value={subjDuochrome} onChange={(e) => setSubjDuochrome(e.target.value)}>
+                    <select value={subjDuochrome} onChange={(e) => setSubjDuochrome(e.target.value)} className="oph-exam-select">
                       <option>Equal (Balanced OU)</option><option>Red clearer</option><option>Green clearer</option>
                     </select>
                   </div>
@@ -494,7 +526,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
 
             <div style={{ marginBottom: '8px' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Measurement Technique</label>
-              <select value={iopMethod} onChange={(e) => setIopMethod(e.target.value)}>
+              <select value={iopMethod} onChange={(e) => setIopMethod(e.target.value)} className="oph-exam-select">
                 <option>Applanation Tonometry (Goldmann GAT)</option>
                 <option>Non-Contact Air-Puff Tonometry (NCT)</option>
                 <option>Tono-Pen / Rebound Tonometry</option>
@@ -526,7 +558,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px' }}>
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Time Recorded</label>
-                <input type="text" value={iopTime} onChange={(e) => setIopTime(e.target.value)} />
+                <input type="text" value={iopTime} onChange={(e) => setIopTime(e.target.value)} className="oph-exam-input" />
               </div>
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Clinical Assessment</label>

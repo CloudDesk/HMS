@@ -2,8 +2,20 @@ html, body {
   overflow-x: hidden;
   max-width: 100vw;
 }
-.oph-workspace { max-width: 1440px; }
-.oph-workspace .doc-card { padding: 20px; margin-bottom: 16px; }
+.oph-workspace {
+  max-width: 1440px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+.oph-workspace .doc-card {
+  padding: 20px;
+  margin-bottom: 16px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 .oph-workspace h3 { margin: 0 0 12px; }
 .oph-workspace h4 { margin: 18px 0 10px; }
 .oph-workspace p { margin: 8px 0 12px; }
@@ -138,21 +150,29 @@ html, body {
   font-weight: 600;
 }
 
-/* 5 Sequential Tabs Stepper */
+/* 4 Sequential Tabs Stepper - Balanced Grid */
 .oph-stepper-nav {
-  display: flex;
-  align-items: center;
-  background: #f1f5f9;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  background: #f8fafc;
   padding: 6px;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
-  margin-bottom: 22px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  gap: 6px;
+  margin-bottom: 16px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
+}
+@media (max-width: 900px) {
+  .oph-stepper-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .oph-stepper-nav {
+    grid-template-columns: 1fr;
+  }
 }
 .oph-stepper-nav::-webkit-scrollbar {
   display: none;
@@ -160,9 +180,8 @@ html, body {
   height: 0;
 }
 .oph-step-tab {
-  flex: 1 1 auto;
-  min-width: max-content;
-  padding: 8px 12px;
+  width: 100%;
+  padding: 8px 10px;
   border: none;
   background: transparent;
   color: #64748b;
@@ -173,12 +192,15 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   transition: all 0.2s ease;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .oph-step-tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   color: #0f172a;
 }
 .oph-step-tab.active {
@@ -188,7 +210,9 @@ html, body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .oph-step-label-text {
-  white-space: nowrap;
+  white-space: normal;
+  word-break: normal;
+  min-width: 0;
 }
 .oph-step-number {
   width: 24px;
@@ -212,17 +236,19 @@ html, body {
 .oph-exam-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 .oph-exam-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  gap: 16px;
+  align-items: stretch;
 }
 .oph-exam-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 16px;
+  align-items: stretch;
 }
 @media (max-width: 1100px) {
   .oph-exam-grid-3, .oph-exam-grid-2 {
@@ -238,6 +264,8 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
+  box-sizing: border-box;
 }
 .oph-card-header {
   display: flex;
@@ -313,35 +341,51 @@ html, body {
   border: 1px solid #e2e8f0;
   color: #1e293b;
 }
-.oph-table select, .oph-table input, .oph-exam-input {
+.oph-exam-card input:not([type="checkbox"]):not([type="radio"]),
+.oph-exam-card select,
+.oph-exam-card textarea,
+.oph-table select,
+.oph-table input,
+.oph-exam-input,
+.oph-exam-select,
+.oph-exam-textarea {
   width: 100%;
-  padding: 6px 9px;
+  padding: 6px 10px;
   font-size: 0.8125rem;
+  font-family: inherit;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   box-sizing: border-box;
   background-color: #ffffff;
   color: #0f172a;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-.oph-table select:focus, .oph-table input:focus, .oph-exam-input:focus, .oph-exam-textarea:focus {
+.oph-exam-card input:not([type="checkbox"]):not([type="radio"]):hover,
+.oph-exam-card select:hover,
+.oph-exam-card textarea:hover,
+.oph-table select:hover,
+.oph-table input:hover,
+.oph-exam-input:hover,
+.oph-exam-select:hover,
+.oph-exam-textarea:hover {
+  border-color: #94a3b8;
+}
+.oph-exam-card input:not([type="checkbox"]):not([type="radio"]):focus,
+.oph-exam-card select:focus,
+.oph-exam-card textarea:focus,
+.oph-table select:focus,
+.oph-table input:focus,
+.oph-exam-input:focus,
+.oph-exam-select:focus,
+.oph-exam-textarea:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   outline: none;
 }
 .oph-exam-textarea {
-  width: 100%;
-  padding: 6px 9px;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  box-sizing: border-box;
-  background-color: #ffffff;
-  color: #0f172a;
   resize: vertical;
-  font-family: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 52px;
 }
 .oph-eye-pill {
   display: inline-flex;
@@ -398,6 +442,9 @@ html, body {
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
   z-index: 10;
   margin-top: 28px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .oph-save-indicator {
   display: flex;
@@ -1271,37 +1318,38 @@ html, body {
   padding: 20px;
   margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .oph-power-table-wrapper {
   overflow-x: auto;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   margin-top: 12px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   -ms-overflow-style: none;
-}
-.oph-power-table-wrapper::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .oph-power-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   text-align: left;
 }
 .oph-power-table th {
   background: #0f172a;
   color: #ffffff;
-  padding: 10px 12px;
+  padding: 8px 8px;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 .oph-power-table td {
-  padding: 10px 12px;
+  padding: 8px 6px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
 }
@@ -1314,15 +1362,16 @@ html, body {
 }
 .oph-power-input {
   width: 100%;
-  min-width: 85px;
-  padding: 6px 10px;
+  min-width: 60px;
+  padding: 5px 6px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 600;
   background: #ffffff;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 .oph-power-input:focus {
   outline: none;
@@ -1421,4 +1470,240 @@ html, body {
   font-weight: 900;
   font-size: 1.1rem;
   letter-spacing: 0.05em;
+}
+
+/* ==========================================================================
+   Professional Consultation Summary & Sign-Off Suite
+   ========================================================================== */
+
+.oph-summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.oph-summary-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 18px;
+}
+
+.oph-summary-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oph-summary-badge-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.oph-summary-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.oph-summary-meta-card {
+  padding: 14px 18px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.oph-meta-title {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.oph-clinical-notice {
+  padding: 8px 14px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+
+.oph-summary-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.oph-summary-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.oph-summary-section-header h5 {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.oph-section-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.oph-assessment-text {
+  margin: 4px 0 10px;
+  font-size: 0.88rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+/* Sign-Off & Finalization Card */
+.oph-signoff-card {
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.oph-signoff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.oph-signoff-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oph-signoff-badge-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.oph-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.oph-readiness-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  gap: 10px;
+}
+
+.oph-readiness-chip.satisfied {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.oph-readiness-chip.unmet {
+  border-color: #fed7aa;
+  background: #fffbeb;
+}
+
+.oph-readiness-chip-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oph-readiness-icon {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.oph-readiness-chip.satisfied .oph-readiness-icon {
+  color: #16a34a;
+}
+
+.oph-readiness-chip.unmet .oph-readiness-icon {
+  color: #d97706;
+}
+
+.oph-readiness-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  text-transform: capitalize;
+}
+
+.oph-readiness-details {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.oph-readiness-link-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.oph-readiness-link-btn:hover {
+  background: #1d4ed8;
+}
+
+.oph-audit-accordion {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  background: #fbfcfd;
+}
+
+.oph-audit-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
 }

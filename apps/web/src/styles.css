@@ -1233,7 +1233,8 @@ p {
 .main-content {
   min-width: 0;
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--bg-main);
 }
 

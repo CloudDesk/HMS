@@ -243,8 +243,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
             <table className="oph-power-table">
               <thead>
                 <tr>
-                  <th style={{ width: '135px' }}>Eye Laterality</th>
-                  <th style={{ width: '110px', textAlign: 'center' }}>Prescribe</th>
+                  <th style={{ width: '105px' }}>Eye Laterality</th>
+                  <th style={{ width: '85px', textAlign: 'center' }}>Prescribe</th>
                   <th>Sphere (SPH) *</th>
                   <th>Cylinder (CYL)</th>
                   <th>Axis (°)</th>
