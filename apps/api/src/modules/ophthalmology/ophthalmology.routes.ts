@@ -25,6 +25,7 @@ import {
   updateOphthalmologyWorkflowProfileBodySchema,
   versionActionBodySchema,
   routeOphthalmologyEmergencyBodySchema,
+  escalateOphthalmologyEmergencyBodySchema,
   saveOphthalmologyIntakeDraftBodySchema,
   ophthalmologyTestTaskHeadersSchema,
   ophthalmologyTestTaskListQuerySchema,
@@ -54,6 +55,7 @@ import {
 } from './ophthalmology.schemas.js';
 import type {
   AcknowledgeOphthalmologyAlertDTO,
+  EscalateOphthalmologyEmergencyDTO,
   CompleteOphthalmologyIntakeDTO,
   CreateOphthalmologyConfigurationDTO,
   CreateOphthalmologyContextDTO,
@@ -185,6 +187,13 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/doctor-review', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
   }, async (request) => ok(await services.ophthalmology.getDoctorReview(request.params.visitId, request.user!.id)));
+  app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/journey-status', {
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'View' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'View' },
+      { moduleName: 'OPD', screen: 'OPD Visits', action: 'View' },
+    ]), schema: { params: ophthalmologyVisitParamsSchema },
+  }, async (request) => ok(await services.ophthalmology.getPatientJourneyStatus(request.params.visitId, request.user!.id)));
   app.get<{ Params: VisitParams }>('/api/opd/visits/:visitId/ophthalmology/clinical-review', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Consultation', 'View'), schema: { params: ophthalmologyVisitParamsSchema },
   }, async (request) => ok(await services.ophthalmology.getClinicalReview(request.params.visitId, request.user!.id)));
@@ -360,6 +369,13 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'Escalate'),
     schema: { params: ophthalmologyVisitAlertParamsSchema, body: acknowledgeOphthalmologyAlertBodySchema },
   }, async (request) => ok(await services.ophthalmology.acknowledgeAlert(request.params.visitId, request.params.id, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitParams; Body: EscalateOphthalmologyEmergencyDTO }>('/api/opd/visits/:visitId/ophthalmology/alerts/escalate', {
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'Escalate' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Edit' },
+    ]),
+    schema: { params: ophthalmologyVisitParamsSchema, body: escalateOphthalmologyEmergencyBodySchema },
+  }, async (request) => ok(await services.ophthalmology.escalateEmergency(request.params.visitId, request.body, request.user!.id, metadata(request))));
 
   const configReadPermissions = [
     { moduleName: 'OPD', screen: 'Ophthalmology Configuration', action: 'View' },

@@ -64,6 +64,7 @@ export function useOphthalmologyCareFeature(workspace: CareWorkspace) {
     && !taskQuery.isError && !resultQuery.isError && !taskQuery.isFetching && !resultQuery.isFetching;
   function checked<T extends { context_id: string; visit_id: string; patient_id: string; branch_id: string; department_id: string }>(saved: T) { if (!matches(saved)) throw new Error('Saved response does not match this patient encounter. Reload before retrying.'); return saved; }
   return {
+    workspace,
     showDiagnosisEditor: active && tab === 'treatment' && canClinical && can('Ophthalmology Consultation', 'Diagnose') && can('OPD Consultation', 'Edit') && Boolean(consultation && Number.isInteger(consultation.version)),
     canEditDiagnosis: writable && tab === 'treatment' && canClinical && can('Ophthalmology Consultation', 'Diagnose') && can('OPD Consultation', 'Edit') && Boolean(consultation?.status === 'DRAFT' && Number.isInteger(consultation.version)) && consultationQuery.isSuccess && !consultationQuery.isError && !consultationQuery.isFetching,
     invalidTaskId: Boolean(params.get('review_task_id') && !taskId), tab, active, canClinical, canOptical, canQueue, clinicalQuery, opticalQuery, consultationQuery, clinical, optical, consultation, diagnoses, scopeError, canSaveClinical, canSaveOptical, canApproveOptical, canReview,

@@ -377,3 +377,14 @@ export const ophthalmologyAssignmentLookupQuerySchema = { type: 'object', additi
 export const ophthalmologyTaskStationParamsSchema = { type: 'object', additionalProperties: false, required: ['id', 'stationId'], properties: { id: objectId, stationId: objectId } } as const;
 
 export const ophthalmologyTaskClinicalConfigurationQuerySchema = { type: 'object', additionalProperties: false, required: ['type'], properties: { type: { type: 'string', enum: ['FORM_PROFILE', 'OPTICAL_PRODUCT', 'DRUG_OPTION'] }, page: { type: 'integer', minimum: 1, default: 1 }, limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 } } } as const;
+
+export const escalateOphthalmologyEmergencyBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reason'],
+  properties: {
+    reason: { type: 'string', minLength: 1, maxLength: 2000 },
+    trigger_findings: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 20 },
+    urgency: { type: 'string', enum: ['ROUTINE', 'URGENT', 'EMERGENCY'] },
+  },
+} as const;

@@ -20,6 +20,7 @@ import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/
 import { PermissionModel } from '../permissions/permission.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { BillingInvoiceModel } from '../billing/billing.model.js';
 import {
   OphthalmologyConfigurationModel,
   OphthalmologyContextModel,
@@ -567,11 +568,13 @@ export class OphthalmologyRepository {
     const query = OphthalmologyAlertModel.findById(oid(id)); if (session) query.session(session);
     const item = await query.lean<AlertRecord>(); return item ? toAlert(item) : null;
   }
-  async createEmergencyAlert(context: OphthalmologyContext, intake: OphthalmologyIntake, reason: string, userId: string, session: ClientSession) {
+  async createEmergencyAlert(context: OphthalmologyContext, intake: OphthalmologyIntake | null, reason: string, userId: string, session: ClientSession, triggerCodes?: string[]) {
     const now = new Date();
-    const records = await OphthalmologyAlertModel.create([{ contextId: oid(context.id), intakeId: oid(intake.id), visitId: oid(context.visit_id),
+    const maxAlert = await OphthalmologyAlertModel.findOne({ contextId: oid(context.id), type: 'EMERGENCY_SCREENING' }).sort({ sourceVersion: -1 }).session(session).lean();
+    const sourceVersion = maxAlert ? maxAlert.sourceVersion + 1 : Math.max(1, intake?.version ?? 1);
+    const records = await OphthalmologyAlertModel.create([{ contextId: oid(context.id), intakeId: intake ? oid(intake.id) : new Types.ObjectId(), visitId: oid(context.visit_id),
       patientId: oid(context.patient_id), branchId: oid(context.branch_id), departmentId: oid(context.department_id), type: 'EMERGENCY_SCREENING',
-      status: 'ACTIVE', sourceVersion: intake.version, criterionCodes: intake.emergency_criterion_codes, reason, notifiedUserIds: [],
+      status: 'ACTIVE', sourceVersion, criterionCodes: triggerCodes ?? (intake ? intake.emergency_criterion_codes : []), reason, notifiedUserIds: [],
       triggeredBy: oid(userId), triggeredAt: now, version: 0 }], { session });
     const record = records[0]; if (!record) throw new Error('Ophthalmology alert creation failed'); return toAlert(record.toObject<AlertRecord>());
   }
@@ -972,7 +975,7 @@ export class OphthalmologyRepository {
 
   async getDoctorReviewProjection(context: OphthalmologyContext, session?: ClientSession) {
     const scope = { visitId: oid(context.visit_id), patientId: oid(context.patient_id) };
-    const [patient, consultation, tasks, results, prescriptions, orders, procedures, referrals, followUps, clinicalReview, opticalPrescription] = await Promise.all([
+    const [patient, consultation, tasks, results, prescriptions, orders, procedures, referrals, followUps, clinicalReview, opticalPrescription, invoices] = await Promise.all([
       PatientModel.findById(oid(context.patient_id)).select('patientNumber firstName lastName dateOfBirth gender allergies alerts').session(session ?? null).lean(),
       OpdConsultationModel.findOne({ visitId: oid(context.visit_id), deletedAt: null }).select('-deletedBy -__v').session(session ?? null).lean(),
       OphthalmologyTestTaskModel.find(scope).select('-idempotencyKey -requestFingerprint -assignmentHistory -transitionHistory -routingHistory').session(session ?? null).lean(),
@@ -983,6 +986,7 @@ export class OphthalmologyRepository {
       OpdReferralModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
       OpdFollowUpModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
       this.getClinicalReviewByVisit(context.visit_id, session), this.getOpticalPrescriptionByVisit(context.visit_id, session),
+      BillingInvoiceModel.find({ patientId: oid(context.patient_id), visitId: oid(context.visit_id), deletedAt: null }).select('invoiceNumber status totalAmount paidAmount balanceAmount invoiceDate').session(session ?? null).lean(),
     ]);
     const previousResults = await OphthalmologyTestResultModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id),
       visitId: { $ne: oid(context.visit_id) } }).sort({ updatedAt: -1 }).limit(50).select('-__v').session(session ?? null).lean();
@@ -993,7 +997,13 @@ export class OphthalmologyRepository {
       clinical_orders: orders, procedure_recommendations: procedures.map((entry) => ({ ...entry,
         bookingStatus: bookings.find((booking) => booking._id.equals(entry.bookingId) && booking.recommendationId.equals(entry._id))?.status ?? null })),
       referrals, follow_ups: followUps, clinical_review: clinicalReview,
-      optical_prescription: opticalPrescription };
+      optical_prescription: opticalPrescription, invoices };
+  }
+
+  async getPublicationByVisit(visitId: string, session?: ClientSession) {
+    const query = OphthalmologyPublicationModel.findOne({ visitId: oid(visitId), status: 'APPROVED_FOR_PORTAL' });
+    if (session) query.session(session);
+    return query.lean();
   }
 
   async getCompletionEvidence(context: OphthalmologyContext, session?: ClientSession) {

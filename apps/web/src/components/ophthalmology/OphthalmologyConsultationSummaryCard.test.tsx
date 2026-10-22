@@ -40,6 +40,23 @@ describe('clinical summary source statuses', () => {
     expect(html).toContain('Source status: DISPENSED'); expect(html).toContain('Booking status: COMPLETED');
   });
 
+  it('renders billing invoices table when real invoices are retrieved', () => {
+    const html = renderToStaticMarkup(<OphthalmologyConsultationSummaryCard feature={feature({
+      invoices: [{
+        invoiceNumber: 'INV-OPHTH-2026-001',
+        status: 'PAID',
+        totalAmount: 1500,
+        paidAmount: 1500,
+        balanceAmount: 0,
+        invoiceDate: '2026-10-22T08:00:00.000Z',
+      }],
+    })} />);
+    expect(html).toContain('Billing &amp; Invoicing');
+    expect(html).toContain('INV-OPHTH-2026-001');
+    expect(html).toContain('PAID');
+    expect(html).toContain('1500.00');
+  });
+
   it('hides stale source statuses on failure and retries the existing summary query', async () => {
     const f = feature({ follow_ups: [{ id: 'follow-up', status: 'SCHEDULED' }] });
     f.summaryQuery.isError = true;

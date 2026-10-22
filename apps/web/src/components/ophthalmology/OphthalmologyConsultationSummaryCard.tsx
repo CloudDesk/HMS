@@ -59,6 +59,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
     referrals?: Array<{ id: string; status?: string; appointment_id?: string | null; target_department_name?: string; target_doctor_name?: string; reason?: string }>;
     follow_ups?: Array<{ id: string; status?: string; appointment_id?: string | null; follow_up_date?: string; instructions?: string }>;
     previous_results?: Array<{ id: string; current?: { form_type: string; performed_at: string; payload: Record<string, unknown> } }>;
+    invoices?: Array<{ invoiceNumber: string; status: string; totalAmount: number; paidAmount: number; balanceAmount: number; invoiceDate?: string | null }>;
   };
 
   const finalization = data.finalization;

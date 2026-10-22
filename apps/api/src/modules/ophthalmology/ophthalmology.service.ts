@@ -21,6 +21,8 @@ import type {
   CreateOphthalmologyStationDTO,
   CreateOphthalmologyWorkflowProfileDTO,
   AcknowledgeOphthalmologyAlertDTO,
+  EscalateOphthalmologyEmergencyDTO,
+  OphthalmologyPatientJourneyStatus,
   CompleteOphthalmologyIntakeDTO,
   OphthalmologyConfigurationListQuery,
   OphthalmologyContext,
@@ -1269,6 +1271,155 @@ export class OphthalmologyService {
         follow_up_date: f.nextVisitDate ? new Date(f.nextVisitDate as string | Date).toISOString() : null,
         instructions: (f.notes as string) ?? '',
       })),
+      invoices: ((projection as Record<string, unknown>).invoices as Array<Record<string, unknown>> ?? []).map((inv) => ({
+        invoiceNumber: inv.invoiceNumber as string,
+        status: inv.status as string,
+        totalAmount: Number(inv.totalAmount ?? 0),
+        paidAmount: Number(inv.paidAmount ?? 0),
+        balanceAmount: Number(inv.balanceAmount ?? 0),
+        invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate as string | Date).toISOString() : null,
+      })),
+    };
+  }
+
+  async escalateEmergency(visitId: string, data: EscalateOphthalmologyEmergencyDTO, userId: string, metadata: OphthalmologyRequestMetadata = {}) {
+    await this.getOphthalmologyVisit(visitId, userId);
+    const context = await this.requireContextForVisit(visitId);
+    await this.assertConsultationWritable(visitId);
+    const reason = this.requiredReason(data.reason);
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const transactionalContext = await this.repository.getContext(context.id, session);
+      if (!transactionalContext) throw this.versionConflict('context');
+      const intake = await this.repository.getIntakeByContext(context.id, session);
+      const recipients = await this.repository.eligibleOphthalmologistUserIds(transactionalContext.branch_id, transactionalContext.department_id, session);
+      const triggerCodes = data.trigger_findings && data.trigger_findings.length > 0
+        ? data.trigger_findings
+        : ['CLINICAL_ESCALATION'];
+      const alert = await this.repository.createEmergencyAlert(transactionalContext, intake, reason, userId, session, triggerCodes);
+      for (const recipientUserId of recipients) {
+        await this.notificationService.createNotification({
+          recipient_user_id: recipientUserId,
+          recipient_branch_id: transactionalContext.branch_id,
+          title: 'Emergency Ophthalmology escalation review required',
+          message: `Clinical escalation emergency alert created for visit ${transactionalContext.visit_id}: ${reason}`,
+          type: 'GENERAL',
+          related_entity_id: alert.id,
+        }, session, userId);
+      }
+      let finalAlert = alert;
+      if (recipients.length > 0) {
+        const routed = await this.repository.addAlertNotifiedUsers(alert.id, alert.version, recipients, session);
+        if (routed) finalAlert = routed;
+      }
+      await this.repository.audit('ophthalmology.emergency_alert.escalated', userId, {
+        alertId: finalAlert.id,
+        contextId: transactionalContext.id,
+        visitId,
+        branchId: transactionalContext.branch_id,
+        reason,
+        triggerCodes,
+        notifiedUserIds: finalAlert.notified_user_ids,
+        sourceVersion: finalAlert.source_version,
+        resultingVersion: finalAlert.version,
+      }, metadata, session);
+      return finalAlert;
+    });
+  }
+
+  async getPatientJourneyStatus(visitId: string, userId: string): Promise<OphthalmologyPatientJourneyStatus> {
+    await this.getOphthalmologyVisit(visitId, userId);
+    const context = await this.requireContextForVisit(visitId);
+    const [intake, alerts, clinicalReview, optical, finalization, projection, publication] = await Promise.all([
+      this.repository.getIntakeByContext(context.id),
+      this.repository.getAlertsByContext(context.id),
+      this.repository.getClinicalReviewByVisit(visitId),
+      this.repository.getOpticalPrescriptionByVisit(visitId),
+      this.repository.getFinalizationByVisit(visitId),
+      this.repository.getDoctorReviewProjection(context),
+      this.repository.getPublicationByVisit(visitId),
+    ]);
+    const tasks = projection.tasks ?? [];
+
+    const activeEmergencyAlerts = alerts.filter((a) => a.status === 'ACTIVE' && a.type === 'EMERGENCY_SCREENING');
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
+    const pendingTasks = tasks.filter((t) => !['COMPLETED', 'CANCELLED', 'UNABLE_TO_PERFORM'].includes(t.status)).length;
+    const allTestsCompleted = totalTasks === 0 || pendingTasks === 0;
+
+    const invoices = (projection as unknown as { invoices?: Array<{ invoiceNumber: string; status: string; totalAmount: number; paidAmount: number; balanceAmount: number; invoiceDate: Date | string }> }).invoices ?? [];
+    const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? 0), 0);
+    const paidAmount = invoices.reduce((sum, inv) => sum + (inv.paidAmount ?? 0), 0);
+    const balanceAmount = invoices.reduce((sum, inv) => sum + (inv.balanceAmount ?? 0), 0);
+    const isBillingSettled = invoices.length === 0 || balanceAmount <= 0;
+
+    const unmetObligations: string[] = [];
+    if (!intake || intake.status !== 'COMPLETED') {
+      unmetObligations.push('Preliminary intake examination is not completed');
+    }
+    if (activeEmergencyAlerts.length > 0) {
+      unmetObligations.push('Emergency escalation alert is active; clinical emergency disposition required');
+    }
+    if (!allTestsCompleted) {
+      unmetObligations.push(`${pendingTasks} diagnostic test(s) pending completion`);
+    }
+    if (!clinicalReview || clinicalReview.status !== 'COMPLETED') {
+      unmetObligations.push('Clinical consultation review is not completed');
+    }
+    if (optical && optical.status !== 'APPROVED') {
+      unmetObligations.push('Optical prescription is in draft status and requires approval');
+    }
+    if (!finalization || finalization.status !== 'COMPLETED') {
+      unmetObligations.push('Specialty consultation finalization is incomplete');
+    }
+
+    const journeyCompleted = unmetObligations.length === 0;
+
+    return {
+      context,
+      journey_completed: journeyCompleted,
+      unmet_obligations: unmetObligations,
+      stages: {
+        preliminary_intake: {
+          completed: intake?.status === 'COMPLETED',
+          status: intake?.status ?? 'NOT_STARTED',
+          emergency_alert: activeEmergencyAlerts.length > 0,
+        },
+        diagnostic_testing: {
+          total: totalTasks,
+          completed: completedTasks,
+          pending: pendingTasks,
+          all_completed: allTestsCompleted,
+        },
+        clinical_consultation: {
+          completed: clinicalReview?.status === 'COMPLETED',
+          status: clinicalReview?.status ?? 'NOT_STARTED',
+          clinical_review_version: clinicalReview?.current_clinical_version ?? null,
+        },
+        optical_dispensing: {
+          requested: Boolean(optical),
+          approved: optical?.status === 'APPROVED',
+          version: optical?.version ?? null,
+          status: optical?.status ?? null,
+        },
+        downstream_care: {
+          prescriptions_count: (projection.medication_prescriptions ?? []).length,
+          clinical_orders_count: (projection.clinical_orders ?? []).length,
+          procedure_recommendations_count: (projection.procedure_recommendations ?? []).length,
+          referrals_count: (projection.referrals ?? []).length,
+          follow_ups_count: (projection.follow_ups ?? []).length,
+        },
+        billing: {
+          invoices_count: invoices.length,
+          total_amount: totalAmount,
+          paid_amount: paidAmount,
+          balance_amount: balanceAmount,
+          is_settled: isBillingSettled,
+        },
+        portal_publication: {
+          published: publication?.status === 'APPROVED_FOR_PORTAL',
+          version: publication?.version ?? null,
+        },
+      },
     };
   }
 
