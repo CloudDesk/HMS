@@ -141,35 +141,44 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
 
   return (
     <div className="oph-exam-dashboard">
-      
-      {/* Authorized Tasks Quick Launcher Bar */}
-      {f.tasks.length > 0 && (
-        <div className="oph-revamped-header" style={{ padding: '12px 18px', background: '#f8fafc' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
-              Encounter Queue Tasks ({f.tasks.length} Authorized):
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              {f.tasks.map((task) => (
-                <button
-                  type="button"
-                  key={task.id}
-                  className="doc-btn"
-                  style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#ffffff' }}
-                  onClick={() => workspace.setQuery('task_id', task.id)}
-                >
-                  <span style={{ fontWeight: 600 }}>{task.test_name}</span> · {task.laterality} ·{' '}
-                  <span className={`oph-badge ${task.status === 'COMPLETED' ? 'oph-badge-green' : task.status === 'IN_PROGRESS' ? 'oph-badge-blue' : 'oph-badge-amber'}`}>
-                    {task.status}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+    {/* Authorized Tasks & Emergency Action Bar */}
+      <div className="oph-revamped-header" style={{ padding: '12px 18px', background: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+            Preliminary Assessment &amp; Clinical Tasks ({f.tasks.length} Authorized):
+          </span>
+          {f.tasks.map((task) => (
+            <button
+              type="button"
+              key={task.id}
+              className="doc-btn"
+              style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#ffffff' }}
+              onClick={() => workspace.setQuery('task_id', task.id)}
+            >
+              <span style={{ fontWeight: 600 }}>{task.test_name}</span> · {task.laterality} ·{' '}
+              <span className={`oph-badge ${task.status === 'COMPLETED' ? 'oph-badge-green' : task.status === 'IN_PROGRESS' ? 'oph-badge-blue' : 'oph-badge-amber'}`}>
+                {task.status}
+              </span>
+            </button>
+          ))}
         </div>
-      )}
-
-      {/* Row 1 (Sequential 1, 2, 3): Visual Acuity, Refraction, Intraocular Pressure */}
+        {workspace.canEscalate && (
+          <button
+            type="button"
+            className="doc-btn doc-btn-danger"
+            style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+            onClick={async () => {
+              const reason = window.prompt('Emergency escalation clinical reason identified during preliminary examination:');
+              if (reason && reason.trim() && workspace.escalate) {
+                await workspace.escalate(reason.trim(), ['PRELIMINARY_EXAM_FINDING'], 'EMERGENCY');
+              }
+            }}
+          >
+            <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+            Escalate Emergency Finding
+          </button>
+        )}
+      </div>      {/* Row 1 (Sequential 1, 2, 3): Visual Acuity, Refraction, Intraocular Pressure */}
       <div className="oph-exam-grid-3">
         
         {/* 1. VISUAL ACUITY */}

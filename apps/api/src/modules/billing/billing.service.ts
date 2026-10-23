@@ -22,6 +22,7 @@ import type {
   UpdateBillingInvoiceDTO,
 } from './billing.types.js';
 import type { AdvancePaymentService } from '../advance-payment/advance-payment.service.js';
+import type { OpdVisit } from '../opd/opd-visit.types.js';
 
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -48,6 +49,64 @@ export class BillingService {
     private readonly serviceRepository: ServiceRepository,
     private readonly advancePaymentService: AdvancePaymentService,
   ) {}
+
+  /** Internal clinical handoff; caller owns the required finalization transaction. */
+  async finalizeOphthalmologyCharges(visit: OpdVisit, actor: string, metadata: BillingRequestMetadata, session: import('mongoose').ClientSession) {
+    if (!session.inTransaction()) throw new AppError('Finalization requires a transaction', 500, 'BILLING_TRANSACTION_REQUIRED');
+    await this.repository.resolveBranchScope(actor, visit.branch_id);
+    const evidence = await this.repository.getFinalizationBillingEvidence(visit.id, visit.patient_id, visit.branch_id, visit.department_id, session);
+    const key = `${visit.id}:finalization`;
+    const replay = evidence.invoices.find((invoice) => invoice.finalizationKey === key);
+    if (replay) return replay._id.toString();
+    const consultationItem = evidence.items.find((item) => item.serviceType === 'CONSULTATION' && !item.originatingOrderId
+      && evidence.invoices.some((invoice) => invoice._id.equals(item.invoiceId) && invoice.sourceType !== 'PROCEDURE' && !invoice.procedureId && !invoice.contextType));
+    const additions: ResolvedBillingItem[] = [];
+    if (!consultationItem) {
+      const tariff = evidence.consultationService;
+      if (!tariff) throw new AppError('Configure the department Ophthalmology consultation tariff before finalization', 409, 'BILLING_CONSULTATION_MAPPING_REQUIRED');
+      const price = roundMoney(tariff.standardPrice);
+      additions.push({ serviceId: tariff._id.toString(), serviceName: tariff.name, serviceType: 'CONSULTATION', quantity: 1, unitPrice: price, lineTotal: price });
+    }
+    const append = (serviceId: string, sourceId: string, type: ResolvedBillingItem['serviceType']) => {
+      if (evidence.items.some((item) => item.serviceId.toString() === serviceId && item.originatingOrderId?.toString() === sourceId)
+        || additions.some((item) => item.serviceId === serviceId && item.originatingOrderId === sourceId)) return;
+      const tariff = evidence.services.find((service) => service._id.toString() === serviceId);
+      if (!tariff) throw new AppError('Completed care has no active billing service', 409, 'INVALID_BILLING_SERVICE');
+      const price = roundMoney(tariff.standardPrice);
+      additions.push({ serviceId, serviceName: tariff.name, serviceType: type, originatingOrderId: sourceId, quantity: 1, unitPrice: price, lineTotal: price });
+    };
+    for (const order of evidence.orders) for (const item of order.items) append(item.serviceId.toString(), order._id.toString(), order.orderType === 'LABORATORY' ? 'LAB_TEST' : 'IMAGING_SERVICE');
+    for (const procedure of evidence.procedures) {
+      // Existing procedure billing uses CONSULTATION lines, with invoice source/context retaining the procedure identity.
+      const alreadyBilled = evidence.invoices.some((invoice) => (invoice.procedureId?.equals(procedure._id)
+        || (invoice.contextType === 'PROCEDURE_BOOKING' && invoice.contextId?.equals(procedure._id)))
+        && evidence.items.some((item) => item.invoiceId.equals(invoice._id) && item.serviceId.equals(procedure.serviceId)));
+      if (!alreadyBilled) append(procedure.serviceId.toString(), procedure._id.toString(), 'CONSULTATION');
+    }
+    let target = consultationItem ? evidence.invoices.find((invoice) => invoice._id.equals(consultationItem.invoiceId)) :
+      evidence.invoices.find((invoice) => invoice.sourceType === 'OPD' && !invoice.contextId && !invoice.procedureId);
+    const before = target ? { invoiceId: target._id.toString(), status: target.status, totalAmount: target.totalAmount, balanceAmount: target.balanceAmount } : null;
+    if (!target) {
+      const invoice = await this.repository.createInvoice({ invoiceNumber: createBillingNumber('INV'), patientId: visit.patient_id,
+        visitId: visit.id, encounterId: visit.id, branchId: visit.branch_id, appointmentId: visit.appointment_id, sourceType: 'OPD',
+        invoiceDate: new Date(), subtotal: 0, discountAmount: 0, taxAmount: 0, totalAmount: 0, balanceAmount: 0 }, [], actor, session);
+      const subtotal = roundMoney(additions.reduce((sum, item) => sum + item.lineTotal, 0));
+      const created = await this.repository.appendFinalizationItems(invoice.id, key, additions,
+        { subtotal, totalAmount: subtotal, balanceAmount: subtotal, status: 'DRAFT' }, actor, session);
+      target = created;
+    } else {
+      const amount = roundMoney(additions.reduce((sum, item) => sum + item.lineTotal, 0));
+      const balance = roundMoney(target.balanceAmount + amount);
+      target = await this.repository.appendFinalizationItems(target._id.toString(), key, additions,
+        { subtotal: roundMoney(target.subtotal + amount), totalAmount: roundMoney(target.totalAmount + amount), balanceAmount: balance,
+          status: amount === 0 ? target.status : balance === 0 ? 'PAID' : target.paidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING' }, actor, session);
+    }
+    await this.repository.audit('billing.ophthalmology.finalized', actor, metadata,
+      { invoiceId: target._id.toString(), visitId: visit.id, branchId: visit.branch_id, finalizationKey: key, before,
+        after: { status: target.status, totalAmount: target.totalAmount, balanceAmount: target.balanceAmount },
+        addedLines: additions.map((item) => ({ serviceId: item.serviceId, sourceId: item.originatingOrderId ?? null, amount: item.lineTotal })) }, session);
+    return target._id.toString();
+  }
 
   async list(query: BillingInvoiceListQuery, actorUserId: string, session?: import('mongoose').ClientSession) {
     const scope = await this.repository.resolveBranchScope(actorUserId, query.branch_id);

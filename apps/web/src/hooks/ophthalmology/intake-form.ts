@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { intakeFieldsSchema, type OphthalmologyConfiguration, type OphthalmologyIntake, type SaveOphthalmologyIntake, type OphthalmologyContext } from '../../api/ophthalmology';
 
-export function initialIntake(context: OphthalmologyContext, intake: OphthalmologyIntake | null): SaveOphthalmologyIntake {
+export function initialIntake(context: OphthalmologyContext, intake: OphthalmologyIntake | null, defaultUrgentDetail: string | null = null): SaveOphthalmologyIntake {
   return {
     ...(intake ? intakeFieldsSchema.parse(intakeFieldsSchema.keyof().options.reduce<Record<string, unknown>>((fields, key) => { fields[key] = intake[key]; return fields; }, {})) : {
       complaint_codes: [], affected_eye: context.affected_eye, duration_value: null, duration_unit: null, onset: null, progression: null, severity: null,
@@ -9,7 +9,7 @@ export function initialIntake(context: OphthalmologyContext, intake: Ophthalmolo
       current_eye_treatments: [], previous_eye_injury_or_laser: [], spectacle_use: { uses: false, age_months: null, wearing_pattern: null },
       contact_lens_use: { uses: false, age_months: null, wearing_pattern: null }, long_term_steroid_use: false, long_term_steroid_details: null,
       family_history_codes: [], previous_report_document_ids: [], shared_medical_history_reviewed: false, shared_allergy_reviewed: false,
-      emergency_criterion_codes: [], other_urgent_condition_detail: null,
+      emergency_criterion_codes: [], other_urgent_condition_detail: defaultUrgentDetail,
     }),
     expected_version: intake?.version ?? null, complaint_configuration_version_id: intake?.complaint_configuration_version_id ?? '',
     emergency_configuration_version_id: intake?.emergency_configuration_version_id ?? '',

@@ -229,7 +229,20 @@ export type UpdateOphthalmologyWorkflowProfileDTO = {
 export type OphthalmologyRequestMetadata = { ipAddress?: string; userAgent?: string };
 
 export type OphthalmologyIntakeStatus = 'DRAFT' | 'COMPLETED';
-export type OphthalmologyAlertStatus = 'ACTIVE' | 'ACKNOWLEDGED';
+export type OphthalmologyAlertStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'CLEARED';
+export type EmergencyAlertDisposition = 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIENT' | 'TRANSFER_EXTERNAL';
+
+export type EmergencyAlertClearance = {
+  cleared_by: string;
+  cleared_at: Date;
+  disposition: EmergencyAlertDisposition;
+  clearance_rationale: string;
+  resumption_permitted: boolean;
+  clearedBy?: string;
+  clearedAt?: Date;
+  clearanceRationale?: string;
+  resumptionPermitted?: boolean;
+};
 export type OphthalmologyAlertType = 'EMERGENCY_SCREENING';
 export type OphthalmologyDurationUnit = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
 export type OphthalmologyComplaintOnset = 'SUDDEN' | 'GRADUAL' | 'UNKNOWN';
@@ -342,6 +355,7 @@ export type OphthalmologyAlert = {
   acknowledged_by: string | null;
   acknowledged_at: Date | null;
   acknowledgement_note: string | null;
+  clearance?: EmergencyAlertClearance | null;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -351,6 +365,15 @@ export type AcknowledgeOphthalmologyAlertDTO = {
   expected_version: number;
   expected_status: 'ACTIVE';
   note?: string | null;
+};
+
+export type ClearOphthalmologyEmergencyAlertDTO = {
+  disposition: EmergencyAlertDisposition;
+  clearance_rationale?: string;
+  clearanceRationale?: string;
+  resumption_permitted?: boolean;
+  resumptionPermitted?: boolean;
+  expected_version?: number;
 };
 
 export type RouteOphthalmologyEmergencyDTO = {

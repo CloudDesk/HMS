@@ -195,7 +195,21 @@ const toAlert = (item: AlertRecord): OphthalmologyAlert => ({
   type: item.type, status: item.status, source_version: item.sourceVersion, criterion_codes: item.criterionCodes ?? [], reason: item.reason,
   notified_user_ids: (item.notifiedUserIds ?? []).map(String), triggered_by: item.triggeredBy.toString(), triggered_at: item.triggeredAt,
   acknowledged_by: item.acknowledgedBy?.toString() ?? null, acknowledged_at: item.acknowledgedAt ?? null,
-  acknowledgement_note: item.acknowledgementNote ?? null, version: item.version ?? 0, created_at: item.createdAt, updated_at: item.updatedAt,
+  acknowledgement_note: item.acknowledgementNote ?? null,
+  clearance: item.clearance
+    ? {
+        cleared_by: item.clearance.clearedBy.toString(),
+        cleared_at: item.clearance.clearedAt,
+        disposition: item.clearance.disposition,
+        clearance_rationale: item.clearance.clearanceRationale,
+        resumption_permitted: item.clearance.resumptionPermitted,
+        clearedBy: item.clearance.clearedBy.toString(),
+        clearedAt: item.clearance.clearedAt,
+        clearanceRationale: item.clearance.clearanceRationale,
+        resumptionPermitted: item.clearance.resumptionPermitted,
+      }
+    : null,
+  version: item.version ?? 0, created_at: item.createdAt, updated_at: item.updatedAt,
 });
 const toTestTask = (item: TestTaskRecord): OphthalmologyTestTask => ({
   id: item._id.toString(), context_id: item.contextId.toString(), visit_id: item.visitId.toString(), patient_id: item.patientId.toString(),
@@ -547,6 +561,15 @@ export class OphthalmologyRepository {
     return (user.departmentIds ?? []).map((id) => id.toString());
   }
 
+  async isDoctor(userId: string, branchId?: string, departmentId?: string, session?: ClientSession) {
+    const filter: Record<string, unknown> = { userId: oid(userId), status: 'ACTIVE', deletedAt: null };
+    if (branchId) filter.branchId = oid(branchId);
+    if (departmentId) filter.departmentId = oid(departmentId);
+    const query = DoctorModel.findOne(filter);
+    if (session) query.session(session);
+    return Boolean(await query.lean());
+  }
+
   async eligibleOphthalmologistUserIds(branchId: string, departmentId: string, session?: ClientSession) {
     const permissionQuery = PermissionModel.findOne({ module: 'OPD', screen: 'Ophthalmology Consultation', action: 'View', status: 'active', deletedAt: null }).select('_id');
     if (session) permissionQuery.session(session); const permission = await permissionQuery.lean(); if (!permission) return [];
@@ -567,6 +590,12 @@ export class OphthalmologyRepository {
   async getAlert(id: string, session?: ClientSession) {
     const query = OphthalmologyAlertModel.findById(oid(id)); if (session) query.session(session);
     const item = await query.lean<AlertRecord>(); return item ? toAlert(item) : null;
+  }
+  async getActiveAlertByContext(contextId: string, session?: ClientSession) {
+    const query = OphthalmologyAlertModel.findOne({ contextId: oid(contextId), type: 'EMERGENCY_SCREENING', status: 'ACTIVE' });
+    if (session) query.session(session);
+    const item = await query.lean<AlertRecord>();
+    return item ? toAlert(item) : null;
   }
   async createEmergencyAlert(context: OphthalmologyContext, intake: OphthalmologyIntake | null, reason: string, userId: string, session: ClientSession, triggerCodes?: string[]) {
     const now = new Date();
@@ -589,6 +618,44 @@ export class OphthalmologyRepository {
     const record = await OphthalmologyAlertModel.findOneAndUpdate({ _id: oid(id), status: 'ACTIVE', version: expectedVersion },
       { $set: { status: 'ACKNOWLEDGED', acknowledgedBy: oid(userId), acknowledgedAt: now, acknowledgementNote: note }, $inc: { version: 1 } },
       { returnDocument: 'after', lean: true, session }).lean<AlertRecord>(); return record ? toAlert(record) : null;
+  }
+
+  async clearEmergencyAlert(
+    id: string,
+    expectedVersion: number | undefined,
+    userId: string,
+    clearance: {
+      disposition: 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIENT' | 'TRANSFER_EXTERNAL';
+      clearanceRationale: string;
+      resumptionPermitted: boolean;
+    },
+    session?: ClientSession,
+  ) {
+    const now = new Date();
+    const filter: Record<string, unknown> = {
+      _id: oid(id),
+      status: { $in: ['ACTIVE', 'ACKNOWLEDGED'] },
+    };
+    if (typeof expectedVersion === 'number') {
+      filter.version = expectedVersion;
+    }
+    const update = {
+      $set: {
+        status: 'CLEARED' as const,
+        clearance: {
+          clearedBy: oid(userId),
+          clearedAt: now,
+          disposition: clearance.disposition,
+          clearanceRationale: clearance.clearanceRationale,
+          resumptionPermitted: clearance.resumptionPermitted,
+        },
+      },
+      $inc: { version: 1 },
+    };
+    const query = OphthalmologyAlertModel.findOneAndUpdate(filter, update, { returnDocument: 'after', lean: true, runValidators: true });
+    if (session) query.session(session);
+    const record = await query.lean<AlertRecord>();
+    return record ? toAlert(record) : null;
   }
 
   async getTestTask(id: string, session?: ClientSession) {
@@ -986,7 +1053,7 @@ export class OphthalmologyRepository {
       OpdReferralModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
       OpdFollowUpModel.find({ ...scope, deletedAt: null }).select('-__v').session(session ?? null).lean(),
       this.getClinicalReviewByVisit(context.visit_id, session), this.getOpticalPrescriptionByVisit(context.visit_id, session),
-      BillingInvoiceModel.find({ patientId: oid(context.patient_id), visitId: oid(context.visit_id), deletedAt: null }).select('invoiceNumber status totalAmount paidAmount balanceAmount invoiceDate').session(session ?? null).lean(),
+      BillingInvoiceModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id), visitId: oid(context.visit_id), deletedAt: null }).select('invoiceNumber status totalAmount paidAmount balanceAmount invoiceDate').session(session ?? null).lean(),
     ]);
     const previousResults = await OphthalmologyTestResultModel.find({ patientId: oid(context.patient_id), branchId: oid(context.branch_id),
       visitId: { $ne: oid(context.visit_id) } }).sort({ updatedAt: -1 }).limit(50).select('-__v').session(session ?? null).lean();

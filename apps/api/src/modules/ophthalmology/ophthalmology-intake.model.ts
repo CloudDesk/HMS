@@ -31,12 +31,20 @@ export type OphthalmologyIntakeFields = {
   updatedBy: Types.ObjectId; createdAt: Date; updatedAt: Date;
 };
 
+export type OphthalmologyAlertClearanceFields = {
+  clearedBy: Types.ObjectId;
+  clearedAt: Date;
+  disposition: 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIENT' | 'TRANSFER_EXTERNAL';
+  clearanceRationale: string;
+  resumptionPermitted: boolean;
+};
+
 export type OphthalmologyAlertFields = {
   contextId: Types.ObjectId; intakeId: Types.ObjectId; visitId: Types.ObjectId; patientId: Types.ObjectId;
   branchId: Types.ObjectId; departmentId: Types.ObjectId; type: OphthalmologyAlertType; status: OphthalmologyAlertStatus;
   sourceVersion: number; criterionCodes: string[]; reason: string; notifiedUserIds: Types.ObjectId[];
   triggeredBy: Types.ObjectId; triggeredAt: Date; acknowledgedBy?: Types.ObjectId | null;
-  acknowledgedAt?: Date | null; acknowledgementNote?: string | null; version: number; createdAt: Date; updatedAt: Date;
+  acknowledgedAt?: Date | null; acknowledgementNote?: string | null; clearance?: OphthalmologyAlertClearanceFields | null; version: number; createdAt: Date; updatedAt: Date;
 };
 
 const eyeSurgerySchema = new Schema<EyeSurgeryFields>({
@@ -88,16 +96,25 @@ intakeSchema.index({ visitId: 1 }, { unique: true });
 intakeSchema.index({ branchId: 1, status: 1, updatedAt: -1 });
 intakeSchema.index({ patientId: 1, updatedAt: -1 });
 
+const alertClearanceSchema = new Schema<OphthalmologyAlertClearanceFields>({
+  clearedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, alias: 'cleared_by' },
+  clearedAt: { type: Date, required: true, alias: 'cleared_at' },
+  disposition: { type: String, enum: ['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL'], required: true },
+  clearanceRationale: { type: String, required: true, trim: true, alias: 'clearance_rationale' },
+  resumptionPermitted: { type: Boolean, required: true, alias: 'resumption_permitted' },
+}, { _id: false });
+
 const alertSchema = new Schema<OphthalmologyAlertFields>({
   contextId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyContext', required: true },
   intakeId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyIntake', required: true }, visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
   patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true }, branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
   departmentId: { type: Schema.Types.ObjectId, ref: 'Department', required: true }, type: { type: String, enum: ['EMERGENCY_SCREENING'], required: true },
-  status: { type: String, enum: ['ACTIVE', 'ACKNOWLEDGED'], default: 'ACTIVE', required: true }, sourceVersion: { type: Number, min: 1, required: true },
+  status: { type: String, enum: ['ACTIVE', 'ACKNOWLEDGED', 'CLEARED'], default: 'ACTIVE', required: true }, sourceVersion: { type: Number, min: 1, required: true },
   criterionCodes: { type: [String], default: [] }, reason: { type: String, required: true, trim: true },
   notifiedUserIds: [{ type: Schema.Types.ObjectId, ref: 'User' }], triggeredBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   triggeredAt: { type: Date, required: true }, acknowledgedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   acknowledgedAt: { type: Date, default: null }, acknowledgementNote: { type: String, trim: true, default: null },
+  clearance: { type: alertClearanceSchema, default: null, required: function () { return this.status === 'CLEARED'; } },
   version: { type: Number, min: 0, default: 0, required: true },
 }, { timestamps: true });
 alertSchema.index({ contextId: 1, type: 1, sourceVersion: 1 }, { unique: true });

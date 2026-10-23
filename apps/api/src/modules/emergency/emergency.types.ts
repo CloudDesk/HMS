@@ -28,6 +28,15 @@ export type EmergencyListQuery = {
   page?: number;
   limit?: number;
 };
+export type EmergencyOriginatingSource = {
+  sourceType: 'OPD_SPECIALTY_ALERT';
+  specialty: 'OPHTHALMOLOGY';
+  sourceAlertId: string;
+  originatingVisitId: string;
+  escalatedBy: string;
+  escalatedAt: string;
+};
+
 export type CreateEmergencyDTO = {
   branch_id: string;
   department_id: string;
@@ -43,6 +52,8 @@ export type CreateEmergencyDTO = {
   arrival_at?: string;
   chief_complaint: string;
   arrival_notes?: string | null;
+  originatingSource?: EmergencyOriginatingSource | null;
+  originating_source?: EmergencyOriginatingSource | null;
 };
 export type EmergencyTriageDTO = {
   level: EmergencyTriageLevel;

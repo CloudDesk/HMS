@@ -21,6 +21,7 @@ import type {
   CreateOphthalmologyStationDTO,
   CreateOphthalmologyWorkflowProfileDTO,
   AcknowledgeOphthalmologyAlertDTO,
+  ClearOphthalmologyEmergencyAlertDTO,
   EscalateOphthalmologyEmergencyDTO,
   OphthalmologyPatientJourneyStatus,
   CompleteOphthalmologyIntakeDTO,
@@ -83,6 +84,8 @@ const canonicalize = (value: unknown): unknown => {
     .map(([key, item]) => [key, canonicalize(item)]));
 };
 
+import type { BillingService } from '../billing/billing.service.js';
+
 export class OphthalmologyService {
   constructor(
     private readonly repository: OphthalmologyRepository,
@@ -91,6 +94,7 @@ export class OphthalmologyService {
     private readonly consultationRepository?: OpdConsultationRepository,
     private readonly appointmentRepository?: AppointmentRepository,
     private readonly patientRepository?: PatientRepository,
+    private readonly billingService?: BillingService,
   ) {}
 
   async getClinicalWorkspace(visitId: string, userId: string) {
@@ -329,6 +333,89 @@ export class OphthalmologyService {
     });
   }
 
+  async clearAlert(
+    visitId: string,
+    alertId: string,
+    data: ClearOphthalmologyEmergencyAlertDTO,
+    userId: string,
+    metadata: OphthalmologyRequestMetadata = {},
+  ) {
+    this.validateObjectId(alertId, 'Alert id is invalid');
+    const current = await this.repository.getAlert(alertId);
+    if (!current) throw new AppError('Ophthalmology alert not found', 404, 'OPHTHALMOLOGY_ALERT_NOT_FOUND');
+    if (current.visit_id !== visitId) throw new AppError('Ophthalmology alert not found for this visit', 404, 'OPHTHALMOLOGY_ALERT_NOT_FOUND');
+    if (current.status === 'CLEARED') {
+      throw new AppError('Ophthalmology alert is already cleared', 409, 'OPHTHALMOLOGY_STATUS_CONFLICT');
+    }
+    await this.getOphthalmologyVisit(visitId, userId);
+
+    const disposition = data.disposition;
+    if (!['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL'].includes(disposition)) {
+      throw new AppError('Invalid emergency clearance disposition', 400, 'VALIDATION_ERROR');
+    }
+    const rationale = (data.clearance_rationale ?? data.clearanceRationale)?.trim();
+    if (!rationale) {
+      throw new AppError('Clearance rationale is required', 400, 'VALIDATION_ERROR');
+    }
+    const resumptionPermitted = data.resumption_permitted ?? data.resumptionPermitted;
+    if (typeof resumptionPermitted !== 'boolean') {
+      throw new AppError('resumption_permitted is required', 400, 'VALIDATION_ERROR');
+    }
+    if (resumptionPermitted && disposition !== 'RESUME_ROUTINE_OPD') {
+      throw new AppError('Routine resumption requires the routine OPD disposition', 400, 'VALIDATION_ERROR');
+    }
+
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const alert = await this.repository.getAlert(alertId, session);
+      if (!alert) throw new AppError('Ophthalmology alert not found', 404, 'OPHTHALMOLOGY_ALERT_NOT_FOUND');
+      const eligible = await this.repository.eligibleOphthalmologistUserIds(alert.branch_id, alert.department_id, session);
+      if (!eligible.includes(userId)) {
+        throw new AppError('Only an eligible Ophthalmology clinician may clear this alert', 403, 'OPHTHALMOLOGY_SCOPE_DENIED');
+      }
+      if (alert.status === 'CLEARED') {
+        throw new AppError('Ophthalmology alert is already cleared', 409, 'OPHTHALMOLOGY_STATUS_CONFLICT');
+      }
+      if (typeof data.expected_version === 'number' && alert.version !== data.expected_version) {
+        throw this.versionConflict('alert');
+      }
+
+      const cleared = await this.repository.clearEmergencyAlert(
+        alert.id,
+        data.expected_version ?? alert.version,
+        userId,
+        {
+          disposition,
+          clearanceRationale: rationale,
+          resumptionPermitted,
+        },
+        session,
+      );
+      if (!cleared) throw this.versionConflict('alert');
+
+      await this.repository.audit(
+        'ophthalmology.emergency_alert.cleared',
+        userId,
+        {
+          alertId: alert.id,
+          contextId: alert.context_id,
+          visitId: alert.visit_id,
+          branchId: alert.branch_id,
+          previousStatus: alert.status,
+          resultingStatus: cleared.status,
+          disposition,
+          clearanceRationale: rationale,
+          resumptionPermitted,
+          previousVersion: alert.version,
+          resultingVersion: cleared.version,
+        },
+        metadata,
+        session,
+      );
+
+      return cleared;
+    });
+  }
+
   private validateComparisonUnits(type: string, values?: Record<string, unknown>) {
     if (type === 'FORM_PROFILE' && values?.comparison_units !== undefined && !comparisonUnitsSchema.safeParse(values.comparison_units).success) {
       throw new AppError('Comparison units require safe measurement paths and explicit unit codes', 400, 'VALIDATION_ERROR');
@@ -507,6 +594,7 @@ export class OphthalmologyService {
         if (!transactional || transactional.version !== data.expected_context_version) throw this.versionConflict('context');
         const raced = await this.repository.getTestTaskByIdempotency(context.id, idempotencyKey, session);
         if (raced) { if (raced.fingerprint !== fingerprint) throw this.idempotencyConflict(); return raced.task; }
+        if (data.priority !== 'EMERGENCY') await this.requireEmergencyClearance(context.id, session);
         const catalogue = await this.repository.getConfiguration(data.test_catalogue_version_id, session);
         if (!catalogue || catalogue.branch_id !== transactional.branch_id || catalogue.type !== 'TEST_CATALOGUE' || catalogue.status !== 'ACTIVE') {
           throw new AppError('An active branch test catalogue version is required', 400, 'OPHTHALMOLOGY_CONFIGURATION_REQUIRED');
@@ -1116,6 +1204,9 @@ export class OphthalmologyService {
         throw this.statusConflict('Shared OPD consultation is not ready for completion');
       }
       if (!initial && finalization.status !== 'AMENDMENT_OPEN') throw this.statusConflict('Consultation is already completed');
+      if (consultation.diagnoses.some((diagnosis) => !['OD', 'OS', 'OU'].includes(diagnosis.laterality ?? ''))) {
+        throw new AppError('Ocular diagnoses require OD, OS or OU laterality', 400, 'OPD_DIAGNOSIS_LATERALITY_REQUIRED');
+      }
       // Draft references may have changed since the plan was saved. A completion
       // override cannot approve a plan linked to another or deleted clinical record.
       await this.validateClinicalReviewReferences(transactionalContext, {
@@ -1140,6 +1231,10 @@ export class OphthalmologyService {
       if (!resultingContext) throw this.versionConflict('context');
       const configuration = await this.requireCompletionConfiguration(transactionalContext, session);
       const clinicalVersion = (finalization.completions.at(-1)?.clinical_version ?? 0) + 1;
+      if (initial) {
+        if (!this.billingService) throw new AppError('Billing integration is unavailable', 503, 'BILLING_INTEGRATION_UNAVAILABLE');
+        await this.billingService.finalizeOphthalmologyCharges(transactionalVisit, userId, metadata, session);
+      }
       const summary = await this.repository.getDoctorReviewProjection(transactionalContext, session) as Record<string, unknown>;
       const completed = await this.repository.completeFinalization(finalization.id, finalization.version, { clinical_version: clinicalVersion,
         configuration_version_id: configuration.id, configuration_revision: configuration.revision, configuration_snapshot: configuration.values,
@@ -1290,6 +1385,13 @@ export class OphthalmologyService {
     return executeRequiredTransaction(this.repository, async (session) => {
       const transactionalContext = await this.repository.getContext(context.id, session);
       if (!transactionalContext) throw this.versionConflict('context');
+      const existingActive = await this.repository.getActiveAlertByContext(transactionalContext.id, session);
+      if (existingActive) {
+        if (existingActive.reason === reason) {
+          return existingActive;
+        }
+        throw new AppError('An active emergency alert is already open for this encounter', 409, 'OPHTHALMOLOGY_STATUS_CONFLICT');
+      }
       const intake = await this.repository.getIntakeByContext(context.id, session);
       const recipients = await this.repository.eligibleOphthalmologistUserIds(transactionalContext.branch_id, transactionalContext.department_id, session);
       const triggerCodes = data.trigger_findings && data.trigger_findings.length > 0
@@ -1340,19 +1442,40 @@ export class OphthalmologyService {
     ]);
     const tasks = projection.tasks ?? [];
 
-    const activeEmergencyAlerts = alerts.filter((a) => a.status === 'ACTIVE' && a.type === 'EMERGENCY_SCREENING');
+    const activeEmergencyAlerts = alerts.filter((alert) => alert.type === 'EMERGENCY_SCREENING'
+      && (alert.status !== 'CLEARED' || alert.clearance?.resumption_permitted !== true));
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
-    const pendingTasks = tasks.filter((t) => !['COMPLETED', 'CANCELLED', 'UNABLE_TO_PERFORM'].includes(t.status)).length;
+    const completedTasks = tasks.filter((t) => ['COMPLETED', 'REVIEWED'].includes(t.status)).length;
+    const pendingTasks = tasks.filter((t) => !['COMPLETED', 'REVIEWED', 'REPEAT_REQUIRED', 'CANCELLED', 'UNABLE_TO_PERFORM'].includes(t.status)).length;
     const allTestsCompleted = totalTasks === 0 || pendingTasks === 0;
 
-    const invoices = (projection as unknown as { invoices?: Array<{ invoiceNumber: string; status: string; totalAmount: number; paidAmount: number; balanceAmount: number; invoiceDate: Date | string }> }).invoices ?? [];
+    const invoices = projection.invoices.filter((invoice) => invoice.status !== 'CANCELLED');
     const totalAmount = invoices.reduce((sum, inv) => sum + (inv.totalAmount ?? 0), 0);
     const paidAmount = invoices.reduce((sum, inv) => sum + (inv.paidAmount ?? 0), 0);
     const balanceAmount = invoices.reduce((sum, inv) => sum + (inv.balanceAmount ?? 0), 0);
-    const isBillingSettled = invoices.length === 0 || balanceAmount <= 0;
+    const isBillingSettled = invoices.length > 0 && invoices.every((invoice) => invoice.balanceAmount <= 0);
 
     const unmetObligations: string[] = [];
+    if (!isBillingSettled) unmetObligations.push(invoices.length ? 'Billing has an outstanding balance' : 'Billing handoff is not recorded');
+    for (const plan of clinicalReview?.current.treatment_plans ?? []) {
+      if (plan.status !== 'ACTIVE') continue;
+      if (plan.medication_prescription_id && plan.priority === 'EMERGENCY') {
+        const prescription = projection.medication_prescriptions.find((item) => item._id.toString() === plan.medication_prescription_id);
+        if (!prescription || prescription.status !== 'DISPENSED') unmetObligations.push('Required emergency medication is not dispensed');
+      }
+      if (plan.referral_id) {
+        const referral = projection.referrals.find((item) => item._id.toString() === plan.referral_id);
+        if (!referral || referral.status !== 'SUBMITTED') unmetObligations.push('Required referral has not been submitted');
+      }
+      for (const orderId of plan.clinical_order_ids) {
+        const order = projection.clinical_orders.find((item) => item._id.toString() === orderId);
+        if (!order || !['VERIFIED', 'COMPLETED'].includes(order.status)) unmetObligations.push('Required diagnostic order is not completed');
+      }
+      if (plan.procedure_recommendation_id) {
+        const procedure = projection.procedure_recommendations.find((item) => item._id.toString() === plan.procedure_recommendation_id);
+        if (!procedure || procedure.bookingStatus !== 'COMPLETED') unmetObligations.push('Required procedure is not completed');
+      }
+    }
     if (!intake || intake.status !== 'COMPLETED') {
       unmetObligations.push('Preliminary intake examination is not completed');
     }
@@ -1524,8 +1647,8 @@ export class OphthalmologyService {
         details: missingMandatoryCodes.length ? `Required test orders are missing: ${missingMandatoryCodes.join(', ')}.` : 'Configured mandatory tests must be reviewed or explicitly deferred.', resource_ids: mandatoryTasks.filter((task) => !resolvedTask(task)).map((task) => task.id) },
       ALL_RESULTS_RESOLVED: { satisfied: activeTasks.every(resolvedTask) && unresolvedOrders.length === 0,
         details: 'All test and investigation results must be reviewed or explicitly deferred.', resource_ids: [...activeTasks.filter((task) => !resolvedTask(task)).map((task) => task.id), ...unresolvedOrders.map((order) => order.id)] },
-      ALERTS_ACKNOWLEDGED: { satisfied: alerts.every((alert) => alert.status === 'ACKNOWLEDGED'), details: 'All active alerts must be acknowledged.', resource_ids: alerts.filter((alert) => alert.status !== 'ACKNOWLEDGED').map((alert) => alert.id) },
-      DIAGNOSIS_RECORDED: { satisfied: consultation.diagnoses.length > 0, details: 'At least one structured diagnosis must be recorded.', resource_ids: [consultation.id] },
+      ALERTS_ACKNOWLEDGED: { satisfied: alerts.every((alert) => alert.status === 'ACKNOWLEDGED' || alert.status === 'CLEARED'), details: 'All active alerts must be acknowledged or clinically cleared.', resource_ids: alerts.filter((alert) => alert.status === 'ACTIVE').map((alert) => alert.id) },
+      DIAGNOSIS_RECORDED: { satisfied: consultation.diagnoses.length > 0 && consultation.diagnoses.every((diagnosis) => ['OD', 'OS', 'OU'].includes(diagnosis.laterality ?? '')), details: 'Structured ocular diagnoses must include OD, OS or OU laterality.', resource_ids: [consultation.id] },
       CLINICAL_REVIEW_RECORDED: { satisfied: Boolean(review?.current.clinical_summary.trim()), details: 'Doctor clinical review must be recorded.', resource_ids: review ? [review.id] : [] },
       TREATMENT_PLAN_RECORDED: { satisfied: Boolean(review?.current.treatment_plans.length), details: 'At least one diagnosis-linked treatment plan must be recorded.', resource_ids: review ? [review.id] : [] },
       OPTICAL_APPROVED_IF_PRESENT: { satisfied: !optical || optical.status === 'APPROVED', details: 'An optical prescription must be approved when present.', resource_ids: optical ? [optical.id] : [] },
@@ -1685,11 +1808,27 @@ export class OphthalmologyService {
   }
   private async requireEmergencyClearance(contextId: string, session?: ClientSession) {
     const alerts = await this.repository.getAlertsByContext(contextId, session);
-    // The approved alert contract records receipt only; neither existing status
-    // constitutes clinical clearance. Do not infer clearance from acknowledgement.
-    if (alerts.some((alert) => alert.type === 'EMERGENCY_SCREENING')) {
-      throw new AppError('Emergency clinical disposition is not recorded. Acknowledgement does not clear routine care; continue the Emergency pathway.',
-        409, 'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED');
+    const emergencyAlerts = alerts.filter((alert) => alert.type === 'EMERGENCY_SCREENING');
+    if (emergencyAlerts.length === 0) return;
+
+    const uncleared = emergencyAlerts.find((alert) => alert.status === 'ACTIVE' || alert.status === 'ACKNOWLEDGED');
+    if (uncleared) {
+      throw new AppError(
+        'Emergency clinical disposition is not recorded. Acknowledgement does not clear routine care; continue the Emergency pathway.',
+        409,
+        'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED',
+      );
+    }
+
+    const notPermitted = emergencyAlerts.find(
+      (alert) => !alert.clearance || alert.clearance.resumption_permitted !== true,
+    );
+    if (notPermitted) {
+      throw new AppError(
+        'Emergency clearance does not permit resumption of routine OPD care; continue the Emergency or Inpatient pathway.',
+        409,
+        'OPHTHALMOLOGY_EMERGENCY_ESCALATION_REQUIRED',
+      );
     }
   }
 

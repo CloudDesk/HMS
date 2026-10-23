@@ -7,6 +7,15 @@ import type {
   EmergencyTriageLevel,
 } from './emergency.types.js';
 
+export type EmergencyOriginatingSourceFields = {
+  sourceType: 'OPD_SPECIALTY_ALERT';
+  specialty: 'OPHTHALMOLOGY';
+  sourceAlertId: Types.ObjectId;
+  originatingVisitId: Types.ObjectId;
+  escalatedBy: Types.ObjectId;
+  escalatedAt: Date;
+};
+
 export type EmergencyEncounterFields = {
   encounterNumber: string;
   emergencyIdentifier: string;
@@ -105,6 +114,7 @@ export type EmergencyEncounterFields = {
     confirmedBy: Types.ObjectId;
   } | null;
   inpatientAdmissionId?: Types.ObjectId | null;
+  originatingSource?: EmergencyOriginatingSourceFields | null;
   convertedToIpAt?: Date | null;
   convertedToIpBy?: Types.ObjectId | null;
   linkedAt?: Date | null;
@@ -263,6 +273,17 @@ const encounterSchema = new Schema<EmergencyEncounterFields>(
       default: null,
     },
     inpatientAdmissionId: { type: Schema.Types.ObjectId, ref: 'InpatientAdmission', default: null },
+    originatingSource: {
+      type: {
+        sourceType: { type: String, enum: ['OPD_SPECIALTY_ALERT'], required: true },
+        specialty: { type: String, enum: ['OPHTHALMOLOGY'], required: true },
+        sourceAlertId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyAlert', required: true },
+        originatingVisitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
+        escalatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        escalatedAt: { type: Date, required: true },
+      },
+      default: null,
+    },
     convertedToIpAt: { type: Date, default: null },
     convertedToIpBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     linkedAt: { type: Date, default: null },
@@ -286,6 +307,13 @@ encounterSchema.index(
   {
     unique: true,
     partialFilterExpression: { inpatientAdmissionId: { $type: 'objectId' } },
+  },
+);
+encounterSchema.index(
+  { 'originatingSource.sourceAlertId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { 'originatingSource.sourceAlertId': { $exists: true } },
   },
 );
 export const EmergencyEncounterModel = mongoose.model<EmergencyEncounterFields>(

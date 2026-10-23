@@ -3,6 +3,7 @@ import type { BillingInvoiceStatus, BillingPaymentMethod, BillingServiceType, Bi
 
 export type BillingInvoiceFields = {
   invoiceNumber: string;
+  finalizationKey?: string;
   patientId: Types.ObjectId;
   visitId: Types.ObjectId;
   sourceType?: BillingSourceType;
@@ -73,6 +74,7 @@ const auditFields = {
 const invoiceSchema = new Schema<BillingInvoiceFields>(
   {
     invoiceNumber: { type: String, required: true, unique: true, trim: true },
+    finalizationKey: { type: String },
     patientId: { type: Schema.Types.ObjectId, ref: 'Patient', required: true },
     visitId: { type: Schema.Types.ObjectId, ref: 'OpdVisit', required: true },
     sourceType: { type: String, enum: ['OPD', 'EMERGENCY', 'PROCEDURE', 'IP_ADMISSION'], default: 'OPD', required: true },
@@ -103,6 +105,7 @@ const invoiceSchema = new Schema<BillingInvoiceFields>(
 
 invoiceSchema.index({ patientId: 1, createdAt: -1 });
 invoiceSchema.index({ visitId: 1 });
+invoiceSchema.index({ finalizationKey: 1 }, { unique: true, partialFilterExpression: { finalizationKey: { $type: 'string' } } });
 invoiceSchema.index({ sourceType: 1, encounterId: 1 });
 invoiceSchema.index({ admissionId: 1 });
 invoiceSchema.index({ procedureId: 1 });

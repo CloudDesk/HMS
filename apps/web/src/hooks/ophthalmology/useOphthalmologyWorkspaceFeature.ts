@@ -25,7 +25,7 @@ export function useOphthalmologyWorkspaceFeature() {
   const canView = canReadIntake || can('Ophthalmology Consultation') || can('Ophthalmology Optical Prescription');
   const canEdit = canReadIntake && can('Ophthalmology Intake', 'Edit');
   const canConfigure = can('Ophthalmology Configuration');
-  const canEscalate = canReadIntake && can('Ophthalmology Intake', 'Escalate');
+  const canEscalate = (canReadIntake && can('Ophthalmology Intake', 'Escalate')) || can('Ophthalmology Consultation', 'Edit') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Test Queue', 'Edit') || can('Ophthalmology Test Queue', 'Start');
   const areas = consultationAreas.filter((area) => can(area.screen));
   const selectedArea = areas.find((area) => area.id === params.get('area'));
   const sharedVisitQuery = useOpdVisit(visitId || null, canReadIntake);

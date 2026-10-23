@@ -15,7 +15,8 @@ const eyeOptions = ['OD', 'OS', 'OU', 'NOT_APPLICABLE'];
 type Props = { feature: OphthalmologyWorkspaceFeature; context: OphthalmologyContext; view: OphthalmologyIntakeView };
 
 export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
-  const form = useForm<SaveOphthalmologyIntake>({ resolver: zodResolver(saveIntakeSchema), defaultValues: initialIntake(context, view.intake) });
+  const defaultDetail = f.visit?.priority === 'EMERGENCY' ? (f.visit.reason || null) : null;
+  const form = useForm<SaveOphthalmologyIntake>({ resolver: zodResolver(saveIntakeSchema), defaultValues: initialIntake(context, view.intake, defaultDetail) });
   const { register, control, handleSubmit, reset, getValues, setValue, formState: { errors, isDirty, isSubmitting } } = form;
   const values = useWatch({ control });
   const surgeries = useFieldArray({ control, name: 'previous_eye_surgeries' });
@@ -847,6 +848,39 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
               </div>
             )}
           </div>
+
+          {f.visit && (f.visit.priority === 'EMERGENCY' || f.visit.priority === 'URGENT' || f.visit.visit_type === 'EMERGENCY') && (
+            <div className="oph-registration-warning-banner" style={{ background: '#fef2f2', border: '1px solid #f87171', borderRadius: '6px', padding: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontWeight: 600, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  ⚠️ Registration Warning: Marked as {f.visit.priority} ({f.visit.visit_type}) at Reception Check-in
+                </span>
+                {f.canEscalate && !f.intakeView?.alerts.some((a) => a.status === 'ACTIVE') && (
+                  <button
+                    type="button"
+                    className="doc-btn danger"
+                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                    disabled={f.busy}
+                    onClick={() => {
+                      if (window.confirm(`Escalate emergency alert from registration triage findings?`)) {
+                        void f.escalate(
+                          f.visit?.reason || 'Patient flagged with urgent/emergency warning signs during reception registration.',
+                          ['REGISTRATION_WARNING_SIGNS'],
+                          'EMERGENCY'
+                        );
+                      }
+                    }}
+                  >
+                    Escalate from Registration Warning
+                  </button>
+                )}
+              </div>
+              <p style={{ margin: 0, fontSize: '0.88rem', color: '#7f1d1d' }}>
+                <strong>Reason recorded at registration:</strong> {f.visit.reason || 'No specific complaint entered at reception.'}
+                {f.visit.notes ? ` · Notes: ${f.visit.notes}` : ''}
+              </p>
+            </div>
+          )}
 
           <div className="oph-emergency-alert-banner">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5">

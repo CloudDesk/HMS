@@ -11,6 +11,7 @@ import { UserModel } from '../users/user.model.js';
 import { AdmissionRequestModel } from '../inpatient-admissions/inpatient-admission.model.js';
 import type { Appointment } from '../appointments/appointment.types.js';
 import { EmergencyEncounterModel, type EmergencyEncounterFields } from './emergency.model.js';
+import { OphthalmologyAlertModel } from '../ophthalmology/ophthalmology-intake.model.js';
 import type {
   CreateEmergencyDTO,
   EmergencyListQuery,
@@ -106,6 +107,26 @@ export const emergencyDto = (row: EmergencyLean) => ({
   })),
   disposition: row.disposition ?? null,
   inpatient_admission_id: row.inpatientAdmissionId?.toString() ?? null,
+  originating_source: row.originatingSource
+    ? {
+        source_type: row.originatingSource.sourceType,
+        specialty: row.originatingSource.specialty,
+        source_alert_id: row.originatingSource.sourceAlertId.toString(),
+        originating_visit_id: row.originatingSource.originatingVisitId.toString(),
+        escalated_by: row.originatingSource.escalatedBy.toString(),
+        escalated_at: row.originatingSource.escalatedAt.toISOString(),
+      }
+    : null,
+  originatingSource: row.originatingSource
+    ? {
+        sourceType: row.originatingSource.sourceType,
+        specialty: row.originatingSource.specialty,
+        sourceAlertId: row.originatingSource.sourceAlertId.toString(),
+        originatingVisitId: row.originatingSource.originatingVisitId.toString(),
+        escalatedBy: row.originatingSource.escalatedBy.toString(),
+        escalatedAt: row.originatingSource.escalatedAt.toISOString(),
+      }
+    : null,
   converted_to_ip_at: row.convertedToIpAt ?? null,
   converted_to_ip_by: row.convertedToIpBy?.toString() ?? null,
   created_at: row.createdAt,
@@ -173,6 +194,10 @@ export const emergencyReferralDto = (row: EmergencyLean) => {
 };
 
 export class EmergencyRepository {
+  async getOphthalmologySource(sourceAlertId: string, visitId: string, patientId: string, branchId: string, session?: ClientSession) {
+    return OphthalmologyAlertModel.findOne({ _id: oid(sourceAlertId), visitId: oid(visitId), patientId: oid(patientId),
+      branchId: oid(branchId), type: 'EMERGENCY_SCREENING', status: { $in: ['ACTIVE', 'ACKNOWLEDGED'] } }).session(session ?? null).lean();
+  }
   constructor(private readonly sequenceService: SequenceService) {}
   async session() {
     return mongoose.startSession();
@@ -202,6 +227,14 @@ export class EmergencyRepository {
       deletedAt: null,
     });
     return superAdmin ? undefined : (user.departmentIds ?? []).map((id) => id.toString());
+  }
+  async getActiveByPatient(patientId: string, session?: ClientSession) {
+    const query = EmergencyEncounterModel.findOne({
+      patientId: oid(patientId),
+      status: { $nin: ['DISCHARGED', 'TRANSFERRED', 'CONVERTED_TO_IP', 'LEFT', 'NO_SHOW', 'CANCELLED'] },
+    }).lean<EmergencyLean>();
+    if (session) query.session(session);
+    return query;
   }
   async branchScope(userId: string) {
     const user = await UserModel.findOne({ _id: oid(userId), status: 'active', deletedAt: null })
@@ -389,6 +422,16 @@ export class EmergencyRepository {
           arrivalAt: data.arrival_at ? new Date(data.arrival_at) : new Date(),
           chiefComplaint: data.chief_complaint,
           arrivalNotes: clean(data.arrival_notes),
+          originatingSource: (data.originatingSource || data.originating_source)
+            ? {
+                sourceType: (data.originatingSource || data.originating_source)!.sourceType,
+                specialty: (data.originatingSource || data.originating_source)!.specialty,
+                sourceAlertId: oid((data.originatingSource || data.originating_source)!.sourceAlertId),
+                originatingVisitId: oid((data.originatingSource || data.originating_source)!.originatingVisitId),
+                escalatedBy: oid((data.originatingSource || data.originating_source)!.escalatedBy),
+                escalatedAt: new Date((data.originatingSource || data.originating_source)!.escalatedAt),
+              }
+            : null,
           status: 'WAITING_FOR_TRIAGE',
           version: 0,
           queueHistory: [

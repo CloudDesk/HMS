@@ -37,6 +37,15 @@ export const emergencyListSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+const originatingSourceSchema = z.object({
+  sourceType: z.literal('OPD_SPECIALTY_ALERT'),
+  specialty: z.literal('OPHTHALMOLOGY'),
+  sourceAlertId: id,
+  originatingVisitId: id,
+  escalatedBy: id,
+  escalatedAt: z.string().datetime(),
+});
+
 export const createEmergencySchema = z
   .object({
     branch_id: id,
@@ -56,6 +65,8 @@ export const createEmergencySchema = z
     arrival_at: z.string().datetime().optional(),
     chief_complaint: z.string().trim().min(3).max(1000),
     arrival_notes: nullableText(2000),
+    originatingSource: originatingSourceSchema.nullable().optional(),
+    originating_source: originatingSourceSchema.nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.patient_id && !value.provisional_identity)

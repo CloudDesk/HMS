@@ -6,6 +6,7 @@ export type OpdPrescriptionItem = {
   strength: string | null;
   dosage: string;
   route: string;
+  laterality?: 'OD' | 'OS' | 'OU' | null;
   frequency: string;
   duration: string;
   quantity: number | null;

@@ -29,7 +29,24 @@ export function OphthalmologyClinicalReviewEditor({ feature: f }: { feature: Oph
     catch (error) { setError('root', { message: error instanceof z.ZodError ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ') : 'Check the treatment entries.' }); }
   })}><h3>Clinical review and treatment plan</h3><p>{baseline?.status ?? 'Not saved'} · version {baseline?.version ?? 0}. Saving a draft does not approve or complete this consultation.</p>
     {changed && <p role="alert">The saved review changed. Your entries remain here; review the latest record before saving.</p>}
-    <button type="button" className="doc-btn" disabled={f.busy || f.clinicalQuery.isError} onClick={() => { if (!isDirty || window.confirm('Discard entered values and load the latest saved review?')) { setBaseline(f.clinical); reset(initial(f.clinical)); } }}>Load latest saved review</button>
+    <div className="oph-toolbar" style={{ marginBottom: '12px' }}>
+      <button type="button" className="doc-btn" disabled={f.busy || f.clinicalQuery.isError} onClick={() => { if (!isDirty || window.confirm('Discard entered values and load the latest saved review?')) { setBaseline(f.clinical); reset(initial(f.clinical)); } }}>Load latest saved review</button>
+      {f.workspace?.canEscalate && (
+        <button
+          type="button"
+          className="doc-btn doc-btn-danger"
+          onClick={async () => {
+            const reason = window.prompt('Emergency escalation clinical reason discovered during examination/review:');
+            if (reason && reason.trim() && f.workspace?.escalate) {
+              await f.workspace.escalate(reason.trim(), ['EXAMINATION_FINDING'], 'EMERGENCY');
+            }
+          }}
+        >
+          <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+          Escalate Emergency (Examination Finding)
+        </button>
+      )}
+    </div>
     <EditorErrors errors={errors} /><fieldset className="oph-fieldset" disabled={disabled}>
       <label className="doc-field"><span>Clinical summary <span className="oph-required">*</span></span><textarea maxLength={10000} {...register('clinical_summary')} /></label>
       {rows.fields.map((row, index) => <section className="doc-card" key={row.id}><h4>Treatment {index + 1}</h4><div className="doc-form-grid two">

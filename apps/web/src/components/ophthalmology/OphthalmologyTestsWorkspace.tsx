@@ -139,6 +139,21 @@ export function OphthalmologyTestsWorkspace({ workspace }: { workspace: Ophthalm
     {f.taskId && (
       <div className="oph-toolbar" style={{ marginTop: '20px' }}>
         <h3>Clinical Task Result Editor</h3>
+        {workspace.canEscalate && (
+          <button
+            type="button"
+            className="doc-btn doc-btn-danger"
+            onClick={async () => {
+              const reason = window.prompt(`Emergency escalation reason identified during test assessment (${f.task?.test_name ?? 'Test'}):`);
+              if (reason && reason.trim() && workspace.escalate) {
+                await workspace.escalate(reason.trim(), ['ASSESSMENT_TEST_FINDING'], 'EMERGENCY');
+              }
+            }}
+          >
+            <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+            Escalate Emergency Finding
+          </button>
+        )}
         <button type="button" className="doc-btn" onClick={() => workspace.setQuery('task_id', '')}>
           ← Back to Examination Dashboard
         </button>

@@ -8,6 +8,7 @@ import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
   acknowledgeOphthalmologyAlertBodySchema,
+  clearOphthalmologyEmergencyAlertBodySchema,
   completeOphthalmologyIntakeBodySchema,
   createOphthalmologyConfigurationBodySchema,
   createOphthalmologyContextBodySchema,
@@ -55,6 +56,7 @@ import {
 } from './ophthalmology.schemas.js';
 import type {
   AcknowledgeOphthalmologyAlertDTO,
+  ClearOphthalmologyEmergencyAlertDTO,
   EscalateOphthalmologyEmergencyDTO,
   CompleteOphthalmologyIntakeDTO,
   CreateOphthalmologyConfigurationDTO,
@@ -365,6 +367,13 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'Escalate'),
     schema: { params: ophthalmologyVisitAlertParamsSchema, body: routeOphthalmologyEmergencyBodySchema },
   }, async (request) => ok(await services.ophthalmology.routeEmergency(request.params.visitId, request.params.id, request.body, request.user!.id, metadata(request))));
+  app.post<{ Params: VisitAlertParams; Body: ClearOphthalmologyEmergencyAlertDTO }>('/api/opd/visits/:visitId/ophthalmology/alerts/:id/clear', {
+    preHandler: requireAnyPermission(services, [
+      { moduleName: 'OPD', screen: 'Ophthalmology Emergency', action: 'Clear' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Complete' },
+    ]),
+    schema: { params: ophthalmologyVisitAlertParamsSchema, body: clearOphthalmologyEmergencyAlertBodySchema },
+  }, async (request) => ok(await services.ophthalmology.clearAlert(request.params.visitId, request.params.id, request.body, request.user!.id, metadata(request))));
   app.post<{ Params: VisitAlertParams; Body: AcknowledgeOphthalmologyAlertDTO }>('/api/opd/visits/:visitId/ophthalmology/alerts/:id/acknowledge', {
     preHandler: requirePermission(services, 'OPD', 'Ophthalmology Intake', 'Escalate'),
     schema: { params: ophthalmologyVisitAlertParamsSchema, body: acknowledgeOphthalmologyAlertBodySchema },
@@ -373,6 +382,9 @@ export const registerOphthalmologyRoutes = async (app: FastifyInstance, services
     preHandler: requireAnyPermission(services, [
       { moduleName: 'OPD', screen: 'Ophthalmology Intake', action: 'Escalate' },
       { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Edit' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Consultation', action: 'Diagnose' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Test Queue', action: 'Edit' },
+      { moduleName: 'OPD', screen: 'Ophthalmology Test Queue', action: 'Start' },
     ]),
     schema: { params: ophthalmologyVisitParamsSchema, body: escalateOphthalmologyEmergencyBodySchema },
   }, async (request) => ok(await services.ophthalmology.escalateEmergency(request.params.visitId, request.body, request.user!.id, metadata(request))));

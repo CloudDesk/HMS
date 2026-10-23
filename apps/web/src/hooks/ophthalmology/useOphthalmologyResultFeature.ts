@@ -13,7 +13,7 @@ export type OphthalmologyResultWorkspace = {
   visitId: string; visit?: Pick<OpdVisitResponse, 'patient_id' | 'branch_id' | 'department_id' | 'status'>; context?: { id: string };
   canView: boolean; canConfigure: boolean; scopeError: boolean; configurationPage: number;
   visitQuery: { isError: boolean }; contextQuery: { isError: boolean };
-  setQuery: (key: string, value: string) => void; returnLabel?: string;
+  setQuery: (key: string, value: string) => void; returnLabel?: string; canEscalate?: boolean; escalate?: (reason: string, trigger_findings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => Promise<unknown>;
 };
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 

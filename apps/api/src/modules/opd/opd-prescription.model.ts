@@ -8,6 +8,7 @@ export type OpdPrescriptionItemFields = {
   strength?: string | null;
   dosage: string;
   route: string;
+  laterality?: 'OD' | 'OS' | 'OU' | null;
   frequency: string;
   duration: string;
   quantity?: number | null;
@@ -49,6 +50,7 @@ const prescriptionItemSchema = new Schema<OpdPrescriptionItemFields>(
     strength: { type: String, default: null, trim: true },
     dosage: { type: String, default: 'As directed', trim: true },
     route: { type: String, default: 'Oral', trim: true },
+    laterality: { type: String, enum: ['OD', 'OS', 'OU'], default: null },
     frequency: { type: String, default: 'STAT', trim: true },
     duration: { type: String, default: 'STAT', trim: true },
     quantity: { type: Number, default: null },

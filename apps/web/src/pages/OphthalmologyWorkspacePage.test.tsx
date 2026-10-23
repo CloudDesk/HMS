@@ -3,10 +3,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resultSchema, taskSchema } from '../api/ophthalmology';
 
-const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn() }));
+const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, canEscalate: true, escalate: vi.fn(), contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn() }));
 vi.mock('../routing/navigation', async (importOriginal) => ({ ...await importOriginal<typeof import('../routing/navigation')>(), useAppLocation: () => ({ pathname: '/opd/ophthalmology', search: '?section=tests' }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyWorkspaceFeature', () => ({ useOphthalmologyWorkspaceFeature: () => ({
-  canView: true, canConfigure: true, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
+  canView: true, canConfigure: true, canEscalate: state.canEscalate, escalate: state.escalate, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
   intakeView: state.alertStatus ? { shared_history: {}, alerts: [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] } : undefined, visit: { patient_name: 'QA Patient', patient_number: 'QA', visit_number: 'QA-OPD' }, contextQuery: {}, intakeQuery: {}, visitQuery: {}, setQuery: state.setQuery,
 }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyResultFeature', () => ({ useOphthalmologyResultFeature: () => ({
@@ -109,5 +109,15 @@ describe('ophthalmology structured form interaction', () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
     await act(async () => { setter?.call(reason, 'Verified QA transcription correction'); reason.dispatchEvent(new Event('input', { bubbles: true })); });
     await submit(); expect(state.save).not.toHaveBeenCalled(); expect(state.amend).toHaveBeenCalledWith(expect.objectContaining({ expected_task_status: 'COMPLETED', expected_task_version: 3, expected_result_version: 2, source_type: 'MANUAL_CORRECTION', reason: 'Verified QA transcription correction' }));
+  });
+  it('renders Escalate Emergency button when user has escalation grant and dispatches escalation', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('Severe chemical burn OD');
+    state.canEscalate = true;
+    state.alertStatus = null;
+    await act(async () => root.render(<OphthalmologyWorkspacePage />));
+    const btn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Escalate Emergency'));
+    expect(btn).toBeDefined();
+    await act(async () => { btn?.click(); });
+    expect(state.escalate).toHaveBeenCalledWith('Severe chemical burn OD', ['CLINICAL_ESCALATION'], 'EMERGENCY');
   });
 });

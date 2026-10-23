@@ -4,6 +4,9 @@ import { AuditLogModel } from '../auth/auth.model.js';
 import { BranchModel } from '../branches/branch.model.js';
 import { RoleModel } from '../roles/role.model.js';
 import { UserModel } from '../users/user.model.js';
+import { ServiceModel } from '../services/service.model.js';
+import { OpdClinicalOrderModel } from '../opd/opd-clinical-order.model.js';
+import { ProcedureBookingModel, ProcedureRecommendationModel } from '../surgery/surgery.model.js';
 import {
   BillingInvoiceItemModel,
   BillingInvoiceModel,
@@ -190,6 +193,33 @@ const invoiceLookupStages: PipelineStage[] = [
 ];
 
 export class BillingRepository {
+  async getFinalizationBillingEvidence(visitId: string, patientId: string, branchId: string, departmentId: string, session: ClientSession) {
+    const scope = { patientId: objectId(patientId), branchId: objectId(branchId), deletedAt: null };
+    const invoices = await BillingInvoiceModel.find({ ...scope, $or: [{ visitId: objectId(visitId) }, { encounterId: objectId(visitId) }],
+      status: { $ne: 'CANCELLED' } }).sort({ createdAt: 1, _id: 1 }).session(session).lean();
+    const items = await BillingInvoiceItemModel.find({ invoiceId: { $in: invoices.map((invoice) => invoice._id) }, deletedAt: null }).session(session).lean();
+    const consultationService = await ServiceModel.findOne({ code: 'OPHTHALMOLOGY_CONSULTATION', departmentId: objectId(departmentId),
+      serviceType: 'GENERAL', status: 'ACTIVE', deletedAt: null }).session(session).lean();
+    const orders = await OpdClinicalOrderModel.find({ ...scope, visitId: objectId(visitId), status: { $in: ['VERIFIED', 'COMPLETED'] } }).session(session).lean();
+    const recommendations = await ProcedureRecommendationModel.find({ patientId: objectId(patientId), branchId: objectId(branchId),
+      encounterType: 'OPD_VISIT', encounterId: objectId(visitId), status: { $ne: 'CANCELLED' } }).session(session).lean();
+    const procedures = await ProcedureBookingModel.find({ recommendationId: { $in: recommendations.map((entry) => entry._id) },
+      patientId: objectId(patientId), branchId: objectId(branchId), status: 'COMPLETED' }).session(session).lean();
+    const serviceIds = [...orders.flatMap((order) => order.items.map((item) => item.serviceId)), ...procedures.map((procedure) => procedure.serviceId)];
+    const services = await ServiceModel.find({ _id: { $in: serviceIds }, status: 'ACTIVE', deletedAt: null }).session(session).lean();
+    return { invoices, items, consultationService, orders, procedures, services };
+  }
+
+  async appendFinalizationItems(invoiceId: string, finalizationKey: string, items: ResolvedBillingItem[],
+    totals: { subtotal: number; totalAmount: number; balanceAmount: number; status: BillingInvoiceStatus }, actor: string, session: ClientSession) {
+    const invoice = await BillingInvoiceModel.findOneAndUpdate({ _id: objectId(invoiceId), status: { $ne: 'CANCELLED' }, deletedAt: null,
+      $or: [{ finalizationKey: { $exists: false } }, { finalizationKey }] },
+    { $set: { ...totals, finalizationKey, updatedBy: objectId(actor) } }, { session, returnDocument: 'after', runValidators: true }).lean();
+    if (!invoice) throw new AppError('Invoice changed during finalization', 409, 'BILLING_FINALIZATION_CONFLICT');
+    if (items.length) await this.createItems(invoiceId, items, actor, session);
+    return invoice;
+  }
+
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds')

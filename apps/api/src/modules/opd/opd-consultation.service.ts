@@ -35,7 +35,7 @@ export class OpdConsultationService {
     const current = await this.repository.getByVisit(visitId);
     this.ensureDraftEditable(current?.status);
     this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
-    this.validateDiagnoses(data);
+    this.validateDiagnoses(data, await this.repository.requiresOphthalmologyCompletion(visit.id, visit.department_id, visit.branch_id));
     const scope = await this.visitRepository.resolveBranchScope(userId);
 
     return executeRequiredTransaction(this.visitRepository, async (session) => {
@@ -78,7 +78,7 @@ export class OpdConsultationService {
     await this.ensureVitalsRecorded(visit.id);
     const current = await this.repository.getByVisit(visitId);
     this.assertExpectedState(data, current?.version ?? 0, current?.status ?? 'DRAFT');
-    this.validateDiagnoses(data);
+    this.validateDiagnoses(data, await this.repository.requiresOphthalmologyCompletion(visit.id, visit.department_id, visit.branch_id));
     const scope = await this.visitRepository.resolveBranchScope(userId);
 
     return executeRequiredTransaction(this.visitRepository, async (session) => {
@@ -170,7 +170,7 @@ export class OpdConsultationService {
     }
   }
 
-  private validateDiagnoses(data: SaveOpdConsultationDTO) {
+  private validateDiagnoses(data: SaveOpdConsultationDTO, ophthalmology: boolean) {
     if (data.diagnoses === undefined) return;
     const primaryCount = data.diagnoses.filter((item) => item.type === 'PRIMARY').length;
     if (data.diagnoses.length > 0 && primaryCount !== 1) {
@@ -178,6 +178,12 @@ export class OpdConsultationService {
     }
     const seen = new Set<string>();
     for (const diagnosis of data.diagnoses) {
+      // ICD-10 H00-H59 is the eye/adnexa chapter; H60-H95 is ear disease.
+      const ocularIcd10 = /^ICD-?10(?:-CM)?$/i.test(diagnosis.codingSystem ?? 'ICD-10')
+        && /^H[0-5]\d(?:\.|$)/i.test(diagnosis.code.trim());
+      if ((ophthalmology || ocularIcd10) && !['OD', 'OS', 'OU'].includes(diagnosis.laterality ?? '')) {
+        throw new AppError('Ocular diagnoses require OD, OS or OU laterality', 400, 'OPD_DIAGNOSIS_LATERALITY_REQUIRED');
+      }
       const usesClinicalExtension = diagnosis.laterality != null || diagnosis.status != null || diagnosis.severity != null
         || diagnosis.stage != null || diagnosis.differential !== undefined;
       if (usesClinicalExtension && (!diagnosis.laterality || !diagnosis.status)) {

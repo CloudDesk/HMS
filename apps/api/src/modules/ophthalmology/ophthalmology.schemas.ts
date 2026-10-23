@@ -1,3 +1,4 @@
+import { z } from 'zod';
 const visitSubtypes = ['NEW_CONSULTATION', 'FOLLOW_UP', 'EMERGENCY', 'POST_OPERATIVE', 'SCREENING', 'PROCEDURE_REVIEW'];
 const contextLaterality = ['OD', 'OS', 'OU', 'NOT_SPECIFIED'];
 const configurationTypes = ['SUB_SPECIALITY', 'COMPLAINT', 'TEST_CATALOGUE', 'VISUAL_ACUITY_SCALE', 'DIAGNOSIS_REFERENCE', 'DRUG_OPTION', 'OPTICAL_PRODUCT', 'IOL_CATALOGUE', 'CLINICAL_THRESHOLD', 'GRADE', 'REASON', 'FORM_PROFILE', 'COMPLETION_PROFILE'];
@@ -150,6 +151,51 @@ export const completeOphthalmologyIntakeBodySchema = {
   type: 'object', additionalProperties: false, required: ['expected_version', 'expected_status', 'expected_context_version'],
   properties: { expected_version: version, expected_status: { const: 'DRAFT' }, expected_context_version: version },
 } as const;
+export const clearEmergencyAlertSchema = z
+  .object({
+    disposition: z.enum(['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL']),
+    clearance_rationale: z.string().trim().min(1, 'Clearance rationale is required').optional(),
+    clearanceRationale: z.string().trim().min(1, 'Clearance rationale is required').optional(),
+    resumption_permitted: z.boolean().optional(),
+    resumptionPermitted: z.boolean().optional(),
+    expected_version: z.number().int().min(0).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const rationale = data.clearance_rationale ?? data.clearanceRationale;
+    if (!rationale || !rationale.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Clearance rationale is required',
+        path: ['clearance_rationale'],
+      });
+    }
+    const permitted = data.resumption_permitted ?? data.resumptionPermitted;
+    if (typeof permitted !== 'boolean') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'resumption_permitted is required',
+        path: ['resumption_permitted'],
+      });
+    }
+  });
+
+export const clearOphthalmologyEmergencyAlertBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['disposition'],
+  properties: {
+    disposition: {
+      type: 'string',
+      enum: ['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL'],
+    },
+    clearance_rationale: { type: 'string', minLength: 1, maxLength: 5000 },
+    clearanceRationale: { type: 'string', minLength: 1, maxLength: 5000 },
+    resumption_permitted: { type: 'boolean' },
+    resumptionPermitted: { type: 'boolean' },
+    expected_version: version,
+  },
+} as const;
+
 export const acknowledgeOphthalmologyAlertBodySchema = {
   type: 'object', additionalProperties: false, required: ['expected_version', 'expected_status'],
   properties: { expected_version: version, expected_status: { const: 'ACTIVE' }, note: nullableText(2000) },

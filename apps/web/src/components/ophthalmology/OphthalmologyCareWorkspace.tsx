@@ -44,6 +44,22 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
       <Reading value={result.current.payload} />
       <p>Source documents: {result.current.document_ids.join(', ') || 'None'}. Open the source result for authorised attachment access.</p>
       <button type="button" className="doc-btn" onClick={f.openSourceResult}>Open source result and attachments</button>
+      {f.workspace?.canEscalate && (
+        <button
+          type="button"
+          className="doc-btn doc-btn-danger"
+          disabled={changed || f.busy || isSubmitting}
+          onClick={async () => {
+            const reason = window.prompt(`Emergency escalation reason for diagnostic finding (${task.test_name}):`);
+            if (reason && reason.trim() && f.workspace?.escalate) {
+              await f.workspace.escalate(reason.trim(), ['DIAGNOSTIC_REVIEW_FINDING'], 'EMERGENCY');
+            }
+          }}
+        >
+          <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+          Escalate Emergency from Result
+        </button>
+      )}
       {f.canRequestRepeat && (
         <>
           <button type="button" className="doc-btn" disabled={changed || f.busy || isSubmitting} onClick={() => { if (!isDirty || window.confirm('Leave the unsaved review comment and open the repeat-test request?')) f.requestRepeat(); }}>Request repeat test</button>

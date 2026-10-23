@@ -25,6 +25,7 @@ export const saveOpdPrescriptionBodySchema = {
           strength: nullableText(100),
           dosage: { type: ['string', 'null'], maxLength: 100 },
           route: { type: ['string', 'null'], maxLength: 100 },
+          laterality: { type: ['string', 'null'], enum: ['OD', 'OS', 'OU', null] },
           frequency: { type: ['string', 'null'], maxLength: 100 },
           duration: { type: ['string', 'null'], maxLength: 100 },
           quantity: { type: ['number', 'null'], minimum: 1, maximum: 100000 },

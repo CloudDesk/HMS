@@ -27,6 +27,7 @@ export class OpdPrescriptionService {
   async saveDraft(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit);
+    await this.validateLaterality(visit, data);
     const consultation = await this.getOrCreateConsultation(visit, userId);
     const current = await this.repository.getByVisit(visitId);
 
@@ -41,6 +42,7 @@ export class OpdPrescriptionService {
   async submit(visitId: string, data: SaveOpdPrescriptionDTO, userId: string) {
     const visit = await this.getVisit(visitId, userId);
     this.ensureOpenVisit(visit, true);
+    await this.validateLaterality(visit, data);
     const consultation = await this.getOrCreateConsultation(visit, userId);
     const current = await this.repository.getByVisit(visitId);
 
@@ -90,6 +92,7 @@ export class OpdPrescriptionService {
 
   async submitForContext(context: ClinicalSourceContext, data: SaveOpdPrescriptionDTO, actor: string, session?: ClientSession) {
     if (data.items.length === 0) throw new AppError('Add at least one medication before submitting', 400, 'MEDICATION_REQUIRED');
+    if (context.source_type === 'OPD_VISIT') await this.validateLaterality(await this.getVisit(context.source_id, actor), data);
     this.validateFollowUpDate(data.follow_up_date);
     const current = await this.repository.getBySource(context.source_type, context.source_id, session);
     if (current) {
@@ -172,6 +175,20 @@ export class OpdPrescriptionService {
     }
   }
 
+  private async validateLaterality(visit: OpdVisit, data: SaveOpdPrescriptionDTO) {
+    const ophthalmology = await this.consultationRepository.requiresOphthalmologyCompletion(
+      visit.id, visit.department_id, visit.branch_id,
+    );
+    if (!ophthalmology) return;
+    for (const item of data.items) {
+      // Route is the existing prescription contract's administration/form field.
+      const ocular = /ophthalmic|ocular|eye|topical|drops?|ointments?/i.test(`${item.route} ${item.medicine_name}`);
+      if (ocular && !['OD', 'OS', 'OU'].includes(item.laterality ?? '')) {
+        throw new AppError('Ophthalmic medications require OD, OS or OU laterality', 400, 'OPD_PRESCRIPTION_LATERALITY_REQUIRED');
+      }
+    }
+  }
+
   private samePrescription(current: OpdPrescription, data: SaveOpdPrescriptionDTO) {
     const normalize = (value?: string | null) => value?.trim() || null;
     if (current.items.length !== data.items.length) return false;
@@ -180,6 +197,7 @@ export class OpdPrescriptionService {
       return requested != null && item.medicine_name === requested.medicine_name.trim()
         && item.strength === normalize(requested.strength) && item.dosage === requested.dosage.trim()
         && item.route === requested.route.trim() && item.frequency === requested.frequency.trim()
+        && (item.laterality ?? null) === (requested.laterality ?? null)
         && item.duration === requested.duration.trim() && item.quantity === (requested.quantity ?? null)
         && item.intake_time === normalize(requested.intake_time)
         && item.instructions === normalize(requested.instructions);

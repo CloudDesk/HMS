@@ -175,22 +175,28 @@ export function OphthalmologyWorkspacePage() {
               </div>
             </div>
           </div>
-{/* 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {f.context && f.canEdit && (
-              <button className="doc-btn" type="button" disabled={f.busy} onClick={() => f.setQuery('edit_context', 'open')}>
-                <i className="ph ph-gear" style={{ marginRight: '4px' }} /> Edit Context
-              </button>
-            )}
-            {f.canViewQueue && (
-              <button className="doc-btn" type="button" onClick={f.openQueue}>
-                <i className="ph ph-queue" style={{ marginRight: '4px' }} /> Test Queue
+            {f.canEscalate && !f.intakeView?.alerts.some((a) => a.status === 'ACTIVE') && (
+              <button
+                type="button"
+                className="doc-btn danger"
+                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                disabled={f.busy}
+                onClick={() => {
+                  const reason = window.prompt('Enter emergency escalation reason (e.g., Acute angle-closure, IOP spike, Chemical injury, Retinal detachment):');
+                  if (reason && reason.trim()) {
+                    void f.escalate(reason.trim(), ['CLINICAL_ESCALATION'], 'EMERGENCY');
+                  }
+                }}
+              >
+                <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+                Escalate Emergency
               </button>
             )}
             <button className="doc-btn" type="button" onClick={f.back}>
               <i className="ph ph-arrow-left" style={{ marginRight: '4px' }} /> Return to Consultation
             </button>
-          </div> */}
+          </div>
         </div>
 
         {/* Hidden semantic elements to maintain test compatibility */}
@@ -271,8 +277,13 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
-      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'intake' || f.section === 'overview') && (
+      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview') && (
         <OphthalmologyTestsWorkspace workspace={f} />
+      )}
+
+      {/* Tab: Preliminary Intake & Complaints */}
+      {f.context && f.intakeView && !f.contextEditOpen && f.section === 'intake' && (
+        <OphthalmologyIntakeForm key={`${f.visitId}-${f.context.id}`} context={f.context} view={f.intakeView} feature={f} />
       )}
 
       {/* Tab 3: Diagnosis & Treatment */}

@@ -279,6 +279,15 @@ export class EmergencyService {
     await this.authorize(actor, data.branch_id);
     try {
       return await executeTransaction(this.repository, async (session) => {
+        const requestedSource = data.originatingSource ?? data.originating_source;
+        let registration = data;
+        if (requestedSource) {
+          const alert = data.patient_id ? await this.repository.getOphthalmologySource(requestedSource.sourceAlertId,
+            requestedSource.originatingVisitId, data.patient_id, data.branch_id, session) : null;
+          if (!alert) throw new AppError('Emergency source alert does not match this patient, visit and branch', 409, 'EMERGENCY_SOURCE_CONFLICT');
+          registration = { ...data, originating_source: undefined, originatingSource: { sourceType: 'OPD_SPECIALTY_ALERT', specialty: 'OPHTHALMOLOGY',
+            sourceAlertId: alert._id.toString(), originatingVisitId: alert.visitId.toString(), escalatedBy: alert.triggeredBy.toString(), escalatedAt: alert.triggeredAt.toISOString() } };
+        }
         const refs = await this.repository.references(data, session);
         if (!refs.branch) throw new AppError('Active branch not found', 404, 'BRANCH_NOT_FOUND');
         if (!refs.department)
@@ -289,6 +298,16 @@ export class EmergencyService {
           );
         if (data.patient_id && !refs.patient)
           throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
+        if (data.patient_id && refs.patient) {
+          const activeEmergency = await this.repository.getActiveByPatient(refs.patient._id.toString(), session);
+          if (activeEmergency) {
+            throw new AppError(
+              'An active emergency encounter already exists for this patient',
+              409,
+              'EMERGENCY_ACTIVE_EXISTS',
+            );
+          }
+        }
         let patientId = refs.patient?._id ?? null;
         let patientNumber = refs.patient?.patientNumber ?? null;
         let name = refs.patient
@@ -316,7 +335,7 @@ export class EmergencyService {
         }
 
         const result = await this.repository.create(
-          data,
+          registration,
           {
             patientId,
             patientNumber,

@@ -25,4 +25,17 @@ describe('clinical review preserves treatment linkage and original version', () 
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, 'Retained summary'); input.dispatchEvent(new Event('input', { bubbles: true })); });
     await act(async () => root.render(<OphthalmologyClinicalReviewEditor feature={feature(5)} />)); expect(input.value).toBe('Retained summary'); expect(container.querySelector('fieldset')?.disabled).toBe(true); expect(container.textContent).toContain('The saved review changed');
   });
+  it('renders emergency escalation button and dispatches when clinician triggers escalation during clinical review', async () => {
+    const escalate = vi.fn();
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('Impending corneal perforation OD');
+    const fWithEscalate = {
+      ...feature(),
+      workspace: { canEscalate: true, escalate },
+    } as unknown as OphthalmologyCareFeature;
+    await act(async () => root.render(<OphthalmologyClinicalReviewEditor feature={fWithEscalate} />));
+    const btn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Escalate Emergency (Examination Finding)'));
+    expect(btn).toBeDefined();
+    await act(async () => { btn?.click(); });
+    expect(escalate).toHaveBeenCalledWith('Impending corneal perforation OD', ['EXAMINATION_FINDING'], 'EMERGENCY');
+  });
 });

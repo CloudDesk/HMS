@@ -40,4 +40,8 @@ describe('ophthalmology intake contract', () => {
     expect(hasPositiveEyeHistory(cleared)).toBe(false); expect(cleared.no_significant_ophthalmic_history).toBe(true);
     expect(cleared.previous_report_document_ids).toEqual([id]); expect(cleared.shared_allergy_reviewed).toBe(true); expect(original.family_history_codes).toEqual(['QA']);
   });
+  it('pre-populates other_urgent_condition_detail from registration warning reason when provided', () => {
+    const initial = initialIntake(context, null, 'Chemical splash to left eye reported at reception');
+    expect(initial.other_urgent_condition_detail).toBe('Chemical splash to left eye reported at reception');
+  });
 });
