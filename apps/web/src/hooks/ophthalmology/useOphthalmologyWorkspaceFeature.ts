@@ -14,7 +14,7 @@ import { compatibleSubtypes, consultationAreas } from './consultation-areas';
 export function useOphthalmologyWorkspaceFeature() {
   const { search } = useAppLocation();
   const params = new URLSearchParams(search);
-  const rawId = params.get('visit_id') ?? '';
+  const rawId = params.get('visit_id') ?? params.get('id') ?? '';
   const visitId = ophthalmologyIdSchema.safeParse(rawId).success ? rawId : '';
   const parsedPage = Number(params.get('configuration_page') ?? 1);
   const configurationPage = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;

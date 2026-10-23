@@ -109,7 +109,16 @@ export function OphthalmologyWorkspacePage() {
   const isExam = f.section === 'tests' || f.section === 'intake' || f.section === 'overview';
 
   if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Intake with OPD Visits View, or dedicated Consultation/Optical Prescription View is required.</div>;
-  if (!f.visitId) return <div className="doc-card" role="alert">Select a valid OPD encounter to open ophthalmology.</div>;
+  if (!f.visitId) return (
+    <div className="doc-card opd-empty-workspace" style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+      <i className="ph ph-stethoscope" aria-hidden="true" style={{ fontSize: '3rem', color: '#94a3b8', marginBottom: '12px', display: 'inline-block' }} />
+      <h3>No Active Consultation</h3>
+      <p style={{ color: '#64748b', margin: '8px 0 16px' }}>Select a patient visit from the OPD Waiting Queue to begin consultation.</p>
+      <button className="doc-btn primary" onClick={() => f.back()} type="button">
+        Go to Waiting Queue
+      </button>
+    </div>
+  );
   if (f.scopeError) return <div className="doc-card" role="alert">The returned clinical record does not match this patient encounter. Reopen the encounter before continuing.</div>;
   if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to queue</button></div>;
   if (!f.visit || f.contextQuery.isPending) return <p role="status">Loading ophthalmology encounter…</p>;

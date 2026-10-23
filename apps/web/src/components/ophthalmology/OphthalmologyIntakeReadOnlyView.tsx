@@ -22,20 +22,26 @@ export function OphthalmologyIntakeReadOnlyView({ feature: f }: Props) {
     f.visit?.reason ||
     'General Eye Examination & Consultation';
 
+  const hpiEyeMatch = apptIntake?.history_present_illness?.match(/Affected Eye:\s*(OD|OS|OU)/i)?.[1]?.toUpperCase() as 'OD' | 'OS' | 'OU' | undefined;
+
   const affectedEye =
     intake?.affected_eye ||
     appointmentData?.ophthalmology?.affected_eye ||
+    hpiEyeMatch ||
     f.context?.affected_eye ||
     'OU';
 
   const eyeLabel =
     affectedEye === 'OD' ? 'OD (Right Eye)' : affectedEye === 'OS' ? 'OS (Left Eye)' : 'OU (Both Eyes)';
 
+  const isVitalsNote = (text?: string | null) =>
+    !text || text.toLowerCase().includes('vitals recorded');
+
   const hpiText =
     intake?.description ||
     shared?.history_present_illness ||
     apptIntake?.history_present_illness ||
-    f.visit?.notes ||
+    (!isVitalsNote(f.visit?.notes) ? f.visit?.notes : null) ||
     'Patient presented for routine examination. No extended HPI notes recorded at appointment check-in.';
 
   const allergiesText =
@@ -65,11 +71,11 @@ export function OphthalmologyIntakeReadOnlyView({ feature: f }: Props) {
 
   const spectacleInfo = intake?.spectacle_use?.uses
     ? `Spectacles: Yes (${intake.spectacle_use.wearing_pattern || 'Regular'})`
-    : 'Spectacles: No';
+    : (apptIntake?.past_history?.toLowerCase().includes('spectacle') ? 'Spectacles: Yes' : 'Spectacles: No');
 
   const contactLensInfo = intake?.contact_lens_use?.uses
     ? `Contact Lenses: Yes (${intake.contact_lens_use.wearing_pattern || 'Daily'})`
-    : null;
+    : (apptIntake?.past_history?.toLowerCase().includes('contact lens') ? 'Contact Lenses: Yes' : null);
 
   return (
     <div
@@ -280,8 +286,8 @@ export function OphthalmologyIntakeReadOnlyView({ feature: f }: Props) {
             <div>
               <strong style={{ color: '#0f172a', display: 'block', marginBottom: '4px' }}>Ophthalmic Details:</strong>
               <div style={{ background: '#ffffff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', color: '#334155', lineHeight: '1.5' }}>
-                <div>• Prior Surgeries: {intake?.previous_eye_surgeries && intake.previous_eye_surgeries.length > 0 ? intake.previous_eye_surgeries.map((s) => `${s.procedure} (${s.laterality})`).join(', ') : 'None'}</div>
-                <div>• Prior Diseases: {intake?.previous_eye_disease_codes && intake.previous_eye_disease_codes.length > 0 ? intake.previous_eye_disease_codes.join(', ') : 'None'}</div>
+                <div>• Prior Surgeries: {intake?.previous_eye_surgeries && intake.previous_eye_surgeries.length > 0 ? intake.previous_eye_surgeries.map((s) => `${s.procedure} (${s.laterality})`).join(', ') : (apptIntake?.past_history ? apptIntake.past_history : 'None')}</div>
+                <div>• Prior Diseases: {intake?.previous_eye_disease_codes && intake.previous_eye_disease_codes.length > 0 ? intake.previous_eye_disease_codes.join(', ') : (apptIntake?.past_history ? apptIntake.past_history : 'None')}</div>
                 <div>• Steroid Therapy: {intake?.long_term_steroid_use ? `Yes (${intake.long_term_steroid_details || 'Recorded'})` : 'No'}</div>
                 <div>• Family History: {familyHistory}</div>
               </div>

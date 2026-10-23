@@ -170,7 +170,7 @@ export const canAccessRoute = (
   if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return true;
   if (isSuperAdministrator(roles)) return true;
 
-  if (normalizedPathname === '/opd/ophthalmology' && (hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Consultation' }) || hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Optical Prescription' }))) return true;
+  if ((normalizedPathname === '/opd/ophthalmology' || normalizedPathname === '/opd/consultation') && (hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Consultation' }) || hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Optical Prescription' }) || hasPermission(permissions, { module: 'OPD', screen: 'OPD Consultation' }))) return true;
   const requirements = routeRequirements[normalizedPathname];
   if (!requirements) return false;
 

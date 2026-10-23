@@ -1,4 +1,12 @@
 import type { OphthalmologyAppointmentIntent } from './appointment-ophthalmology.contract.js';
+export type AppointmentConsultationIntake = {
+  chief_complaint?: string | null;
+  history_present_illness?: string | null;
+  past_history?: string | null;
+  family_history?: string | null;
+  allergies?: string | null;
+};
+
 export type AppointmentStatus =
   | 'SCHEDULED'
   | 'CONFIRMED'
@@ -20,6 +28,7 @@ export type AppointmentPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 
 export type Appointment = {
   ophthalmology?: OphthalmologyAppointmentIntent | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
   id: string;
   appointment_number: string;
   patient_id: string;
@@ -81,6 +90,7 @@ export type AppointmentDashboardSummary = {
 
 export type CreateAppointmentDTO = {
   ophthalmology?: OphthalmologyAppointmentIntent | null;
+  consultation_intake?: AppointmentConsultationIntake | null;
   patient_id: string;
   doctor_id: string;
   utc_datetime?: string;
@@ -96,7 +106,7 @@ export type CreateAppointmentDTO = {
 export type UpdateAppointmentDTO = Partial<
   Pick<
     CreateAppointmentDTO,
-    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'ophthalmology'
+    'doctor_id' | 'utc_datetime' | 'appointment_date' | 'start_time' | 'duration_minutes' | 'visit_type' | 'priority' | 'reason' | 'notes' | 'ophthalmology' | 'consultation_intake'
   >
 > & { reschedule_reason?: string | null; expected_updated_at?: string };
 

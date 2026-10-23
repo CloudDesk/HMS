@@ -125,7 +125,10 @@ export class OpdVisitService {
       if (!current) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
       this.assertExpectedVisitState(data, current);
 
-      if (!this.isStatusTransitionAllowed(current.status, data.status)) {
+      const directOphthalmologyQueue = data.status === 'READY_FOR_CONSULTATION'
+        && ['CHECKED_IN', 'WAITING_FOR_VITALS'].includes(current.status)
+        && await this.appointmentRepository.isOphthalmologyDepartment(current.branch_id, current.department_id, session);
+      if (!directOphthalmologyQueue && !this.isStatusTransitionAllowed(current.status, data.status)) {
         throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
       }
       if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
@@ -272,6 +275,9 @@ export class OpdVisitService {
     const sequence = await this.sequenceService.getNextSequence('opd_visit');
     let visit: OpdVisit | undefined;
     await executeTransaction(this.repository, async (session) => {
+      const directOphthalmologyQueue = await this.appointmentRepository.isOphthalmologyDepartment(
+        appointment.branch_id, appointment.department_id, session,
+      );
       visit = await this.repository.create(
         {
           appointmentId: appointment.id,
@@ -287,6 +293,7 @@ export class OpdVisitService {
           departmentId: appointment.department_id,
           visitDate: todayUtc(),
           checkInTime: new Date(),
+          initialStatus: directOphthalmologyQueue ? 'READY_FOR_CONSULTATION' : 'CHECKED_IN',
           visit_type: appointmentVisitType(appointment),
           priority: data.priority ?? appointment.priority,
           reason: data.reason ?? appointment.reason,

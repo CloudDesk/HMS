@@ -39,6 +39,7 @@ export type OpdVisitResponse = {
   visit_type: ApiOpdVisitType;
   priority: ApiOpdVisitPriority;
   status: ApiOpdVisitStatus;
+  version?: number;
   reason: string | null;
   notes: string | null;
   created_by: string | null;
@@ -92,6 +93,8 @@ export type CreateOpdVisitPayload = {
 
 export type UpdateOpdVisitStatusPayload = {
   status: ApiOpdVisitStatus;
+  expected_status?: ApiOpdVisitStatus;
+  expected_version?: number;
   notes?: string | null;
 };
 

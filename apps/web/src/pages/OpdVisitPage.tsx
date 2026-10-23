@@ -995,6 +995,17 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
     }
   };
 
+  if (visit && isOphthalmology(visit)) {
+    return (
+      <div className="doc-card" style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+        <MedicalLoader
+          text="Opening ophthalmology consultation..."
+          subtext="Redirecting to Ophthalmology consultation workspace"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="opd-page">
       {/* Top Header Bar */}

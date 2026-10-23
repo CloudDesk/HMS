@@ -20,9 +20,15 @@ import { UserModel } from '../users/user.model.js';
 import { ServiceModel } from '../services/service.model.js';
 import { OphthalmologyConfigurationModel } from '../ophthalmology/ophthalmology.model.js';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { OpdVisitService } from '../opd/opd-visit.service.js';
+import { OpdConsultationRepository } from '../opd/opd-consultation.repository.js';
+import { NotificationService } from '../notifications/notification.service.js';
+import { NotificationRepository } from '../notifications/notification.repository.js';
+import { OpdVisitModel } from '../opd/opd-visit.model.js';
 describe('authoritative Ophthalmology appointment intent', () => {
   let mongo: MongoMemoryReplSet; const repository = new AppointmentRepository();
   const service = new AppointmentService(repository, new PatientRepository(), new DoctorRepository(), new OpdVisitRepository(), new SettingsRepository(), new SequenceService());
+  const visits = new OpdVisitService(new OpdVisitRepository(), repository, new PatientRepository(), new DoctorRepository(), new OpdConsultationRepository(), new SequenceService(), new NotificationService(new NotificationRepository()));
   let branchId: string; let doctorId: string; let patientId: string; let actor: string; let catalogueId: string; let serviceId: string;
   const date = new Date(Date.now() + 30 * 86400000); date.setUTCHours(4, 30, 0, 0);
   const intent = () => ophthalmologyAppointmentSchema.parse({ visit_subtype: 'POST_OPERATIVE', affected_eye: 'OD', service_id: serviceId, sub_speciality_configuration_id: catalogueId, sub_speciality_code: 'QA-SUB', referral_source: 'EXTERNAL', referred_by: 'QA referring clinician' });
@@ -41,6 +47,14 @@ describe('authoritative Ophthalmology appointment intent', () => {
     await SystemSettingsModel.create({ key: 'system', general: defaultGeneralSettings, hospital: { hospitalName: 'Isolated QA hospital', phone: '0000000000', email: 'qa@example.test', address: 'Synthetic test only' }, localization: { country: 'India', timezone: 'Asia/Kolkata', currency: 'INR', currencySymbol: 'INR', numberFormat: '1,000.00', firstDayOfWeek: 'Monday' }, userPreferences: defaultUserPreferenceSettings });
   });
   it('persists scheduling intent and retains it through ordinary rescheduling', async () => {
+    const intake = { chief_complaint: 'Blurring vision', history_present_illness: 'Affected Eye: OD | Duration: 2 days', past_history: 'Hypertension', family_history: 'Glaucoma', allergies: 'Penicillin' };
+    const saved = await service.create({ ...booking(), consultation_intake: intake }, actor); expect(saved.ophthalmology).toEqual(intent()); expect(saved.visit_type).toBe('REVIEW');
+    expect(saved.consultation_intake).toEqual(intake);
+    const updated = await service.update(saved.id, { utc_datetime: new Date(date.getTime() + 3600000).toISOString(), reschedule_reason: 'QA schedule change' }, actor);
+    expect(updated.ophthalmology).toEqual(intent()); expect((await repository.getById(saved.id))?.ophthalmology).toEqual(intent());
+    expect((await repository.getById(saved.id))?.consultation_intake).toEqual(intake);
+  });
+  it('retains default intent without intake', async () => {
     const saved = await service.create(booking(), actor); expect(saved.ophthalmology).toEqual(intent()); expect(saved.visit_type).toBe('REVIEW');
     const updated = await service.update(saved.id, { utc_datetime: new Date(date.getTime() + 3600000).toISOString(), reschedule_reason: 'QA schedule change' }, actor);
     expect(updated.ophthalmology).toEqual(intent()); expect((await repository.getById(saved.id))?.ophthalmology).toEqual(intent());
@@ -64,5 +78,29 @@ describe('authoritative Ophthalmology appointment intent', () => {
   it('offers only active scoped choices and never exposes prices or clinical rules', async () => {
     const choices = await service.ophthalmologyBookingOptions(doctorId, 'SUB_SPECIALITIES', 1, 1, actor); expect(choices).toMatchObject({ eligible: true, doctor_id: doctorId, branch_id: branchId, meta: { total: 1, limit: 1 } }); expect(choices.data[0]).toMatchObject({ id: catalogueId, code: 'QA-SUB' });
     const services = await service.ophthalmologyBookingOptions(doctorId, 'SERVICES', 1, 20, actor); expect(services.data[0]).toMatchObject({ id: serviceId }); expect(services.data[0]).not.toHaveProperty('standardPrice');
+  });
+  it('checks Ophthalmology appointments directly into the persisted OPD waiting queue', async () => {
+    const appointment = await service.create(booking(), actor);
+    const visit = await visits.create({ appointment_id: appointment.id }, actor);
+    expect(visit.status).toBe('READY_FOR_CONSULTATION');
+    expect((await visits.getById(visit.id, actor)).status).toBe('READY_FOR_CONSULTATION');
+    expect((await repository.getById(appointment.id))?.status).toBe('CHECKED_IN');
+    await expect(visits.create({ appointment_id: appointment.id }, actor)).rejects.toMatchObject({ code: 'DUPLICATE_OPD_VISIT' });
+  });
+  it('moves existing Ophthalmology check-ins to waiting with stale-version protection', async () => {
+    const appointment = await service.create(booking(), actor);
+    const visit = await visits.create({ appointment_id: appointment.id }, actor);
+    await OpdVisitModel.updateOne({ _id: visit.id }, { $set: { status: 'CHECKED_IN' } });
+    const body = { status: 'READY_FOR_CONSULTATION' as const, expected_status: 'CHECKED_IN' as const, expected_version: visit.version };
+    expect((await visits.updateStatus(visit.id, body, actor)).status).toBe('READY_FOR_CONSULTATION');
+    await expect(visits.updateStatus(visit.id, body, actor)).rejects.toMatchObject({ statusCode: 409 });
+  });
+  it('keeps general departments on the vitals pathway even with an Ophthalmology doctor label', async () => {
+    const appointment = await service.create(booking(), actor);
+    await DepartmentModel.updateOne({ _id: appointment.department_id }, { $set: { code: 'GENERAL', name: 'General Medicine' } });
+    const visit = await visits.create({ appointment_id: appointment.id }, actor);
+    expect(visit.status).toBe('CHECKED_IN');
+    await expect(visits.updateStatus(visit.id, { status: 'READY_FOR_CONSULTATION', expected_status: visit.status, expected_version: visit.version }, actor))
+      .rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
   });
 });

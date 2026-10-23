@@ -96,6 +96,7 @@ export function AppointmentQueuePage() {
       handleNoShow,
       handleComplete,
       handleSaveVitals,
+      handleSendToOpdQueue,
       visitForAppointment,
     }
   } = useAppointmentQueueFeature();
@@ -319,7 +320,8 @@ export function AppointmentQueuePage() {
                   paginatedAppointments.map((appointment, index) => {
                     const linkedVisit = visitForAppointment(appointment.id);
                     const isCheckInAvailable = canCheckIn && !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
-                    const isTakeVitalsAvailable = canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
+                    const isOphthalmologyWaiting = Boolean(linkedVisit && isOphthalmologyVisit(linkedVisit) && (linkedVisit.status === 'CHECKED_IN' || linkedVisit.status === 'WAITING_FOR_VITALS'));
+                    const isTakeVitalsAvailable = !isOphthalmologyWaiting && canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
                     const isStartConsultationAvailable = canViewConsultation && canEditVisit && (linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED');
                     const isInConsultationAvailable = canViewConsultation && linkedVisit?.status === 'IN_CONSULTATION';
                     const globalIndex = (page - 1) * pageSize + index;
@@ -357,6 +359,13 @@ export function AppointmentQueuePage() {
                             >
                               <i className="ph ph-user-check" aria-hidden="true" />
                               Check In
+                            </button>
+                          ) : null}
+                          {isOphthalmologyWaiting && canEditVisit && linkedVisit ? (
+                            <button className="doc-btn primary compact" disabled={updating}
+                              onClick={() => void handleSendToOpdQueue(linkedVisit)} type="button"
+                              title="Send patient to the OPD waiting queue without recording vitals">
+                              <i className="ph ph-users" aria-hidden="true" /> Send to OPD Queue
                             </button>
                           ) : null}
                           {isTakeVitalsAvailable ? (

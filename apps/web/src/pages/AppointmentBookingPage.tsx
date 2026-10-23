@@ -1419,8 +1419,10 @@ export function AppointmentBookingPage() {
                                       justifyContent: 'center',
                                     }}
                                     onClick={() => {
-                                      setHpiEye(eye.id as 'OD' | 'OS' | 'OU');
-                                      syncHpiToField(eye.id as 'OD' | 'OS' | 'OU');
+                                      const eyeVal = eye.id as 'OD' | 'OS' | 'OU';
+                                      setHpiEye(eyeVal);
+                                      syncHpiToField(eyeVal);
+                                      setValue('specialty_eye', eyeVal, { shouldDirty: true });
                                     }}
                                   >
                                     {eye.label}

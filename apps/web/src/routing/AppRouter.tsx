@@ -256,9 +256,9 @@ export function AppRouter() {
     breadcrumbs = ['Home', 'OPD', 'Ophthalmology'];
     content = <OphthalmologyWorkspacePage />;
   } else if (pathname === '/opd/consultation') {
-    title = 'Consultation Workspace';
+    title = 'Ophthalmology Consultation';
     breadcrumbs = ['Home', 'OPD', 'Consultation'];
-    content = <OpdVisitPage />;
+    content = <OphthalmologyWorkspacePage />;
   } else if (pathname === '/opd/queue') {
     title = 'OPD Waiting Queue';
     breadcrumbs = ['Home', 'OPD', 'Waiting Queue'];
