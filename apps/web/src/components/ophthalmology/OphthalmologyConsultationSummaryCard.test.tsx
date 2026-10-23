@@ -57,6 +57,16 @@ describe('clinical summary source statuses', () => {
     expect(html).toContain('1500.00');
   });
 
+  it('renders structured actions and labels historical classifications explicitly', () => {
+    const html = renderToStaticMarkup(<OphthalmologyConsultationSummaryCard feature={feature({ clinical_review: { current: {
+      clinical_summary: 'Reviewed', treatment_plans: [
+        { diagnosis_code: 'QA', diagnosis_laterality: 'OD', treatment: 'Drops', action_type: 'MEDICATION', legacy_category: null, priority: 'ROUTINE', status: 'ACTIVE' },
+        { diagnosis_code: 'QB', diagnosis_laterality: 'OS', treatment: 'Observe', action_type: null, legacy_category: 'OBSERVATION', priority: 'ROUTINE', status: 'CANCELLED' },
+      ],
+    } } })} />);
+    expect(html).toContain('<th>Action</th>'); expect(html).toContain('MEDICATION'); expect(html).toContain('Legacy: OBSERVATION'); expect(html).not.toContain('<th>Category</th>');
+  });
+
   it('hides stale source statuses on failure and retries the existing summary query', async () => {
     const f = feature({ follow_ups: [{ id: 'follow-up', status: 'SCHEDULED' }] });
     f.summaryQuery.isError = true;

@@ -43,7 +43,7 @@ Do not force-add ignored documentation or silently choose another location.
 
 The document label remains **For Review**, but on 15 October 2026 the project owner approved DEC-01 through DEC-12 in `HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX.md` as binding project decisions. Treat FSD v1.0 as the controlling functional scope baseline and the approved decision register as its implementation clarification. Reconcile any later approved FSD revision through explicit change control.
 
-Phases 1 through 10 are complete and the approved Phase 11 backend implementation and automated hardening are complete. **Frontend integration may proceed against API contract version 1.10.0 and the live APIs.** Overall release validation remains **PARTIALLY COMPLETE** because the owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, and documented unrelated repository regressions remain open. Do not start another backend phase or release without explicit approval.
+Phases 1 through 11 and corrective items C1 through C8 are complete. C9 structured treatment-plan backend implementation and C10 frontend consumer migration are implemented against **API contract version 2.0.0**. Treatment-plan drafts and amendments use `action_type` plus the matching authoritative reference; historical `legacy_category` is view-only until explicit clinician reclassification. Overall release validation remains **PARTIALLY COMPLETE** because the owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance including C10 live UI acceptance, and documented unrelated repository regressions remain open. Do not start another corrective item or phase without explicit approval.
 
 The decision approval does not authorize invented clinical content. Do not invent or silently default:
 
@@ -368,6 +368,18 @@ Implement Pachymetry, Colour Vision, Motility/Squint/Binocular Vision, Dry Eye, 
 **Exit gate:** Every approved acceptance criterion has evidence and deferred items have owner-approved release disposition.
 
 ## Required phase gap note
+
+## C9 corrective handoff - structured treatment-plan backend
+
+**Status:** COMPLETE on 22 October 2026. API contract 2.0.0 requires explicit treatment `action_type`, exactly matching authoritative medication/optical/investigation/procedure/referral/follow-up references, diagnosis/laterality linkage, and ruled-out diagnosis safety. Reference scope is revalidated on save, correction, readiness, and completion. Historical `category` data remains readable through `legacy_category` and is never auto-classified. C10 frontend migration is explicitly not started.
+
+Evidence: `HMS_OPHTHALMOLOGY_C9_STRUCTURED_TREATMENT_BACKEND_GAP_NOTE.md` and `HMS_OPHTHALMOLOGY_C9_STRUCTURED_TREATMENT_BACKEND_VERIFICATION.md`.
+
+## C10 corrective handoff - structured treatment-plan frontend
+
+**Status:** IMPLEMENTED AND AUTOMATED-VERIFIED on 22 October 2026; interactive live browser acceptance remains pending. Clinical-review drafts and typed amendments now use API contract 2.0.0, provide action-specific on-demand live selectors, clear incompatible references when the action changes, preserve multi-order investigation selection, prevent frontend writes against a ruled-out diagnosis where current diagnosis state is available, and require explicit reclassification of historical rows. C10 does not create or mutate downstream shared-domain lifecycles.
+
+Evidence: `HMS_OPHTHALMOLOGY_C10_STRUCTURED_TREATMENT_FRONTEND_GAP_NOTE.md` and `HMS_OPHTHALMOLOGY_C10_STRUCTURED_TREATMENT_FRONTEND_VERIFICATION.md`.
 
 Before each implementation phase, record requirement IDs/FSD references, reusable code, missing contracts, shared dependencies, intended files, data/index/permission/transition/transaction/idempotency/audit/error/test design, and explicit exclusions.
 

@@ -51,7 +51,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
     emergency_source?: { emergency_encounter_id: string; encounter_number: string; appointment_id: string; visit_id: string; patient_id: string } | null;
     patient?: { patientNumber?: string; firstName?: string; lastName?: string; dateOfBirth?: string; gender?: string; allergies?: string[] };
     consultation?: { assessment?: string; diagnoses?: Array<{ code: string; display: string; laterality?: string; status?: string; type?: string }> };
-    clinical_review?: { current?: { clinical_summary?: string; treatment_plans?: Array<{ diagnosis_code: string; diagnosis_laterality: string; treatment: string; category: string; priority: string; status: string }>; follow_up_decision?: string; patient_instructions?: string } };
+    clinical_review?: { current?: { clinical_summary?: string; treatment_plans?: Array<{ diagnosis_code: string; diagnosis_laterality: string; treatment: string; action_type?: string | null; legacy_category?: string | null; priority: string; status: string }>; follow_up_decision?: string; patient_instructions?: string } };
     optical_prescription?: { status?: string; current?: { prescription_type?: string; lens_type?: string; material?: string; valid_until?: string; usage_instructions?: string; power?: { OD?: { sphere?: number; cylinder?: number; axis?: number; addition?: number }; OS?: { sphere?: number; cylinder?: number; axis?: number; addition?: number } }; pupillary_distance?: { format?: string; binocular?: number; OD?: number; OS?: number } } };
     tasks?: Array<{ id: string; test_name: string; laterality: string; status: string; priority: string; completed_at?: string }>;
     medication_prescriptions?: Array<{ id: string; status?: string; medications?: Array<{ medicine_name?: string; dosage?: string; frequency?: string; duration?: string; instructions?: string }> }>;
@@ -196,7 +196,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
                 <tr>
                   <th>Diagnosis & Eye</th>
                   <th>Treatment</th>
-                  <th>Category</th>
+                  <th>Action</th>
                   <th>Priority</th>
                   <th>Status</th>
                 </tr>
@@ -206,7 +206,7 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
                   <tr key={idx}>
                     <td><strong>{tp.diagnosis_code}</strong> ({tp.diagnosis_laterality})</td>
                     <td>{tp.treatment}</td>
-                    <td>{tp.category}</td>
+                    <td>{tp.action_type ?? (tp.legacy_category ? `Legacy: ${tp.legacy_category}` : 'Unclassified')}</td>
                     <td>
                       <span className={`oph-badge ${tp.priority === 'EMERGENCY' ? 'oph-badge-red' : tp.priority === 'URGENT' ? 'oph-badge-amber' : 'oph-badge-blue'}`}>
                         {tp.priority}
@@ -361,11 +361,38 @@ export function OphthalmologyConsultationSummaryCard({ feature: f }: { feature: 
       <div className="oph-summary-section">
         <div className="oph-summary-section-header">
           <span className="oph-section-badge">7</span>
-          <h5>Billing & Invoicing</h5>
+          <h5>Billing &amp; Invoicing</h5>
         </div>
-        <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
-          Specialty clinical completion does not establish or finalize an invoice. Invoice generation, service charge mapping, and payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.
-        </p>
+        {s.invoices?.length ? (
+          <div className="oph-table-scroll">
+            <table className="doc-table">
+              <thead>
+                <tr>
+                  <th>Invoice Number</th>
+                  <th>Status</th>
+                  <th>Total Amount</th>
+                  <th>Paid Amount</th>
+                  <th>Balance Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {s.invoices.map((inv) => (
+                  <tr key={inv.invoiceNumber}>
+                    <td><strong>{inv.invoiceNumber}</strong></td>
+                    <td><span className="oph-badge oph-badge-green">{inv.status}</span></td>
+                    <td>{Number(inv.totalAmount).toFixed(2)}</td>
+                    <td>{Number(inv.paidAmount).toFixed(2)}</td>
+                    <td>{Number(inv.balanceAmount).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
+            Specialty clinical completion does not establish or finalize an invoice. Invoice generation, service charge mapping, and payment settlement must be managed in the Billing workspace; no automated charge mapping is confirmed for this specialty encounter.
+          </p>
+        )}
       </div>
     </section>
   );

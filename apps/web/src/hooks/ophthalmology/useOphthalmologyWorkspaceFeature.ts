@@ -86,7 +86,7 @@ export function useOphthalmologyWorkspaceFeature() {
   const lookupData = (query: typeof complaintsQuery) => lookupEnabled ? (query.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE') : [];
   return {
     canViewClinical: can('Ophthalmology Consultation'), canViewOptical: can('Ophthalmology Optical Prescription'),
-    openClinical: (tab: 'treatment' | 'results' | 'optical') => { const next = new URLSearchParams(search); next.delete('area'); next.set('section', 'clinical'); next.set('care_tab', tab); navigate(`/opd/ophthalmology?${next}`); },
+    openClinical: (tab: string) => { const next = new URLSearchParams(search); next.delete('area'); next.set('section', 'clinical'); next.set('care_tab', tab); navigate(`/opd/ophthalmology?${next}`); },
     canViewQueue: can('Ophthalmology Test Queue'), openQueue: () => { if (visit) navigate(`/opd/ophthalmology/queue?branch_id=${visit.branch_id}&visit_id=${visitId}`); },
     visitId, visit, context, intakeView, scopeError, canView, canEdit: canEdit && editableVisit && !scopeError && !visitQuery.isError && !contextQuery.isError, canConfigure, canEscalate: canEscalate && editableVisit,
     encounterError: visitQuery.error ? getOpdErrorMessage(visitQuery.error) : contextQuery.error ? getOpdErrorMessage(contextQuery.error) : '',
@@ -94,8 +94,44 @@ export function useOphthalmologyWorkspaceFeature() {
     complaints: lookupData(complaintsQuery), emergencies: lookupData(emergenciesQuery), completions: lookupData(completionQuery),
     workflows: lookupEnabled ? (workflowsQuery.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE' && item.visit_subtype === lookupSubtype) : [],
     section: selectedArea?.section ?? (params.get('section') === 'completion' ? 'completion' : params.get('section') === 'clinical' ? 'clinical' : params.get('section') === 'tests' ? 'tests' : canReadIntake ? 'intake' : 'clinical'), areas, selectedArea,
-    openArea: (id: string) => { const area = areas.find((item) => item.id === id); if (!area) return; const next = new URLSearchParams(search); next.set('area', area.id); next.delete('completion_action'); next.set('section', area.section); if (area.id === 'treatment') next.set('care_tab', 'treatment'); next.delete('task_id'); next.delete('amend'); next.delete('form_profile_id'); navigate(`/opd/ophthalmology?${next}`); },
-    openShared: (tab: string) => { const target = consultationAreas.find((area) => 'tab' in area && area.tab === tab && can(area.screen)); if (target) navigate(`/opd/visit?id=${visitId}&tab=${encodeURIComponent(tab)}&specialty=ophthalmology`); },
+    openArea: (id: string) => {
+      const area = areas.find((item) => item.id === id);
+      if (!area) return;
+      const next = new URLSearchParams(search);
+      next.set('area', area.id);
+      next.delete('completion_action');
+      if (area.id === 'prescriptions') {
+        next.set('section', 'clinical');
+        next.set('care_tab', 'prescription');
+      } else if (area.id === 'investigations') {
+        next.set('section', 'clinical');
+        next.set('care_tab', 'lab-orders');
+      } else if (area.id === 'continuing-care') {
+        next.set('section', 'clinical');
+        next.set('care_tab', 'referral');
+      } else {
+        next.set('section', area.section);
+        if (area.id === 'treatment') next.set('care_tab', 'treatment');
+      }
+      next.delete('task_id');
+      next.delete('amend');
+      next.delete('form_profile_id');
+      navigate(`/opd/ophthalmology?${next}`);
+    },
+    openShared: (tab: string) => {
+      const tabMap: Record<string, string> = {
+        'Prescription': 'prescription',
+        'Lab Orders': 'lab-orders',
+        'Imaging Orders': 'imaging-orders',
+        'Referral': 'referral',
+        'Follow-up': 'follow-up',
+      };
+      const nextCareTab = tabMap[tab] || tab.toLowerCase();
+      const next = new URLSearchParams(search);
+      next.set('section', 'clinical');
+      next.set('care_tab', nextCareTab);
+      navigate(`/opd/ophthalmology?${next}`);
+    },
     configurationPage, subtype, contextEditOpen, subtypeSelected: Boolean(selectedSubtype), availableSubtypes, actionError: actionError?.visitId === visitId ? actionError.message : null, reportsOpen, reportPage, canViewReports, reportsQuery,
     reports: canView && canViewReports && reportsOpen ? (reportsQuery.data?.data ?? []).filter((item) => item.patient_id === visit?.patient_id) : [],
     busy: Object.values(mutations).some((mutation) => mutation.isPending),

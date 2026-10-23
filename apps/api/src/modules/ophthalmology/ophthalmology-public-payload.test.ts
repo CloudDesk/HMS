@@ -5,11 +5,16 @@ describe('patient-safe ophthalmology publication projection', () => {
     const payload = publicOphthalmologyPayload('CONSULTATION_SUMMARY', { clinical_version: 2, approved_at: '2026-10-18T00:00:00Z',
       consultation: { chiefComplaint: 'Blur', assessment: 'Reviewed', doctorNotes: 'SECRET', clinicalHistory: ['SECRET'] },
       diagnoses: [{ code: 'QA', display: 'QA', laterality: 'OS', status: 'CONFIRMED', notes: 'SECRET' }],
-      clinical_review: { current: { clinical_summary: 'Approved summary', patient_instructions: 'Review as advised', internal_notes: 'SECRET', treatment_plans: [{ treatment: 'Reviewed plan', clinician_user_id: 'SECRET' }] }, history: ['SECRET'] },
+      clinical_review: { current: { clinical_summary: 'Approved summary', patient_instructions: 'Review as advised', internal_notes: 'SECRET', treatment_plans: [
+        { treatment: 'Reviewed plan', action_type: 'OTHER', clinician_user_id: 'SECRET' },
+        { treatment: 'Historical plan', category: 'OBSERVATION', clinician_user_id: 'SECRET' },
+      ] }, history: ['SECRET'] },
       optical_prescription: { current: { power: { OD: { sphere: 1, internal_notes: 'SECRET' } }, internal_notes: 'SECRET' }, history: ['SECRET'] },
       procedure_recommendations: [{ serviceName: 'Approved procedure', notes: 'SECRET' }], referrals: [{ reason: 'Referral', clinicalSummary: 'SECRET' }],
       follow_ups: [{ nextVisitDate: '2026-10-20', notes: 'SECRET' }], previous_results: ['SECRET'], idempotency_key: 'SECRET' });
-    expect(payload.clinical_review).toMatchObject({ clinical_summary: 'Approved summary', patient_instructions: 'Review as advised' });
+    expect(payload.clinical_review).toMatchObject({ clinical_summary: 'Approved summary', patient_instructions: 'Review as advised', treatment_plans: [
+      { treatment: 'Reviewed plan', action_type: 'OTHER' }, { treatment: 'Historical plan', legacy_category: 'OBSERVATION' },
+    ] });
     expect(payload.consultation).toMatchObject({ chief_complaint: 'Blur' }); expect(JSON.stringify(payload)).not.toContain('SECRET');
   });
   it('does not leak raw measurements/comments through result or optical publications', () => {

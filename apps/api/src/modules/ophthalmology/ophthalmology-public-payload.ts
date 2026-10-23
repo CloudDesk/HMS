@@ -12,6 +12,15 @@ const aliases = (value: unknown, fields: ReadonlyArray<readonly [string, string]
   const source = object(value); return Object.fromEntries(fields.flatMap(([wire, model]) => { const found = scalar(source[wire] ?? source[model]); return found === undefined ? [] : [[wire, found]]; }));
 };
 const diagnosis = (value: unknown) => pick(value, ['code', 'display', 'codingSystem', 'type', 'laterality', 'status', 'severity', 'stage', 'differential']);
+const treatmentPlan = (value: unknown) => {
+  const source = object(value);
+  const result = pick(source, ['diagnosis_code', 'diagnosis_laterality', 'treatment', 'action_type', 'legacy_category', 'priority', 'status']);
+  if (!('action_type' in result) && !('legacy_category' in result)) {
+    const legacyCategory = scalar(source.category);
+    if (legacyCategory !== undefined) result.legacy_category = legacyCategory;
+  }
+  return result;
+};
 const optical = (value: unknown) => {
   const source = object(value); const current = object(source.current ?? value); const power = object(current.power);
   return { ...pick(current, ['status', 'clinical_version', 'prescription_type', 'lens_type', 'material', 'usage_instructions', 'valid_until', 'review_date', 'approved_at']),
@@ -33,7 +42,7 @@ export function publicOphthalmologyPayload(type: OphthalmologyPublicationSourceT
       ['family_history', 'familyHistory'], ['allergies', 'allergies'], ['physical_examination', 'physicalExamination'], ['assessment', 'assessment'], ['treatment_plan', 'treatmentPlan']]),
     diagnoses: rows(source.diagnoses ?? consultation.diagnoses).map(diagnosis),
     clinical_review: { ...pick(review, ['clinical_summary', 'patient_instructions', 'follow_up_decision']),
-      treatment_plans: rows(review.treatment_plans).map((plan) => pick(plan, ['diagnosis_code', 'diagnosis_laterality', 'treatment', 'category', 'priority', 'status'])) },
+      treatment_plans: rows(review.treatment_plans).map(treatmentPlan) },
     optical_prescription: opticalRoot.status === 'APPROVED' || opticalCurrent.status === 'APPROVED' ? optical(source.optical_prescription) : null,
     medication_prescriptions: prescriptions.map((entry) => { const record = object(entry); return { ...aliases(record, [['status', 'status'], ['patient_instructions', 'patientInstructions'], ['submitted_at', 'submittedAt']]),
       items: rows(record.items).map((item) => aliases(item, [['medicine_name', 'medicineName'], ['strength', 'strength'], ['dosage', 'dosage'], ['route', 'route'], ['frequency', 'frequency'],

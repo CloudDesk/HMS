@@ -12,7 +12,7 @@ Emergency referral booking validates patient/target department/target doctor in 
 
 Existing summary downstream projections now retain actual recommendation/referral/follow-up `status`, nullable `appointment_id` for referral/follow-up, and nullable `booking_id`/`booking_status` for recommendations. Booking status requires matching booking, recommendation, patient and branch. Follow-up date is mapped from `nextVisitDate`; procedure name/reason from `serviceName`/`clinicalReason`. Medication request status already reflects the shared prescription lifecycle, including Pharmacy's `DISPENSED`. These source states are separate from doctor sign-off; `SUBMITTED`, `SCHEDULED` and `BOOKED` do not establish whole-journey completion. No aggregate fulfillment enum or new mutation endpoint is introduced. Existing clinical prerequisites and signed snapshots remain authoritative; current summary reads can refresh downstream states independently.
 
-**Version:** 1.12.0 (working tree gap-closure revision, 20 October 2026)
+**Version:** 2.0.0 (C9 structured treatment-plan major revision, 22 October 2026)
 
 **Baseline date:** 15 October 2026
 
@@ -20,11 +20,24 @@ Existing summary downstream projections now retain actual recommendation/referra
 
 **Implementation state:** Backend/staff/patient integration remediation implemented in the working tree; final verification and clinical release acceptance remain open. Historical phase completion does not certify every FSD detail.
 
-**Compatibility:** Additive to existing OPD and shared-domain APIs
+**Compatibility:** Additive to existing OPD/shared-domain APIs, but intentionally breaking for Ophthalmology clinical-review treatment-plan writes. Historical category-only rows remain readable and are never guessed into a new action type.
 
-**Frontend handoff:** READY. Developer B may implement against version 1.12.0 using live APIs and the documented permission, validation, concurrency and error contracts. Mock data, `localStorage` persistence and frontend-authoritative clinical, scope or status values remain prohibited. The deferred live GCS smoke test and interactive release acceptance are release gates, not blockers to frontend implementation.
+**Frontend handoff:** C10 STRUCTURED-TREATMENT FRONTEND IMPLEMENTED AND AUTOMATED-VERIFIED. Clinical-review drafts and typed treatment-plan amendments now use the 2.0.0 `action_type` and matching-reference contract. Historical `legacy_category` rows remain view-only until a clinician explicitly reclassifies them. Interactive live browser acceptance remains a release-verification item; the API contract version remains 2.0.0 because C10 did not change backend semantics.
 
 This contract freezes the backend vocabulary, ownership, endpoint families, lifecycle, concurrency, permission and error behavior required for phase-wise implementation. A consuming phase must update the contract with exact request/response schemas before exposing its routes. Missing clinical values and file/vendor policy inputs remain configuration dependencies and are never inferred.
+
+## 2.0 structured treatment-plan contract
+
+`PUT /api/opd/visits/:visitId/ophthalmology/clinical-review/draft` and treatment-plan corrections through `POST /api/opd/visits/:visitId/ophthalmology/amendments` require each item to contain:
+
+- `diagnosis_code`, `diagnosis_laterality`, nonblank `treatment`, `action_type`, `priority`, and `status`.
+- `action_type`: `MEDICATION | OPTICAL | INVESTIGATION | PROCEDURE | REFERRAL | FOLLOW_UP | OTHER`.
+- Exactly the matching authoritative reference for the chosen action: `medication_prescription_id`, `optical_prescription_id`, one or more unique `clinical_order_ids`, `procedure_recommendation_id`, `referral_id`, or `follow_up_id`. `OTHER` accepts narrative treatment only and forbids all downstream references.
+- `priority`: `ROUTINE | URGENT | EMERGENCY`; `status`: `PLANNED | ACTIVE | COMPLETED | CANCELLED`.
+
+Every reference is revalidated against the current patient, encounter, branch, and applicable department both when saved/corrected and before readiness/completion. Every plan must match a current consultation diagnosis and laterality. `PLANNED` or `ACTIVE` treatment cannot target a `RULED_OUT` diagnosis; retained `COMPLETED` or `CANCELLED` history may do so. Duplicate diagnosis/laterality/action tuples and duplicate clinical-order IDs are rejected.
+
+New writes do not accept `category`. New response rows return `action_type` and `legacy_category`; current rows have non-null `action_type` and null `legacy_category`. A historical category-only stored row is returned with `action_type: null` and its original value in `legacy_category`. It must be explicitly reclassified before correction or completion; the backend does not infer a clinical action. Patient-safe published consultation payloads expose `action_type`, or `legacy_category` only for an old snapshot, without internal downstream IDs.
 
 ## 1.11 integration additions and corrections
 
@@ -351,7 +364,7 @@ Shared prescription, order, surgery/procedure, referral, follow-up and billing r
 
 Consultation diagnoses accept optional `laterality`, `status`, `severity`, `stage`, and `differential` fields. A non-empty diagnosis set has exactly one primary diagnosis; using the clinical extension requires laterality and status, and duplicate code/laterality/status contexts are rejected. Changes to diagnoses or narrative treatment preserve the prior state, actor, time, and consultation version.
 
-Clinical-review drafts hold a summary and diagnosis-linked treatment-plan versions. Optional medication prescription, clinical order, procedure recommendation, referral, and follow-up IDs must resolve to the same patient, visit/encounter, and branch in their authoritative modules. Optical prescriptions retain OD/OS power, PD, segment height, configured lens/material/coating choices, instructions, validity/review dates, and append-only versions. Approval requires `Ophthalmology Optical Prescription / Approve`, an active branch/department doctor record, exact draft status/version, a transaction, and an audit event; an approved head cannot be edited through the normal draft route.
+Clinical-review drafts hold a summary and diagnosis-linked treatment-plan versions under the 2.0 structured action/reference contract above. Medication prescription, optical prescription, clinical order, procedure recommendation, referral, and follow-up references resolve in their authoritative modules and may not be mixed across action types. Optical prescriptions retain OD/OS power, PD, segment height, configured lens/material/coating choices, instructions, validity/review dates, and append-only versions. Approval requires `Ophthalmology Optical Prescription / Approve`, an active branch/department doctor record, exact draft status/version, a transaction, and an audit event; an approved head cannot be edited through the normal draft route.
 
 ### Phase 9 completion and amendment
 
@@ -473,6 +486,11 @@ Stale state:
 | 400 | `OPHTHALMOLOGY_DOCUMENT_REFERENCE_INVALID` | A previous-report reference is missing, inactive, or belongs to another patient. |
 | 400 | `OPHTHALMOLOGY_ROUTE_INVALID` | A requested next-station or doctor route is structurally invalid. |
 | 400 | `OPHTHALMOLOGY_POLICY_REQUIRED` | Required file/publication/security policy is absent. |
+| 400 | `OPHTHALMOLOGY_TREATMENT_ACTION_TYPE_REQUIRED` | A legacy or internal plan has no explicit structured action classification. |
+| 400 | `OPHTHALMOLOGY_TREATMENT_REFERENCE_REQUIRED` | The selected action lacks its matching authoritative downstream reference. |
+| 400 | `OPHTHALMOLOGY_TREATMENT_REFERENCE_CONFLICT` | The plan contains a reference owned by another action type, or `OTHER` contains a downstream reference. |
+| 400 | `OPHTHALMOLOGY_DIAGNOSIS_REQUIRED` | A treatment plan exists but the consultation has no diagnosis. |
+| 400 | `OPHTHALMOLOGY_DIAGNOSIS_MISMATCH` | A plan does not match a current consultation diagnosis/laterality. |
 | 403 | `PERMISSION_REQUIRED` | Existing permission middleware denied the action. |
 | 403 | `OPHTHALMOLOGY_SCOPE_DENIED` | Organization/branch/department/encounter/station/resource scope failed. |
 | 403 | `OPHTHALMOLOGY_ASSIGNMENT_DENIED` | User is not the eligible assigned performer/reviewer. |
@@ -500,6 +518,7 @@ Stale state:
 | 409 | `OPHTHALMOLOGY_SHARED_CONTRACT_CONFLICT` | Shared-domain state prevents the requested handoff. |
 | 409 | `OPHTHALMOLOGY_ROUTING_REQUIRED` | Emergency completion cannot route because no eligible Ophthalmology clinician exists. |
 | 409 | `OPHTHALMOLOGY_COMPARISON_INELIGIBLE` | The referenced prior clinical version is not eligible for comparison. |
+| 409 | `OPHTHALMOLOGY_RULED_OUT_DIAGNOSIS_ACTIVE_TREATMENT` | A planned or active item targets a diagnosis currently marked ruled out. |
 | 422 | `OPHTHALMOLOGY_REVIEW_REQUIRED` | Action requires review of the referenced exact version. |
 | 422 | `OPHTHALMOLOGY_APPROVAL_REQUIRED` | Action requires authenticated doctor/authorized approval. |
 | 503 | `TRANSACTION_CAPABILITY_REQUIRED` | Required atomic workflow cannot run on the connected MongoDB deployment. |
@@ -543,6 +562,7 @@ Every applicable create, update, assign, reassign, call, start, draft, complete,
 
 | Version | Date | Change |
 |---|---|---|
+| 2.0.0 | 22 October 2026 | Owner-approved C9 major revision: replaced free-text treatment `category` writes with explicit action types and exactly matching shared-domain references, added optical linkage, scope and completion-time revalidation, ruled-out diagnosis safety, legacy read compatibility without inferred classification, and patient-safe publication projection. C10 subsequently implemented the consuming frontend without changing this backend contract version. |
 | 1.10.0 | 16 October 2026 | Implemented Phase 11 automated hardening, corrected direct optical-prescription routes to use their dedicated permission inventory, froze critical index and permission regressions, and recorded remaining live GCS/manual acceptance plus unrelated repository test/lint conditions. |
 | 1.9.0 | 16 October 2026 | Completed Phase 10 configured GCS/local storage provider, atomic/idempotent attachment metadata, source-domain-first ID-linked handoffs, exact-version portal publication/withdrawal, restricted portal projection, six operational reports, snapshot dashboard refresh/read, and authoritative cross-domain report integration contracts. |
 | 1.8.0 | 15 October 2026 | Implemented Phase 9 exact-version result review, configured structured completion readiness, result/order deferral, exact unmet-requirement override, authenticated doctor approval, atomic/idempotent shared OPD completion, final locking, append-only reopen/amendment/reapproval, and summary/history APIs. External publication and downstream dispatch remain Phase 10. |

@@ -4,7 +4,7 @@
 
 This matrix reconciles the Ophthalmology OPD FSD with the current backend baseline and the revised Developer A plan. It is the implementation gate for Developer A.
 
-**Phases 0 through 9 status: COMPLETE - AWAITING PHASE 10 APPROVAL.** On 15 October 2026, the project owner approved the resolutions for DEC-01 through DEC-12 as binding project decisions. Phase 9 exact-version result review, configured completion readiness, doctor approval, atomic OPD finalization, locking, reopening, amendments, and summary/history APIs are recorded in its gap and verification documents. Later phases remain subject to their phase exit/entry gates. Approval of the decision framework does not invent missing clinical master values, file policies, or vendor adapter contracts; those remain explicit configuration or integration dependencies.
+**Phases 0 through 11 and C1 through C8 status: COMPLETE/PARTIALLY VALIDATED; C9 BACKEND COMPLETE; C10 FRONTEND IMPLEMENTED/AUTOMATED-VERIFIED, LIVE UI ACCEPTANCE PENDING.** On 15 October 2026, the project owner approved DEC-01 through DEC-12 as binding project decisions. On 22 October 2026 the owner authorized the C9 major treatment-plan contract revision and then C10 frontend implementation. Historical category-only plans remain readable but are not auto-classified. C9/C10 automated evidence is recorded in their verification documents; later work remains subject to its gap, verification, and stop gates. Approval does not invent missing clinical master values, file policies, or vendor adapter contracts.
 
 No backend feature implementation was performed while producing this matrix.
 
@@ -125,10 +125,10 @@ Every form requires field-level request/response schemas plus patient/encounter/
 |---|---|---|---|---|---|---|---|
 | OPH-REV-01 | 10.1 | Consolidated doctor read model and eye/encounter historical comparison. | MISSING | OWNED/BLOCKED | 8 | Projection/comparison eligibility. | Correct-eye/no-leak tests. |
 | OPH-REV-02 | 10.2, Table 32 | Diagnosis coding, laterality, status, primary/secondary, severity/stage, differential, history. | PARTIAL | OWNED/REUSED/BLOCKED | 8 | Terminology/extension/one-primary. | Validation/history tests. |
-| OPH-REV-03 | Table 32 | Structured treatment plan linked to diagnosis/laterality/priority/status/clinician. | MISSING | OWNED/BLOCKED | 8 | Treatment/status masters. | Cross-record tests. |
+| OPH-REV-03 | Table 32 | Structured treatment plan linked to diagnosis/laterality/priority/status/clinician. | IMPLEMENTED | OWNED | C9, C10 | Explicit action type, matching authoritative reference, ruled-out safety, immutable clinical versions, action-specific live selectors and explicit legacy reclassification. | Phase 8/9 C9 backend evidence plus C10 schema/editor/amendment/selector/summary tests. |
 | OPH-REV-04 | Tables 32, 34 | Eye-specific medication fields through existing prescribing/pharmacy. | PARTIAL | REUSED/DEPENDENCY/BLOCKED | 8, 10 | Shared contract and authority. | Pharmacy regression tests. |
-| OPH-REV-05 | 10.3, Table 33 | Separate optical prescription with all FSD fields, approval, validity, print/share. | MISSING | OWNED/BLOCKED | 8 | Fields/masters/authority/validity. | Schema/version/approval tests. |
-| OPH-REV-06 | Tables 32, 34 | Further tests, procedure, surgery, referral, follow-up retain clinical context. | ASSESS | REUSED/DEPENDENCY | 8, 10 | Shared-domain contracts. | Handoff/idempotency tests. |
+| OPH-REV-05 | 10.3, Table 33 | Separate optical prescription with all FSD fields, approval, validity, print/share. | IMPLEMENTED | OWNED/CONFIGURATION | 8, C9 | Existing versioned optical prescription is now a first-class treatment action reference; product/clinical masters remain configured. | Schema/version/approval plus C9 optical scope/rollback tests. |
+| OPH-REV-06 | Tables 32, 34 | Further tests, procedure, surgery, referral, follow-up retain clinical context. | IMPLEMENTED | REUSED/DEPENDENCY | 8, 10, C9 | Action-specific IDs reuse authoritative shared records; lifecycle remains owned by each shared domain. | C9 matching-reference, scope, completion revalidation and rollback tests. |
 | OPH-REV-07 | Table 32 | Digital doctor approval required for final completion. | IMPLEMENTED | OWNED | 9 | Authenticated approval event; cryptographic signature remains out of contract. | Phase 9 doctor identity, unauthorized, completion, and audit tests. |
 
 ### Shared integrations
@@ -520,7 +520,7 @@ Emergency bypass records the skipped stages and reason. It does not delete pendi
 
 ## Exit recommendation
 
-**APPROVED BACKEND IMPLEMENTATION COMPLETE; FRONTEND HANDOFF READY; PHASE 11 RELEASE VALIDATION PARTIALLY COMPLETE.** DEC-01 through DEC-12 remain binding project rules. Developer B may proceed against API contract version 1.10.0 and the live backend APIs. Phase 11 automated hardening corrected the direct optical-prescription permission boundary and passed the complete focused release suite. The owner-deferred live GCS smoke test, interactive multi-role/multi-branch acceptance, one unrelated API department-visibility regression, existing repository lint failures and four unrelated web-test failures remain recorded release conditions. No later backend phase or release has started.
+**C9 STRUCTURED TREATMENT BACKEND AND C10 FRONTEND MIGRATION IMPLEMENTED.** DEC-01 through DEC-12 remain binding project rules. The treatment write contract remains API version 2.0.0: clients send explicit `action_type` and its matching authoritative reference, and never send `category`. C10 automated verification is complete; interactive live browser acceptance remains open because the browser automation runtime was unavailable. Existing release-validation conditions remain recorded separately. No later corrective item has started.
 
 
 ### 20 October 2026 comparison/report clarification

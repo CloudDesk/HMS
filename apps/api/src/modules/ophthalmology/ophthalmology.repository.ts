@@ -93,6 +93,10 @@ type AlertRecord = OphthalmologyAlertFields & { _id: Types.ObjectId };
 type TestTaskRecord = OphthalmologyTestTaskFields & { _id: Types.ObjectId };
 type TestResultRecord = OphthalmologyTestResultFields & { _id: Types.ObjectId };
 type ClinicalReviewRecord = OphthalmologyClinicalReviewFields & { _id: Types.ObjectId };
+type ReviewReferenceInput = { treatment_plans: Array<{
+  medication_prescription_id?: string | null; optical_prescription_id?: string | null; clinical_order_ids?: string[];
+  procedure_recommendation_id?: string | null; referral_id?: string | null; follow_up_id?: string | null;
+}> };
 type OpticalPrescriptionRecord = OphthalmologyOpticalPrescriptionFields & { _id: Types.ObjectId };
 type FinalizationRecord = OphthalmologyConsultationFinalizationFields & { _id: Types.ObjectId };
 const oid = (value: string) => new Types.ObjectId(value);
@@ -105,8 +109,10 @@ const toClinicalReviewVersion = (item: OphthalmologyClinicalReviewVersionFields)
   clinical_version: item.clinicalVersion, clinical_summary: item.clinicalSummary,
   follow_up_decision: item.followUpDecision ?? null, patient_instructions: item.patientInstructions ?? null,
   treatment_plans: item.treatmentPlans.map((plan) => ({ id: plan._id.toString(), diagnosis_code: plan.diagnosisCode,
-    diagnosis_laterality: plan.diagnosisLaterality, treatment: plan.treatment, category: plan.category, priority: plan.priority,
+    diagnosis_laterality: plan.diagnosisLaterality, treatment: plan.treatment, action_type: plan.actionType ?? null,
+    legacy_category: plan.actionType ? null : plan.category ?? null, priority: plan.priority,
     status: plan.status, medication_prescription_id: plan.medicationPrescriptionId?.toString() ?? null,
+    optical_prescription_id: plan.opticalPrescriptionId?.toString() ?? null,
     clinical_order_ids: plan.clinicalOrderIds.map(String), procedure_recommendation_id: plan.procedureRecommendationId?.toString() ?? null,
     referral_id: plan.referralId?.toString() ?? null, follow_up_id: plan.followUpId?.toString() ?? null,
     clinician_user_id: plan.clinicianUserId.toString() })),
@@ -938,8 +944,9 @@ export class OphthalmologyRepository {
     const version: OphthalmologyClinicalReviewVersionFields = { clinicalVersion: (current?.current_clinical_version ?? 0) + 1,
       clinicalSummary: data.clinical_summary.trim(), treatmentPlans: data.treatment_plans.map((plan) => ({ _id: new Types.ObjectId(),
         diagnosisCode: plan.diagnosis_code.trim().toUpperCase(), diagnosisLaterality: plan.diagnosis_laterality,
-        treatment: plan.treatment.trim(), category: plan.category.trim().toUpperCase(), priority: plan.priority, status: plan.status,
+        treatment: plan.treatment.trim(), actionType: plan.action_type, category: null, priority: plan.priority, status: plan.status,
         medicationPrescriptionId: plan.medication_prescription_id ? oid(plan.medication_prescription_id) : null,
+        opticalPrescriptionId: plan.optical_prescription_id ? oid(plan.optical_prescription_id) : null,
         clinicalOrderIds: (plan.clinical_order_ids ?? []).map(oid),
         procedureRecommendationId: plan.procedure_recommendation_id ? oid(plan.procedure_recommendation_id) : null,
         referralId: plan.referral_id ? oid(plan.referral_id) : null, followUpId: plan.follow_up_id ? oid(plan.follow_up_id) : null,
@@ -998,28 +1005,31 @@ export class OphthalmologyRepository {
     const query = DoctorModel.findOne({ userId: oid(userId), branchId: oid(branchId), departmentId: oid(departmentId),
       status: 'ACTIVE', deletedAt: null }).select('_id'); if (session) query.session(session); return (await query.lean())?._id.toString() ?? null;
   }
-  async validateReviewReferences(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO, session: ClientSession) {
+  async validateReviewReferences(context: OphthalmologyContext, data: ReviewReferenceInput, session?: ClientSession) {
     // Follow-ups inherit scope from their visit; the shared model has no branchId.
     if (!await OpdVisitModel.exists({ _id: oid(context.visit_id), patientId: oid(context.patient_id),
-      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).session(session)) return false;
+      branchId: oid(context.branch_id), departmentId: oid(context.department_id), deletedAt: null }).session(session ?? null)) return false;
     for (const plan of data.treatment_plans) {
       if (plan.medication_prescription_id && !await OpdPrescriptionModel.exists({ _id: oid(plan.medication_prescription_id), visitId: oid(context.visit_id),
-        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session ?? null)) return false;
+      if (plan.optical_prescription_id && !await OphthalmologyOpticalPrescriptionModel.exists({ _id: oid(plan.optical_prescription_id),
+        contextId: oid(context.id), visitId: oid(context.visit_id), patientId: oid(context.patient_id), branchId: oid(context.branch_id),
+        departmentId: oid(context.department_id) }).session(session ?? null)) return false;
       for (const id of plan.clinical_order_ids ?? []) if (!await OpdClinicalOrderModel.exists({ _id: oid(id), visitId: oid(context.visit_id),
-        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session ?? null)) return false;
       if (plan.procedure_recommendation_id && !await ProcedureRecommendationModel.exists({ _id: oid(plan.procedure_recommendation_id),
-        encounterType: 'OPD_VISIT', encounterId: oid(context.visit_id), patientId: oid(context.patient_id), branchId: oid(context.branch_id) }).session(session)) return false;
+        encounterType: 'OPD_VISIT', encounterId: oid(context.visit_id), patientId: oid(context.patient_id), branchId: oid(context.branch_id) }).session(session ?? null)) return false;
       if (plan.referral_id && !await OpdReferralModel.exists({ _id: oid(plan.referral_id), visitId: oid(context.visit_id),
-        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session)) return false;
+        patientId: oid(context.patient_id), branchId: oid(context.branch_id), deletedAt: null }).session(session ?? null)) return false;
       if (plan.follow_up_id && !await OpdFollowUpModel.exists({ _id: oid(plan.follow_up_id), visitId: oid(context.visit_id),
-        patientId: oid(context.patient_id), deletedAt: null }).session(session)) return false;
+        patientId: oid(context.patient_id), deletedAt: null }).session(session ?? null)) return false;
     }
     return true;
   }
   async getDiagnosisKeys(visitId: string, session?: ClientSession) {
     const query = OpdConsultationModel.findOne({ visitId: oid(visitId), deletedAt: null }).select('diagnoses'); if (session) query.session(session);
     const item = await query.lean(); return (item?.diagnoses ?? []).map((diagnosis) => ({ code: diagnosis.code.trim().toUpperCase(),
-      laterality: diagnosis.laterality ?? 'NOT_APPLICABLE' }));
+      laterality: diagnosis.laterality ?? 'NOT_APPLICABLE', status: diagnosis.status ?? null }));
   }
   async getEmergencyReferralTrace(context: OphthalmologyContext) {
     const visit = await OpdVisitModel.findOne({ _id: oid(context.visit_id), patientId: oid(context.patient_id),
@@ -1189,8 +1199,10 @@ export class OphthalmologyRepository {
         correction.section === 'clinical_summary' ? { clinicalSummary: correction.after_value } :
         correction.section === 'follow_up_decision' ? { followUpDecision: correction.after_value } :
         { treatmentPlans: correction.after_value.map((plan) => ({ _id: plan.id ? oid(plan.id) : new Types.ObjectId(),
-          diagnosisCode: plan.diagnosis_code, diagnosisLaterality: plan.diagnosis_laterality, treatment: plan.treatment, category: plan.category,
+          diagnosisCode: plan.diagnosis_code, diagnosisLaterality: plan.diagnosis_laterality, treatment: plan.treatment,
+          actionType: plan.action_type, category: null,
           priority: plan.priority, status: plan.status, medicationPrescriptionId: plan.medication_prescription_id ? oid(plan.medication_prescription_id) : null,
+          opticalPrescriptionId: plan.optical_prescription_id ? oid(plan.optical_prescription_id) : null,
           clinicalOrderIds: plan.clinical_order_ids.map(oid), procedureRecommendationId: plan.procedure_recommendation_id ? oid(plan.procedure_recommendation_id) : null,
           referralId: plan.referral_id ? oid(plan.referral_id) : null, followUpId: plan.follow_up_id ? oid(plan.follow_up_id) : null, clinicianUserId: oid(userId) })) }),
       createdBy: oid(userId), createdAt: new Date() };

@@ -4,7 +4,8 @@ import { ophthalmologyJourneySchema } from '../../api/ophthalmology-journey';
 import { useOphthalmologySummary } from './useOphthalmologyCompletion';
 import type { CareWorkspace } from './useOphthalmologyCareFeature';
 
-export function useOphthalmologyTreatmentLinksFeature(workspace: CareWorkspace, open: boolean) {
+export type TreatmentLinksWorkspace = Pick<CareWorkspace, 'visitId' | 'visit' | 'context' | 'canView' | 'scopeError' | 'visitQuery' | 'contextQuery'>;
+export function useOphthalmologyTreatmentLinksFeature(workspace: TreatmentLinksWorkspace, open: boolean) {
   const { user } = useAuth();
   const canView = Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN'))
     || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'Ophthalmology Consultation', action: 'View' });

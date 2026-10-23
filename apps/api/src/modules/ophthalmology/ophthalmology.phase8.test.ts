@@ -58,7 +58,7 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
   afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
 
   const review = () => ({ expected_version: 0, clinical_summary: 'Bilateral cataract reviewed with the patient', treatment_plans: [{
-    diagnosis_code: '9B10', diagnosis_laterality: 'OU' as const, treatment: 'Monitor and discuss surgery', category: 'OBSERVATION',
+    diagnosis_code: '9B10', diagnosis_laterality: 'OU' as const, treatment: 'Monitor and discuss surgery', action_type: 'OTHER' as const,
     priority: 'ROUTINE' as const, status: 'ACTIVE' as const, clinical_order_ids: [],
   }] });
   const optical = () => ({ expected_version: 0, prescription_type: 'DISTANCE' as const,
@@ -69,7 +69,7 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
   it('persists a diagnosis-linked treatment plan and exposes the consolidated doctor review', async () => {
     const saved = await service.saveClinicalReviewDraft(visitId, review(), userId);
     expect(saved).toMatchObject({ status: 'DRAFT', current_clinical_version: 1,
-      current: { treatment_plans: [{ diagnosis_code: '9B10', diagnosis_laterality: 'OU' }] } });
+      current: { treatment_plans: [{ diagnosis_code: '9B10', diagnosis_laterality: 'OU', action_type: 'OTHER' }] } });
     const projection = await service.getDoctorReview(visitId, userId);
     expect(projection).toMatchObject({ context: { visit_id: visitId }, clinical_review: { id: saved.id } });
     expect(await AuditLogModel.countDocuments({ eventType: 'ophthalmology.clinical_review.draft_saved' })).toBe(1);
@@ -82,6 +82,54 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
   });
 
+  it('enforces structured treatment action references and ruled-out diagnosis safety', async () => {
+    const missingMedication = review(); missingMedication.treatment_plans[0]!.action_type = 'MEDICATION';
+    await expect(service.saveClinicalReviewDraft(visitId, missingMedication, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_TREATMENT_REFERENCE_REQUIRED' });
+    const conflicting = { ...review(), treatment_plans: review().treatment_plans.map((plan) => ({ ...plan,
+      medication_prescription_id: new Types.ObjectId().toString() })) };
+    await expect(service.saveClinicalReviewDraft(visitId, conflicting, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_TREATMENT_REFERENCE_CONFLICT' });
+    await OpdConsultationModel.updateOne({ visitId }, { $set: { 'diagnoses.0.status': 'RULED_OUT' } });
+    await expect(service.saveClinicalReviewDraft(visitId, review(), userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_RULED_OUT_DIAGNOSIS_ACTIVE_TREATMENT', statusCode: 409 });
+    const historical = review(); historical.treatment_plans[0]!.status = 'CANCELLED';
+    expect(await service.saveClinicalReviewDraft(visitId, historical, userId)).toMatchObject({
+      current: { treatment_plans: [{ action_type: 'OTHER', status: 'CANCELLED' }] },
+    });
+  });
+
+  it('links only the encounter-scoped optical prescription and rolls back failed clinical audit', async () => {
+    const opticalDraft = await service.saveOpticalPrescriptionDraft(visitId, optical(), userId);
+    const linked = { ...review(), treatment_plans: review().treatment_plans.map((plan) => ({ ...plan,
+      action_type: 'OPTICAL' as const, optical_prescription_id: opticalDraft.id })) };
+    const saved = await service.saveClinicalReviewDraft(visitId, linked, userId);
+    expect(saved.current.treatment_plans[0]).toMatchObject({ action_type: 'OPTICAL', optical_prescription_id: opticalDraft.id });
+    await OphthalmologyOpticalPrescriptionModel.updateOne({ _id: opticalDraft.id }, { $set: { patientId: new Types.ObjectId() } });
+    await expect(service.saveClinicalReviewDraft(visitId, { ...linked, expected_version: saved.version }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
+    expect((await repository.getClinicalReviewByVisit(visitId))?.version).toBe(saved.version);
+
+    await OphthalmologyClinicalReviewModel.deleteMany({});
+    vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('audit unavailable'));
+    await expect(service.saveClinicalReviewDraft(visitId, review(), userId)).rejects.toThrow('audit unavailable');
+    expect(await OphthalmologyClinicalReviewModel.countDocuments()).toBe(0);
+  });
+
+  it('keeps pre-C9 free-text categories readable without inventing an action type', async () => {
+    const context = await OphthalmologyContextModel.findOne({ visitId }).lean();
+    if (!context) throw new Error('Missing context fixture');
+    await OphthalmologyClinicalReviewModel.create({ contextId: context._id, visitId: context.visitId, patientId: context.patientId,
+      branchId: context.branchId, departmentId: context.departmentId, currentClinicalVersion: 1, status: 'DRAFT', version: 1,
+      versions: [{ clinicalVersion: 1, clinicalSummary: 'Legacy review', treatmentPlans: [{ _id: new Types.ObjectId(),
+        diagnosisCode: '9B10', diagnosisLaterality: 'OU', treatment: 'Observe', category: 'OBSERVATION', priority: 'ROUTINE',
+        status: 'ACTIVE', clinicalOrderIds: [], clinicianUserId: userId }], createdBy: userId, createdAt: new Date() }],
+      createdBy: userId, updatedBy: userId });
+    expect((await repository.getClinicalReviewByVisit(visitId))?.current.treatment_plans[0]).toMatchObject({
+      action_type: null, legacy_category: 'OBSERVATION',
+    });
+  });
+
   it('links a shared follow-up without a branch field and rejects foreign or deleted references', async () => {
     const consultation = await OpdConsultationModel.findOne({ visitId }).lean();
     if (!consultation) throw new Error('Missing consultation fixture');
@@ -90,7 +138,8 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
       originatingDoctorId: consultation.doctorId, originatingDoctorName: consultation.doctorName,
       status: 'DRAFT', reminderType: 'NONE' });
     expect(followUp.toObject()).not.toHaveProperty('branchId');
-    const body = { ...review(), treatment_plans: review().treatment_plans.map((plan) => ({ ...plan, follow_up_id: followUp.id })) };
+    const body = { ...review(), treatment_plans: review().treatment_plans.map((plan) => ({ ...plan,
+      action_type: 'FOLLOW_UP' as const, follow_up_id: followUp.id })) };
     const saved = await service.saveClinicalReviewDraft(visitId, body, userId);
     expect(saved.current.treatment_plans[0]?.follow_up_id).toBe(followUp.id);
     const update = { ...body, expected_version: saved.version };

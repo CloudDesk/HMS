@@ -324,14 +324,16 @@ export const amendOphthalmologyTestResultBodySchema = {
 const reviewReference = { ...objectId, type: ['string', 'null'] } as const;
 const treatmentPlanSchema = {
   type: 'object', additionalProperties: false,
-  required: ['diagnosis_code', 'diagnosis_laterality', 'treatment', 'category', 'priority', 'status'],
+  required: ['diagnosis_code', 'diagnosis_laterality', 'treatment', 'action_type', 'priority', 'status'],
   properties: {
     diagnosis_code: { type: 'string', minLength: 1, maxLength: 80 },
     diagnosis_laterality: { type: 'string', enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE'] },
-    treatment: { type: 'string', minLength: 1, maxLength: 4000 }, category: { type: 'string', minLength: 1, maxLength: 80 },
+    treatment: { type: 'string', minLength: 1, maxLength: 4000 },
+    action_type: { type: 'string', enum: ['MEDICATION', 'OPTICAL', 'INVESTIGATION', 'PROCEDURE', 'REFERRAL', 'FOLLOW_UP', 'OTHER'] },
     priority: { type: 'string', enum: ['ROUTINE', 'URGENT', 'EMERGENCY'] },
     status: { type: 'string', enum: ['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED'] },
     medication_prescription_id: reviewReference,
+    optical_prescription_id: reviewReference,
     clinical_order_ids: { type: 'array', maxItems: 50, uniqueItems: true, items: objectId },
     procedure_recommendation_id: reviewReference, referral_id: reviewReference, follow_up_id: reviewReference,
   },

@@ -1,11 +1,13 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import type { OphthalmologyOpticalPrescriptionType, OphthalmologyTreatmentPlanPriority,
-  OphthalmologyTreatmentPlanStatus } from './ophthalmology.types.js';
+  OphthalmologyTreatmentPlanStatus, OphthalmologyTreatmentPlanActionType } from './ophthalmology.types.js';
 
 export type OphthalmologyTreatmentPlanFields = {
   _id: Types.ObjectId; diagnosisCode: string; diagnosisLaterality: 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE'; treatment: string;
-  category: string; priority: OphthalmologyTreatmentPlanPriority; status: OphthalmologyTreatmentPlanStatus;
-  medicationPrescriptionId?: Types.ObjectId | null; clinicalOrderIds: Types.ObjectId[]; procedureRecommendationId?: Types.ObjectId | null;
+  actionType?: OphthalmologyTreatmentPlanActionType | null; category?: string | null;
+  priority: OphthalmologyTreatmentPlanPriority; status: OphthalmologyTreatmentPlanStatus;
+  medicationPrescriptionId?: Types.ObjectId | null; opticalPrescriptionId?: Types.ObjectId | null;
+  clinicalOrderIds: Types.ObjectId[]; procedureRecommendationId?: Types.ObjectId | null;
   referralId?: Types.ObjectId | null; followUpId?: Types.ObjectId | null; clinicianUserId: Types.ObjectId;
 };
 export type OphthalmologyClinicalReviewVersionFields = {
@@ -22,10 +24,13 @@ export type OphthalmologyClinicalReviewFields = {
 const treatmentPlanSchema = new Schema<OphthalmologyTreatmentPlanFields>({
   diagnosisCode: { type: String, required: true, trim: true, uppercase: true },
   diagnosisLaterality: { type: String, enum: ['OD', 'OS', 'OU', 'NOT_APPLICABLE'], required: true },
-  treatment: { type: String, required: true, trim: true }, category: { type: String, required: true, trim: true, uppercase: true },
+  treatment: { type: String, required: true, trim: true },
+  actionType: { type: String, enum: ['MEDICATION', 'OPTICAL', 'INVESTIGATION', 'PROCEDURE', 'REFERRAL', 'FOLLOW_UP', 'OTHER'], default: null },
+  category: { type: String, default: null, trim: true, uppercase: true },
   priority: { type: String, enum: ['ROUTINE', 'URGENT', 'EMERGENCY'], required: true },
   status: { type: String, enum: ['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED'], required: true },
   medicationPrescriptionId: { type: Schema.Types.ObjectId, ref: 'OpdPrescription', default: null },
+  opticalPrescriptionId: { type: Schema.Types.ObjectId, ref: 'OphthalmologyOpticalPrescription', default: null },
   clinicalOrderIds: { type: [Schema.Types.ObjectId], ref: 'OpdClinicalOrder', default: [] },
   procedureRecommendationId: { type: Schema.Types.ObjectId, ref: 'ProcedureRecommendation', default: null },
   referralId: { type: Schema.Types.ObjectId, ref: 'OpdReferral', default: null },

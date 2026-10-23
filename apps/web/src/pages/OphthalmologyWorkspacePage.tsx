@@ -99,8 +99,13 @@ export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
   const { search } = useAppLocation();
   const params = new URLSearchParams(search);
-  const careTab = params.get('care_tab');
+  const careTab = params.get('care_tab') || 'treatment';
+  const isOrders = f.section === 'clinical' && (careTab === 'orders' || careTab === 'prescription' || careTab === 'lab-orders' || careTab === 'imaging-orders');
   const isOptical = f.section === 'clinical' && careTab === 'optical';
+  const isContinuingCare = f.section === 'clinical' && (careTab === 'continuing-care' || careTab === 'referral' || careTab === 'follow-up');
+  const isTreatment = (f.section === 'clinical' || f.section === 'shared') && !isOrders && !isOptical && !isContinuingCare;
+  const isSummary = f.section === 'completion';
+  const isExam = f.section === 'tests' || f.section === 'intake' || f.section === 'overview';
 
   if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Intake with OPD Visits View, or dedicated Consultation/Optical Prescription View is required.</div>;
   if (!f.visitId) return <div className="doc-card" role="alert">Select a valid OPD encounter to open ophthalmology.</div>;
@@ -108,20 +113,26 @@ export function OphthalmologyWorkspacePage() {
   if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to consultation</button></div>;
   if (!f.visit || f.contextQuery.isPending) return <p role="status">Loading ophthalmology encounter…</p>;
 
-  const currentStep: 'examination' | 'care' | 'optical' | 'summary' =
-    isOptical
-      ? 'optical'
-      : f.section === 'clinical'
-      ? 'care'
-      : f.section === 'completion'
+  const currentStep: 'examination' | 'care' | 'orders' | 'optical' | 'continuing-care' | 'summary' =
+    isSummary
       ? 'summary'
+      : isContinuingCare
+      ? 'continuing-care'
+      : isOptical
+      ? 'optical'
+      : isOrders
+      ? 'orders'
+      : isTreatment
+      ? 'care'
       : 'examination';
 
   const steps = [
     { id: 'examination', num: 1, label: 'Comprehensive Examination', icon: 'ph-eye', action: () => f.setQuery('section', 'tests') },
     { id: 'care', num: 2, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
-    { id: 'optical', num: 3, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
-    { id: 'summary', num: 4, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
+    { id: 'orders', num: 3, label: 'Prescriptions & Orders', icon: 'ph-pill', action: () => f.openClinical('prescription') },
+    { id: 'optical', num: 4, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
+    { id: 'continuing-care', num: 5, label: 'Referral & Follow-up', icon: 'ph-calendar-check', action: () => f.openClinical('referral') },
+    { id: 'summary', num: 6, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
   ] as const;
 
   const stepIndex = steps.findIndex((s) => s.id === currentStep);
@@ -277,18 +288,28 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
-      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview') && (
+            {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview' || isExam) && (
         <OphthalmologyTestsWorkspace workspace={f} />
       )}
 
       {/* Tab: Preliminary Intake & Complaints */}
       {f.context && f.intakeView && !f.contextEditOpen && f.section === 'intake' && (
-        <OphthalmologyIntakeForm key={`${f.visitId}-${f.context.id}`} context={f.context} view={f.intakeView} feature={f} />
+        <OphthalmologyIntakeForm
+          key={`${f.visitId}-${f.context.id}`}
+          context={f.context}
+          view={f.intakeView}
+          feature={f}
+        />
       )}
 
-      {/* Tab 3: Diagnosis & Treatment */}
-      {f.context && !f.contextEditOpen && f.section === 'clinical' && !isOptical && (
+      {/* Tab: Diagnosis & Treatment Plan */}
+      {f.context && !f.contextEditOpen && isTreatment && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
+      )}
+
+      {/* Tab 3: Prescriptions & Diagnostic Orders */}
+      {f.context && !f.contextEditOpen && isOrders && (
+        <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-orders`} workspace={f} mode="orders" />
       )}
 
       {/* Tab 4: Optical Prescription */}
@@ -296,8 +317,13 @@ export function OphthalmologyWorkspacePage() {
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-optical`} workspace={f} mode="optical" />
       )}
 
-      {/* Tab 5: Consultation Summary */}
-      {f.context && !f.contextEditOpen && f.section === 'completion' && (
+      {/* Tab 5: Referral & Follow-up */}
+      {f.context && !f.contextEditOpen && isContinuingCare && (
+        <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-continuing-care`} workspace={f} mode="continuing-care" />
+      )}
+
+      {/* Tab 6: Consultation Summary */}
+      {f.context && !f.contextEditOpen && isSummary && (
         <OphthalmologyCompletionWorkspace key={`${f.visitId}-${f.context.id}`} workspace={f} />
       )}
 
@@ -321,18 +347,6 @@ export function OphthalmologyWorkspacePage() {
         </section>
       )}
 
-      {/* Shared area fallback */}
-      {f.context && f.section === 'shared' && f.selectedArea && (
-        <section className="doc-card">
-          <h3>{f.selectedArea.label}</h3>
-          <p>This area continues in the existing OPD encounter. Specialty clinical care is available through the clinical-review and optical-prescription controls. Diagnosis editing and final consultation completion retain their separate workflow requirements.</p>
-          {'tab' in f.selectedArea && (
-            <button type="button" className="doc-btn primary" onClick={() => { if (f.selectedArea && 'tab' in f.selectedArea) f.openShared(f.selectedArea.tab); }}>
-              Open existing {f.selectedArea.tab}
-            </button>
-          )}
-        </section>
-      )}
 
       {/* Emergency Alerts */}
       {f.intakeView?.alerts.map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}

@@ -8,17 +8,45 @@ const instant = z.string().datetime({ offset: true });
 const text = (max: number) => z.string().trim().min(1).max(max);
 const reference = id.nullable().optional();
 const scope = { id, context_id: id, visit_id: id, patient_id: id, branch_id: id, department_id: id };
-export const treatmentWriteSchema = z.object({
-  diagnosis_code: text(80), diagnosis_laterality: eyeSchema, treatment: text(4000), category: text(80),
+export const treatmentActionTypeSchema = z.enum(['MEDICATION', 'OPTICAL', 'INVESTIGATION', 'PROCEDURE', 'REFERRAL', 'FOLLOW_UP', 'OTHER']);
+export const treatmentWriteBaseSchema = z.object({
+  diagnosis_code: text(80), diagnosis_laterality: eyeSchema, treatment: text(4000), action_type: treatmentActionTypeSchema,
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), status: z.enum(['PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED']),
-  medication_prescription_id: reference, clinical_order_ids: z.array(id).max(50).refine((ids) => new Set(ids).size === ids.length, 'Duplicate order references.').optional(),
+  medication_prescription_id: reference, optical_prescription_id: reference,
+  clinical_order_ids: z.array(id).max(50).refine((ids) => new Set(ids).size === ids.length, 'Duplicate order references.').optional(),
   procedure_recommendation_id: reference, referral_id: reference, follow_up_id: reference,
 }).strict();
+type TreatmentWriteInput = z.infer<typeof treatmentWriteBaseSchema>;
+function validateTreatmentReference(plan: TreatmentWriteInput, ctx: z.RefinementCtx) {
+  const references = {
+    MEDICATION: Boolean(plan.medication_prescription_id), OPTICAL: Boolean(plan.optical_prescription_id),
+    INVESTIGATION: Boolean(plan.clinical_order_ids?.length), PROCEDURE: Boolean(plan.procedure_recommendation_id),
+    REFERRAL: Boolean(plan.referral_id), FOLLOW_UP: Boolean(plan.follow_up_id),
+  } as const;
+  if (plan.action_type !== 'OTHER' && !references[plan.action_type]) {
+    ctx.addIssue({ code: 'custom', path: [plan.action_type === 'MEDICATION' ? 'medication_prescription_id'
+      : plan.action_type === 'OPTICAL' ? 'optical_prescription_id' : plan.action_type === 'INVESTIGATION' ? 'clinical_order_ids'
+        : plan.action_type === 'PROCEDURE' ? 'procedure_recommendation_id' : plan.action_type === 'REFERRAL' ? 'referral_id' : 'follow_up_id'],
+    message: `Select the saved ${plan.action_type.toLowerCase()} record for this action.` });
+  }
+  const conflicting = Object.entries(references).some(([type, selected]) => selected && type !== plan.action_type);
+  if (conflicting || plan.action_type === 'OTHER' && Object.values(references).some(Boolean)) {
+    ctx.addIssue({ code: 'custom', path: ['action_type'], message: 'Keep only the reference that matches the selected action.' });
+  }
+}
+export const treatmentWriteSchema = treatmentWriteBaseSchema.superRefine(validateTreatmentReference);
+export const treatmentCorrectionSchema = treatmentWriteBaseSchema.extend({ id: id.optional() }).superRefine(validateTreatmentReference);
 export const clinicalReviewWriteSchema = z.object({ expected_version: version, clinical_summary: text(10000), treatment_plans: z.array(treatmentWriteSchema).max(100), follow_up_decision: z.enum(['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP']).nullable().optional(), patient_instructions: z.string().max(4000).nullable().optional() }).strict().superRefine((body, ctx) => {
   const seen = new Set<string>();
-  body.treatment_plans.forEach((plan, index) => { const key = `${plan.diagnosis_code.toUpperCase()}:${plan.diagnosis_laterality}:${plan.category.toUpperCase()}`; if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['treatment_plans', index], message: 'Duplicate diagnosis, eye and category.' }); seen.add(key); });
+  body.treatment_plans.forEach((plan, index) => { const key = `${plan.diagnosis_code.toUpperCase()}:${plan.diagnosis_laterality}:${plan.action_type}`; if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['treatment_plans', index], message: 'Duplicate diagnosis, eye and action.' }); seen.add(key); });
 });
-const treatmentSchema = treatmentWriteSchema.extend({ id, clinician_user_id: id });
+const treatmentSchema = z.object({
+  id, clinician_user_id: id, diagnosis_code: z.string(), diagnosis_laterality: eyeSchema, treatment: z.string(),
+  action_type: treatmentActionTypeSchema.nullable(), legacy_category: z.string().nullable(),
+  priority: treatmentWriteBaseSchema.shape.priority, status: treatmentWriteBaseSchema.shape.status,
+  medication_prescription_id: id.nullable(), optical_prescription_id: id.nullable(), clinical_order_ids: z.array(id),
+  procedure_recommendation_id: id.nullable(), referral_id: id.nullable(), follow_up_id: id.nullable(),
+}).strict();
 const clinicalVersionSchema = z.object({ clinical_version: version, clinical_summary: z.string(), treatment_plans: z.array(treatmentSchema), follow_up_decision: z.enum(['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP']).nullable(), patient_instructions: z.string().nullable(), created_by: id, created_at: instant });
 export const clinicalReviewSchema = z.object({ ...scope, current_clinical_version: version, status: z.enum(['DRAFT', 'COMPLETED']), current: clinicalVersionSchema, history: z.array(clinicalVersionSchema), version, created_at: instant, updated_at: instant });
 const optionalNumber = (min: number, max: number) => z.number().min(min).max(max).nullable().optional();
