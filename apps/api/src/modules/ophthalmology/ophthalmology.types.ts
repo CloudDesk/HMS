@@ -705,14 +705,19 @@ export type OphthalmologyTestResult = {
 
 export type OphthalmologyTreatmentPlanPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type OphthalmologyTreatmentPlanStatus = 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+export type OphthalmologyTreatmentPlanActionType = 'MEDICATION' | 'OPTICAL' | 'INVESTIGATION' | 'PROCEDURE' | 'REFERRAL' | 'FOLLOW_UP' | 'OTHER';
 export type OphthalmologyTreatmentPlan = {
   id: string; diagnosis_code: string; diagnosis_laterality: 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE';
-  treatment: string; category: string; priority: OphthalmologyTreatmentPlanPriority; status: OphthalmologyTreatmentPlanStatus;
-  medication_prescription_id: string | null; clinical_order_ids: string[]; procedure_recommendation_id: string | null;
+  treatment: string; action_type: OphthalmologyTreatmentPlanActionType | null; legacy_category: string | null;
+  priority: OphthalmologyTreatmentPlanPriority; status: OphthalmologyTreatmentPlanStatus;
+  medication_prescription_id: string | null; optical_prescription_id: string | null; clinical_order_ids: string[]; procedure_recommendation_id: string | null;
   referral_id: string | null; follow_up_id: string | null; clinician_user_id: string;
 };
-export type SaveOphthalmologyTreatmentPlanDTO = Omit<OphthalmologyTreatmentPlan, 'id' | 'clinician_user_id'> & {
-  medication_prescription_id?: string | null; clinical_order_ids?: string[]; procedure_recommendation_id?: string | null;
+export type SaveOphthalmologyTreatmentPlanDTO = Omit<OphthalmologyTreatmentPlan,
+  'id' | 'clinician_user_id' | 'action_type' | 'legacy_category' | 'medication_prescription_id' | 'optical_prescription_id'
+  | 'clinical_order_ids' | 'procedure_recommendation_id' | 'referral_id' | 'follow_up_id'> & {
+  action_type: OphthalmologyTreatmentPlanActionType; medication_prescription_id?: string | null;
+  optical_prescription_id?: string | null; clinical_order_ids?: string[]; procedure_recommendation_id?: string | null;
   referral_id?: string | null; follow_up_id?: string | null;
 };
 export type OphthalmologyClinicalReviewVersion = {

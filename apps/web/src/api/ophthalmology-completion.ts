@@ -1,4 +1,4 @@
-import { clinicalReviewSchema, treatmentWriteSchema } from './ophthalmology-care';
+import { clinicalReviewSchema, treatmentCorrectionSchema } from './ophthalmology-care';
 import { z } from 'zod';
 import { apiClient } from './client';
 import { ophthalmologyIdSchema as id } from './ophthalmology';
@@ -30,7 +30,7 @@ export type CompletionCode = z.infer<typeof completionCodeSchema>;
 export const completeWriteSchema = z.object({ expected_version: version, expected_context_version: version, expected_consultation_version: version,
   expected_clinical_review_version: version, expected_optical_prescription_version: version.nullable().optional() }).strict();
 export const reopenWriteSchema = z.object({ expected_version: version, expected_status: z.literal('COMPLETED'), reason: z.string().trim().min(1).max(2000) }).strict();
-export const planCorrectionSchema = treatmentWriteSchema.extend({ id: id.optional() });
+export const planCorrectionSchema = treatmentCorrectionSchema;
 const amendmentBase = z.object({ expected_version: version, expected_status: z.literal('AMENDMENT_OPEN'), episode_id: id, reason: z.string().trim().min(1).max(2000) });
 export const amendmentWriteSchema = z.discriminatedUnion('section', [
   amendmentBase.extend({ section: z.literal('patient_instructions'), before_value: z.string().nullable(), after_value: z.string().trim().max(4000).nullable() }).strict(),

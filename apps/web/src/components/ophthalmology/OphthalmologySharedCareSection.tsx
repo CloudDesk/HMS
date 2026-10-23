@@ -1,0 +1,938 @@
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { fromZonedTime } from 'date-fns-tz';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTimezone } from '../../api/useSettings';
+import { useOpdWorkspace } from '../../hooks/opd/useOpdWorkspace';
+import { useBranchesList } from '../../hooks/branches/useBranches';
+import { useDepartmentsList } from '../../hooks/departments/useDepartments';
+import type {
+  ApiClinicalOrderPriority,
+  SaveOpdClinicalOrderPayload,
+  SaveOpdFollowUpPayload,
+  SaveOpdPrescriptionPayload,
+  SaveOpdReferralPayload,
+} from '../../api/opd';
+import type { ServiceResponse } from '../../api/services';
+import type { InventoryItem } from '../../api/pharmacy-inventory';
+import { getOpdErrorMessage } from '../../pages/opd-utils';
+import {
+  OpdPrescriptionSection,
+  OpdLabSection,
+  OpdImagingSection,
+  OpdReferralSection,
+  OpdFollowUpTab,
+} from '../opd';
+import type {
+  MedicationFormState,
+  PrescriptionFormState,
+} from '../opd/OpdPrescriptionSection';
+import type { LabOrderItem } from '../opd/OpdLabSection';
+import type { ImagingOrderItem } from '../opd/OpdImagingSection';
+import type { Icd10Diagnosis } from '../../data/icd10-diagnoses';
+import type { CareWorkspace, OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
+
+const emptyMedicationForm: MedicationFormState = {
+  medicine_name: '',
+  strength: '',
+  dosage: '',
+  route: 'ORAL',
+  frequency: '',
+  duration: '',
+  quantity: '',
+  instructions: '',
+};
+
+const emptyPrescriptionForm: PrescriptionFormState = {
+  items: [],
+  follow_up_date: '',
+  doctor_instructions: '',
+  patient_instructions: '',
+};
+
+export type SharedCareTab =
+  | 'prescription'
+  | 'lab-orders'
+  | 'imaging-orders'
+  | 'referral'
+  | 'follow-up';
+
+export interface OphthalmologySharedCareSectionProps {
+  workspace: CareWorkspace;
+  feature: OphthalmologyCareFeature;
+  mode?: 'orders' | 'continuing-care';
+  activeSharedTab: SharedCareTab;
+  onTabChange: (tab: SharedCareTab) => void;
+  onReturnToTreatment: () => void;
+}
+
+export function OphthalmologySharedCareSection({
+  workspace,
+  feature,
+  mode = 'orders',
+  activeSharedTab,
+  onTabChange,
+  onReturnToTreatment,
+}: OphthalmologySharedCareSectionProps) {
+  const queryClient = useQueryClient();
+  const timezone = useTimezone();
+  const visitId = workspace.visitId;
+
+  const activeOpdTab =
+    activeSharedTab === 'prescription'
+      ? 'Prescription'
+      : activeSharedTab === 'lab-orders'
+      ? 'Lab Orders'
+      : activeSharedTab === 'imaging-orders'
+      ? 'Imaging Orders'
+      : activeSharedTab === 'referral'
+      ? 'Referral'
+      : 'Follow-up';
+
+  const opd = useOpdWorkspace(visitId, activeOpdTab);
+
+  const branchesQuery = useBranchesList(
+    { status: 'ACTIVE', limit: 100 },
+    Boolean(visitId && activeSharedTab === 'lab-orders'),
+  );
+  const departmentsQuery = useDepartmentsList(
+    { status: 'ACTIVE', limit: 100 },
+    Boolean(visitId && (activeSharedTab === 'lab-orders' || activeSharedTab === 'imaging-orders')),
+  );
+  const branches = branchesQuery.data?.data ?? [];
+  const departments = departmentsQuery.data?.data ?? [];
+
+  const [updating, setUpdating] = useState('');
+
+  // 1. PRESCRIPTION STATE
+  const [prescriptionForm, setPrescriptionForm] = useState<PrescriptionFormState>(emptyPrescriptionForm);
+  const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
+
+  useEffect(() => {
+    if (opd.prescription) {
+      setPrescriptionForm({
+        items: (opd.prescription.items ?? []).map((item) => ({
+          local_id: item.id || `rx-${Date.now()}-${Math.random()}`,
+          medicine_name: item.medicine_name,
+          strength: item.strength ?? '',
+          dosage: item.dosage,
+          route: item.route,
+          frequency: item.frequency,
+          duration: item.duration,
+          quantity: item.quantity?.toString() ?? '',
+          instructions: item.instructions ?? '',
+        })),
+        follow_up_date: opd.prescription.follow_up_date?.slice(0, 10) ?? '',
+        doctor_instructions: opd.prescription.doctor_instructions ?? '',
+        patient_instructions: opd.prescription.patient_instructions ?? '',
+      });
+    }
+  }, [opd.prescription]);
+
+  const masterMedicines = useMemo(() => {
+    const inventoryById: Record<string, InventoryItem> = {};
+    opd.inventory.forEach((item) => {
+      inventoryById[item.medicine_id] = item;
+    });
+    return opd.medicines.map((medicine) => {
+      const inv = inventoryById[medicine.id];
+      return {
+        id: medicine.id,
+        name: medicine.name,
+        generic_name: medicine.generic_name,
+        strength: medicine.strength,
+        dosage_form: medicine.dosage_form,
+        unit: medicine.unit || 'units',
+        available_quantity: inv?.available_quantity ?? null,
+      };
+    });
+  }, [opd.inventory, opd.medicines]);
+
+  // 2. LAB ORDERS STATE
+  const [labOrders, setLabOrders] = useState<LabOrderItem[]>([]);
+  const [labPriority, setLabPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
+  const [labFacility, setLabFacility] = useState('Main Branch - Laboratory');
+  const [labSampleType, setLabSampleType] = useState('Blood');
+  const [labCategory, setLabCategory] = useState('All');
+  const [labClinicalNotes, setLabClinicalNotes] = useState('');
+  const [labOrderSummary, setLabOrderSummary] = useState('');
+  const [labSearchQuery, setLabSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (opd.labOrder) {
+      setLabOrders(
+        (opd.labOrder.items ?? []).map((item) => ({
+          id: item.service_id,
+          name: item.investigation_name,
+          category: item.category,
+          local_id: item.id || `lab-${Date.now()}-${Math.random()}`,
+        })),
+      );
+      setLabPriority(opd.labOrder.priority ?? 'ROUTINE');
+      setLabFacility(opd.labOrder.destination ?? 'Main Branch - Laboratory');
+      setLabSampleType(opd.labOrder.specimen_type ?? 'Blood');
+      setLabClinicalNotes(opd.labOrder.clinical_notes ?? '');
+      setLabOrderSummary(opd.labOrder.instructions ?? '');
+    }
+  }, [opd.labOrder]);
+
+  const labFacilities = useMemo(() => {
+    const list: string[] = [];
+    branches.forEach((b) => {
+      if (b.name) list.push(`${b.name} - Laboratory`);
+    });
+    departments
+      .filter(
+        (d) =>
+          d.name.toLowerCase().includes('lab') ||
+          d.name.toLowerCase().includes('pathology') ||
+          d.name.toLowerCase().includes('diagnostic'),
+      )
+      .forEach((d) => {
+        if (!list.includes(d.name)) list.push(d.name);
+      });
+    if (list.length === 0) {
+      list.push('Main Branch - Laboratory');
+    }
+    return list;
+  }, [branches, departments]);
+
+  const labTestServices = useMemo(
+    () => opd.services.filter((s) => s.service_type === 'LAB_TEST'),
+    [opd.services],
+  );
+
+  const labCategoryOptions = useMemo(() => {
+    const dbCats = Array.from(
+      new Set(
+        labTestServices
+          .map((s) => s.category?.trim())
+          .filter((cat): cat is string => Boolean(cat && cat.length > 0)),
+      ),
+    );
+    return dbCats.length > 0 ? [...dbCats, 'All'] : ['All'];
+  }, [labTestServices]);
+
+  const labSampleTypeOptions = useMemo(() => {
+    const dbSamples = Array.from(
+      new Set(
+        labTestServices
+          .map((s) => s.sample_type?.trim())
+          .filter((st): st is string => Boolean(st && st.length > 0)),
+      ),
+    );
+    const standardSamples = [
+      'Blood',
+      'Serum',
+      'Plasma',
+      'Urine',
+      'Stool',
+      'Sputum',
+      'Conjunctival Swab',
+      'Corneal Scraping',
+      'Aqueous Humor',
+      'Vitreous Tap',
+      'Tissue / Biopsy',
+    ];
+    return Array.from(new Set([...dbSamples, ...standardSamples]));
+  }, [labTestServices]);
+
+  const availableLabTests = useMemo(() => {
+    let list = labTestServices;
+    if (labCategory && labCategory !== 'All') {
+      const cat = labCategory.toLowerCase();
+      const matched = list.filter(
+        (s) =>
+          (s.category && s.category.toLowerCase().includes(cat)) ||
+          s.name.toLowerCase().includes(cat),
+      );
+      if (matched.length > 0) list = matched;
+    }
+    if (labSearchQuery.trim()) {
+      const q = labSearchQuery.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          (s.category && s.category.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [labTestServices, labCategory, labSearchQuery]);
+
+  const handleToggleLabTest = (test: ServiceResponse) => {
+    if (labOrders.some((o) => o.id === test.id)) {
+      setLabOrders((prev) => prev.filter((o) => o.id !== test.id));
+    } else {
+      if (test.sample_type && test.sample_type.trim()) {
+        setLabSampleType(test.sample_type);
+      }
+      setLabOrders((prev) => [
+        ...prev,
+        {
+          id: test.id,
+          name: test.name,
+          local_id: `lab-${Date.now()}-${Math.random()}`,
+          category: test.category || labCategory,
+        },
+      ]);
+    }
+  };
+
+  // 3. IMAGING ORDERS STATE
+  const [imagingOrders, setImagingOrders] = useState<ImagingOrderItem[]>([]);
+  const [imagingPriority, setImagingPriority] = useState<ApiClinicalOrderPriority>('ROUTINE');
+  const [imagingCategory, setImagingCategory] = useState('All');
+  const [imagingClinicalInfo, setImagingClinicalInfo] = useState('');
+  const [imagingOrderInstructions, setImagingOrderInstructions] = useState('');
+  const [imagingSearchQuery, setImagingSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (opd.imagingOrder) {
+      setImagingOrders(
+        (opd.imagingOrder.items ?? []).map((item) => ({
+          id: item.service_id,
+          name: item.investigation_name,
+          category: item.category,
+          local_id: item.id || `img-${Date.now()}-${Math.random()}`,
+        })),
+      );
+      setImagingPriority(opd.imagingOrder.priority ?? 'ROUTINE');
+      setImagingClinicalInfo(opd.imagingOrder.clinical_notes ?? '');
+      setImagingOrderInstructions(opd.imagingOrder.instructions ?? '');
+    }
+  }, [opd.imagingOrder]);
+
+  const imagingServices = useMemo(
+    () => opd.services.filter((s) => s.service_type === 'IMAGING_SERVICE'),
+    [opd.services],
+  );
+
+  const imagingCategoryOptions = useMemo(() => {
+    const dbCats = Array.from(
+      new Set(
+        imagingServices
+          .map((s) => s.category?.trim())
+          .filter((cat): cat is string => Boolean(cat && cat.length > 0)),
+      ),
+    );
+    const standardOphImaging = ['Optical Coherence Tomography (OCT)', 'Fundus Photography', 'Visual Field (Perimetry)', 'Ultrasound B-Scan', 'X-Ray', 'CT Scan', 'MRI'];
+    return Array.from(new Set([...dbCats, ...standardOphImaging, 'All']));
+  }, [imagingServices]);
+
+  const availableImagingTests = useMemo(() => {
+    let list = imagingServices;
+    if (imagingCategory && imagingCategory !== 'All') {
+      const cat = imagingCategory.toLowerCase();
+      const matched = list.filter(
+        (s) =>
+          (s.category && s.category.toLowerCase().includes(cat)) ||
+          s.name.toLowerCase().includes(cat),
+      );
+      if (matched.length > 0) list = matched;
+    }
+    if (imagingSearchQuery.trim()) {
+      const q = imagingSearchQuery.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          (s.category && s.category.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [imagingServices, imagingCategory, imagingSearchQuery]);
+
+  const handleToggleImagingTest = (test: ServiceResponse) => {
+    if (imagingOrders.some((o) => o.id === test.id)) {
+      setImagingOrders((prev) => prev.filter((o) => o.id !== test.id));
+    } else {
+      setImagingOrders((prev) => [
+        ...prev,
+        {
+          id: test.id,
+          name: test.name,
+          local_id: `img-${Date.now()}-${Math.random()}`,
+          category: test.category || imagingCategory,
+        },
+      ]);
+    }
+  };
+
+  // 4. REFERRAL STATE
+  const [referralSpecialty, setReferralSpecialty] = useState('');
+  const [referralDoctorId, setReferralDoctorId] = useState('');
+  const [referralReason, setReferralReason] = useState('');
+  const [referralBooking, setReferralBooking] = useState(false);
+
+  useEffect(() => {
+    if (opd.referral) {
+      setReferralSpecialty(opd.referral.specialty ?? '');
+      setReferralDoctorId(opd.referral.referred_doctor_id ?? '');
+      setReferralReason(opd.referral.reason ?? '');
+    }
+  }, [opd.referral]);
+
+  const uniqueSpecialties = useMemo(() => {
+    return Array.from(
+      new Set(opd.doctors.map((d) => d.specialization).filter(Boolean)),
+    ).sort() as string[];
+  }, [opd.doctors]);
+
+  const filteredReferralDoctors = useMemo(() => {
+    if (!referralSpecialty) return opd.doctors;
+    return opd.doctors.filter((d) => d.specialization === referralSpecialty);
+  }, [opd.doctors, referralSpecialty]);
+
+  // 5. FOLLOW-UP STATE
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpDoctorId, setFollowUpDoctorId] = useState('');
+  const [followUpStartTime, setFollowUpStartTime] = useState('09:00');
+  const [followUpDurationMinutes, setFollowUpDurationMinutes] = useState('30');
+
+  useEffect(() => {
+    if (opd.followUp) {
+      setFollowUpDate(opd.followUp.next_visit_date?.slice(0, 10) ?? '');
+      setFollowUpDoctorId(opd.followUp.assigned_doctor_id ?? '');
+      setFollowUpStartTime(opd.followUp.start_time ?? '09:00');
+      setFollowUpDurationMinutes(String(opd.followUp.duration_minutes ?? 30));
+    }
+  }, [opd.followUp]);
+
+  const followUpUtcDateTime = () =>
+    fromZonedTime(`${followUpDate}T${followUpStartTime}:00`, timezone).toISOString();
+
+  // Selected diagnoses for prescription context
+  const selectedDiagnoses: Icd10Diagnosis[] = useMemo(() => {
+    return feature.diagnoses.map((d) => ({
+      code: d.code,
+      name: `${d.display}${d.laterality ? ` (${d.laterality})` : ''}`,
+      category: d.laterality ?? 'Ophthalmic',
+    }));
+  }, [feature.diagnoses]);
+
+  const invalidateEncounter = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['opd-workspace', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['opd-visit', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['opd-prescription', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['opd-clinical-orders', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['opd-referral', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['opd-follow-up', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['ophthalmology-summary', visitId] }),
+      queryClient.invalidateQueries({ queryKey: ['ophthalmology-clinical', visitId] }),
+    ]);
+  };
+
+  // ACTIONS
+  const handleSendToPharmacy = async () => {
+    if (prescriptionForm.items.length === 0) {
+      toast.error('Add at least one medication before sending to pharmacy.');
+      return;
+    }
+    setUpdating('prescription-submit');
+    try {
+      const payload: SaveOpdPrescriptionPayload = {
+        items: prescriptionForm.items.map((i) => ({
+          medicine_name: i.medicine_name,
+          strength: i.strength || null,
+          dosage: i.dosage,
+          route: i.route || 'OPHTHALMIC',
+          frequency: i.frequency,
+          duration: i.duration,
+          quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+          intake_time: null,
+          instructions: i.instructions || null,
+        })),
+        follow_up_date: prescriptionForm.follow_up_date || null,
+        doctor_instructions: prescriptionForm.doctor_instructions || null,
+        patient_instructions: prescriptionForm.patient_instructions || null,
+      };
+      await opd.mutations.submitPrescription({ visitId, payload });
+      toast.success('Prescription sent to pharmacy successfully.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const savePrescriptionDraft = async () => {
+    setUpdating('prescription-draft');
+    try {
+      const payload: SaveOpdPrescriptionPayload = {
+        items: prescriptionForm.items.map((i) => ({
+          medicine_name: i.medicine_name,
+          strength: i.strength || null,
+          dosage: i.dosage,
+          route: i.route || 'OPHTHALMIC',
+          frequency: i.frequency,
+          duration: i.duration,
+          quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
+          intake_time: null,
+          instructions: i.instructions || null,
+        })),
+        follow_up_date: prescriptionForm.follow_up_date || null,
+        doctor_instructions: prescriptionForm.doctor_instructions || null,
+        patient_instructions: prescriptionForm.patient_instructions || null,
+      };
+      await opd.mutations.savePrescriptionDraft({ visitId, payload });
+      toast.success('Medication prescription draft saved.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const saveLabDraft = async () => {
+    setUpdating('lab-draft');
+    try {
+      const payload: SaveOpdClinicalOrderPayload = {
+        priority: labPriority || 'ROUTINE',
+        destination: labFacility,
+        specimen_type: labSampleType,
+        clinical_notes: labClinicalNotes || null,
+        instructions: labOrderSummary || null,
+        items: labOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || labCategory || 'Hematology',
+        })),
+      };
+      await opd.mutations.saveClinicalOrderDraft({ visitId, type: 'LABORATORY', payload });
+      toast.success('Laboratory orders draft saved.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSubmitLabOrder = async () => {
+    if (labOrders.length === 0) {
+      toast.error('Select at least one laboratory investigation before submitting.');
+      return;
+    }
+    setUpdating('lab-submit');
+    try {
+      const payload: SaveOpdClinicalOrderPayload = {
+        priority: labPriority || 'ROUTINE',
+        destination: labFacility,
+        specimen_type: labSampleType,
+        clinical_notes: labClinicalNotes || null,
+        instructions: labOrderSummary || null,
+        items: labOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || labCategory || 'Hematology',
+        })),
+      };
+      await opd.mutations.submitClinicalOrder({ visitId, type: 'LABORATORY', payload });
+      toast.success('Laboratory order submitted successfully.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const saveImagingDraft = async () => {
+    setUpdating('imaging-draft');
+    try {
+      const payload: SaveOpdClinicalOrderPayload = {
+        priority: imagingPriority || 'ROUTINE',
+        clinical_notes: imagingClinicalInfo || null,
+        instructions: imagingOrderInstructions || null,
+        items: imagingOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || imagingCategory || 'Imaging',
+        })),
+      };
+      await opd.mutations.saveClinicalOrderDraft({ visitId, type: 'IMAGING', payload });
+      toast.success('Imaging orders draft saved.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSubmitImagingOrder = async () => {
+    if (imagingOrders.length === 0) {
+      toast.error('Select at least one imaging examination before submitting.');
+      return;
+    }
+    setUpdating('imaging-submit');
+    try {
+      const payload: SaveOpdClinicalOrderPayload = {
+        priority: imagingPriority || 'ROUTINE',
+        clinical_notes: imagingClinicalInfo || null,
+        instructions: imagingOrderInstructions || null,
+        items: imagingOrders.map((o) => ({
+          service_id: o.id,
+          investigation_name: o.name,
+          category: o.category || imagingCategory || 'Imaging',
+        })),
+      };
+      await opd.mutations.submitClinicalOrder({ visitId, type: 'IMAGING', payload });
+      toast.success('Imaging order submitted successfully.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleSubmitReferral = async () => {
+    if (!referralDoctorId || !referralSpecialty) {
+      toast.error('Please select a specialty and a doctor.');
+      return;
+    }
+    setReferralBooking(true);
+    try {
+      const payload: SaveOpdReferralPayload = {
+        referral_type: 'INTERNAL',
+        specialty: referralSpecialty,
+        referred_doctor_id: referralDoctorId,
+        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+        clinical_summary: feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
+      };
+      await opd.mutations.submitReferral({ visitId, payload });
+      toast.success('Referral submitted successfully.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setReferralBooking(false);
+    }
+  };
+
+  const saveReferralDraft = async () => {
+    setUpdating('referral-draft');
+    try {
+      const payload: SaveOpdReferralPayload = {
+        referral_type: 'INTERNAL',
+        specialty: referralSpecialty,
+        referred_doctor_id: referralDoctorId || undefined,
+        reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
+        clinical_summary: feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
+      };
+      await opd.mutations.saveReferralDraft({ visitId, payload });
+      toast.success('Referral draft saved.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const scheduleFollowUp = async () => {
+    if (!followUpDate || !followUpDoctorId) {
+      toast.error('Please select a follow-up date and doctor.');
+      return;
+    }
+    setUpdating('follow-up-schedule');
+    try {
+      const payload: SaveOpdFollowUpPayload = {
+        follow_up_type: 'CLINICAL_REVIEW',
+        next_visit_date: followUpDate,
+        start_time: followUpStartTime,
+        utc_datetime: followUpUtcDateTime(),
+        duration_minutes: Number(followUpDurationMinutes),
+        assigned_doctor_id: followUpDoctorId,
+        reason: 'Ophthalmic clinical follow-up review',
+        reminder_type: 'SMS',
+      };
+      await opd.mutations.scheduleFollowUp({ visitId, payload });
+      toast.success('Follow-up scheduled and added to doctor calendar.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const saveFollowUpDraft = async () => {
+    setUpdating('follow-up-draft');
+    try {
+      const payload: SaveOpdFollowUpPayload = {
+        follow_up_type: 'CLINICAL_REVIEW',
+        next_visit_date: followUpDate || new Date().toISOString().slice(0, 10),
+        start_time: followUpStartTime,
+        utc_datetime: followUpUtcDateTime(),
+        duration_minutes: Number(followUpDurationMinutes),
+        assigned_doctor_id: followUpDoctorId || undefined,
+        reason: 'Ophthalmic clinical follow-up review',
+        reminder_type: 'SMS',
+      };
+      await opd.mutations.saveFollowUpDraft({ visitId, payload });
+      toast.success('Follow-up draft saved.');
+      await invalidateEncounter();
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setUpdating('');
+    }
+  };
+
+  const handleNextStepNavigation = (nextTabName: string) => {
+    const nextTabMap: Record<string, SharedCareTab> = {
+      'Prescription': 'prescription',
+      'Lab Orders': 'lab-orders',
+      'Imaging Orders': 'imaging-orders',
+      'Referral': 'referral',
+      'Follow-up': 'follow-up',
+    };
+    if (nextTabName === 'Referral' && mode === 'orders') {
+      workspace.setQuery('care_tab', 'optical');
+      return;
+    }
+    const target = nextTabMap[nextTabName];
+    if (target) {
+      onTabChange(target);
+    } else {
+      onReturnToTreatment();
+    }
+  };
+
+  return (
+    <div className="oph-shared-care-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Step-Specific Sub-Navigation Bar */}
+      {mode === 'orders' && (
+        <nav className="oph-care-subnav" aria-label="Prescriptions and diagnostic order sections">
+          <button
+            type="button"
+            className={`oph-care-subtab ${activeSharedTab === 'prescription' ? 'active' : ''}`}
+            onClick={() => onTabChange('prescription')}
+          >
+            <span>💊</span>
+            <span>Medication Prescription</span>
+          </button>
+          <button
+            type="button"
+            className={`oph-care-subtab ${activeSharedTab === 'lab-orders' ? 'active' : ''}`}
+            onClick={() => onTabChange('lab-orders')}
+          >
+            <span>🔬</span>
+            <span>Laboratory Orders</span>
+          </button>
+          <button
+            type="button"
+            className={`oph-care-subtab ${activeSharedTab === 'imaging-orders' ? 'active' : ''}`}
+            onClick={() => onTabChange('imaging-orders')}
+          >
+            <span>📷</span>
+            <span>Imaging Orders</span>
+          </button>
+        </nav>
+      )}
+
+      {mode === 'continuing-care' && (
+        <nav className="oph-care-subnav" aria-label="Referral and follow-up sections">
+          <button
+            type="button"
+            className={`oph-care-subtab ${activeSharedTab === 'referral' ? 'active' : ''}`}
+            onClick={() => onTabChange('referral')}
+          >
+            <span>🔄</span>
+            <span>Specialist Referral</span>
+          </button>
+          <button
+            type="button"
+            className={`oph-care-subtab ${activeSharedTab === 'follow-up' ? 'active' : ''}`}
+            onClick={() => onTabChange('follow-up')}
+          >
+            <span>📅</span>
+            <span>Follow-up Scheduling</span>
+          </button>
+        </nav>
+      )}
+
+      {/* Return Breadcrumb & Action Banner */}
+      <div
+        className="doc-card"
+        style={{
+          padding: '12px 18px',
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="doc-btn"
+            style={{ fontWeight: 600, fontSize: '0.82rem' }}
+            onClick={onReturnToTreatment}
+          >
+            ← Return to Diagnosis &amp; Treatment
+          </button>
+          <div>
+            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Encounter Linked Workflow
+            </span>
+            <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#0f172a' }}>
+              {activeSharedTab === 'prescription' && '💊 Medication Prescription & Pharmacy Link'}
+              {activeSharedTab === 'lab-orders' && '🔬 Diagnostic Laboratory Investigation Orders'}
+              {activeSharedTab === 'imaging-orders' && '📷 Ophthalmic & Radiological Imaging Orders'}
+              {activeSharedTab === 'referral' && '🔄 Specialty & Department Referral'}
+              {activeSharedTab === 'follow-up' && '📅 Clinical Follow-up & Review Scheduling'}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Submit Toolbar for Lab & Imaging */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {activeSharedTab === 'lab-orders' && opd.canEditClinicalOrders && (
+            <button
+              type="button"
+              className="doc-btn primary"
+              style={{ fontSize: '0.82rem', background: '#0284c7', borderColor: '#0369a1' }}
+              disabled={Boolean(updating) || labOrders.length === 0}
+              onClick={handleSubmitLabOrder}
+            >
+              ✓ Submit Order to Laboratory ({labOrders.length})
+            </button>
+          )}
+          {activeSharedTab === 'imaging-orders' && opd.canEditClinicalOrders && (
+            <button
+              type="button"
+              className="doc-btn primary"
+              style={{ fontSize: '0.82rem', background: '#7c3aed', borderColor: '#6d28d9' }}
+              disabled={Boolean(updating) || imagingOrders.length === 0}
+              onClick={handleSubmitImagingOrder}
+            >
+              ✓ Submit Order to Imaging ({imagingOrders.length})
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Render Active Section */}
+      {activeSharedTab === 'prescription' && (
+        <OpdPrescriptionSection
+          canEdit={opd.canEditPrescription}
+          emptyMedicationForm={emptyMedicationForm}
+          handleNextStep={handleNextStepNavigation}
+          handleSendToPharmacy={handleSendToPharmacy}
+          masterMedicines={masterMedicines}
+          medicationForm={medicationForm}
+          prescriptionForm={prescriptionForm}
+          saveConsultationDraft={savePrescriptionDraft}
+          selectedDiagnoses={selectedDiagnoses}
+          setActiveTab={(tab) => handleNextStepNavigation(tab)}
+          setMedicationForm={setMedicationForm}
+          setPrescriptionForm={setPrescriptionForm}
+          showToast={(msg, tone) => (tone === 'error' ? toast.error(msg) : toast.success(msg))}
+          updating={updating}
+        />
+      )}
+
+      {activeSharedTab === 'lab-orders' && (
+        <OpdLabSection
+          availableLabTests={availableLabTests}
+          canEdit={opd.canEditClinicalOrders}
+          handleNextStep={handleNextStepNavigation}
+          handleToggleLabTest={handleToggleLabTest}
+          labCategory={labCategory}
+          labCategoryOptions={labCategoryOptions}
+          labClinicalNotes={labClinicalNotes}
+          labFacilities={labFacilities}
+          labFacility={labFacility}
+          labOrderSummary={labOrderSummary}
+          labOrders={labOrders}
+          labPriority={labPriority}
+          labSampleType={labSampleType}
+          labSampleTypeOptions={labSampleTypeOptions}
+          labSearchQuery={labSearchQuery}
+          saveConsultationDraft={saveLabDraft}
+          setLabCategory={setLabCategory}
+          setLabClinicalNotes={setLabClinicalNotes}
+          setLabFacility={setLabFacility}
+          setLabOrderSummary={setLabOrderSummary}
+          setLabOrders={setLabOrders}
+          setLabPriority={setLabPriority}
+          setLabSampleType={setLabSampleType}
+          setLabSearchQuery={setLabSearchQuery}
+        />
+      )}
+
+      {activeSharedTab === 'imaging-orders' && (
+        <OpdImagingSection
+          availableImagingTests={availableImagingTests}
+          canEdit={opd.canEditClinicalOrders}
+          handleNextStep={handleNextStepNavigation}
+          handleToggleImagingTest={handleToggleImagingTest}
+          imagingCategory={imagingCategory}
+          imagingCategoryOptions={imagingCategoryOptions}
+          imagingClinicalInfo={imagingClinicalInfo}
+          imagingOrderInstructions={imagingOrderInstructions}
+          imagingOrders={imagingOrders}
+          imagingPriority={imagingPriority}
+          imagingSearchQuery={imagingSearchQuery}
+          saveConsultationDraft={saveImagingDraft}
+          setImagingCategory={setImagingCategory}
+          setImagingClinicalInfo={setImagingClinicalInfo}
+          setImagingOrderInstructions={setImagingOrderInstructions}
+          setImagingOrders={setImagingOrders}
+          setImagingPriority={setImagingPriority}
+          setImagingSearchQuery={setImagingSearchQuery}
+        />
+      )}
+
+      {activeSharedTab === 'referral' && (
+        <OpdReferralSection
+          canEdit={opd.canEditReferral}
+          filteredReferralDoctors={filteredReferralDoctors}
+          handleNextStep={handleNextStepNavigation}
+          handleSubmitReferral={handleSubmitReferral}
+          referralBooking={referralBooking}
+          referralDoctorId={referralDoctorId}
+          referralReason={referralReason}
+          referralSpecialty={referralSpecialty}
+          saveConsultationDraft={saveReferralDraft}
+          setReferralDoctorId={setReferralDoctorId}
+          setReferralReason={setReferralReason}
+          setReferralSpecialty={setReferralSpecialty}
+          uniqueSpecialties={uniqueSpecialties}
+        />
+      )}
+
+      {activeSharedTab === 'follow-up' && (
+        <OpdFollowUpTab
+          completionBlocked={true}
+          completeConsultation={() => {
+            toast.info('Final consultation review and signing is managed in Step 4 (Consultation Summary).');
+            workspace.setQuery('section', 'completion');
+          }}
+          doctors={opd.doctors}
+          followUp={opd.followUp}
+          followUpDate={followUpDate}
+          followUpDoctorId={followUpDoctorId}
+          followUpDurationMinutes={followUpDurationMinutes}
+          followUpStartTime={followUpStartTime}
+          isVisitCompleted={!opd.canEditFollowUp}
+          saveConsultationDraft={saveFollowUpDraft}
+          scheduleFollowUp={scheduleFollowUp}
+          setFollowUpDate={setFollowUpDate}
+          setFollowUpDoctorId={setFollowUpDoctorId}
+          setFollowUpDurationMinutes={setFollowUpDurationMinutes}
+          setFollowUpStartTime={setFollowUpStartTime}
+          updating={updating}
+        />
+      )}
+    </div>
+  );
+}

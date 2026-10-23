@@ -36,6 +36,8 @@ import type {
   OphthalmologyTestTask,
   OphthalmologyTestTaskListQuery,
   OphthalmologyClinicalReview,
+  OphthalmologyTreatmentPlanActionType,
+  OphthalmologyTreatmentPlanStatus,
   OphthalmologyOpticalPrescription,
   CreateOphthalmologyTestTaskDTO,
   AssignOphthalmologyTestTaskDTO,
@@ -69,6 +71,20 @@ import type {
   ReopenOphthalmologyConsultationDTO,
   AmendOphthalmologyConsultationDTO,
 } from './ophthalmology.types.js';
+
+type TreatmentPlanValidationInput = {
+  diagnosis_code: string;
+  diagnosis_laterality: 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE';
+  action_type: OphthalmologyTreatmentPlanActionType | null;
+  status: OphthalmologyTreatmentPlanStatus;
+  medication_prescription_id?: string | null;
+  optical_prescription_id?: string | null;
+  clinical_order_ids?: string[];
+  procedure_recommendation_id?: string | null;
+  referral_id?: string | null;
+  follow_up_id?: string | null;
+};
+type ClinicalReviewValidationInput = { treatment_plans: TreatmentPlanValidationInput[] };
 
 const sharedVisitType: Record<OphthalmologyVisitSubtype, OpdVisitType> = {
   NEW_CONSULTATION: 'NEW_CONSULTATION', FOLLOW_UP: 'FOLLOW_UP', EMERGENCY: 'EMERGENCY',
@@ -1118,9 +1134,8 @@ export class OphthalmologyService {
       if (!initial && finalization.status !== 'AMENDMENT_OPEN') throw this.statusConflict('Consultation is already completed');
       // Draft references may have changed since the plan was saved. A completion
       // override cannot approve a plan linked to another or deleted clinical record.
-      await this.validateClinicalReviewReferences(transactionalContext, {
-        ...review.current, expected_version: review.version,
-      }, session);
+      this.validateReviewInput(review.current);
+      await this.validateClinicalReviewReferences(transactionalContext, review.current, session);
       let completedConsultation = consultation;
       if (initial) {
         completedConsultation = await this.consultationRepository!.saveForVisit({ ...consultation,
@@ -1468,10 +1483,12 @@ export class OphthalmologyService {
         const proposed = { expected_version: review.version, clinical_summary: review.current.clinical_summary, treatment_plans: correction.after_value,
           follow_up_decision: review.current.follow_up_decision, patient_instructions: review.current.patient_instructions };
         this.validateReviewInput(proposed); await this.validateClinicalReviewReferences(context, proposed, session);
-        const beforeClinical = review.current.treatment_plans.map(({ clinician_user_id, ...plan }) => { void clinician_user_id; return plan; });
+        const beforeClinical = review.current.treatment_plans.map(({ clinician_user_id, legacy_category, ...plan }) => {
+          void clinician_user_id; void legacy_category; return plan;
+        });
         if (JSON.stringify(canonicalize(beforeClinical)) === JSON.stringify(canonicalize(correction.after_value))) throw new AppError('Amendment must change clinical source values', 400, 'VALIDATION_ERROR');
       } else if ((typeof correction.after_value === 'string' ? correction.after_value.trim() || null : correction.after_value) === (before ?? null)) throw new AppError('Amendment must change clinical source values', 400, 'VALIDATION_ERROR');
-      if (correction.section === 'follow_up_decision') await this.validateClinicalReviewReferences(context, { expected_version: review.version, clinical_summary: review.current.clinical_summary, treatment_plans: review.current.treatment_plans, follow_up_decision: correction.after_value, patient_instructions: review.current.patient_instructions }, session);
+      if (correction.section === 'follow_up_decision') await this.validateClinicalReviewReferences(context, review.current, session);
       const corrected = await this.repository.correctClinicalReviewSection(visitId, review.version, correction, userId, session);
       if (!corrected) throw this.versionConflict('amendment source');
       const updated = await this.repository.appendAmendment(finalization.id, data.expected_version, data.episode_id,
@@ -1501,6 +1518,10 @@ export class OphthalmologyService {
       this.repository.getFinalizationByVisit(context.visit_id, session),
     ]);
     if (!consultation) throw new AppError('OPD consultation draft is required', 409, 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE');
+    if (review) {
+      this.validateReviewInput(review.current);
+      await this.validateClinicalReviewReferences(context, review.current, session);
+    }
     const deferred = new Set(finalization?.deferrals.map((entry) => `${entry.source_type}:${entry.source_id}`) ?? []);
     const mandatoryCodes = new Set(Array.isArray(configuration.values.mandatory_test_codes)
       ? (configuration.values.mandatory_test_codes as unknown[]).filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.toUpperCase()) : []);
@@ -1562,24 +1583,56 @@ export class OphthalmologyService {
     const finalization = await this.repository.getFinalizationByVisit(visitId);
     if (finalization && finalization.status !== 'OPEN') throw new AppError('Completed consultation is read-only; use the amendment workflow', 409, 'OPHTHALMOLOGY_CONSULTATION_LOCKED');
   }
-  private async validateClinicalReviewReferences(context: OphthalmologyContext, data: SaveOphthalmologyClinicalReviewDraftDTO, session: ClientSession) {
+  private async validateClinicalReviewReferences(context: OphthalmologyContext, data: ClinicalReviewValidationInput, session?: ClientSession) {
       const diagnoses = await this.repository.getDiagnosisKeys(context.visit_id, session);
-      if (diagnoses.length === 0) throw new AppError('At least one consultation diagnosis is required', 400, 'OPHTHALMOLOGY_DIAGNOSIS_REQUIRED');
-      for (const plan of data.treatment_plans) if (!diagnoses.some((item) => item.code === plan.diagnosis_code.trim().toUpperCase()
-        && (item.laterality === plan.diagnosis_laterality || item.laterality === 'NOT_APPLICABLE'))) {
-        throw new AppError('Every treatment plan must reference a current consultation diagnosis and laterality', 400, 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH');
+      if (data.treatment_plans.length > 0 && diagnoses.length === 0) {
+        throw new AppError('At least one consultation diagnosis is required', 400, 'OPHTHALMOLOGY_DIAGNOSIS_REQUIRED');
+      }
+      for (const plan of data.treatment_plans) {
+        const diagnosis = diagnoses.find((item) => item.code === plan.diagnosis_code.trim().toUpperCase()
+          && (item.laterality === plan.diagnosis_laterality || item.laterality === 'NOT_APPLICABLE'));
+        if (!diagnosis) {
+          throw new AppError('Every treatment plan must reference a current consultation diagnosis and laterality', 400, 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH');
+        }
+        if (diagnosis.status === 'RULED_OUT' && ['PLANNED', 'ACTIVE'].includes(plan.status)) {
+          throw new AppError('Planned or active treatment cannot reference a ruled-out diagnosis', 409,
+            'OPHTHALMOLOGY_RULED_OUT_DIAGNOSIS_ACTIVE_TREATMENT');
+        }
       }
       if (!await this.repository.validateReviewReferences(context, data, session)) {
-        throw new AppError('A treatment plan reference is outside this visit, patient, or branch', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
+        throw new AppError('A treatment plan reference is outside this patient, encounter, branch, or department context', 400, 'OPHTHALMOLOGY_REFERENCE_MISMATCH');
       }
   }
-  private validateReviewInput(data: SaveOphthalmologyClinicalReviewDraftDTO) {
+  private validateReviewInput(data: ClinicalReviewValidationInput) {
     const keys = new Set<string>();
     for (const plan of data.treatment_plans) {
-      for (const id of [plan.medication_prescription_id, plan.procedure_recommendation_id, plan.referral_id, plan.follow_up_id,
+      for (const id of [plan.medication_prescription_id, plan.optical_prescription_id, plan.procedure_recommendation_id, plan.referral_id, plan.follow_up_id,
         ...(plan.clinical_order_ids ?? [])]) if (id) this.validateObjectId(id, 'Treatment plan reference id is invalid');
-      const key = `${plan.diagnosis_code.trim().toUpperCase()}:${plan.diagnosis_laterality}:${plan.category.trim().toUpperCase()}`;
+      if (new Set(plan.clinical_order_ids ?? []).size !== (plan.clinical_order_ids ?? []).length) {
+        throw new AppError('Treatment plan clinical order references must be unique', 400, 'VALIDATION_ERROR');
+      }
+      this.validateTreatmentPlanAction(plan);
+      const key = `${plan.diagnosis_code.trim().toUpperCase()}:${plan.diagnosis_laterality}:${plan.action_type}`;
       if (keys.has(key)) throw new AppError('Duplicate treatment plan entries are not allowed', 400, 'VALIDATION_ERROR'); keys.add(key);
+    }
+  }
+  private validateTreatmentPlanAction(plan: TreatmentPlanValidationInput) {
+    if (!plan.action_type) {
+      throw new AppError('Treatment plan action type must be explicitly classified', 400, 'OPHTHALMOLOGY_TREATMENT_ACTION_TYPE_REQUIRED');
+    }
+    const present = {
+      MEDICATION: Boolean(plan.medication_prescription_id), OPTICAL: Boolean(plan.optical_prescription_id),
+      INVESTIGATION: Boolean(plan.clinical_order_ids?.length), PROCEDURE: Boolean(plan.procedure_recommendation_id),
+      REFERRAL: Boolean(plan.referral_id), FOLLOW_UP: Boolean(plan.follow_up_id),
+    } as const;
+    if (plan.action_type !== 'OTHER' && !present[plan.action_type]) {
+      throw new AppError(`Treatment action ${plan.action_type} requires its matching downstream reference`, 400,
+        'OPHTHALMOLOGY_TREATMENT_REFERENCE_REQUIRED');
+    }
+    const conflicting = Object.entries(present).some(([type, hasReference]) => hasReference && type !== plan.action_type);
+    if (conflicting || (plan.action_type === 'OTHER' && Object.values(present).some(Boolean))) {
+      throw new AppError('Treatment action contains a reference owned by another action type', 400,
+        'OPHTHALMOLOGY_TREATMENT_REFERENCE_CONFLICT');
     }
   }
   private async validateOpticalInput(context: OphthalmologyContext, data: SaveOphthalmologyOpticalPrescriptionDraftDTO) {

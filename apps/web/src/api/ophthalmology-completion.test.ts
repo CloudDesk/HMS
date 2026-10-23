@@ -48,6 +48,9 @@ describe('B5 completion metadata and controlled exceptions', () => {
     expect(amendmentWriteSchema.safeParse({ ...base, section: 'follow_up_decision', before_value: 'NO_FOLLOW_UP', after_value: null }).success).toBe(true);
     expect(amendmentWriteSchema.safeParse({ ...base, section: 'follow_up_decision', before_value: 'NO_FOLLOW_UP', after_value: 'BOOKED' }).success).toBe(false);
     expect(amendmentWriteSchema.safeParse({ ...base, section: 'treatment_plans', before_value: [], after_value: [{ treatment: 'Incomplete' }] }).success).toBe(false);
+    const medicationPlan = { diagnosis_code: 'QA', diagnosis_laterality: 'OD', action_type: 'MEDICATION', treatment: 'Continue drops', priority: 'ROUTINE', status: 'ACTIVE', medication_prescription_id: id, optical_prescription_id: null, clinical_order_ids: [], procedure_recommendation_id: null, referral_id: null, follow_up_id: null };
+    expect(amendmentWriteSchema.safeParse({ ...base, section: 'treatment_plans', before_value: [], after_value: [medicationPlan] }).success).toBe(true);
+    expect(amendmentWriteSchema.safeParse({ ...base, section: 'treatment_plans', before_value: [], after_value: [{ ...medicationPlan, action_type: 'REFERRAL' }] }).success).toBe(false);
   });
   it('sends all frozen completion versions and stable replay key, rejecting malformed writes before transport', async () => {
     const body = { expected_version: 2, expected_context_version: 3, expected_consultation_version: 4, expected_clinical_review_version: 5, expected_optical_prescription_version: null };

@@ -79,7 +79,7 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     await OphthalmologyClinicalReviewModel.create({ contextId: context._id, visitId: visit._id, patientId: patient._id, branchId: branch._id,
       departmentId: department._id, currentClinicalVersion: 1, status: 'DRAFT', versions: [{ clinicalVersion: 1,
         clinicalSummary: 'Cataract assessed and discussed', treatmentPlans: [{ _id: new Types.ObjectId(), diagnosisCode: '9B10', diagnosisLaterality: 'OU',
-          treatment: 'Observe', category: 'OBSERVATION', priority: 'ROUTINE', status: 'ACTIVE', clinicalOrderIds: [], clinicianUserId: user._id }],
+          treatment: 'Observe', actionType: 'OTHER', category: null, priority: 'ROUTINE', status: 'ACTIVE', clinicalOrderIds: [], clinicianUserId: user._id }],
         followUpDecision: 'NO_FOLLOW_UP', patientInstructions: 'Return for visual change', createdBy: user._id, createdAt: new Date() }],
       version: 0, createdBy: user._id, updatedBy: user._id });
   });
@@ -257,6 +257,13 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
 
   it('returns structured unmet requirements and requires an exact override snapshot', async () => {
     await OpdConsultationModel.updateOne({ visitId }, { $set: { diagnoses: [] } });
+    await OphthalmologyClinicalReviewModel.updateOne({ visitId }, { $set: { 'versions.$[version].treatmentPlans': [] } },
+      { arrayFilters: [{ 'version.clinicalVersion': 1 }] });
+    const context = await OphthalmologyContextModel.findById(contextId).lean();
+    await OphthalmologyConfigurationModel.updateOne({ _id: context!.configurationVersionId }, { $set: {
+      'values.required_requirements': ['ALERTS_ACKNOWLEDGED', 'DIAGNOSIS_RECORDED', 'CLINICAL_REVIEW_RECORDED',
+        'OPTICAL_APPROVED_IF_PRESENT', 'FOLLOW_UP_DECISION_RECORDED'],
+    } });
     const readiness = await service.getCompletionReadiness(visitId, userId);
     expect(readiness.ready).toBe(false);
     expect(readiness.requirements.find((item) => item.code === 'DIAGNOSIS_RECORDED')).toMatchObject({ satisfied: false });
@@ -264,7 +271,6 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
       .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_COMPLETION_REQUIREMENTS_CHANGED' });
     const override = await service.overrideCompletion(visitId, { expected_version: 0, expected_unmet_codes: ['DIAGNOSIS_RECORDED'], reason: 'Urgent transfer' }, userId);
     expect(override).toMatchObject({ status: 'OPEN', version: 1, overrides: [{ unmet_codes: ['DIAGNOSIS_RECORDED'] }] });
-    const context = await OphthalmologyContextModel.findById(contextId).lean();
     await OphthalmologyConfigurationModel.updateOne({ _id: context!.configurationVersionId }, { $set: { 'values.allow_override': false } });
     await expect(service.completeConsultation(visitId, { ...completion(), expected_version: 1 }, 'override-disabled', userId))
       .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE' });
@@ -321,6 +327,17 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     expect(await PatientTimelineEventModel.countDocuments()).toBe(0);
   });
 
+  it('blocks readiness and completion when an active plan diagnosis becomes ruled out', async () => {
+    await OpdConsultationModel.updateOne({ visitId }, { $set: { 'diagnoses.0.status': 'RULED_OUT' } });
+    await expect(service.getCompletionReadiness(visitId, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_RULED_OUT_DIAGNOSIS_ACTIVE_TREATMENT', statusCode: 409 });
+    await expect(service.completeConsultation(visitId, completion(), 'ruled-out-diagnosis', userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_RULED_OUT_DIAGNOSIS_ACTIVE_TREATMENT', statusCode: 409 });
+    expect(await OphthalmologyConsultationFinalizationModel.countDocuments()).toBe(0);
+    expect(await OpdVisitModel.findById(visitId).lean()).toMatchObject({ status: 'IN_CONSULTATION', version: 0 });
+    expect(await OphthalmologyClinicalReviewModel.findOne({ visitId }).lean()).toMatchObject({ status: 'DRAFT', version: 0 });
+  });
+
   it('revalidates linked follow-ups at sign-off and permits retry after restoring the valid source', async () => {
     const consultation = await OpdConsultationModel.findOne({ visitId }).lean();
     if (!consultation) throw new Error('Missing consultation fixture');
@@ -331,7 +348,8 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     const review = await repository.getClinicalReviewByVisit(visitId);
     if (!review) throw new Error('Missing review fixture');
     const saved = await service.saveClinicalReviewDraft(visitId, { ...review.current, expected_version: review.version,
-      treatment_plans: review.current.treatment_plans.map((plan) => ({ ...plan, follow_up_id: followUp.id })) }, userId);
+      treatment_plans: review.current.treatment_plans.map((plan) => ({ ...plan, action_type: 'FOLLOW_UP' as const,
+        follow_up_id: followUp.id })) }, userId);
     const context = await repository.getContextByVisit(visitId);
     if (!context) throw new Error('Missing context fixture');
     const body = completion(0, context.version, 0, saved.version);
@@ -358,13 +376,16 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
     const reopened = await service.reopenConsultation(visitId, { expected_version: completed.version, expected_status: 'COMPLETED', reason: 'Correct treatment record' }, userId);
     const episode = reopened.amendment_episodes[0]; if (!episode) throw new Error('Missing amendment episode');
     const original = await repository.getClinicalReviewByVisit(visitId); if (!original) throw new Error('Missing clinical source');
-    const plans = original.current.treatment_plans.map(({ clinician_user_id, ...plan }) => { void clinician_user_id; return plan; });
+    const plans = original.current.treatment_plans.map(({ clinician_user_id, legacy_category, ...plan }) => {
+      void clinician_user_id; void legacy_category; return plan;
+    });
     const first = plans[0]; if (!first) throw new Error('Missing plan');
     const command = { expected_version: reopened.version, expected_status: 'AMENDMENT_OPEN' as const, episode_id: episode.id, section: 'treatment_plans', before_value: original.current.treatment_plans, reason: 'Correct observation plan' };
     await expect(service.amendConsultation(visitId, { ...command, after_value: plans }, userId)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     await expect(service.amendConsultation(visitId, { ...command, after_value: [{ ...first, diagnosis_code: 'FOREIGN' }] }, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_DIAGNOSIS_MISMATCH' });
     await expect(service.amendConsultation(visitId, { ...command, after_value: [{ ...first, id: new Types.ObjectId().toString() }] }, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
-    await expect(service.amendConsultation(visitId, { ...command, after_value: [{ ...first, referral_id: new Types.ObjectId().toString() }] }, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
+    await expect(service.amendConsultation(visitId, { ...command, after_value: [{ ...first, action_type: 'REFERRAL',
+      referral_id: new Types.ObjectId().toString() }] }, userId)).rejects.toMatchObject({ code: 'OPHTHALMOLOGY_REFERENCE_MISMATCH' });
     const after = [{ ...first, treatment: 'Observe with documented precautions' }];
     const failingAudit = vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('audit failed'));
     await expect(service.amendConsultation(visitId, { ...command, after_value: after }, userId)).rejects.toThrow('audit failed'); failingAudit.mockRestore();

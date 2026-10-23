@@ -1,14 +1,21 @@
-import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
-import { OphthalmologyDiagnosisEditor } from './OphthalmologyDiagnosisEditor';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
+import { OphthalmologyDiagnosisEditor } from './OphthalmologyDiagnosisEditor';
 import { useOphthalmologyCareFeature, type CareWorkspace, type OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
 import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import { OphthalmologyClinicalReviewEditor } from './OphthalmologyClinicalReviewEditor';
 import { OphthalmologyOpticalEditor } from './OphthalmologyOpticalEditor';
 import { EditorErrors } from './OphthalmologyConfigurationEditor';
+import { useDepartmentsList } from '../../hooks/departments/useDepartments';
+import { useDoctorsList } from '../../hooks/doctors/useDoctors';
+import { useServicesList } from '../../hooks/services/useServices';
+import { NewProcedureRecommendationModal } from '../surgery/NewProcedureRecommendationModal';
+import { OphthalmologySharedCareSection, type SharedCareTab } from './OphthalmologySharedCareSection';
 
 export function Reading({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value == null) return <span>Not recorded</span>;
@@ -59,53 +66,55 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
   );
 }
 
-export function OphthalmologyCareWorkspace({ workspace, mode }: { workspace: CareWorkspace; mode?: 'treatment' | 'optical' }) {
+export function OphthalmologyCareWorkspace({
+  workspace,
+  mode = 'treatment',
+}: {
+  workspace: CareWorkspace;
+  mode?: 'treatment' | 'optical' | 'orders' | 'continuing-care';
+}) {
   const f = useOphthalmologyCareFeature(workspace);
-  if (f.scopeError) return <p role="alert">The clinical record does not match this patient encounter. Reopen the encounter.</p>;
+  const queryClient = useQueryClient();
 
-  // Dedicated Optical Tab Mode (Step 4)
-  const isDedicatedOptical = mode === 'optical' || f.tab === 'optical';
+  const [procedureModalOpen, setProcedureModalOpen] = useState(false);
+  const [procedureInitialReason, setProcedureInitialReason] = useState('');
 
-  if (isDedicatedOptical) {
+  const branchId = workspace.visit?.branch_id ?? '';
+  const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
+  const doctorsQuery = useDoctorsList({ branch_id: branchId });
+  const servicesQuery = useServicesList(
+    { status: 'ACTIVE', service_type: 'PROCEDURE', page: 1, limit: 100 },
+    Boolean(branchId)
+  );
+
+  const departments = departmentsQuery.data?.data ?? [];
+  const doctors = doctorsQuery.data?.data ?? [];
+  const procedureServices = servicesQuery.data?.data ?? [];
+
+  const handleOpenProcedure = (initialReason?: string) => {
+    setProcedureInitialReason(initialReason || '');
+    setProcedureModalOpen(true);
+  };
+
+  if (!workspace.canView) return <p role="alert">Consultation View or Optical Prescription View permission is required.</p>;
+  if (workspace.scopeError || f.scopeError) return <p role="alert">Scope verification failed for this patient encounter. Open an authorised encounter context.</p>;
+
+  // Dedicated Optical Prescription Mode (Tab 4: Optical Prescription)
+  if (mode === 'optical') {
     return (
       <section>
-        {f.tab === 'optical' && f.optical && (
-          <OphthalmologyPublicationTools
-            scope={f.optical}
-            source={{
-              source_type: 'OPTICAL_PRESCRIPTION',
-              source_id: f.optical.id,
-              source_version: f.optical.current_clinical_version,
-            }}
-            sourceApproved={
-              f.optical.status === 'APPROVED' &&
-              !f.opticalQuery.isError &&
-              !f.opticalQuery.isFetching
-            }
-          />
-        )}
-        {!f.canOptical && (
-          <div className="doc-card" role="alert">
-            <p className="form-error-banner">Ophthalmology Optical Prescription View permission is required.</p>
-          </div>
-        )}
+        {!f.canOptical && <p role="alert">Ophthalmology Optical Prescription View permission is required.</p>}
         {f.canOptical && (
           <>
             {f.opticalQuery.isLoading && <p role="status">Loading optical prescription…</p>}
             {f.opticalQuery.isError && (
-              <p role="alert" className="form-error-banner">
-                Optical prescription could not be loaded.{' '}
-                <button type="button" className="doc-btn" onClick={() => void f.opticalQuery.refetch()}>
-                  Retry optical prescription
-                </button>
-              </p>
+              <p role="alert">Optical prescription could not be loaded. <button type="button" className="doc-btn" onClick={() => void f.opticalQuery.refetch()}>Retry optical prescription</button></p>
+            )}
+            {f.configurationQuery.isError && (
+              <p role="alert">The active configuration could not be verified. <button type="button" className="doc-btn" onClick={() => void f.configurationQuery.refetch()}>Retry configuration</button></p>
             )}
             {(f.opticalQuery.isSuccess || f.opticalQuery.data !== undefined) && (
-              <OphthalmologyOpticalEditor
-                key={workspace.context?.id}
-                feature={f}
-                workspace={workspace}
-              />
+              <OphthalmologyOpticalEditor key={workspace.context?.id} feature={f} workspace={workspace} />
             )}
           </>
         )}
@@ -113,39 +122,102 @@ export function OphthalmologyCareWorkspace({ workspace, mode }: { workspace: Car
     );
   }
 
-  // Treatment & Diagnostic Results Mode (Step 3: Diagnosis & Treatment)
+  // Dedicated Prescriptions & Orders Mode (Tab 3: Prescriptions & Diagnostic Orders)
+  if (mode === 'orders') {
+    const validOrderTabs: SharedCareTab[] = ['prescription', 'lab-orders', 'imaging-orders'];
+    const activeTab: SharedCareTab = validOrderTabs.includes(f.tab as SharedCareTab)
+      ? (f.tab as SharedCareTab)
+      : 'prescription';
+    return (
+      <section>
+        <OphthalmologySharedCareSection
+          workspace={workspace}
+          feature={f}
+          mode="orders"
+          activeSharedTab={activeTab}
+          onTabChange={(tab) => workspace.setQuery('care_tab', tab)}
+          onReturnToTreatment={() => workspace.setQuery('care_tab', 'treatment')}
+        />
+      </section>
+    );
+  }
+
+  // Dedicated Continuing Care Mode (Tab 5: Referral & Follow-up)
+  if (mode === 'continuing-care') {
+    const activeTab: SharedCareTab = f.tab === 'follow-up' ? 'follow-up' : 'referral';
+    return (
+      <section>
+        <OphthalmologySharedCareSection
+          workspace={workspace}
+          feature={f}
+          mode="continuing-care"
+          activeSharedTab={activeTab}
+          onTabChange={(tab) => workspace.setQuery('care_tab', tab)}
+          onReturnToTreatment={() => workspace.setQuery('care_tab', 'treatment')}
+        />
+      </section>
+    );
+  }
+
+  // Step 2: Diagnosis & Treatment Plan Mode
   return (
     <section>
-      <nav className="oph-care-subnav" aria-label="Clinical care sections">
-        {f.canClinical && (
-          <>
+      {/* If reviewing a specific test result, show a return button */}
+      {f.tab === 'results' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <button
+            type="button"
+            className="doc-btn"
+            style={{ fontWeight: 600, fontSize: '0.82rem' }}
+            onClick={() => workspace.setQuery('care_tab', 'treatment')}
+          >
+            ← Back to Diagnosis &amp; Treatment Plan
+          </button>
+        </div>
+      )}
+
+      {/* Quick Encounter Action Bar */}
+      {f.tab === 'treatment' && f.canClinical && (
+        <div className="oph-care-quick-toolbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+              Quick Actions:
+            </span>
             <button
               type="button"
-              className={`oph-care-subtab ${f.tab === 'treatment' ? 'active' : ''}`}
-              onClick={() => workspace.setQuery('care_tab', 'treatment')}
+              className="doc-btn"
+              style={{ fontSize: '0.78rem', background: '#eef2ff', color: '#4338ca', borderColor: '#c7d2fe', fontWeight: 600 }}
+              onClick={() => handleOpenProcedure()}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              <span>Clinical Review & Treatment</span>
+              ✂️ + Recommend Surgery / Procedure
             </button>
             <button
               type="button"
-              className={`oph-care-subtab ${f.tab === 'results' ? 'active' : ''}`}
-              onClick={() => workspace.setQuery('care_tab', 'results')}
+              className="doc-btn"
+              style={{ fontSize: '0.78rem' }}
+              onClick={() => workspace.setQuery('care_tab', 'prescription')}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-              </svg>
-              <span>Review Selected Test Result</span>
+              💊 Prescriptions &amp; Orders →
             </button>
-          </>
-        )}
-      </nav>
+            <button
+              type="button"
+              className="doc-btn"
+              style={{ fontSize: '0.78rem' }}
+              onClick={() => workspace.setQuery('care_tab', 'optical')}
+            >
+              👓 Optical Prescription →
+            </button>
+            <button
+              type="button"
+              className="doc-btn"
+              style={{ fontSize: '0.78rem' }}
+              onClick={() => workspace.setQuery('care_tab', 'referral')}
+            >
+              🔄 Referral &amp; Follow-up →
+            </button>
+          </div>
+        </div>
+      )}
 
       {f.tab === 'treatment' && !f.canClinical && <p role="alert">Ophthalmology Consultation View permission is required.</p>}
 
@@ -177,27 +249,143 @@ export function OphthalmologyCareWorkspace({ workspace, mode }: { workspace: Car
           {f.canShared('OPD Consultation') && f.consultationQuery.isError && (
             <p role="alert">Saved diagnoses could not be loaded. <button type="button" className="doc-btn" onClick={() => void f.consultationQuery.refetch()}>Retry diagnoses</button></p>
           )}
+
+          {/* Diagnosis Structured Editor */}
           {f.consultation && f.showDiagnosisEditor && (
-            <OphthalmologyDiagnosisEditor key={`${workspace.visitId}:${f.consultation.id}`} record={f.consultation} canEdit={f.canEditDiagnosis} />
+            <OphthalmologyDiagnosisEditor
+              key={`${workspace.visitId}:${f.consultation.id || 'draft'}`}
+              record={f.consultation}
+              canEdit={f.canEditDiagnosis}
+            />
           )}
-          <section className="doc-card">
-            <h3>Saved structured assessment</h3>
-            <p>{f.consultation?.assessment || 'No saved assessment available.'}</p>
-            {!f.diagnoses.length && <p>No current saved diagnoses available. OPD Consultation View is required to read diagnoses.</p>}
-            {f.diagnoses.map((diagnosis, index) => (
-              <p key={index}>{diagnosis.code} · {diagnosis.display} · {diagnosis.laterality ?? 'Eye not recorded'} · {diagnosis.status ?? 'Certainty not recorded'} · {diagnosis.type}{diagnosis.differential ? ' · Differential' : ''}{diagnosis.severity ? ` · ${diagnosis.severity}` : ''}{diagnosis.stage ? ` · ${diagnosis.stage}` : ''}{diagnosis.notes ? ` · ${diagnosis.notes}` : ''}</p>
-            ))}
-            <p>Machine observations are not final diagnoses. Diagnosis editing requires current draft state and dedicated permissions.</p>
-            {f.consultation?.clinical_history?.map((entry) => (
-              <details key={entry.consultation_version}>
-                <summary>Diagnosis history · consultation version {entry.consultation_version} · {new Date(entry.changed_at).toLocaleString()} · {entry.changed_by}</summary>
-                {entry.diagnoses.map((diagnosis, index) => (
-                  <p key={index}>{diagnosis.code} · {diagnosis.display} · {diagnosis.laterality ?? 'Not recorded'} · {diagnosis.status ?? 'Not recorded'} · {diagnosis.type}</p>
+
+          {/* Active Diagnostic Assessment Card */}
+          <section className="doc-card oph-saved-assessment-card">
+            <div className="oph-diag-header" style={{ marginBottom: '12px' }}>
+              <div className="oph-diag-title-group">
+                <div className="oph-diag-icon-badge" style={{ background: '#ecfdf5', color: '#059669' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 11l3 3L22 4"></path>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 700, color: '#0f172a' }}>
+                    Active Diagnostic Assessment
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                    Authenticated diagnosis records linked to this patient&apos;s OPD encounter.
+                  </p>
+                </div>
+              </div>
+              <span className="oph-status-badge version">
+                Consultation v{f.consultation?.version ?? 0}
+              </span>
+            </div>
+
+            {/* Assessment Narrative */}
+            {f.consultation?.assessment ? (
+              <div className="oph-assessment-narrative-box">
+                <strong style={{ fontSize: '0.78rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Doctor&apos;s Assessment
+                </strong>
+                <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#1e293b', fontStyle: 'italic' }}>
+                  &ldquo;{f.consultation.assessment}&rdquo;
+                </p>
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.84rem', color: '#64748b', fontStyle: 'italic', margin: '4px 0 12px' }}>
+                No clinical assessment narrative recorded yet.
+              </p>
+            )}
+
+            {/* Diagnoses List */}
+            {f.diagnoses.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                {f.diagnoses.map((diag, index) => (
+                  <div key={index} className="oph-saved-diagnosis-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span className={`oph-eye-badge lat-${(diag.laterality ?? 'na').toLowerCase()}`}>
+                        {diag.laterality ?? 'OU'}
+                      </span>
+                      <strong style={{ fontSize: '0.92rem', color: '#0f172a' }}>
+                        {diag.display}
+                      </strong>
+                      <span className="oph-code-badge">{diag.code}</span>
+                      <span className={`oph-status-pill status-${(diag.status ?? 'confirmed').toLowerCase().replace('_', '-')}`}>
+                        {diag.status ?? 'CONFIRMED'}
+                      </span>
+                      <span className="oph-type-badge">
+                        {diag.type}
+                      </span>
+                      {diag.differential && (
+                        <span className="oph-diff-badge">Differential</span>
+                      )}
+                    </div>
+                    {(diag.severity || diag.stage || diag.notes) && (
+                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', marginLeft: '32px' }}>
+                        {diag.severity && <span>Severity: <strong>{diag.severity}</strong> · </span>}
+                        {diag.stage && <span>Stage: <strong>{diag.stage}</strong> · </span>}
+                        {diag.notes && <span style={{ fontStyle: 'italic' }}>{diag.notes}</span>}
+                      </div>
+                    )}
+                  </div>
                 ))}
+              </div>
+            ) : (
+              <div className="oph-empty-diagnoses-prompt">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#475569', fontSize: '0.88rem' }}>
+                    No diagnoses saved yet
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                    Use the Structured Ophthalmic Diagnoses editor above to add condition codes and laterality.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Diagnosis History Audit Accordion */}
+            {f.consultation?.clinical_history && f.consultation.clinical_history.length > 0 && (
+              <details className="oph-audit-accordion" style={{ marginTop: '1rem' }}>
+                <summary className="oph-audit-summary">
+                  <span style={{ fontWeight: 600, fontSize: '0.82rem', color: '#475569' }}>
+                    📜 Diagnostic Revision History ({f.consultation.clinical_history.length} versions)
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: '#64748b' }}>View revisions</span>
+                </summary>
+                <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {f.consultation.clinical_history.map((entry) => (
+                    <div key={entry.consultation_version} style={{ padding: '6px 10px', background: '#ffffff', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.78rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <strong>Version {entry.consultation_version}</strong>
+                        <span style={{ color: '#64748b' }}>{new Date(entry.changed_at).toLocaleString()} · {entry.changed_by}</span>
+                      </div>
+                      {entry.diagnoses.map((diagnosis, idx) => (
+                        <div key={idx} style={{ color: '#475569', marginLeft: '6px' }}>
+                          • {diagnosis.code} · {diagnosis.display} ({diagnosis.laterality ?? 'OU'} · {diagnosis.status ?? 'Status not recorded'})
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </details>
-            ))}
+            )}
           </section>
-          {(f.clinicalQuery.isSuccess || f.clinicalQuery.data !== undefined) && <OphthalmologyClinicalReviewEditor key={workspace.context?.id} feature={f} />}
+
+          {/* Treatment Plan Editor with Procedure Recommendation Callback */}
+          {(f.clinicalQuery.isSuccess || f.clinicalQuery.data !== undefined) && (
+            <OphthalmologyClinicalReviewEditor
+              key={workspace.context?.id}
+              feature={f}
+              onOpenProcedureModal={handleOpenProcedure}
+            />
+          )}
         </>
       )}
 
@@ -231,22 +419,91 @@ export function OphthalmologyCareWorkspace({ workspace, mode }: { workspace: Car
         </>
       )}
 
-      <section className="doc-card">
-        <h3>Shared care workflows</h3>
-        <div className="oph-toolbar">
-          {[
-            { label: 'Medication prescription', tab: 'Prescription', screen: 'OPD Prescription' },
-            { label: 'Laboratory orders', tab: 'Lab Orders', screen: 'OPD Clinical Orders' },
-            { label: 'Imaging orders', tab: 'Imaging Orders', screen: 'OPD Clinical Orders' },
-            { label: 'Referral', tab: 'Referral', screen: 'OPD Referral' },
-            { label: 'Follow-up', tab: 'Follow-up', screen: 'OPD Follow-up' }
-          ].filter((entry) => f.canShared(entry.screen)).map((entry) => (
-            <button className="doc-btn" type="button" key={entry.tab} onClick={() => f.openShared(entry.tab, entry.screen)}>{entry.label}</button>
-          ))}
-        </div>
-        <p>New investigations, medication and continuing care remain linked to this encounter. Test completion, clinician review, optical approval and consultation completion are separate actions.</p>
-        <p>Historical comparisons, IOP comparison graphs and optical print/share are unavailable in this view.</p>
-      </section>
+      {/* Continuing Care & Downstream Workflows Navigation Card */}
+      {f.tab === 'treatment' && (
+        <section className="doc-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                Next Clinical Steps &amp; Downstream Care
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                Advance through prescriptions, optical correction, specialist handoffs, and final consultation sign-off.
+              </p>
+            </div>
+          </div>
+
+          <div className="oph-toolbar" style={{ marginTop: '12px' }}>
+            {/* Direct Procedure / Surgery Button */}
+            <button
+              className="doc-btn primary"
+              type="button"
+              style={{ background: '#4f46e5', borderColor: '#4338ca', color: '#ffffff', fontWeight: 600 }}
+              onClick={() => handleOpenProcedure()}
+            >
+              ✂️ + Recommend Surgery / Procedure
+            </button>
+            <button
+              className="doc-btn"
+              type="button"
+              onClick={() => workspace.setQuery('care_tab', 'prescription')}
+            >
+              💊 Step 3: Prescriptions &amp; Orders →
+            </button>
+            <button
+              className="doc-btn"
+              type="button"
+              onClick={() => workspace.setQuery('care_tab', 'optical')}
+            >
+              👓 Step 4: Optical Prescription →
+            </button>
+            <button
+              className="doc-btn"
+              type="button"
+              onClick={() => workspace.setQuery('care_tab', 'referral')}
+            >
+              🔄 Step 5: Referral &amp; Follow-up →
+            </button>
+            <button
+              className="doc-btn"
+              type="button"
+              onClick={() => workspace.setQuery('section', 'completion')}
+            >
+              📋 Step 6: Consultation Summary →
+            </button>
+          </div>
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '8px 0 0' }}>
+            All orders, surgical recommendations, and continuing care remain strictly linked to this encounter context without navigating away.
+          </p>
+        </section>
+      )}
+
+      {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}
+      <NewProcedureRecommendationModal
+        open={procedureModalOpen}
+        onClose={() => setProcedureModalOpen(false)}
+        branchId={branchId}
+        departments={departments}
+        doctors={doctors}
+        services={procedureServices}
+        initialContext={{
+          patient: {
+            id: workspace.visit?.patient_id ?? '',
+            patient_number: (workspace.visit as { patient_number?: string })?.patient_number ?? '',
+            name: (workspace.visit as { patient_name?: string })?.patient_name ?? 'Patient',
+          },
+          department_id: workspace.visit?.department_id,
+          recommending_doctor_id: (workspace.visit as { doctor_id?: string })?.doctor_id,
+          encounter_id: workspace.visitId,
+          clinical_reason: procedureInitialReason || f.diagnoses.map((d) => `${d.display} (${d.code}) - ${d.laterality ?? 'OU'}`).join('; ') || (workspace.visit as { reason?: string })?.reason || '',
+          sourceContext: 'Ophthalmology Consultation',
+        }}
+        onCreateSuccess={() => {
+          toast.success('Procedure recommendation created and linked to this encounter.');
+          void f.clinicalQuery.refetch();
+          void queryClient.invalidateQueries({ queryKey: ['ophthalmology-summary', workspace.visitId] });
+        }}
+      />
     </section>
   );
 }
