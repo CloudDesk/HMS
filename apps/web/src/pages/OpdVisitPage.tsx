@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { fromZonedTime } from 'date-fns-tz';
 import type { SaveBillingInvoiceItem } from '../api/billing';
@@ -6,6 +6,7 @@ import {
   type ApiClinicalOrderPriority,
   type OpdConsultationResponse,
   type OpdPrescriptionResponse,
+  type OpdVisitResponse,
   type OpdVitalsResponse,
   type SaveOpdConsultationPayload,
   type SaveOpdPrescriptionPayload,
@@ -503,14 +504,20 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
   const confirmLeave = () => !hasUnsavedChanges || window.confirm('Leave this encounter and discard unsaved changes?');
   const navigateAway = (path: string) => { if (confirmLeave()) navigate(path); };
 
+  const isOphthalmology = useCallback((v: OpdVisitResponse | null | undefined) => {
+    if (!v) return false;
+    if (feature.state.specialtyCompletionRequired) return true;
+    const dept = departments.find((d) => d.id === v.department_id);
+    const deptName = dept?.name?.toLowerCase() ?? '';
+    const spec = v.doctor_specialization?.toLowerCase() ?? '';
+    return deptName.includes('ophthalmolog') || spec.includes('ophthalmolog');
+  }, [departments, feature.state.specialtyCompletionRequired]);
+
   useEffect(() => {
-    if (visit && visit.doctor_specialization?.toLowerCase().includes('ophthalmolog')) {
-      const search = new URLSearchParams(window.location.search);
-      if (!search.get('tab') && !search.get('specialty') && !search.get('no_redirect')) {
-        navigate(`/opd/ophthalmology?visit_id=${visit.id}`, { replace: true });
-      }
+    if (visit && isOphthalmology(visit)) {
+      navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}`, { replace: true });
     }
-  }, [visit]);
+  }, [visit, isOphthalmology]);
 
   useEffect(() => {
     setVitalsForm(vitalsFormFromRecord(vitals));
@@ -1041,11 +1048,11 @@ function OpdVisitWorkspace({ feature }: { feature: OpdVisitFeature }) {
       {feature.state.specialtyCompletionRequired && <div className="form-error-banner"><p>Ophthalmology completion must use the specialty readiness workflow. This screen can save shared care records.</p>{feature.state.canOpenOphthalmology && <button type="button" className="doc-btn" onClick={() => { if (confirmLeave()) feature.actions.openSpecialtyCompletion(); }}>Return to Ophthalmology readiness</button>}</div>}
       {loadError ? <div className="form-error-banner">{loadError}</div> : null}
 
-      {loading ? (
+      {loading || (visit && isOphthalmology(visit)) ? (
         <section className="doc-card" style={{ padding: '3rem 1rem' }}>
           <MedicalLoader
-            text="Loading consultation workspace..."
-            subtext="Retrieving patient history, vitals, prescriptions, and clinical orders"
+            text={visit && isOphthalmology(visit) ? "Opening ophthalmology consultation..." : "Loading consultation workspace..."}
+            subtext={visit && isOphthalmology(visit) ? "Redirecting to Ophthalmology consultation workspace" : "Retrieving patient history, vitals, prescriptions, and clinical orders"}
           />
         </section>
       ) : !visit ? (

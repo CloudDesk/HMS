@@ -705,120 +705,120 @@ export function OphthalmologySharedCareSection({
 
   return (
     <div className="oph-shared-care-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Step-Specific Sub-Navigation Bar */}
-      {mode === 'orders' && (
-        <nav className="oph-care-subnav" aria-label="Prescriptions and diagnostic order sections">
-          <button
-            type="button"
-            className={`oph-care-subtab ${activeSharedTab === 'prescription' ? 'active' : ''}`}
-            onClick={() => onTabChange('prescription')}
-          >
-            <span>💊</span>
-            <span>Medication Prescription</span>
-          </button>
-          <button
-            type="button"
-            className={`oph-care-subtab ${activeSharedTab === 'lab-orders' ? 'active' : ''}`}
-            onClick={() => onTabChange('lab-orders')}
-          >
-            <span>🔬</span>
-            <span>Laboratory Orders</span>
-          </button>
-          <button
-            type="button"
-            className={`oph-care-subtab ${activeSharedTab === 'imaging-orders' ? 'active' : ''}`}
-            onClick={() => onTabChange('imaging-orders')}
-          >
-            <span>📷</span>
-            <span>Imaging Orders</span>
-          </button>
-        </nav>
-      )}
-
-      {mode === 'continuing-care' && (
-        <nav className="oph-care-subnav" aria-label="Referral and follow-up sections">
-          <button
-            type="button"
-            className={`oph-care-subtab ${activeSharedTab === 'referral' ? 'active' : ''}`}
-            onClick={() => onTabChange('referral')}
-          >
-            <span>🔄</span>
-            <span>Specialist Referral</span>
-          </button>
-          <button
-            type="button"
-            className={`oph-care-subtab ${activeSharedTab === 'follow-up' ? 'active' : ''}`}
-            onClick={() => onTabChange('follow-up')}
-          >
-            <span>📅</span>
-            <span>Follow-up Scheduling</span>
-          </button>
-        </nav>
-      )}
-
-      {/* Return Breadcrumb & Action Banner */}
-      <div
-        className="doc-card"
+      {/* Step-Specific Unified Sub-Navigation & Actions Bar */}
+      <nav
+        className="oph-care-subnav"
         style={{
-          padding: '12px 18px',
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: '12px',
+          gap: '10px',
+          padding: '6px 12px',
+          marginBottom: '16px',
         }}
+        aria-label="Clinical care section navigation"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            type="button"
-            className="doc-btn"
-            style={{ fontWeight: 600, fontSize: '0.82rem' }}
-            onClick={onReturnToTreatment}
-          >
-            ← Return to Diagnosis &amp; Treatment
-          </button>
-          <div>
-            <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Encounter Linked Workflow
-            </span>
-            <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#0f172a' }}>
-              {activeSharedTab === 'prescription' && '💊 Medication Prescription & Pharmacy Link'}
-              {activeSharedTab === 'lab-orders' && '🔬 Diagnostic Laboratory Investigation Orders'}
-              {activeSharedTab === 'imaging-orders' && '📷 Ophthalmic & Radiological Imaging Orders'}
-              {activeSharedTab === 'referral' && '🔄 Specialty & Department Referral'}
-              {activeSharedTab === 'follow-up' && '📅 Clinical Follow-up & Review Scheduling'}
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {mode === 'orders' && (
+            <>
+              <button
+                type="button"
+                className={`oph-care-subtab ${activeSharedTab === 'prescription' ? 'active' : ''}`}
+                onClick={() => onTabChange('prescription')}
+              >
+                <span>💊</span>
+                <span>Medication Prescription</span>
+              </button>
+              <button
+                type="button"
+                className={`oph-care-subtab ${activeSharedTab === 'lab-orders' ? 'active' : ''}`}
+                onClick={() => onTabChange('lab-orders')}
+              >
+                <span>🔬</span>
+                <span>Laboratory Orders</span>
+              </button>
+              <button
+                type="button"
+                className={`oph-care-subtab ${activeSharedTab === 'imaging-orders' ? 'active' : ''}`}
+                onClick={() => onTabChange('imaging-orders')}
+              >
+                <span>📷</span>
+                <span>Imaging Orders</span>
+              </button>
+            </>
+          )}
+
+          {mode === 'continuing-care' && (
+            <>
+              <button
+                type="button"
+                className={`oph-care-subtab ${activeSharedTab === 'referral' ? 'active' : ''}`}
+                onClick={() => onTabChange('referral')}
+              >
+                <span>🔄</span>
+                <span>Specialist Referral</span>
+              </button>
+              <button
+                type="button"
+                className={`oph-care-subtab ${activeSharedTab === 'follow-up' ? 'active' : ''}`}
+                onClick={() => onTabChange('follow-up')}
+              >
+                <span>📅</span>
+                <span>Follow-up Scheduling</span>
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Quick Submit Toolbar for Lab & Imaging */}
+        {/* Action Controls on the Right: Quick Submit + Back to Diagnosis & Treatment */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {activeSharedTab === 'lab-orders' && opd.canEditClinicalOrders && (
             <button
               type="button"
               className="doc-btn primary"
-              style={{ fontSize: '0.82rem', background: '#0284c7', borderColor: '#0369a1' }}
+              style={{ fontSize: '0.8rem', background: '#0284c7', borderColor: '#0369a1', padding: '6px 12px' }}
               disabled={Boolean(updating) || labOrders.length === 0}
               onClick={handleSubmitLabOrder}
             >
-              ✓ Submit Order to Laboratory ({labOrders.length})
+              ✓ Submit Lab Order ({labOrders.length})
             </button>
           )}
           {activeSharedTab === 'imaging-orders' && opd.canEditClinicalOrders && (
             <button
               type="button"
               className="doc-btn primary"
-              style={{ fontSize: '0.82rem', background: '#7c3aed', borderColor: '#6d28d9' }}
+              style={{ fontSize: '0.8rem', background: '#7c3aed', borderColor: '#6d28d9', padding: '6px 12px' }}
               disabled={Boolean(updating) || imagingOrders.length === 0}
               onClick={handleSubmitImagingOrder}
             >
-              ✓ Submit Order to Imaging ({imagingOrders.length})
+              ✓ Submit Imaging Order ({imagingOrders.length})
             </button>
           )}
+          <button
+            type="button"
+            className="doc-btn"
+            style={{
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: '#334155',
+              padding: '6px 14px',
+              borderRadius: '7px',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            }}
+            onClick={onReturnToTreatment}
+          >
+            <i className="ph ph-arrow-left" style={{ fontSize: '0.88rem', color: '#64748b' }} />
+            <span>Back to Diagnosis &amp; Treatment</span>
+          </button>
         </div>
-      </div>
+      </nav>
 
       {/* Render Active Section */}
       {activeSharedTab === 'prescription' && (

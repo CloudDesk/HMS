@@ -70,7 +70,7 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
   const linkFor = (code: CompletionCode) => {
     if (code === 'INTAKE_COMPLETED' || code === 'ALERTS_ACKNOWLEDGED') return can('Ophthalmology Intake') ? { section: 'intake' } : null;
     if (code === 'MANDATORY_TESTS_REVIEWED' || code === 'ALL_RESULTS_RESOLVED') return can('Ophthalmology Test Queue') ? { section: 'clinical', care_tab: 'results' } : null;
-    if (code === 'DIAGNOSIS_RECORDED') return can('OPD Consultation') ? { shared: 'Diagnosis' } : null;
+    if (code === 'DIAGNOSIS_RECORDED') return can('OPD Consultation') ? { section: 'clinical', care_tab: 'treatment' } : null;
     if (code === 'OPTICAL_APPROVED_IF_PRESENT') return can('Ophthalmology Optical Prescription') ? { section: 'clinical', care_tab: 'optical' } : null;
     return { section: 'clinical', care_tab: 'treatment' };
   };
@@ -81,7 +81,7 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
     canComplete, canReopen, canAmend, summaryQuery,
     busy: mutations.defer.isPending || mutations.override.isPending || finalizationMutations.complete.isPending || finalizationMutations.reopen.isPending, error: failure?.scope === lifecycle ? failure.message : null, setQuery, linkFor,
     refresh: async () => { if (active) { await workspace.contextQuery.refetch(); if (canQuery && !scopeError) await Promise.all([readinessQuery.refetch(), historyQuery.refetch(), summaryQuery.refetch()]); } },
-    openRequirement: (code: CompletionCode) => { const link = linkFor(code); if (!link) return; if (link.shared) navigate(`/opd/visit?id=${workspace.visitId}&tab=${link.shared}&specialty=ophthalmology`); else setQuery({ area: null, completion_action: null, section: link.section ?? null, care_tab: link.care_tab ?? null }); },
+    openRequirement: (code: CompletionCode) => { const link = linkFor(code); if (!link) return; setQuery({ area: null, completion_action: null, section: link.section ?? null, care_tab: link.care_tab ?? null }); },
     defer: (body: DeferralWrite) => writable && !deferralLookupsUnavailable && canOverride && action === 'defer' && doctors.some((doctor) => doctor.id === body.responsible_doctor_id) && (body.source_type === 'TEST_TASK' ? tasks.some((task) => task.id === body.source_id) : orders.some((order) => order.id === body.source_id)) ? perform(() => mutations.defer.mutateAsync(body), 'Result deferral recorded. This does not mark the result reviewed.') : Promise.resolve(undefined),
     override: (body: OverrideWrite) => writable && canOverride && action === 'override' && unmet.length > 0 && body.expected_unmet_codes.length === unmet.length && [...body.expected_unmet_codes].sort().join() === unmet.map((row) => row.code).sort().join() ? perform(() => mutations.override.mutateAsync(body), 'Authorized override recorded. Consultation completion remains separate.') : Promise.resolve(undefined),
     complete: () => {

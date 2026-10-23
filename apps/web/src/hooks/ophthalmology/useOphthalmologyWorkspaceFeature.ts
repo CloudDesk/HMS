@@ -136,7 +136,7 @@ export function useOphthalmologyWorkspaceFeature() {
     reports: canView && canViewReports && reportsOpen ? (reportsQuery.data?.data ?? []).filter((item) => item.patient_id === visit?.patient_id) : [],
     busy: Object.values(mutations).some((mutation) => mutation.isPending),
     setQuery: (key: string, value: string) => { const next = new URLSearchParams(search); next.set(key, value); if (key === 'section') next.delete('area'); if (key === 'task_id') { next.delete('amend'); next.delete('form_profile_id'); } navigate(`/opd/ophthalmology?${next}`); },
-    back: () => navigate(`/opd/visit?id=${visitId}${context ? '&specialty=ophthalmology' : ''}`),
+    back: () => navigate('/opd/queue'),
     create: (body: z.infer<typeof createContextSchema>) => canEdit && !context && editableVisit && !contextQuery.isError && selectedSubtype === body.visit_subtype ? perform(() => mutations.create.mutateAsync(body), 'Ophthalmology context activated.') : Promise.resolve(undefined),
     updateContext: (body: UpdateOphthalmologyContext) => canEdit && editableVisit && context && !scopeError && !visitQuery.isError && !contextQuery.isError ? perform(() => mutations.update.mutateAsync(body), 'Ophthalmology context updated.') : Promise.resolve(undefined),
     save: (body: SaveOphthalmologyIntake) => canEdit && editableVisit && context && intakeView && !scopeError && !visitQuery.isError && !intakeQuery.isError && !contextQuery.isError ? perform(() => mutations.save.mutateAsync(body), 'Intake draft saved.') : Promise.resolve(undefined),

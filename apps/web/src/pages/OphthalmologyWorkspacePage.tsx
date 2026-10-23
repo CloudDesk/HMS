@@ -7,6 +7,7 @@ import { useAppLocation } from '../routing/navigation';
 import type { OphthalmologyAlert } from '../api/ophthalmology';
 import { useOphthalmologyWorkspaceFeature, type OphthalmologyWorkspaceFeature } from '../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 import { OphthalmologyIntakeForm } from '../components/ophthalmology/OphthalmologyIntakeForm';
+import { OphthalmologyIntakeReadOnlyView } from '../components/ophthalmology/OphthalmologyIntakeReadOnlyView';
 import { OphthalmologyTestsWorkspace } from '../components/ophthalmology/OphthalmologyTestsWorkspace';
 import '../styles/ophthalmology.css';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
@@ -110,7 +111,7 @@ export function OphthalmologyWorkspacePage() {
   if (!f.canView) return <div className="doc-card" role="alert">Permission denied. Intake with OPD Visits View, or dedicated Consultation/Optical Prescription View is required.</div>;
   if (!f.visitId) return <div className="doc-card" role="alert">Select a valid OPD encounter to open ophthalmology.</div>;
   if (f.scopeError) return <div className="doc-card" role="alert">The returned clinical record does not match this patient encounter. Reopen the encounter before continuing.</div>;
-  if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to consultation</button></div>;
+  if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to queue</button></div>;
   if (!f.visit || f.contextQuery.isPending) return <p role="status">Loading ophthalmology encounter…</p>;
 
   const currentStep: 'examination' | 'care' | 'orders' | 'optical' | 'continuing-care' | 'summary' =
@@ -205,7 +206,7 @@ export function OphthalmologyWorkspacePage() {
               </button>
             )}
             <button className="doc-btn" type="button" onClick={f.back}>
-              <i className="ph ph-arrow-left" style={{ marginRight: '4px' }} /> Return to Consultation
+              <i className="ph ph-arrow-left" style={{ marginRight: '4px' }} /> Back to Queue
             </button>
           </div>
         </div>
@@ -288,23 +289,19 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
-            {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview' || isExam) && (
-        <OphthalmologyTestsWorkspace workspace={f} />
+      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview' || isExam) && (
+        <>
+          <OphthalmologyIntakeReadOnlyView feature={f} />
+          <OphthalmologyTestsWorkspace workspace={f} />
+        </>
       )}
 
-      {/* Tab: Preliminary Intake & Complaints */}
-      {f.context && f.intakeView && !f.contextEditOpen && f.section === 'intake' && (
-        <OphthalmologyIntakeForm
-          key={`${f.visitId}-${f.context.id}`}
-          context={f.context}
-          view={f.intakeView}
-          feature={f}
-        />
-      )}
-
-      {/* Tab: Diagnosis & Treatment Plan */}
+      {/* Tab 2: Diagnosis & Treatment Plan */}
       {f.context && !f.contextEditOpen && isTreatment && (
-        <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
+        <>
+          <OphthalmologyIntakeReadOnlyView feature={f} />
+          <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
+        </>
       )}
 
       {/* Tab 3: Prescriptions & Diagnostic Orders */}
