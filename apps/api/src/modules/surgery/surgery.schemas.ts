@@ -23,6 +23,7 @@ export const createRecommendationSchema = z.object({
   department_id: id,
   recommending_doctor_id: id.optional(),
   service_id: id,
+  target_eye: z.enum(['OD', 'OS', 'OU']).optional(),
   encounter_type: z.enum(['OPD_VISIT', 'DIRECT', 'EMERGENCY']).optional().default('DIRECT'),
   encounter_id: id.nullable().optional(),
   clinical_reason: z.string().trim().min(3).max(1000),
@@ -30,6 +31,7 @@ export const createRecommendationSchema = z.object({
 });
 export const createBookingSchema = z.object({
   recommendation_id: id,
+  target_eye: z.enum(['OD', 'OS', 'OU']).optional(),
   branch_id: id,
   doctor_id: id,
   scheduled_start: z.string().trim().min(10, 'Valid scheduled start is required'),

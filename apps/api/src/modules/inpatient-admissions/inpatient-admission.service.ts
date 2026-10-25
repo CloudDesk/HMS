@@ -187,12 +187,12 @@ export class InpatientAdmissionService {
     });
   }
 
-  async createRequest(data: CreateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata) {
+  async createRequest(data: CreateAdmissionRequestDTO, actor: string, metadata: AdmissionRequestMetadata, transaction?: ClientSession) {
     await this.authorize(actor, data.branch_id);
     if (data.source_type !== 'DIRECT' && !data.source_id) throw new AppError('Source id is required', 400, 'VALIDATION_ERROR');
     if (data.source_type === 'DIRECT' && data.source_id) throw new AppError('Direct requests cannot include a source id', 400, 'VALIDATION_ERROR');
     try {
-      return await executeTransaction(this.repository, async (session) => {
+      const create = async (session?: ClientSession) => {
         const refs = await this.repository.requestReferences(data, session);
         if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
         if (!refs.doctor) throw new AppError('Active recommending doctor is not available in this branch', 404, 'DOCTOR_NOT_FOUND');
@@ -221,7 +221,8 @@ export class InpatientAdmissionService {
         await this.patients.addAdmissionTimeline(data.patient_id, 'ADMISSION_REQUEST_CREATED', 'Admission requested', `${result.request_number} was created from ${data.source_type.replace('_', ' ').toLowerCase()}.`, actor, session);
         await this.repository.audit('admissions.request.created', actor, metadata, { requestId: result.id, patientId: data.patient_id, branchId: data.branch_id, sourceType: data.source_type, sourceId: data.source_id ?? null }, session);
         return result;
-      });
+      };
+      return transaction ? await create(transaction) : await executeTransaction(this.repository, create);
     } catch (error) { return rethrowDuplicate(error); }
   }
 

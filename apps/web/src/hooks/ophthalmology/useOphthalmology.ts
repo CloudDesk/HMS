@@ -28,7 +28,8 @@ export function useOphthalmologyIntakeMutations(visitId: string) {
   const complete = useMutation({ mutationFn: (body: Parameters<typeof service.completeIntake>[1]) => service.completeIntake(visitId, body), onSuccess: refresh });
   const alert = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: 'route' | 'acknowledge'; body: AlertAction }) => service.alert(visitId, id, action, body), onSuccess: refresh });
   const escalate = useMutation({ mutationFn: (body: Parameters<typeof service.escalateAlert>[1]) => service.escalateAlert(visitId, body), onSuccess: refresh });
-  return { create, update, save, complete, alert, escalate };
+  const clear = useMutation({ mutationFn: ({ id, body }: { id: string; body: Parameters<typeof service.clearAlert>[2] }) => service.clearAlert(visitId, id, body), onSuccess: refresh });
+  return { create, update, save, complete, alert, escalate, clear };
 }
 export function useOphthalmologyTasks(visitId: string, page: number, enabled: boolean) {
   return useQuery({ queryKey: [...ophthalmologyKeys.visit(visitId), 'tasks', page], queryFn: ({ signal }) => service.tasks(visitId, page, signal), enabled, retry: false });

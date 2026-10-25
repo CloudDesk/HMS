@@ -201,6 +201,23 @@ export function OphthalmologyClinicalReviewEditor({
               Escalate Emergency
             </button>
           )}
+
+          {f.workspace?.canClearEmergency && (f.workspace.emergencyAlerts?.some((a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED')) && (
+            <button
+              type="button"
+              className="doc-btn"
+              disabled={f.busy}
+              onClick={() => {
+                const alertToClear = f.workspace?.emergencyAlerts?.find((a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED');
+                if (alertToClear) {
+                  f.workspace?.setQuery('clear_alert_id', alertToClear.id);
+                }
+              }}
+            >
+              <i className="ph ph-check-circle" style={{ marginRight: '4px' }} />
+              Clear Emergency
+            </button>
+          )}
         </div>
       </div>
 

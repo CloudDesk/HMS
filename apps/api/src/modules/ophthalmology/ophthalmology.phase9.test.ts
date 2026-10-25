@@ -42,11 +42,19 @@ import { OphthalmologyConfigurationModel, OphthalmologyContextModel } from './op
 import { BillingInvoiceModel } from '../billing/billing.model.js';
 import { OphthalmologyRepository } from './ophthalmology.repository.js';
 import { OphthalmologyService } from './ophthalmology.service.js';
+import { InpatientAdmissionService } from '../inpatient-admissions/inpatient-admission.service.js';
 
 describe('Ophthalmology Phase 9 consultation finalization', () => {
   let mongo: MongoMemoryReplSet; const repository = new OphthalmologyRepository(); const visitRepository = new OpdVisitRepository();
+  const mockInpatientAdmissions = {
+    createRequest: vi.fn().mockImplementation(async (payload: Record<string, unknown>) => ({
+      id: new mongoose.Types.ObjectId().toString(),
+      ...payload,
+    })),
+  } as unknown as InpatientAdmissionService;
   const service = new OphthalmologyService(repository, visitRepository, new NotificationService(new NotificationRepository()),
-    new OpdConsultationRepository(), new AppointmentRepository(), new PatientRepository(), createServiceRegistry().billing);
+    new OpdConsultationRepository(), new AppointmentRepository(), new PatientRepository(), createServiceRegistry().billing,
+    mockInpatientAdmissions);
   let visitId: string; let userId: string; let contextId: string;
 
   beforeAll(async () => {
@@ -691,10 +699,22 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
 
     // Blocked Scenario OPD-013 / Node D2-34: Clearance with resumption_permitted: false leaves routine care blocked
     await service.clearAlert(visitId, secondAlert.id, {
+      expected_version: secondAlert.version,
       disposition: 'ADMIT_TO_INPATIENT',
       clearance_rationale: 'Severe corneal laceration requires immediate inpatient surgical admission',
       resumption_permitted: false,
     }, userId);
+    expect(mockInpatientAdmissions.createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'OPD_VISIT',
+        source_id: visitId,
+        priority: 'EMERGENCY',
+        reason: 'Severe corneal laceration requires immediate inpatient surgical admission',
+      }),
+      userId,
+      expect.anything(),
+      expect.anything(),
+    );
 
     await expect(service.createTestTask(visitId, {
       expected_context_version: sourceContext.version,
@@ -709,6 +729,7 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
 
     // Idempotency: Rejecting second clearance call on already CLEARED alert
     await expect(service.clearAlert(visitId, secondAlert.id, {
+      expected_version: secondAlert.version + 1,
       disposition: 'RESUME_ROUTINE_OPD',
       clearance_rationale: 'Re-evaluating',
       resumption_permitted: true,

@@ -108,6 +108,10 @@ export class SurgeryService {
         if (!refs.patient) throw new AppError('Active patient not found', 404, 'PATIENT_NOT_FOUND');
         if (!refs.doctor) throw new AppError('Active recommending doctor not found in the selected branch', 404, 'DOCTOR_NOT_FOUND');
         if (!refs.department) throw new AppError('Active department not found in the selected branch', 404, 'DEPARTMENT_NOT_FOUND');
+        const ophthalmology = /ophthalmology/i.test(`${refs.department.code} ${refs.department.name}`)
+          || Boolean(resolvedData.encounter_id && await this.repository.isOphthalmologySource(resolvedData.encounter_id, session));
+        if (ophthalmology && !resolvedData.target_eye) throw new AppError('Select the operative eye for Ophthalmology', 400, 'PROCEDURE_TARGET_EYE_REQUIRED');
+        if (resolvedData.target_eye && !['OD', 'OS', 'OU'].includes(resolvedData.target_eye)) throw new AppError('Invalid operative eye', 400, 'VALIDATION_ERROR');
         if (!refs.service) throw new AppError('Active procedure service not found in the selected department', 404, 'PROCEDURE_SERVICE_NOT_FOUND');
         if (resolvedData.encounter_id && !refs.encounter) throw new AppError('Clinical encounter does not match the selected patient and doctor', 409, 'ENCOUNTER_CONTEXT_MISMATCH');
         const result = await this.repository.createRecommendation(resolvedData, { patientNumber: refs.patient.patientNumber, patientName: [refs.patient.firstName, refs.patient.middleName, refs.patient.lastName].filter(Boolean).join(' '), doctorName: refs.doctor.displayName, departmentName: refs.department.name, serviceName: refs.service.name }, actor, session);
@@ -140,6 +144,10 @@ export class SurgeryService {
       return await executeTransaction(this.repository, async (session) => {
         const recommendation = await this.repository.getActiveRecommendationRecord(data.recommendation_id, data.branch_id, session);
         if (!recommendation) throw new AppError('Active unbooked procedure recommendation not found', 409, 'PROCEDURE_RECOMMENDATION_NOT_ACTIVE');
+        const targetEye = data.target_eye ?? recommendation.targetEye;
+        if (data.target_eye && recommendation.targetEye && data.target_eye !== recommendation.targetEye) throw new AppError('Booking eye must match the recommendation', 409, 'PROCEDURE_TARGET_EYE_CONFLICT');
+        if (targetEye && !['OD', 'OS', 'OU'].includes(targetEye)) throw new AppError('Invalid operative eye', 400, 'VALIDATION_ERROR');
+        if (!targetEye && (/ophthalmology/i.test(recommendation.departmentName) || Boolean(recommendation.encounterId && await this.repository.isOphthalmologySource(recommendation.encounterId.toString(), session)))) throw new AppError('Select the operative eye for Ophthalmology', 400, 'PROCEDURE_TARGET_EYE_REQUIRED');
         const refs = await this.repository.bookingReferences(recommendation, data.doctor_id, session);
         if (!refs.service || !refs.service.defaultDurationMinutes || !refs.service.bookingCapacity) throw new AppError('Procedure service configuration is incomplete', 409, 'PROCEDURE_SERVICE_CONFIGURATION_INVALID');
         if (!refs.doctor) throw new AppError('Active procedure doctor not found in the selected branch and department', 404, 'DOCTOR_NOT_FOUND');

@@ -34,6 +34,7 @@ export type OphthalmologyIntakeFields = {
 export type OphthalmologyAlertClearanceFields = {
   clearedBy: Types.ObjectId;
   clearedAt: Date;
+  admissionRequestId?: Types.ObjectId | null;
   disposition: 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIENT' | 'TRANSFER_EXTERNAL';
   clearanceRationale: string;
   resumptionPermitted: boolean;
@@ -100,6 +101,7 @@ const alertClearanceSchema = new Schema<OphthalmologyAlertClearanceFields>({
   clearedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, alias: 'cleared_by' },
   clearedAt: { type: Date, required: true, alias: 'cleared_at' },
   disposition: { type: String, enum: ['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL'], required: true },
+  admissionRequestId: { type: Schema.Types.ObjectId, ref: 'AdmissionRequest', default: null },
   clearanceRationale: { type: String, required: true, trim: true, alias: 'clearance_rationale' },
   resumptionPermitted: { type: Boolean, required: true, alias: 'resumption_permitted' },
 }, { _id: false });

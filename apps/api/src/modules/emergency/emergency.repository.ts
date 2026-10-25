@@ -194,6 +194,11 @@ export const emergencyReferralDto = (row: EmergencyLean) => {
 };
 
 export class EmergencyRepository {
+  async getBySourceAlert(sourceAlertId: string, branchId: string, session?: ClientSession) {
+    const row = await EmergencyEncounterModel.findOne({ 'originatingSource.sourceAlertId': oid(sourceAlertId), branchId: oid(branchId) })
+      .session(session ?? null).lean<EmergencyLean>();
+    return row ? emergencyDto(row) : null;
+  }
   async getOphthalmologySource(sourceAlertId: string, visitId: string, patientId: string, branchId: string, session?: ClientSession) {
     return OphthalmologyAlertModel.findOne({ _id: oid(sourceAlertId), visitId: oid(visitId), patientId: oid(patientId),
       branchId: oid(branchId), type: 'EMERGENCY_SCREENING', status: { $in: ['ACTIVE', 'ACKNOWLEDGED'] } }).session(session ?? null).lean();

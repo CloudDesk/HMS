@@ -26,10 +26,11 @@ export function useOphthalmologyWorkspaceFeature() {
   const canEdit = canReadIntake && can('Ophthalmology Intake', 'Edit');
   const canConfigure = can('Ophthalmology Configuration');
   const canEscalate = (canReadIntake && can('Ophthalmology Intake', 'Escalate')) || can('Ophthalmology Consultation', 'Edit') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Test Queue', 'Edit') || can('Ophthalmology Test Queue', 'Start');
+  const canClear = can('Ophthalmology Emergency', 'Clear') || can('Ophthalmology Consultation', 'Complete');
   const areas = consultationAreas.filter((area) => can(area.screen));
   const selectedArea = areas.find((area) => area.id === params.get('area'));
   const sharedVisitQuery = useOpdVisit(visitId || null, canReadIntake);
-  const clinicalWorkspaceQuery = useOphthalmologyClinicalWorkspace(visitId, canView && !canReadIntake);
+  const clinicalWorkspaceQuery = useOphthalmologyClinicalWorkspace(visitId, canView && (!canReadIntake || canClear));
   const visitQuery = canReadIntake ? sharedVisitQuery : { ...clinicalWorkspaceQuery, data: clinicalWorkspaceQuery.data?.visit };
   const visit = canView && visitQuery.data?.id === visitId ? visitQuery.data : undefined;
   const defaultSubtypeFromVisit = (visitType?: string): OphthalmologyVisitSubtype => {
@@ -85,6 +86,17 @@ export function useOphthalmologyWorkspaceFeature() {
   }
   const lookupData = (query: typeof complaintsQuery) => lookupEnabled ? (query.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE') : [];
   return {
+    emergencyAlerts: (canClear ? clinicalWorkspaceQuery.data?.alerts : intakeView?.alerts) ?? [],
+    clearanceQuery: clinicalWorkspaceQuery,
+    canClearEmergency: canClear && clinicalWorkspaceQuery.data?.can_clear_emergency === true && editableVisit
+      && !scopeError && !clinicalWorkspaceQuery.isError && !clinicalWorkspaceQuery.isFetching,
+    clearEmergency: (alert: OphthalmologyAlert, body: Parameters<typeof mutations.clear.mutateAsync>[0]['body']) => {
+      if (!canClear || clinicalWorkspaceQuery.data?.can_clear_emergency !== true || !editableVisit || scopeError
+        || clinicalWorkspaceQuery.isError || clinicalWorkspaceQuery.isFetching || !matchesScope(alert)
+        || !['ACTIVE', 'ACKNOWLEDGED'].includes(alert.status) || body.expected_version !== alert.version
+        || !clinicalWorkspaceQuery.data.alerts.some((current) => current.id === alert.id && current.version === alert.version)) return Promise.resolve(undefined);
+      return perform(() => mutations.clear.mutateAsync({ id: alert.id, body }), 'Emergency disposition recorded.');
+    },
     canViewClinical: can('Ophthalmology Consultation'), canViewOptical: can('Ophthalmology Optical Prescription'),
     openClinical: (tab: string) => { const next = new URLSearchParams(search); next.delete('area'); next.set('section', 'clinical'); next.set('care_tab', tab); navigate(`/opd/ophthalmology?${next}`); },
     canViewQueue: can('Ophthalmology Test Queue'), openQueue: () => { if (visit) navigate(`/opd/ophthalmology/queue?branch_id=${visit.branch_id}&visit_id=${visitId}`); },

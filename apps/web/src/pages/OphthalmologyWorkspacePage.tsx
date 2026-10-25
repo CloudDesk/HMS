@@ -1,3 +1,4 @@
+import { OphthalmologyEmergencyClearance } from '../components/ophthalmology/OphthalmologyEmergencyClearance';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -349,7 +350,8 @@ export function OphthalmologyWorkspacePage() {
 
 
       {/* Emergency Alerts */}
-      {f.intakeView?.alerts.map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
+      <OphthalmologyEmergencyClearance feature={f} />
+      {f.intakeView?.alerts.filter((alert) => alert.status !== 'CLEARED').map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
 
       {/* Persistent Bottom Action Bar */}
       {f.context && (

@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { navigate, useAppLocation } from '../../routing/navigation';
 import type { OpdConsultationResponse, OpdVisitResponse } from '../../api/opd';
-import { eyeSchema, ophthalmologyIdSchema as id, type OphthalmologyContext } from '../../api/ophthalmology';
+import { eyeSchema, ophthalmologyIdSchema as id, type OphthalmologyContext, type OphthalmologyAlert, type ClearOphthalmologyAlert } from '../../api/ophthalmology';
 import type { ClinicalReviewWrite, OpticalWrite, ResultReviewWrite } from '../../api/ophthalmology-care';
 import { useOpdConsultation } from '../opd/useOpd';
 import { useOphthalmologyClinicalConfiguration, useOphthalmologyResult, useOphthalmologyTasks } from './useOphthalmology';
@@ -13,7 +13,24 @@ import { useOphthalmologyQueueTask } from './useOphthalmologyQueue';
 import { useOphthalmologyCareMutations, useOphthalmologyClinicalReview, useOphthalmologyOpticalPrescription } from './useOphthalmologyCare';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
-export type CareWorkspace = { visitId: string; visit?: Pick<OpdVisitResponse, 'patient_id' | 'branch_id' | 'department_id' | 'status'>; context?: Pick<OphthalmologyContext, 'id' | 'configuration_version_id' | 'workflow_status'>; canView: boolean; scopeError: boolean; visitQuery: { isError: boolean }; contextQuery: { isError: boolean }; configurationPage: number; setQuery: (key: string, value: string) => void; canEscalate?: boolean; escalate?: (reason: string, trigger_findings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => Promise<unknown> };
+export type CareWorkspace = {
+  visitId: string;
+  visit?: Pick<OpdVisitResponse, 'patient_id' | 'branch_id' | 'department_id' | 'status'>;
+  context?: Pick<OphthalmologyContext, 'id' | 'configuration_version_id' | 'workflow_status'> & Partial<Pick<OphthalmologyContext, 'affected_eye'>>;
+  canView: boolean;
+  scopeError: boolean;
+  visitQuery: { isError: boolean };
+  contextQuery: { isError: boolean };
+  configurationPage: number;
+  setQuery: (key: string, value: string) => void;
+  canEscalate?: boolean;
+  escalate?: (reason: string, trigger_findings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => Promise<unknown>;
+  emergencyAlerts?: OphthalmologyAlert[];
+  canClearEmergency?: boolean;
+  clearEmergency?: (alert: OphthalmologyAlert, body: ClearOphthalmologyAlert) => Promise<unknown>;
+  clearanceQuery?: { isError: boolean; isFetching: boolean; refetch: () => Promise<unknown> };
+  actionError?: string | null;
+};
 export type CareTab = 'treatment' | 'results' | 'optical' | 'orders' | 'prescription' | 'lab-orders' | 'imaging-orders' | 'continuing-care' | 'referral' | 'follow-up';
 export const savedDiagnosisSchema = z.object({ code: z.string().min(1), display: z.string().min(1), codingSystem: z.string(), type: z.enum(['PRIMARY', 'SECONDARY']), laterality: eyeSchema.nullable().optional(), status: z.enum(['SUSPECTED', 'CONFIRMED', 'RULED_OUT']).nullable().optional(), severity: z.string().nullable().optional(), stage: z.string().nullable().optional(), differential: z.boolean().optional(), notes: z.string().nullable().optional() });
 export function useOphthalmologyCareFeature(workspace: CareWorkspace) {

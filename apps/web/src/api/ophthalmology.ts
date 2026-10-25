@@ -21,7 +21,12 @@ export const contextSchema = z.object({
   workflow_status: z.enum(['CHECKED_IN', 'PRELIMINARY_EXAMINATION', 'AWAITING_DOCTOR', 'UNDER_CONSULTATION', 'TESTS_ORDERED', 'AWAITING_RESULTS', 'CLINICAL_REVIEW', 'REVIEW_COMPLETED', 'CONSULTATION_COMPLETED']),
   configuration_version_id: ophthalmologyIdSchema, workflow_profile_version_id: ophthalmologyIdSchema, version,
 });
-export const clinicalWorkspaceSchema = z.object({ context: contextSchema.nullable(), visit: z.object({
+const clearanceSchema = z.object({ cleared_by: ophthalmologyIdSchema, cleared_at: instant,
+  disposition: z.enum(['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL']),
+  clearance_rationale: z.string(), resumption_permitted: z.boolean(), admission_request_id: ophthalmologyIdSchema.nullable().optional() });
+const alertSchema = z.object({ id: ophthalmologyIdSchema, ...scope, type: z.literal('EMERGENCY_SCREENING'), status: z.enum(['ACTIVE', 'ACKNOWLEDGED', 'CLEARED']), clearance: clearanceSchema.nullable().optional(), reason: z.string(), version, triggered_by: ophthalmologyIdSchema, triggered_at: instant, acknowledged_by: ophthalmologyIdSchema.nullable(), acknowledged_at: instant.nullable(), acknowledgement_note: z.string().nullable() });
+export type OphthalmologyAlert = z.infer<typeof alertSchema>;
+export const clinicalWorkspaceSchema = z.object({ alerts: z.array(alertSchema).default([]), can_clear_emergency: z.boolean().default(false), context: contextSchema.nullable(), visit: z.object({
   id: ophthalmologyIdSchema, visit_number: z.string(), patient_id: ophthalmologyIdSchema, patient_number: z.string(), patient_name: z.string(), doctor_name: z.string(),
   branch_id: ophthalmologyIdSchema, department_id: ophthalmologyIdSchema, visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'WALK_IN', 'REVIEW']),
   priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), status: z.enum(['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']),
@@ -65,8 +70,7 @@ export const saveIntakeSchema = intakeFieldsSchema.extend({ expected_version: ve
 export type SaveOphthalmologyIntake = z.infer<typeof saveIntakeSchema>;
 const intakeSchema = intakeFieldsSchema.extend({ id: ophthalmologyIdSchema, context_id: ophthalmologyIdSchema, ...scope, status: z.enum(['DRAFT', 'COMPLETED']), version, complaint_configuration_version_id: ophthalmologyIdSchema, emergency_configuration_version_id: ophthalmologyIdSchema }).strip();
 export type OphthalmologyIntake = z.infer<typeof intakeSchema>;
-const alertSchema = z.object({ id: ophthalmologyIdSchema, ...scope, type: z.literal('EMERGENCY_SCREENING'), status: z.enum(['ACTIVE', 'ACKNOWLEDGED']), reason: z.string(), version, triggered_by: ophthalmologyIdSchema, triggered_at: instant, acknowledged_by: ophthalmologyIdSchema.nullable(), acknowledged_at: instant.nullable(), acknowledgement_note: z.string().nullable() });
-export type OphthalmologyAlert = z.infer<typeof alertSchema>;
+
 const intakeViewSchema = z.object({ intake: intakeSchema.nullable(), alerts: z.array(alertSchema), shared_history: z.object({ history_present_illness: z.string().nullable(), past_history: z.string().nullable(), family_history: z.string().nullable(), allergies: z.string().nullable() }) });
 export type OphthalmologyIntakeView = z.infer<typeof intakeViewSchema>;
 export const taskSchema = z.object({
@@ -106,6 +110,14 @@ export type UploadOphthalmologyAttachment = z.infer<typeof uploadAttachmentSchem
 const completeIntakeSchema = z.object({ expected_version: version, expected_status: z.literal('DRAFT'), expected_context_version: version }).strict();
 const completeResultSchema = z.object({ expected_task_status: z.literal('DRAFT'), expected_task_version: version, expected_result_version: version }).strict();
 export type CompleteOphthalmologyResult = z.infer<typeof completeResultSchema>;
+export const clearAlertSchema = z.object({ expected_version: version,
+  disposition: z.enum(['RESUME_ROUTINE_OPD', 'ADMIT_TO_INPATIENT', 'TRANSFER_EXTERNAL']),
+  clearance_rationale: z.string().trim().min(1, 'Clearance rationale is required.').max(5000),
+  resumption_permitted: z.boolean(),
+}).strict().refine((value) => !value.resumption_permitted || value.disposition === 'RESUME_ROUTINE_OPD', {
+  path: ['resumption_permitted'], message: 'Only routine OPD disposition permits resumption.',
+});
+export type ClearOphthalmologyAlert = z.infer<typeof clearAlertSchema>;
 const alertActionSchema = z.object({ expected_version: version, expected_status: z.literal('ACTIVE'), note: nullableText(1000).optional() }).strict();
 export type AlertAction = z.infer<typeof alertActionSchema>;
 const escalateAlertSchema = z.object({
@@ -132,6 +144,7 @@ export const ophthalmologyApi = {
   intake: async (visitId: string, signal?: AbortSignal) => intakeViewSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/intake`, { signal })),
   saveIntake: async (visitId: string, body: SaveOphthalmologyIntake) => intakeSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/intake/draft`, { method: 'PUT', body: saveIntakeSchema.parse(body) })),
   completeIntake: async (visitId: string, body: z.infer<typeof completeIntakeSchema>) => z.object({ intake: intakeSchema, alert: alertSchema.nullable() }).parse(await apiClient.request<unknown>(`${visitPath(visitId)}/intake/complete`, { method: 'POST', body: completeIntakeSchema.parse(body) })),
+  clearAlert: async (visitId: string, alertId: string, body: ClearOphthalmologyAlert) => alertSchema.parse(await apiClient.request<unknown>(`${visitPath(visitId)}/alerts/${ophthalmologyIdSchema.parse(alertId)}/clear`, { method: 'POST', body: clearAlertSchema.parse(body) })),
   alert: async (visitId: string, alertId: string, action: 'route' | 'acknowledge', body: AlertAction) => {
     const parsed = alertActionSchema.parse(body);
     const request = action === 'route' ? { expected_version: parsed.expected_version, expected_status: parsed.expected_status } : parsed;

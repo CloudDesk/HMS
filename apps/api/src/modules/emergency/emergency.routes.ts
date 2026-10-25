@@ -192,18 +192,11 @@ export const registerEmergencyRoutes = async (app: FastifyInstance, services: Se
   app.post(
     '/api/emergency/encounters',
     { preHandler: requirePermission(services, 'Emergency', 'Encounters', 'Register') },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          ok(
-            await services.emergency.create(
-              parse(createEmergencySchema, request.body),
-              request.user!.id,
-              meta(request),
-            ),
-          ),
-        ),
+    async (request, reply) => {
+      const result = await services.emergency.create(parse(createEmergencySchema, request.body), request.user!.id, meta(request));
+      return reply.status('idempotent_replay' in result ? 200 : 201)
+        .send(ok(await redactEmergencyDetail(services, request, result)));
+    },
   );
   app.post(
     '/api/emergency/encounters/:id/link-patient',

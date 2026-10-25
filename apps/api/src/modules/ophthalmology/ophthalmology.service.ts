@@ -101,6 +101,7 @@ const canonicalize = (value: unknown): unknown => {
 };
 
 import type { BillingService } from '../billing/billing.service.js';
+import type { InpatientAdmissionService } from '../inpatient-admissions/inpatient-admission.service.js';
 
 export class OphthalmologyService {
   constructor(
@@ -111,6 +112,7 @@ export class OphthalmologyService {
     private readonly appointmentRepository?: AppointmentRepository,
     private readonly patientRepository?: PatientRepository,
     private readonly billingService?: BillingService,
+    private readonly inpatientAdmissions?: InpatientAdmissionService,
   ) {}
 
   async getClinicalWorkspace(visitId: string, userId: string) {
@@ -395,6 +397,24 @@ export class OphthalmologyService {
         throw this.versionConflict('alert');
       }
 
+      let admissionRequestId: string | null = null;
+      if (disposition === 'ADMIT_TO_INPATIENT') {
+        if (!this.inpatientAdmissions) throw new AppError('Admission integration is unavailable', 503, 'OPHTHALMOLOGY_ADMISSION_DEPENDENCY_UNAVAILABLE');
+        const visit = await this.getOphthalmologyVisit(visitId, userId);
+        const request = await this.inpatientAdmissions.createRequest({
+          patient_id: alert.patient_id,
+          branch_id: alert.branch_id,
+          department_id: alert.department_id,
+          recommending_doctor_id: visit.doctor_id,
+          source_type: 'OPD_VISIT',
+          source_id: visitId,
+          admission_type: 'INPATIENT',
+          priority: 'EMERGENCY',
+          reason: rationale,
+        }, userId, metadata, session);
+        admissionRequestId = request.id;
+      }
+
       const cleared = await this.repository.clearEmergencyAlert(
         alert.id,
         data.expected_version ?? alert.version,
@@ -403,6 +423,7 @@ export class OphthalmologyService {
           disposition,
           clearanceRationale: rationale,
           resumptionPermitted,
+          admissionRequestId,
         },
         session,
       );
@@ -418,6 +439,7 @@ export class OphthalmologyService {
           branchId: alert.branch_id,
           previousStatus: alert.status,
           resultingStatus: cleared.status,
+          admissionRequestId,
           disposition,
           clearanceRationale: rationale,
           resumptionPermitted,
@@ -1472,11 +1494,15 @@ export class OphthalmologyService {
 
     const unmetObligations: string[] = [];
     if (!isBillingSettled) unmetObligations.push(invoices.length ? 'Billing has an outstanding balance' : 'Billing handoff is not recorded');
+    const handledPrescriptionIds = new Set<string>();
     for (const plan of clinicalReview?.current.treatment_plans ?? []) {
       if (plan.status !== 'ACTIVE') continue;
-      if (plan.medication_prescription_id && plan.priority === 'EMERGENCY') {
+      if (plan.medication_prescription_id) {
         const prescription = projection.medication_prescriptions.find((item) => item._id.toString() === plan.medication_prescription_id);
-        if (!prescription || prescription.status !== 'DISPENSED') unmetObligations.push('Required emergency medication is not dispensed');
+        handledPrescriptionIds.add(plan.medication_prescription_id);
+        if (!prescription || prescription.status !== 'DISPENSED') {
+          unmetObligations.push(plan.priority === 'EMERGENCY' ? 'Required emergency medication is not dispensed' : 'Required medication is not dispensed');
+        }
       }
       if (plan.referral_id) {
         const referral = projection.referrals.find((item) => item._id.toString() === plan.referral_id);
@@ -1489,6 +1515,11 @@ export class OphthalmologyService {
       if (plan.procedure_recommendation_id) {
         const procedure = projection.procedure_recommendations.find((item) => item._id.toString() === plan.procedure_recommendation_id);
         if (!procedure || procedure.bookingStatus !== 'COMPLETED') unmetObligations.push('Required procedure is not completed');
+      }
+    }
+    for (const prescription of projection.medication_prescriptions) {
+      if (!handledPrescriptionIds.has(prescription._id.toString()) && prescription.status !== 'DISPENSED') {
+        unmetObligations.push('Required medication is not dispensed');
       }
     }
     if (!intake || intake.status !== 'COMPLETED') {

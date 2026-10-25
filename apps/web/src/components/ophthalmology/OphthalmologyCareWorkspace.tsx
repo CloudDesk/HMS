@@ -16,6 +16,8 @@ import { useDoctorsList } from '../../hooks/doctors/useDoctors';
 import { useServicesList } from '../../hooks/services/useServices';
 import { NewProcedureRecommendationModal } from '../surgery/NewProcedureRecommendationModal';
 import { OphthalmologySharedCareSection, type SharedCareTab } from './OphthalmologySharedCareSection';
+import { OphthalmologyEmergencyClearance } from './OphthalmologyEmergencyClearance';
+import type { OphthalmologyWorkspaceFeature } from '../../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 
 export function Reading({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value == null) return <span>Not recorded</span>;
@@ -233,6 +235,10 @@ export function OphthalmologyCareWorkspace({
             </button>
           </div>
         </div>
+      )}
+
+      {workspace.emergencyAlerts && workspace.emergencyAlerts.length > 0 && (
+        <OphthalmologyEmergencyClearance feature={workspace as unknown as OphthalmologyWorkspaceFeature} />
       )}
 
       {f.tab === 'treatment' && !f.canClinical && <p role="alert">Ophthalmology Consultation View permission is required.</p>}
@@ -496,6 +502,7 @@ export function OphthalmologyCareWorkspace({
 
       {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}
       <NewProcedureRecommendationModal
+        requireTargetEye
         open={procedureModalOpen}
         onClose={() => setProcedureModalOpen(false)}
         branchId={branchId}
@@ -512,6 +519,7 @@ export function OphthalmologyCareWorkspace({
           recommending_doctor_id: (workspace.visit as { doctor_id?: string })?.doctor_id,
           encounter_id: workspace.visitId,
           clinical_reason: procedureInitialReason || f.diagnoses.map((d) => `${d.display} (${d.code}) - ${d.laterality ?? 'OU'}`).join('; ') || (workspace.visit as { reason?: string })?.reason || '',
+          target_eye: (f.diagnoses.find((d) => d.laterality && ['OD', 'OS', 'OU'].includes(d.laterality))?.laterality as 'OD' | 'OS' | 'OU') || (workspace.context?.affected_eye && ['OD', 'OS', 'OU'].includes(workspace.context.affected_eye) ? (workspace.context.affected_eye as 'OD' | 'OS' | 'OU') : undefined),
           sourceContext: 'Ophthalmology Consultation',
         }}
         onCreateSuccess={() => {

@@ -158,7 +158,7 @@ export const clearEmergencyAlertSchema = z
     clearanceRationale: z.string().trim().min(1, 'Clearance rationale is required').optional(),
     resumption_permitted: z.boolean().optional(),
     resumptionPermitted: z.boolean().optional(),
-    expected_version: z.number().int().min(0).optional(),
+    expected_version: z.number().int().min(0),
   })
   .superRefine((data, ctx) => {
     const rationale = data.clearance_rationale ?? data.clearanceRationale;
@@ -182,7 +182,7 @@ export const clearEmergencyAlertSchema = z
 export const clearOphthalmologyEmergencyAlertBodySchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['disposition'],
+  required: ['disposition', 'expected_version'],
   properties: {
     disposition: {
       type: 'string',

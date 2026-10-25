@@ -267,7 +267,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                           key={item.id}
                           type="button"
                           className={`oph-pill-btn ${laterality === item.id ? `selected lat-${item.id.toLowerCase()}` : ''}`}
-                          onClick={() => setValue(`diagnoses.${index}.laterality`, item.id as any, { shouldDirty: true, shouldValidate: true })}
+                          onClick={() => setValue(`diagnoses.${index}.laterality`, item.id as 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE', { shouldDirty: true, shouldValidate: true })}
                         >
                           {item.label}
                         </button>
@@ -289,7 +289,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                           key={item.id}
                           type="button"
                           className={`oph-pill-btn ${status === item.id ? `selected ${item.colorClass}` : ''}`}
-                          onClick={() => setValue(`diagnoses.${index}.status`, item.id as any, { shouldDirty: true, shouldValidate: true })}
+                          onClick={() => setValue(`diagnoses.${index}.status`, item.id as 'SUSPECTED' | 'CONFIRMED' | 'RULED_OUT', { shouldDirty: true, shouldValidate: true })}
                         >
                           {item.label}
                         </button>

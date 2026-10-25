@@ -206,6 +206,7 @@ const toAlert = (item: AlertRecord): OphthalmologyAlert => ({
     ? {
         cleared_by: item.clearance.clearedBy.toString(),
         cleared_at: item.clearance.clearedAt,
+        admission_request_id: item.clearance.admissionRequestId?.toString() ?? null,
         disposition: item.clearance.disposition,
         clearance_rationale: item.clearance.clearanceRationale,
         resumption_permitted: item.clearance.resumptionPermitted,
@@ -628,12 +629,13 @@ export class OphthalmologyRepository {
 
   async clearEmergencyAlert(
     id: string,
-    expectedVersion: number | undefined,
+    expectedVersion: number,
     userId: string,
     clearance: {
       disposition: 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIENT' | 'TRANSFER_EXTERNAL';
       clearanceRationale: string;
       resumptionPermitted: boolean;
+      admissionRequestId?: string | null;
     },
     session?: ClientSession,
   ) {
@@ -654,6 +656,7 @@ export class OphthalmologyRepository {
           disposition: clearance.disposition,
           clearanceRationale: clearance.clearanceRationale,
           resumptionPermitted: clearance.resumptionPermitted,
+          admissionRequestId: clearance.admissionRequestId ? oid(clearance.admissionRequestId) : null,
         },
       },
       $inc: { version: 1 },

@@ -268,6 +268,18 @@ export const createServiceRegistry = (): ServiceRegistry => {
   );
 
 
+  const inpatientAdmissions = new InpatientAdmissionService(
+      inpatientAdmissionRepository,
+      admissionsConfigurationService,
+      new PatientService(patientRepository, patientDocumentStorageService, sequenceService),
+      billingService,
+      opdVisitRepository,
+      emergencyRepository,
+      advancePaymentService,
+      opdPrescriptionService,
+      opdClinicalOrderService,
+    );
+
   return {
     database: {
       healthCheck: checkDatabaseHealth,
@@ -322,7 +334,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
       userRepository,
     ),
     ophthalmology: new OphthalmologyService(ophthalmologyRepository, opdVisitRepository, notificationService,
-      opdConsultationRepository, appointmentRepository, patientRepository, billingService),
+      opdConsultationRepository, appointmentRepository, patientRepository, billingService, inpatientAdmissions),
     ophthalmologyPhase10: new OphthalmologyPhase10Service(
       ophthalmologyPhase10Repository,
       ophthalmologyRepository,
@@ -352,17 +364,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     ),
     sms,
     admissionsConfiguration: admissionsConfigurationService,
-    inpatientAdmissions: new InpatientAdmissionService(
-      inpatientAdmissionRepository,
-      admissionsConfigurationService,
-      new PatientService(patientRepository, patientDocumentStorageService, sequenceService),
-      billingService,
-      opdVisitRepository,
-      emergencyRepository,
-      advancePaymentService,
-      opdPrescriptionService,
-      opdClinicalOrderService,
-    ),
+    inpatientAdmissions,
     surgery: new SurgeryService(
       surgeryRepository,
       doctorRepository,

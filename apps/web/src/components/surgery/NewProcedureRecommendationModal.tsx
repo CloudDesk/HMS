@@ -18,6 +18,7 @@ const recommendationSchema = z.object({
     .string()
     .optional()
     .refine((val) => !val || /^[a-f\d]{24}$/i.test(val), 'Enter a valid 24-character OPD visit ID'),
+  target_eye: z.string().optional(),
   clinical_reason: z.string().trim().min(3, 'Clinical reason is required').max(1000),
   notes: z.string().max(2000).optional(),
 });
@@ -35,6 +36,7 @@ export type InitialProcedureContext = {
   encounter_id?: string | null;
   clinical_reason?: string | null;
   notes?: string | null;
+  target_eye?: 'OD' | 'OS' | 'OU' | '' | null;
   sourceContext?: string;
 };
 
@@ -47,6 +49,7 @@ type NewProcedureRecommendationModalProps = {
   services: Array<{ id: string; name: string; department_id?: string }>;
   initialContext?: InitialProcedureContext | null;
   onCreateSuccess?: () => void;
+  requireTargetEye?: boolean;
 };
 
 function FieldError({ text }: { text?: string }) {
@@ -67,6 +70,7 @@ export function NewProcedureRecommendationModal({
   services,
   initialContext,
   onCreateSuccess,
+  requireTargetEye,
 }: NewProcedureRecommendationModalProps) {
   const { user } = useAuth();
   const currentDoctorQuery = useCurrentDoctor(Boolean(user));
@@ -92,6 +96,7 @@ export function NewProcedureRecommendationModal({
       department_id: '',
       recommending_doctor_id: currentDoctor?.id || '',
       service_id: '',
+      target_eye: '',
       encounter_id: '',
       clinical_reason: '',
       notes: '',
@@ -120,6 +125,7 @@ export function NewProcedureRecommendationModal({
           department_id: initialContext.department_id || '',
           recommending_doctor_id: activeDoctorId,
           service_id: '',
+          target_eye: initialContext.target_eye || '',
           encounter_id: initialContext.encounter_id || '',
           clinical_reason: initialContext.clinical_reason?.trim() || '',
           notes: initialContext.notes?.trim() || '',
@@ -132,6 +138,7 @@ export function NewProcedureRecommendationModal({
           department_id: '',
           recommending_doctor_id: activeDoctorId,
           service_id: '',
+          target_eye: '',
           encounter_id: '',
           clinical_reason: '',
           notes: '',
@@ -146,6 +153,11 @@ export function NewProcedureRecommendationModal({
       return;
     }
     try {
+      const isOphthal = requireTargetEye || /ophthalmology/i.test(departments.find((d) => d.id === values.department_id)?.name ?? '');
+      if (isOphthal && !values.target_eye) {
+        toast.error('Target eye (OD, OS, or OU) is required for ophthalmology procedures.');
+        return;
+      }
       setIsSubmitting(true);
       await surgeryApi.createRecommendation({
         patient_id: values.patient_id,
@@ -153,6 +165,7 @@ export function NewProcedureRecommendationModal({
         department_id: values.department_id,
         recommending_doctor_id: currentDoctor?.id || values.recommending_doctor_id || undefined,
         service_id: values.service_id,
+        target_eye: values.target_eye ? (values.target_eye as 'OD' | 'OS' | 'OU') : undefined,
         encounter_type: values.encounter_id ? 'OPD_VISIT' : 'DIRECT',
         encounter_id: values.encounter_id || null,
         clinical_reason: values.clinical_reason.trim(),
@@ -542,6 +555,39 @@ export function NewProcedureRecommendationModal({
               </select>
               <FieldError text={errors.service_id?.message} />
             </div>
+
+            {(requireTargetEye || /ophthalmology/i.test(departments.find((d) => d.id === watchedDepartmentId)?.name ?? '')) && (
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 500,
+                    color: '#334155',
+                    display: 'block',
+                    marginBottom: '3px',
+                  }}
+                >
+                  Target Eye (Operative Laterality) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select
+                  {...register('target_eye')}
+                  style={{
+                    width: '100%',
+                    height: '36px',
+                    borderRadius: '6px',
+                    border: errors.target_eye ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                    padding: '0 8px',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  <option value="">Select Target Eye</option>
+                  <option value="OD">OD (Right Eye)</option>
+                  <option value="OS">OS (Left Eye)</option>
+                  <option value="OU">OU (Both Eyes)</option>
+                </select>
+                <FieldError text={errors.target_eye?.message} />
+              </div>
+            )}
 
             <div>
               <label

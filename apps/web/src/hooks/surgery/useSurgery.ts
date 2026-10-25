@@ -18,3 +18,13 @@ export function useSurgery(params: SurgeryListParams, enabled: { recommendations
 export function useSurgeryAlternatives(params: { branch_id: string; department_id: string; service_id: string; scheduled_start: string; doctor_id?: string }, enabled: boolean) { return useQuery({ queryKey: surgeryKeys.alternatives(params), queryFn: () => surgeryService.alternatives(params), enabled }); }
 export const fetchSurgeryBooking = (id: string, branchId: string) => surgeryService.booking(id, branchId);
 
+
+export function useCreateProcedureRecommendation() {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: (body: CreateRecommendationPayload) => surgeryService.createRecommendation(body),
+    onSuccess: (_, body) => client.invalidateQueries({ queryKey: ['surgery', 'recommendations'], predicate: (query) => {
+      const params = query.queryKey[2];
+      return Boolean(params && typeof params === 'object' && 'branch_id' in params && params.branch_id === body.branch_id);
+    } }),
+  });
+}

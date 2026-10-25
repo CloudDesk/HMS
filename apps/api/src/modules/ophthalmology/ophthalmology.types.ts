@@ -235,6 +235,7 @@ export type EmergencyAlertDisposition = 'RESUME_ROUTINE_OPD' | 'ADMIT_TO_INPATIE
 export type EmergencyAlertClearance = {
   cleared_by: string;
   cleared_at: Date;
+  admission_request_id?: string | null;
   disposition: EmergencyAlertDisposition;
   clearance_rationale: string;
   resumption_permitted: boolean;
@@ -373,7 +374,7 @@ export type ClearOphthalmologyEmergencyAlertDTO = {
   clearanceRationale?: string;
   resumption_permitted?: boolean;
   resumptionPermitted?: boolean;
-  expected_version?: number;
+  expected_version: number;
 };
 
 export type RouteOphthalmologyEmergencyDTO = {

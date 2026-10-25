@@ -275,10 +275,27 @@ export class EmergencyService {
     }
     return linked;
   }
+  private async replaySource(data: CreateEmergencyDTO, actor: string, session?: import('mongoose').ClientSession) {
+    const source = data.originatingSource ?? data.originating_source;
+    if (!source) return null;
+    const existing = await this.repository.getBySourceAlert(source.sourceAlertId, data.branch_id, session);
+    if (!existing) return null;
+    await this.authorizeDepartment(actor, existing.department_id);
+    if (existing.patient_id !== data.patient_id || existing.department_id !== data.department_id
+      || existing.originatingSource?.originatingVisitId !== source.originatingVisitId
+      || existing.chief_complaint !== data.chief_complaint || existing.arrival_mode !== data.arrival_mode) {
+      throw new AppError('Source alert was already used with different encounter details', 409, 'EMERGENCY_SOURCE_CONFLICT');
+    }
+    return { ...existing, idempotent_replay: true as const };
+  }
+
   async create(data: CreateEmergencyDTO, actor: string, metadata: EmergencyMetadata) {
     await this.authorize(actor, data.branch_id);
+    await this.authorizeDepartment(actor, data.department_id);
     try {
       return await executeTransaction(this.repository, async (session) => {
+        const replay = await this.replaySource(data, actor, session);
+        if (replay) return replay;
         const requestedSource = data.originatingSource ?? data.originating_source;
         let registration = data;
         if (requestedSource) {
@@ -369,6 +386,22 @@ export class EmergencyService {
         return result;
       });
     } catch (error) {
+      const isDuplicateKey = typeof error === 'object' && error !== null && (
+        ('code' in error && error.code === 11000) ||
+        ('cause' in error && typeof error.cause === 'object' && error.cause !== null && 'code' in error.cause && error.cause.code === 11000)
+      );
+      if (isDuplicateKey) {
+        const source = data.originatingSource ?? data.originating_source;
+        if (source?.sourceAlertId) {
+          const existing = await this.repository.getBySourceAlert(source.sourceAlertId, data.branch_id);
+          if (existing) {
+            await this.authorizeDepartment(actor, existing.department_id);
+            return { ...existing, idempotent_replay: true as const };
+          }
+        }
+        const replay = await this.replaySource(data, actor);
+        if (replay) return replay;
+      }
       return duplicate(error);
     }
   }
