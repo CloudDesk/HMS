@@ -17,14 +17,14 @@ export type OphthalmologyResultWorkspace = {
 };
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
-export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWorkspace) {
+export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWorkspace, attachmentContext?: { taskId: string }) {
   const { user } = useAuth();
   const { search } = useAppLocation();
   const params = new URLSearchParams(search);
   const section = params.get('section') === 'tests' ? 'tests' : 'intake';
   const rawPage = Number(params.get('task_page') ?? 1);
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
-  const rawId = params.get('task_id') ?? '';
+  const rawId = attachmentContext?.taskId ?? params.get('task_id') ?? '';
   const taskId = ophthalmologyIdSchema.safeParse(rawId).success ? rawId : '';
   const can = (action: string) => Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'Ophthalmology Test Queue', action });
   const enabled = workspace.canView && can('View') && section === 'tests' && Boolean(workspace.context) && !workspace.scopeError;
@@ -37,10 +37,10 @@ export function useOphthalmologyResultFeature(workspace: OphthalmologyResultWork
   const result = enabled && resultQuery.data?.task_id === taskId && matchesScope(resultQuery.data) ? resultQuery.data : null;
   const scopeError = enabled && (Boolean(taskQuery.data && !task) || Boolean(resultQuery.data && !result));
   const canAmend = Boolean(user?.roles?.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'Ophthalmology Test Review', action: 'Amend' });
-  const profilesQuery = useOphthalmologyTaskClinicalConfigurations(taskId, 'FORM_PROFILE', workspace.configurationPage, canQuery && Boolean(task) && (can('Edit') || canAmend));
+  const profilesQuery = useOphthalmologyTaskClinicalConfigurations(taskId, 'FORM_PROFILE', workspace.configurationPage, !attachmentContext && canQuery && Boolean(task) && (can('Edit') || canAmend));
   const mutations = useOphthalmologyResultMutations(workspace.visitId, taskId);
   const amending = params.get('amend') === '1' && canAmend && task?.status === 'COMPLETED' && result?.status === 'COMPLETED';
-  const attachmentsOpen = params.get('attachments') === 'open';
+  const attachmentsOpen = Boolean(attachmentContext) || params.get('attachments') === 'open';
   const rawAttachmentPage = Number(params.get('attachment_page') ?? 1);
   const attachmentPage = Number.isSafeInteger(rawAttachmentPage) && rawAttachmentPage > 0 ? rawAttachmentPage : 1;
   const attachmentsQuery = useOphthalmologyAttachments(workspace.visit?.branch_id ?? '', taskId, attachmentPage, canQuery && attachmentsOpen && Boolean(task));

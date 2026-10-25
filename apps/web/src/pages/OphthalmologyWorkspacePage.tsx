@@ -123,7 +123,7 @@ export function OphthalmologyWorkspacePage() {
   if ((f.visitQuery.isError && !f.visit) || (f.contextQuery.isError && !f.context)) return <div className="doc-card" role="alert"><p>The ophthalmology encounter could not be loaded. {f.encounterError}</p><button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); if (f.visit) void f.contextQuery.refetch(); }}>Retry encounter</button><button className="doc-btn" type="button" onClick={f.back}>Return to queue</button></div>;
   if (!f.visit || f.contextQuery.isPending) return <p role="status">Loading ophthalmology encounter…</p>;
 
-  const currentStep: 'examination' | 'care' | 'orders' | 'optical' | 'continuing-care' | 'summary' =
+  const candidateStep: 'examination' | 'care' | 'orders' | 'optical' | 'continuing-care' | 'summary' =
     isSummary
       ? 'summary'
       : isContinuingCare
@@ -136,14 +136,38 @@ export function OphthalmologyWorkspacePage() {
       ? 'care'
       : 'examination';
 
+  const canViewExamination = f.canViewExamination !== undefined ? f.canViewExamination : f.canView;
+  const canViewDiagnosis = f.canViewDiagnosis !== undefined ? f.canViewDiagnosis : f.canViewClinical;
+  const canViewOrders = f.canViewOrders !== undefined ? f.canViewOrders : f.canViewClinical;
+  const canViewOptical = f.canViewOptical !== undefined ? f.canViewOptical : f.canViewClinical;
+  const canViewReferral = f.canViewReferral !== undefined ? f.canViewReferral : f.canViewClinical;
+  const canViewSummary = f.canViewSummary !== undefined ? f.canViewSummary : f.canViewClinical;
+  const canSignEncounter = f.canSignEncounter !== undefined ? f.canSignEncounter : f.canViewClinical;
+
   const steps = [
-    { id: 'examination', num: 1, label: 'Comprehensive Examination', icon: 'ph-eye', action: () => f.setQuery('section', 'tests') },
-    { id: 'care', num: 2, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
-    { id: 'orders', num: 3, label: 'Prescriptions & Orders', icon: 'ph-pill', action: () => f.openClinical('prescription') },
-    { id: 'optical', num: 4, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
-    { id: 'continuing-care', num: 5, label: 'Referral & Follow-up', icon: 'ph-calendar-check', action: () => f.openClinical('referral') },
-    { id: 'summary', num: 6, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
-  ] as const;
+    ...(canViewExamination ? [
+      { id: 'examination' as const, label: 'Comprehensive Examination', icon: 'ph-eye', action: () => f.setQuery('section', 'tests') },
+    ] : []),
+    ...(canViewDiagnosis ? [
+      { id: 'care' as const, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
+    ] : []),
+    ...(canViewOrders ? [
+      { id: 'orders' as const, label: 'Prescriptions & Orders', icon: 'ph-pill', action: () => f.openClinical('prescription') },
+    ] : []),
+    ...(canViewOptical ? [
+      { id: 'optical' as const, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
+    ] : []),
+    ...(canViewReferral ? [
+      { id: 'continuing-care' as const, label: 'Referral & Follow-up', icon: 'ph-calendar-check', action: () => f.openClinical('referral') },
+    ] : []),
+    ...(canViewSummary ? [
+      { id: 'summary' as const, label: 'Consultation Summary', icon: 'ph-check-circle', action: () => f.setQuery('section', 'completion') },
+    ] : []),
+  ].map((step, idx) => ({ ...step, num: idx + 1 }));
+
+  const currentStep = steps.some((s) => s.id === candidateStep)
+    ? candidateStep
+    : steps[0]?.id ?? 'examination';
 
   const stepIndex = steps.findIndex((s) => s.id === currentStep);
   const prevStep = stepIndex > 0 ? steps[stepIndex - 1] : undefined;
@@ -298,7 +322,7 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
-      {f.context && !f.contextEditOpen && (f.section === 'tests' || f.section === 'overview' || isExam) && (
+      {f.context && !f.contextEditOpen && canViewExamination && (f.section === 'tests' || isExam || currentStep === 'examination') && (
         <>
           <OphthalmologyIntakeReadOnlyView feature={f} />
           <OphthalmologyTestsWorkspace workspace={f} />
@@ -306,7 +330,7 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 2: Diagnosis & Treatment Plan */}
-      {f.context && !f.contextEditOpen && isTreatment && (
+      {f.context && !f.contextEditOpen && canViewDiagnosis && isTreatment && (
         <>
           <OphthalmologyIntakeReadOnlyView feature={f} />
           <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
@@ -314,22 +338,22 @@ export function OphthalmologyWorkspacePage() {
       )}
 
       {/* Tab 3: Prescriptions & Diagnostic Orders */}
-      {f.context && !f.contextEditOpen && isOrders && (
+      {f.context && !f.contextEditOpen && canViewOrders && isOrders && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-orders`} workspace={f} mode="orders" />
       )}
 
       {/* Tab 4: Optical Prescription */}
-      {f.context && !f.contextEditOpen && isOptical && (
+      {f.context && !f.contextEditOpen && canViewOptical && isOptical && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-optical`} workspace={f} mode="optical" />
       )}
 
       {/* Tab 5: Referral & Follow-up */}
-      {f.context && !f.contextEditOpen && isContinuingCare && (
+      {f.context && !f.contextEditOpen && canViewReferral && isContinuingCare && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-continuing-care`} workspace={f} mode="continuing-care" />
       )}
 
       {/* Tab 6: Consultation Summary */}
-      {f.context && !f.contextEditOpen && isSummary && (
+      {f.context && !f.contextEditOpen && canViewSummary && isSummary && (
         <OphthalmologyCompletionWorkspace key={`${f.visitId}-${f.context.id}`} workspace={f} />
       )}
 
@@ -380,17 +404,40 @@ export function OphthalmologyWorkspacePage() {
             >
               Save Draft
             </button>
-            <button
-              type="button"
-              className="doc-btn primary"
-              onClick={handleNextStep}
-            >
-              {nextStep ? (
-                <>Save &amp; Next: {nextStep.label} →</>
-              ) : (
-                <>Finalize &amp; Sign Encounter</>
-              )}
-            </button>
+            {canSignEncounter ? (
+              <button
+                type="button"
+                className="doc-btn primary"
+                onClick={handleNextStep}
+              >
+                {nextStep ? (
+                  <>Save &amp; Next: {nextStep.label} →</>
+                ) : (
+                  <>Finalize &amp; Sign Encounter</>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="doc-btn primary"
+                onClick={() => {
+                  if (nextStep) {
+                    nextStep.action();
+                  } else {
+                    toast.success('Section findings recorded.');
+                  }
+                }}
+              >
+                {nextStep ? (
+                  <>Save &amp; Next: {nextStep.label} →</>
+                ) : (
+                  <>
+                    <i className="ph ph-check" style={{ marginRight: '4px' }} />
+                    Save Details
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </footer>
       )}

@@ -102,6 +102,15 @@ const permScreenLabel = (screen: string): string => {
   const map: Record<string, string> = {
     Medicines: 'Medicine Master',
     'Phase 2 Reports': 'Reports',
+    // OPD Consultation Individual Tabs
+    'Ophthalmology Test Queue': 'Comprehensive Examination',
+    'Ophthalmology Consultation': 'Diagnosis & Treatment',
+    'OPD Prescription': 'Prescriptions & Medication Orders',
+    'OPD Clinical Orders': 'Diagnostic Orders (Lab & Imaging)',
+    'Ophthalmology Optical Prescription': 'Optical Prescription',
+    'OPD Referral': 'Referrals',
+    'OPD Follow-up': 'Follow-up Scheduling',
+    'Ophthalmology Test Review': 'Consultation Summary',
   };
   return map[screen] ?? screen;
 };
