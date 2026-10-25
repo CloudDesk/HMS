@@ -4,6 +4,13 @@ import type { AppointmentPriority, AppointmentStatus, AppointmentVisitType } fro
 
 export type AppointmentFields = {
   ophthalmology?: OphthalmologyAppointmentIntent | null;
+  consultationIntake?: {
+    chief_complaint?: string | null;
+    history_present_illness?: string | null;
+    past_history?: string | null;
+    family_history?: string | null;
+    allergies?: string | null;
+  } | null;
   appointmentNumber: string;
   patientId: Types.ObjectId;
   patientNumber: string;
@@ -54,6 +61,19 @@ const appointmentSchema = new Schema<AppointmentFields>(
     endTime: { type: String },
     durationMinutes: { type: Number, required: true },
     ophthalmology: { type: new Schema<OphthalmologyAppointmentIntent>({ visit_subtype: { type: String, enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'EMERGENCY', 'POST_OPERATIVE', 'SCREENING', 'PROCEDURE_REVIEW'], required: true }, affected_eye: { type: String, enum: ['OD', 'OS', 'OU', 'NOT_SPECIFIED'], required: true }, service_id: { type: String, default: null }, sub_speciality_configuration_id: { type: String, default: null }, sub_speciality_code: { type: String, default: null }, referral_source: { type: String, enum: ['INTERNAL', 'EXTERNAL', null], default: null }, referred_by: { type: String, default: null } }, { _id: false }), default: null },
+    consultationIntake: {
+      type: new Schema(
+        {
+          chief_complaint: { type: String, default: null },
+          history_present_illness: { type: String, default: null },
+          past_history: { type: String, default: null },
+          family_history: { type: String, default: null },
+          allergies: { type: String, default: null },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     visitType: {
       type: String,
       enum: ['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'REVIEW', 'EMERGENCY'],

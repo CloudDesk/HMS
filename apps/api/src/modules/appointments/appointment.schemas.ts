@@ -42,6 +42,18 @@ export const listAppointmentsQuerySchema = {
   },
 } as const;
 
+export const consultationIntakeJsonSchema = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  properties: {
+    chief_complaint: { type: ['string', 'null'] },
+    history_present_illness: { type: ['string', 'null'] },
+    past_history: { type: ['string', 'null'] },
+    family_history: { type: ['string', 'null'] },
+    allergies: { type: ['string', 'null'] },
+  },
+} as const;
+
 export const createAppointmentBodySchema = {
   type: 'object',
   required: ['patient_id', 'doctor_id', 'duration_minutes', 'visit_type'],
@@ -58,6 +70,7 @@ export const createAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    consultation_intake: consultationIntakeJsonSchema,
   },
 } as const;
 
@@ -76,6 +89,7 @@ export const updateAppointmentBodySchema = {
     priority: { type: 'string', enum: appointmentPriorityEnum },
     reason: { type: ['string', 'null'] },
     notes: { type: ['string', 'null'] },
+    consultation_intake: consultationIntakeJsonSchema,
     expected_updated_at: { type: 'string', format: 'date-time' },
     reschedule_reason: { type: ['string', 'null'], maxLength: 1000 },
   },

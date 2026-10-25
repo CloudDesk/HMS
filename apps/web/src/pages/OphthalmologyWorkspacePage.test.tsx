@@ -14,6 +14,7 @@ vi.mock('../hooks/ophthalmology/useOphthalmologyResultFeature', () => ({ useOpht
   taskQuery: {}, resultQuery: { isSuccess: !state.refreshError, isError: state.refreshError, data: state.result }, resultLoaded: true, tasks: [], profiles: [], busy: false, amending: state.amending, canAttach: state.canAttach, save: state.save, amend: state.amend, upload: state.upload, reload: state.reload,
 }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyComparisonFeature', () => ({ useOphthalmologyComparisonFeature: () => ({ open: false, page: 1, query: {}, data: undefined, canSelect: false }) }));
+vi.mock('../hooks/appointments/useAppointments', () => ({ useAppointmentDetails: () => ({ data: undefined }) }));
 import { OphthalmologyWorkspacePage } from './OphthalmologyWorkspacePage';
 
 const id = '111111111111111111111111';

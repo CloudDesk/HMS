@@ -150,10 +150,11 @@ html, body {
   font-weight: 600;
 }
 
-/* 4 Sequential Tabs Stepper - Balanced Grid */
+/* 6 Sequential Stepper Tabs - Single Horizontal Row with Transparent Scrollbar */
 .oph-stepper-nav {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
   background: #f8fafc;
   padding: 6px;
@@ -163,25 +164,30 @@ html, body {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-}
-@media (max-width: 900px) {
-  .oph-stepper-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 520px) {
-  .oph-stepper-nav {
-    grid-template-columns: 1fr;
-  }
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }
 .oph-stepper-nav::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  height: 5px;
+}
+.oph-stepper-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.oph-stepper-nav::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+.oph-stepper-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
 }
 .oph-step-tab {
-  width: 100%;
-  padding: 8px 10px;
+  flex: 1 0 auto;
+  min-width: max-content;
+  padding: 8px 14px;
   border: none;
   background: transparent;
   color: #64748b;
@@ -194,9 +200,8 @@ html, body {
   justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.25;
-  min-width: 0;
   box-sizing: border-box;
 }
 .oph-step-tab:hover:not(.active) {
@@ -210,9 +215,8 @@ html, body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .oph-step-label-text {
-  white-space: normal;
+  white-space: nowrap;
   word-break: normal;
-  min-width: 0;
 }
 .oph-step-number {
   width: 24px;
@@ -2179,3 +2183,17 @@ html, body {
   border-radius: 8px;
   padding: 16px;
 }
+
+/* Compact Consultation Intake Card */
+.oph-compact-intake-card {
+  transition: all 0.2s ease;
+}
+.oph-compact-intake-card:hover {
+  border-color: #cbd5e1;
+}
+@media (max-width: 768px) {
+  .oph-compact-intake-card > div:nth-child(2) {
+    grid-template-columns: 1fr !important;
+  }
+}
+

@@ -261,6 +261,23 @@ export function useAppointmentQueueFeature() {
     }
   };
 
+  const handleSendToOpdQueue = async (visit: OpdVisitResponse) => {
+    if (!canEditVisit || !['CHECKED_IN', 'WAITING_FOR_VITALS'].includes(visit.status)) return;
+    try {
+      await updateVisit.mutateAsync({ id: visit.id, payload: {
+        status: 'READY_FOR_CONSULTATION', expected_status: visit.status, expected_version: visit.version,
+        notes: 'Ophthalmology patient sent directly to the OPD waiting queue.',
+      } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: opdKeys.visits() }),
+        queryClient.invalidateQueries({ queryKey: appointmentsKeys.lists() }),
+      ]);
+      toast.success('Patient added to the OPD waiting queue.');
+    } catch {
+      // The status mutation displays the backend error, including scope and stale-state conflicts.
+    }
+  };
+
   const handleSaveVitals = async (visit: OpdVisitResponse, payload: CreateOpdVitalsPayload) => {
     if (!canCreateVitals || !canEditVisit) {
       throw new Error('You do not have permission to record vitals for this visit.');
@@ -316,6 +333,7 @@ export function useAppointmentQueueFeature() {
       handleNoShow,
       handleComplete,
       handleSaveVitals,
+      handleSendToOpdQueue,
     }
   };
 }

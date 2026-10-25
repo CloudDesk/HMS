@@ -170,7 +170,26 @@ export const canAccessRoute = (
   if (normalizedPathname === '/' || normalizedPathname === '/dashboard') return true;
   if (isSuperAdministrator(roles)) return true;
 
-  if (normalizedPathname === '/opd/ophthalmology' && (hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Consultation' }) || hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Optical Prescription' }))) return true;
+  if (
+    (normalizedPathname === '/opd/ophthalmology' || normalizedPathname === '/opd/consultation') &&
+    (
+      hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Consultation' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Optical Prescription' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'OPD Consultation' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Test Queue' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'OPD Prescription' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'OPD Clinical Orders' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'OPD Referral' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'OPD Follow-up' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Ophthalmology Test Review' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Comprehensive Examination' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Diagnosis & Treatment' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Prescriptions & Orders' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Optical Prescription' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Referral & Follow-up' }) ||
+      hasPermission(permissions, { module: 'OPD', screen: 'Consultation Summary' })
+    )
+  ) return true;
   const requirements = routeRequirements[normalizedPathname];
   if (!requirements) return false;
 

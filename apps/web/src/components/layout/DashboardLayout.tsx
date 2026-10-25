@@ -29,6 +29,20 @@ function useActiveSidebarState() {
     return { activeKey: 'dashboard', activeHref: '/dashboard' };
   }
 
+  // OPD Consultation workspace paths: highlight Consultation tab in OPD
+  if (
+    pathname === '/opd/consultation' ||
+    pathname === '/opd/ophthalmology' ||
+    (pathname.startsWith('/opd/consultation/') && !pathname.startsWith('/opd/queue')) ||
+    (pathname.startsWith('/opd/ophthalmology') &&
+      !pathname.startsWith('/opd/ophthalmology/reports') &&
+      !pathname.startsWith('/opd/ophthalmology/configuration') &&
+      !pathname.startsWith('/opd/ophthalmology/queue')) ||
+    pathname === '/opd/visit'
+  ) {
+    return { activeKey: 'opd', activeHref: '/opd/consultation' };
+  }
+
   for (const module of sidebarModules) {
     for (const link of module.links) {
       if (pathname === link.href) {

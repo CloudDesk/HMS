@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Storage, type Bucket } from '@google-cloud/storage';
@@ -45,12 +46,20 @@ export class PatientDocumentStorageService {
     if (provider !== 'local' && provider !== 'gcs') {
       throw new AppError('Patient document storage provider is unsupported', 503, 'PATIENT_DOCUMENT_STORAGE_UNAVAILABLE');
     }
-    this.provider = provider;
-    if ((options.environment ?? env.app.environment) === 'prod' && provider !== 'gcs') {
+    const isProd = (options.environment ?? env.app.environment) === 'prod';
+    let resolvedProvider = provider;
+    if (provider === 'gcs' && !options.gcpBucket) {
+      const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      if (!isProd && credsPath && !existsSync(credsPath)) {
+        resolvedProvider = 'local';
+      }
+    }
+    this.provider = resolvedProvider as 'local' | 'gcs';
+    if (isProd && this.provider !== 'gcs') {
       throw new AppError('Production patient document storage requires Google Cloud Storage', 503, 'PATIENT_DOCUMENT_STORAGE_UNAVAILABLE');
     }
     this.rootDirectory = path.resolve(options.localRootDirectory ?? env.storage.localPatientDocumentsPath);
-    if (provider === 'gcs') {
+    if (this.provider === 'gcs') {
       const bucketName = (options.gcpBucketName ?? env.storage.gcpPatientDocumentsBucket).trim();
       if (!bucketName && !options.gcpBucket) {
         throw new AppError('Google Cloud patient document bucket is not configured', 503, 'PATIENT_DOCUMENT_STORAGE_UNAVAILABLE');
@@ -78,13 +87,23 @@ export class PatientDocumentStorageService {
   async uploadPatientDocument(input: UploadPatientDocumentInput) {
     const storageKey = `patients/${input.patientId}/documents/${randomUUID()}-${sanitizeFileName(input.fileName)}`;
     if (this.gcpBucket) {
-      await this.gcpBucket.file(storageKey).save(input.data, {
-        resumable: false,
-        contentType: input.mimeType,
-        metadata: { cacheControl: 'private, no-store', metadata: { patientId: input.patientId } },
-        validation: 'crc32c',
-      });
-      return { storageKey };
+      try {
+        await this.gcpBucket.file(storageKey).save(input.data, {
+          resumable: false,
+          contentType: input.mimeType,
+          metadata: { cacheControl: 'private, no-store', metadata: { patientId: input.patientId } },
+          validation: 'crc32c',
+        });
+        return { storageKey };
+      } catch (error) {
+        if (env.app.environment !== 'prod') {
+          const storagePath = this.resolveStoragePath(storageKey);
+          await mkdir(path.dirname(storagePath), { recursive: true });
+          await writeFile(storagePath, input.data);
+          return { storageKey };
+        }
+        throw error;
+      }
     }
     const storagePath = this.resolveStoragePath(storageKey);
 
@@ -116,6 +135,13 @@ export class PatientDocumentStorageService {
         const [[data], [metadata]] = await Promise.all([file.download(), file.getMetadata()]);
         return { data, contentType: metadata.contentType ?? null };
       } catch (error: unknown) {
+        if (env.app.environment !== 'prod') {
+          try {
+            const storagePath = this.resolveStoragePath(storageKey);
+            const data = await readFile(storagePath);
+            return { data, contentType: null };
+          } catch {}
+        }
         if (this.isNotFound(error)) {
           throw new AppError('Stored patient document file was not found', 404, 'DOCUMENT_FILE_NOT_FOUND');
         }

@@ -12,9 +12,10 @@ import { useOphthalmologyClinicalWorkspace, useOphthalmologyConfigurations, useO
 import { compatibleSubtypes, consultationAreas } from './consultation-areas';
 
 export function useOphthalmologyWorkspaceFeature() {
-  const { search } = useAppLocation();
+  const { pathname, search } = useAppLocation();
+  const targetPath = pathname === '/opd/consultation' ? '/opd/consultation' : '/opd/ophthalmology';
   const params = new URLSearchParams(search);
-  const rawId = params.get('visit_id') ?? '';
+  const rawId = params.get('visit_id') ?? params.get('id') ?? '';
   const visitId = ophthalmologyIdSchema.safeParse(rawId).success ? rawId : '';
   const parsedPage = Number(params.get('configuration_page') ?? 1);
   const configurationPage = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -22,10 +23,31 @@ export function useOphthalmologyWorkspaceFeature() {
   const { user } = useAuth();
   const can = (screen: string, action = 'View') => Boolean(user?.roles.some((role) => role.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen, action });
   const canReadIntake = can('Ophthalmology Intake') && can('OPD Visits');
-  const canView = canReadIntake || can('Ophthalmology Consultation') || can('Ophthalmology Optical Prescription');
+
+  // Individual tab permissions for OPD Consultation
+  const canViewExamination = can('Ophthalmology Test Queue') || can('Comprehensive Examination');
+  const canEditExamination = can('Ophthalmology Test Queue', 'Edit') || can('Comprehensive Examination', 'Edit') || can('Ophthalmology Test Queue', 'Start');
+
+  const canViewDiagnosis = can('Diagnosis & Treatment') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Consultation', 'Edit') || can('OPD Consultation', 'Edit');
+  const canEditDiagnosis = can('Diagnosis & Treatment', 'Edit') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Consultation', 'Edit') || can('OPD Consultation', 'Edit');
+
+  const canViewOrders = can('OPD Prescription') || can('OPD Clinical Orders') || can('Prescriptions & Orders') || can('Ophthalmology Consultation', 'Prescribe');
+  const canEditOrders = can('OPD Prescription', 'Edit') || can('OPD Clinical Orders', 'Edit') || can('Prescriptions & Orders', 'Edit') || can('Ophthalmology Consultation', 'Prescribe');
+
+  const canViewOptical = can('Ophthalmology Optical Prescription') || can('Optical Prescription');
+  const canEditOptical = can('Ophthalmology Optical Prescription', 'Edit') || can('Ophthalmology Optical Prescription', 'Create') || can('Optical Prescription', 'Edit');
+
+  const canViewReferral = can('OPD Referral') || can('OPD Follow-up') || can('Referral & Follow-up');
+  const canEditReferral = can('OPD Referral', 'Edit') || can('OPD Follow-up', 'Edit') || can('Referral & Follow-up', 'Edit');
+
+  const canViewSummary = can('Ophthalmology Test Review') || can('Consultation Summary') || can('Ophthalmology Consultation', 'Complete');
+  const canSignEncounter = can('Ophthalmology Consultation', 'Complete') || can('Consultation Summary', 'Complete') || can('Ophthalmology Consultation', 'Override');
+
+  const canViewClinical = canViewDiagnosis || canViewOrders || canViewReferral || canViewSummary;
+  const canView = canReadIntake || canViewExamination || canViewClinical || canViewOptical || can('OPD Consultation') || can('Ophthalmology Consultation');
   const canEdit = canReadIntake && can('Ophthalmology Intake', 'Edit');
   const canConfigure = can('Ophthalmology Configuration');
-  const canEscalate = (canReadIntake && can('Ophthalmology Intake', 'Escalate')) || can('Ophthalmology Consultation', 'Edit') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Test Queue', 'Edit') || can('Ophthalmology Test Queue', 'Start');
+  const canEscalate = (canReadIntake && can('Ophthalmology Intake', 'Escalate')) || canEditDiagnosis || canEditExamination || can('Ophthalmology Consultation', 'Edit') || can('Ophthalmology Consultation', 'Diagnose') || can('Ophthalmology Test Queue', 'Edit') || can('Ophthalmology Test Queue', 'Start');
   const canClear = can('Ophthalmology Emergency', 'Clear') || can('Ophthalmology Consultation', 'Complete');
   const areas = consultationAreas.filter((area) => can(area.screen));
   const selectedArea = areas.find((area) => area.id === params.get('area'));
@@ -86,7 +108,7 @@ export function useOphthalmologyWorkspaceFeature() {
   }
   const lookupData = (query: typeof complaintsQuery) => lookupEnabled ? (query.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE') : [];
   return {
-    emergencyAlerts: (canClear ? clinicalWorkspaceQuery.data?.alerts : intakeView?.alerts) ?? [],
+        emergencyAlerts: (canClear ? clinicalWorkspaceQuery.data?.alerts : intakeView?.alerts) ?? [],
     clearanceQuery: clinicalWorkspaceQuery,
     canClearEmergency: canClear && clinicalWorkspaceQuery.data?.can_clear_emergency === true && editableVisit
       && !scopeError && !clinicalWorkspaceQuery.isError && !clinicalWorkspaceQuery.isFetching,
@@ -97,8 +119,20 @@ export function useOphthalmologyWorkspaceFeature() {
         || !clinicalWorkspaceQuery.data.alerts.some((current) => current.id === alert.id && current.version === alert.version)) return Promise.resolve(undefined);
       return perform(() => mutations.clear.mutateAsync({ id: alert.id, body }), 'Emergency disposition recorded.');
     },
-    canViewClinical: can('Ophthalmology Consultation'), canViewOptical: can('Ophthalmology Optical Prescription'),
-    openClinical: (tab: string) => { const next = new URLSearchParams(search); next.delete('area'); next.set('section', 'clinical'); next.set('care_tab', tab); navigate(`/opd/ophthalmology?${next}`); },
+    canViewExamination,
+    canEditExamination,
+    canViewDiagnosis,
+    canEditDiagnosis,
+    canViewOrders,
+    canEditOrders,
+    canViewOptical,
+    canEditOptical,
+    canViewReferral,
+    canEditReferral,
+    canViewSummary,
+    canSignEncounter,
+    canViewClinical,
+    openClinical: (tab: string) => { const next = new URLSearchParams(search); next.delete('area'); next.set('section', 'clinical'); next.set('care_tab', tab); navigate(`${targetPath}?${next}`); },
     canViewQueue: can('Ophthalmology Test Queue'), openQueue: () => { if (visit) navigate(`/opd/ophthalmology/queue?branch_id=${visit.branch_id}&visit_id=${visitId}`); },
     visitId, visit, context, intakeView, scopeError, canView, canEdit: canEdit && editableVisit && !scopeError && !visitQuery.isError && !contextQuery.isError, canConfigure, canEscalate: canEscalate && editableVisit,
     encounterError: visitQuery.error ? getOpdErrorMessage(visitQuery.error) : contextQuery.error ? getOpdErrorMessage(contextQuery.error) : '',
@@ -128,7 +162,7 @@ export function useOphthalmologyWorkspaceFeature() {
       next.delete('task_id');
       next.delete('amend');
       next.delete('form_profile_id');
-      navigate(`/opd/ophthalmology?${next}`);
+      navigate(`${targetPath}?${next}`);
     },
     openShared: (tab: string) => {
       const tabMap: Record<string, string> = {
@@ -142,13 +176,13 @@ export function useOphthalmologyWorkspaceFeature() {
       const next = new URLSearchParams(search);
       next.set('section', 'clinical');
       next.set('care_tab', nextCareTab);
-      navigate(`/opd/ophthalmology?${next}`);
+      navigate(`${targetPath}?${next}`);
     },
     configurationPage, subtype, contextEditOpen, subtypeSelected: Boolean(selectedSubtype), availableSubtypes, actionError: actionError?.visitId === visitId ? actionError.message : null, reportsOpen, reportPage, canViewReports, reportsQuery,
     reports: canView && canViewReports && reportsOpen ? (reportsQuery.data?.data ?? []).filter((item) => item.patient_id === visit?.patient_id) : [],
     busy: Object.values(mutations).some((mutation) => mutation.isPending),
-    setQuery: (key: string, value: string) => { const next = new URLSearchParams(search); next.set(key, value); if (key === 'section') next.delete('area'); if (key === 'task_id') { next.delete('amend'); next.delete('form_profile_id'); } navigate(`/opd/ophthalmology?${next}`); },
-    back: () => navigate(`/opd/visit?id=${visitId}${context ? '&specialty=ophthalmology' : ''}`),
+    setQuery: (key: string, value: string) => { const next = new URLSearchParams(search); next.set(key, value); if (key === 'section') next.delete('area'); if (key === 'task_id') { next.delete('amend'); next.delete('form_profile_id'); } navigate(`${targetPath}?${next}`); },
+    back: () => navigate('/opd/queue'),
     create: (body: z.infer<typeof createContextSchema>) => canEdit && !context && editableVisit && !contextQuery.isError && selectedSubtype === body.visit_subtype ? perform(() => mutations.create.mutateAsync(body), 'Ophthalmology context activated.') : Promise.resolve(undefined),
     updateContext: (body: UpdateOphthalmologyContext) => canEdit && editableVisit && context && !scopeError && !visitQuery.isError && !contextQuery.isError ? perform(() => mutations.update.mutateAsync(body), 'Ophthalmology context updated.') : Promise.resolve(undefined),
     save: (body: SaveOphthalmologyIntake) => canEdit && editableVisit && context && intakeView && !scopeError && !visitQuery.isError && !intakeQuery.isError && !contextQuery.isError ? perform(() => mutations.save.mutateAsync(body), 'Intake draft saved.') : Promise.resolve(undefined),

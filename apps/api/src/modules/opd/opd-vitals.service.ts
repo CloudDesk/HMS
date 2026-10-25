@@ -52,7 +52,7 @@ export class OpdVitalsService {
         visit.id,
         [visit.status],
         {
-          notes: 'Vitals recorded and patient ready for doctor consultation.',
+          notes: visit.notes || 'Vitals recorded and patient ready for doctor consultation.',
           status: 'READY_FOR_CONSULTATION',
         },
         userId,

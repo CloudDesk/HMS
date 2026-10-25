@@ -86,6 +86,13 @@ const toAppointment = (appointment: AppointmentLean): Appointment => ({
   reason: appointment.reason ?? null,
   notes: appointment.notes ?? null,
   ophthalmology: appointment.ophthalmology ?? null,
+  consultation_intake: appointment.consultationIntake ? {
+    chief_complaint: appointment.consultationIntake.chief_complaint ?? null,
+    history_present_illness: appointment.consultationIntake.history_present_illness ?? null,
+    past_history: appointment.consultationIntake.past_history ?? null,
+    family_history: appointment.consultationIntake.family_history ?? null,
+    allergies: appointment.consultationIntake.allergies ?? null,
+  } : null,
   rescheduled_from_id: appointment.rescheduledFromId?.toString() ?? null,
   rescheduled_to_id: appointment.rescheduledToId?.toString() ?? null,
   rescheduled_at: appointment.rescheduledAt ?? null,
@@ -125,6 +132,7 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
   reason: nullableString(data.reason),
   notes: nullableString(data.notes),
   ophthalmology: data.ophthalmology ?? null,
+  consultationIntake: data.consultation_intake ?? null,
   activeSlotKey: activeSlotKey(data.doctor_id, data.appointmentDate, data.startTime),
   createdBy: toObjectId(userId),
   updatedBy: toObjectId(userId),
@@ -132,6 +140,7 @@ const buildCreatePayload = (data: AppointmentCreateRecord, userId: string) => ({
 
 const buildUpdatePayload = (data: AppointmentUpdateRecord, userId: string) => ({
   ...(data.ophthalmology !== undefined ? { ophthalmology: data.ophthalmology } : {}),
+  ...(data.consultation_intake !== undefined ? { consultationIntake: data.consultation_intake } : {}),
   ...(data.doctor_id !== undefined ? { doctorId: toObjectId(data.doctor_id) } : {}),
   ...(data.doctorName !== undefined ? { doctorName: data.doctorName } : {}),
   ...(data.doctorSpecialization !== undefined ? { doctorSpecialization: data.doctorSpecialization } : {}),
