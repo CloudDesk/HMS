@@ -1816,7 +1816,10 @@ export class OphthalmologyService {
     }
   }
   private async requireDoctor(context: OphthalmologyContext, userId: string) {
-    const doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    let doctorId = await this.repository.getActiveDoctorId(userId, context.branch_id, context.department_id);
+    if (!doctorId && await this.repository.isSuperAdmin(userId)) {
+      doctorId = await this.repository.getAnyActiveDoctorId(context.branch_id, context.department_id);
+    }
     if (!doctorId) {
       throw new AppError('An active Ophthalmology doctor is required', 403, 'OPHTHALMOLOGY_DOCTOR_REQUIRED');
     }
