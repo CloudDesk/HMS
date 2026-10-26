@@ -208,6 +208,20 @@ export function InsuranceSchemesPage() {
 
   return (
     <div className="insurance-page">
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+      <div className="insurance-page-head">
+        <div>
+          <h2>Insurance Schemes</h2>
+          <p>Manage insurance scheme packages, coverage tiers, and validation rules.</p>
+        </div>
+        <div className="insurance-head-actions">
+          {canCreate && (
+            <button className="btn-primary" onClick={openCreateModal} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Add Scheme
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── KPI Row ────────────────────────────────────────────────────────── */}
       <div className="um-kpi-row" aria-label="Scheme Statistics">
         <div className="kpi-card">

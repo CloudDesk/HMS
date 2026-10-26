@@ -272,6 +272,20 @@ export function InsuranceMembersPage() {
 
   return (
     <div className="insurance-page">
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+      <div className="insurance-page-head">
+        <div>
+          <h2>Insurance Members</h2>
+          <p>Manage enrolled members, policy linkages, member cards, and eligibility status.</p>
+        </div>
+        <div className="insurance-head-actions">
+          {canCreate && (
+            <button className="btn-primary" onClick={openCreateModal} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Add Member
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── KPI Row ────────────────────────────────────────────────────────── */}
       <div className="um-kpi-row" aria-label="Insurance Member Statistics">
         <div className="kpi-card">

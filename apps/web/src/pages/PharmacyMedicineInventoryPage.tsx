@@ -253,42 +253,46 @@ export function PharmacyMedicineInventoryPage({ embedded = false }: PharmacyMedi
   };
 
   return (
-    <div className="opd-queue-page">
-      <header className="page-header">
-        <div className="header-title">
-          <h1>Medicine Inventory</h1>
-          <div className="branch-selector">
+    <div className="pharmacy-page">
+      <section className="opd-page-header">
+        <div>
+          <h2>Medicine Inventory</h2>
+          <p>Track medicine stock levels, batch allocations, expiry dates, and replenishment</p>
+        </div>
+        <div className="opd-page-actions">
+          {branches.length > 0 ? (
             <select
+              aria-label="Select Branch"
               disabled={branches.length <= 1}
               onChange={(e) => updateQuery({ branch_id: e.target.value, page: 1 })}
               value={activeBranchId}
             >
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </select>
-          </div>
+          ) : null}
         </div>
-      </header>
+      </section>
 
       {summary ? (
         <div className="stat-cards-container stat-cards-container--five inventory-summary-kpis">
           <div className="stat-card">
-            <div className="stat-icon stat-blue" style={{ color: '#2563eb', backgroundColor: '#eff6ff' }}><i className="ph-fill ph-pill" aria-hidden="true" /></div>
+            <div className="stat-icon stat-blue" style={{ color: '#2563eb', backgroundColor: '#eff6ff' }}><i className="ph ph-pill" aria-hidden="true" /></div>
             <div className="stat-info"><p>Medicines Stocked</p><h3>{summary.stocked_medicines}</h3><span className="text-muted">/ {summary.total_medicines} total</span></div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon stat-green" style={{ color: '#16a34a', backgroundColor: '#f0fdf4' }}><i className="ph-fill ph-stack" aria-hidden="true" /></div>
+            <div className="stat-icon stat-green" style={{ color: '#16a34a', backgroundColor: '#f0fdf4' }}><i className="ph ph-stack" aria-hidden="true" /></div>
             <div className="stat-info"><p>Total Units</p><h3>{summary.total_available_quantity.toLocaleString()}</h3><span className="text-muted">In inventory</span></div>
           </div>
           <div className="stat-card" style={summary.low_stock_medicines > 0 ? { border: '1px solid var(--warning)' } : {}}>
-            <div className="stat-icon stat-yellow" style={{ color: '#ea580c', backgroundColor: '#fff7ed' }}><i className="ph-fill ph-warning" aria-hidden="true" /></div>
+            <div className="stat-icon stat-yellow" style={{ color: '#ea580c', backgroundColor: '#fff7ed' }}><i className="ph ph-warning" aria-hidden="true" /></div>
             <div className="stat-info"><p>Low Stock</p><h3 style={summary.low_stock_medicines > 0 ? { color: 'var(--warning)' } : {}}>{summary.low_stock_medicines}</h3><span className="text-muted">Needs review</span></div>
           </div>
           <div className="stat-card" style={summary.out_of_stock_medicines > 0 ? { border: '1px solid var(--danger)' } : {}}>
-            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph-fill ph-warning-octagon" aria-hidden="true" /></div>
+            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph ph-warning-octagon" aria-hidden="true" /></div>
             <div className="stat-info"><p>Out of Stock</p><h3 style={summary.out_of_stock_medicines > 0 ? { color: 'var(--danger)' } : {}}>{summary.out_of_stock_medicines}</h3><span className="text-muted">Needs restocking</span></div>
           </div>
           <div className="stat-card" style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { border: '1px solid var(--danger)' } : {}}>
-            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph-fill ph-calendar-x" aria-hidden="true" /></div>
+            <div className="stat-icon stat-red" style={{ color: '#dc2626', backgroundColor: '#fef2f2' }}><i className="ph ph-calendar-x" aria-hidden="true" /></div>
             <div className="stat-info"><p>Expiring &lt;{summary.expiry_warning_days}d</p><h3 style={summary.expiring_soon_medicines > 0 || summary.expired_medicines > 0 ? { color: 'var(--danger)' } : {}}>{summary.expiring_soon_medicines}</h3><span className="text-muted">{summary.expired_medicines} expired</span></div>
           </div>
         </div>
