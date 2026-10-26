@@ -45,17 +45,17 @@ export function ImagingReportEntryPage() {
   if (!id) {
     return (
       <div className="diagnostic-page imaging">
-        <div className="diagnostic-page-head">
-          <div>
-            <h2>Imaging Report Entry</h2>
-            <p>Record clinical observations, radiologist impressions, and recommendations</p>
-          </div>
-          <div className="diagnostic-head-actions">
-            <button className="btn-secondary" onClick={() => navigate('/imaging/queue')} type="button">
-              <i className="ph ph-arrow-left" /> Back to Queue
-            </button>
-          </div>
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
         </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
         <div className="diagnostic-empty card">
           <i className="ph ph-cursor-click" />
           <h3>Select an imaging order</h3>
@@ -69,12 +69,17 @@ export function ImagingReportEntryPage() {
   if (isLoading) {
     return (
       <div className="diagnostic-page imaging">
-        <div className="diagnostic-page-head">
-          <div>
-            <h2>Imaging Report Entry</h2>
-            <p>Record clinical observations, radiologist impressions, and recommendations</p>
-          </div>
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
         </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
         <div className="diagnostic-empty card">
           <span className="loading-spinner" /> Loading report workspace...
         </div>
@@ -85,17 +90,17 @@ export function ImagingReportEntryPage() {
   if (isError || !order) {
     return (
       <div className="diagnostic-page imaging">
-        <div className="diagnostic-page-head">
-          <div>
-            <h2>Imaging Report Entry</h2>
-            <p>Record clinical observations, radiologist impressions, and recommendations</p>
-          </div>
-          <div className="diagnostic-head-actions">
-            <button className="btn-secondary" onClick={() => navigate('/imaging/queue')} type="button">
-              <i className="ph ph-arrow-left" /> Back to Queue
-            </button>
-          </div>
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
         </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
         <div className="diagnostic-empty card" role="alert">
           <i className="ph ph-warning" />
           <h3>Report workspace unavailable</h3>
@@ -108,17 +113,17 @@ export function ImagingReportEntryPage() {
 
   return (
     <div className="diagnostic-page imaging">
-      <div className="diagnostic-page-head">
+      <section className="opd-page-header">
         <div>
           <h2>Imaging Report Entry</h2>
           <p>Record clinical observations, radiologist impressions, and recommendations</p>
         </div>
-        <div className="diagnostic-head-actions">
-          <button className="btn-secondary" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
             <i className="ph ph-arrow-left" /> Back to Workspace
           </button>
         </div>
-      </div>
+      </section>
 
       <section className="diagnostic-order-header card">
         <div>

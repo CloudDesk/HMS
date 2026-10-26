@@ -83,12 +83,12 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
 
   return (
     <div className="pharmacy-page">
-      <div className="pharmacy-page-head">
+      <section className="opd-page-header">
         <div>
           <h2>Prescription Queue</h2>
           <p>Manage prescription dispensing, batch allocation, and order fulfillment</p>
         </div>
-      </div>
+      </section>
 
       <div className="um-grid">
         <div className="um-kpi-row dispensing-kpi-row">

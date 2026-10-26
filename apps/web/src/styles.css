@@ -4405,6 +4405,7 @@ fieldset.form-field {
   gap: 1rem;
 }
 
+.opd-page-header h2,
 .opd-page-title h2 {
   margin: 0;
   color: #020617;
@@ -4412,6 +4413,7 @@ fieldset.form-field {
   letter-spacing: 0;
 }
 
+.opd-page-header p,
 .opd-page-title p {
   margin: 0.35rem 0 0;
   color: #64748b;
@@ -4424,6 +4426,17 @@ fieldset.form-field {
   align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
+}
+
+.opd-page-actions select {
+  min-width: 190px;
+  height: 38px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 0.7rem;
+  color: #334155;
+  font-size: 0.84rem;
 }
 
 .opd-kpi-grid {
@@ -5806,7 +5819,18 @@ fieldset.form-field {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .opd-kpi-grid {
+  .opd-page-actions select {
+  min-width: 190px;
+  height: 38px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 0.7rem;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.opd-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

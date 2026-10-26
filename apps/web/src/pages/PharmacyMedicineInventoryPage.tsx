@@ -254,12 +254,12 @@ export function PharmacyMedicineInventoryPage({ embedded = false }: PharmacyMedi
 
   return (
     <div className="pharmacy-page">
-      <div className="pharmacy-page-head">
+      <section className="opd-page-header">
         <div>
           <h2>Medicine Inventory</h2>
           <p>Track medicine stock levels, batch allocations, expiry dates, and replenishment</p>
         </div>
-        <div className="pharmacy-head-actions">
+        <div className="opd-page-actions">
           {branches.length > 0 ? (
             <select
               aria-label="Select Branch"
@@ -271,7 +271,7 @@ export function PharmacyMedicineInventoryPage({ embedded = false }: PharmacyMedi
             </select>
           ) : null}
         </div>
-      </div>
+      </section>
 
       {summary ? (
         <div className="stat-cards-container stat-cards-container--five inventory-summary-kpis">

@@ -33,17 +33,17 @@ export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, i
   if (!id) {
     return (
       <div className={`diagnostic-page ${module}`}>
-        <div className="diagnostic-page-head">
+        <section className="opd-page-header">
           <div>
             <h2>{moduleName} Workspace</h2>
             <p>Review requisition details and process diagnostic lifecycle</p>
           </div>
-          <div className="diagnostic-head-actions">
-            <button className="btn-secondary" onClick={() => navigate(`/${module}/queue`)} type="button">
+          <div className="opd-page-actions">
+            <button className="doc-btn" onClick={() => navigate(`/${module}/queue`)} type="button">
               <i className="ph ph-arrow-left" /> Back to Queue
             </button>
           </div>
-        </div>
+        </section>
         <div className="diagnostic-empty card">
           <i className="ph ph-cursor-click" />
           <h3>Select an order</h3>
@@ -57,12 +57,12 @@ export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, i
   if (isLoading) {
     return (
       <div className={`diagnostic-page ${module}`}>
-        <div className="diagnostic-page-head">
+        <section className="opd-page-header">
           <div>
             <h2>{moduleName} Workspace</h2>
             <p>Review requisition details and process diagnostic lifecycle</p>
           </div>
-        </div>
+        </section>
         <div className="diagnostic-empty card">
           <span className="loading-spinner" /> Loading order workspace...
         </div>
@@ -73,17 +73,17 @@ export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, i
   if (isError || !order) {
     return (
       <div className={`diagnostic-page ${module}`}>
-        <div className="diagnostic-page-head">
+        <section className="opd-page-header">
           <div>
             <h2>{moduleName} Workspace</h2>
             <p>Review requisition details and process diagnostic lifecycle</p>
           </div>
-          <div className="diagnostic-head-actions">
-            <button className="btn-secondary" onClick={() => navigate(`/${module}/queue`)} type="button">
+          <div className="opd-page-actions">
+            <button className="doc-btn" onClick={() => navigate(`/${module}/queue`)} type="button">
               <i className="ph ph-arrow-left" /> Back to Queue
             </button>
           </div>
-        </div>
+        </section>
         <div className="diagnostic-empty card" role="alert">
           <i className="ph ph-warning" />
           <h3>Order unavailable</h3>
@@ -99,17 +99,17 @@ export function DiagnosticWorkspace({ module, statuses, id, order, nextStatus, i
 
   return (
     <div className={`diagnostic-page ${module}`}>
-      <div className="diagnostic-page-head">
+      <section className="opd-page-header">
         <div>
           <h2>{moduleName} Workspace</h2>
           <p>Order workflow and diagnostic execution for {order.patient_name}</p>
         </div>
-        <div className="diagnostic-head-actions">
-          <button className="btn-secondary" onClick={() => navigate(`/${module}/queue`)} type="button">
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/${module}/queue`)} type="button">
             <i className="ph ph-arrow-left" /> Back to Queue
           </button>
         </div>
-      </div>
+      </section>
 
       <section className="diagnostic-order-header card">
         <div><span className="eyebrow">{moduleName} order</span><h2>{order.patient_name}</h2><p>{order.patient_number} — Ordered by {order.doctor_name}</p></div>

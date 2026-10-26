@@ -71,13 +71,13 @@ export function DiagnosticQueue({
 
   return (
     <div className={`diagnostic-page ${module}`}>
-      <div className="diagnostic-page-head">
+      <section className="opd-page-header">
         <div>
           <h2>{resolvedTitle}</h2>
           <p>{resolvedDescription}</p>
         </div>
-        {headerActions ? <div className="diagnostic-head-actions">{headerActions}</div> : null}
-      </div>
+        {headerActions ? <div className="opd-page-actions">{headerActions}</div> : null}
+      </section>
 
       <div className="diagnostic-kpis">
         <div className="kpi-card">
