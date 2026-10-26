@@ -82,7 +82,14 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
   const hasLineError = queue.lines.some((line) => line.insufficientStock || line.invalidQuantity);
 
   return (
-    <>
+    <div className="pharmacy-page">
+      <div className="pharmacy-page-head">
+        <div>
+          <h2>Prescription Queue</h2>
+          <p>Manage prescription dispensing, batch allocation, and order fulfillment</p>
+        </div>
+      </div>
+
       <div className="um-grid">
         <div className="um-kpi-row dispensing-kpi-row">
           <div className="kpi-card">
@@ -246,6 +253,6 @@ export function PrescriptionQueuePage({ embedded = false }: PrescriptionQueuePag
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
 }

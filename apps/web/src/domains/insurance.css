@@ -5,9 +5,58 @@
 
 .insurance-page {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
+  padding: 1.25rem 2rem 2rem;
   width: 100%;
+  box-sizing: border-box;
+}
+
+.insurance-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.insurance-page-head > div {
+  min-width: 0;
+}
+
+.insurance-page-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.insurance-page-head p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.insurance-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+@media screen and (max-width: 768px) {
+  .insurance-page {
+    padding: 1rem 0.85rem 1.5rem;
+  }
+  .insurance-page-head {
+    flex-direction: column;
+  }
+  .insurance-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 /* ── Badges ─────────────────────────────────────────────────────────────── */

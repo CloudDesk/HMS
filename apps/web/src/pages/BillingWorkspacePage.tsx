@@ -236,7 +236,7 @@ function ReceiptPaper({ receipt }: { receipt: BillingReceipt }) {
         {logoUrl ? (
           <img alt={hospitalName} src={logoUrl} style={{ height: '40px', maxWidth: '160px', objectFit: 'contain', margin: '0 auto 0.25rem', display: 'block' }} />
         ) : (
-          <i className="ph-fill ph-hospital" />
+          <i className="ph ph-hospital" />
         )}
         <h3>{hospitalName}</h3>
         {contactDetails ? <p style={{ margin: '2px 0 6px', color: '#64748b', fontSize: '0.8rem' }}>{contactDetails}</p> : null}

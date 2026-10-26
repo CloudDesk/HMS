@@ -100,7 +100,7 @@ export function SystemSettingsPage() {
           ['audit', 'ph-clipboard-text', 'orange', 'Audit Logs', String(auditTotal), 'Recorded activity'],
         ].map(([tab, icon, tone, label, value, detail]) => (
           <button className="ss-kpi-card" key={`${label}-${icon}`} onClick={() => { setActiveTab(tab as TabId); }} type="button">
-            <span className={`ss-kpi-icon ${tone}`}><i className={`ph-fill ${icon}`} aria-hidden="true" /></span>
+            <span className={`ss-kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></span>
             <span className="ss-kpi-info"><span className="ss-kpi-label">{label}</span><strong className="ss-kpi-value">{value}</strong><span className="ss-kpi-sub">{detail}</span></span>
           </button>
         ))}

@@ -204,6 +204,20 @@ export function InsurancePayersPage() {
 
   return (
     <div className="insurance-page">
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+      <div className="insurance-page-head">
+        <div>
+          <h2>Insurance Payers</h2>
+          <p>Configure insurance payers, payer codes, policy types, and branch linkages.</p>
+        </div>
+        <div className="insurance-head-actions">
+          {canCreate && (
+            <button className="btn-primary" onClick={openCreateModal} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Add Payer
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── KPI Row ────────────────────────────────────────────────────────── */}
       <div className="um-kpi-row" aria-label="Insurance Payer Statistics">
         <div className="kpi-card">

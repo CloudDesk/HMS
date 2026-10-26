@@ -7,7 +7,64 @@
    Patient Search & Registration
 ────────────────────────────────────────────────────────────────────────────── */
 /* Directory uses shared doc-field, doc-btn, data-table and pagination styles. */
-.patient-directory-page { min-width: 0; container-type: inline-size; }
+.patient-directory-page {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+  padding: 1.25rem 2rem 2rem !important;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.patient-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.patient-page-head > div {
+  min-width: 0;
+}
+
+.patient-page-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.patient-page-head p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.patient-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+@media (max-width: 768px) {
+  .patient-directory-page {
+    padding: 1rem 0.85rem 1.5rem !important;
+  }
+
+  .patient-page-head {
+    flex-direction: column;
+  }
+
+  .patient-head-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 .patient-search-card { padding: 1rem; }
 .patient-search-form-grid {
   display: grid;
