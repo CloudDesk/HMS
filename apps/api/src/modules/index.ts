@@ -35,6 +35,8 @@ import { registerSurgeryRoutes } from './surgery/surgery.routes.js';
 import { registerEmergencyRoutes } from './emergency/emergency.routes.js';
 import { registerAdvancePaymentRoutes } from './advance-payment/advance-payment.routes.js';
 import { registerInsuranceRoutes } from './insurance/insurance.routes.js';
+import { registerMpesaCallbackRoutes } from './mpesa/mpesa-callback.routes.js';
+import { registerMpesaAttemptRoutes } from './mpesa/mpesa-attempt.routes.js';
 
 export const registerModules = async (app: FastifyInstance, services: ServiceRegistry) => {
   await registerHealthRoutes(app, services);
@@ -72,4 +74,6 @@ export const registerModules = async (app: FastifyInstance, services: ServiceReg
   await registerEmergencyRoutes(app, services);
   await registerAdvancePaymentRoutes(app, services);
   await registerInsuranceRoutes(app, services);
+  await registerMpesaCallbackRoutes(app, services);
+  await registerMpesaAttemptRoutes(app, services);
 };

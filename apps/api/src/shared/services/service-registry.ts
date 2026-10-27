@@ -6,6 +6,12 @@ import { InsuranceIntegrationRepository } from '../../modules/insurance/insuranc
 import { InsuranceAuthorizationService } from '../../modules/insurance/insurance-authorization.service.js';
 import { InsuranceAuthorizationRepository } from '../../modules/insurance/insurance-authorization.repository.js';
 import { checkDatabaseHealth } from '../../database/health.js';
+import { env } from '../../config/env.js';
+import { MpesaCallbackService } from '../../modules/mpesa/mpesa-callback.service.js';
+import { MpesaCallbackRepository } from '../../modules/mpesa/mpesa-callback.repository.js';
+import { MpesaAttemptRepository } from '../../modules/mpesa/mpesa-attempt.repository.js';
+import { MpesaAttemptService } from '../../modules/mpesa/mpesa-attempt.service.js';
+import { MpesaDarajaClient } from '../../modules/mpesa/mpesa-daraja.client.js';
 import { AuthRepository } from '../../modules/auth/auth.repository.js';
 import { AuthRateLimitRepository } from '../../modules/auth/auth-rate-limit.repository.js';
 import { AuthService } from '../../modules/auth/auth.service.js';
@@ -109,6 +115,9 @@ export const createServiceRegistry = (): ServiceRegistry => {
   const laboratoryRepository = new LaboratoryRepository();
   const imagingRepository = new ImagingRepository();
   const billingRepository = new BillingRepository();
+  const mpesaCallbacks = new MpesaCallbackRepository();
+  const mpesaAttempts = new MpesaAttemptService(new MpesaAttemptRepository(), mpesaCallbacks,
+    billingRepository, new MpesaDarajaClient(), env.mpesa.environment, env.mpesaOutbound);
   const settingsRepository = new SettingsRepository();
   const administrationDashboardRepository = new AdministrationDashboardRepository();
   const notificationRepository = new NotificationRepository();
@@ -368,6 +377,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
       appointmentService,
     ),
     advancePayment: advancePaymentService,
+    mpesaCallback: new MpesaCallbackService(mpesaCallbacks, new AuthRateLimitRepository(), env.mpesa, mpesaAttempts),
+    mpesaAttempts,
     insurance: insuranceServiceInstance,
     insuranceClaims: insuranceClaimService,
     insuranceIntegration: insuranceIntegrationService,

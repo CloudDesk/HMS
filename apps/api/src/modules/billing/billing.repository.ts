@@ -190,6 +190,13 @@ const invoiceLookupStages: PipelineStage[] = [
 ];
 
 export class BillingRepository {
+  async lockForMpesaAttempt(invoice: BillingInvoice, session: ClientSession) {
+    const result = await BillingInvoiceModel.updateOne({
+      _id: objectId(invoice.id), branchId: objectId(invoice.branch_id), deletedAt: null,
+      status: invoice.status, balanceAmount: invoice.balance_amount, paidAmount: invoice.paid_amount,
+    }, { $inc: { __v: 1 } }, { session, timestamps: false });
+    return result.matchedCount === 1;
+  }
   async resolveBranchScope(userId: string, requestedBranchId?: string): Promise<string[] | undefined> {
     const user = await UserModel.findOne({ _id: userId, status: 'active', deletedAt: null })
       .select('branchIds roleIds')

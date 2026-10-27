@@ -1,0 +1,3350 @@
+{
+  "currentDatabase": "HMS_GENERAL",
+  "knownModelCollections": [
+    "administrationdashboardsnapshots",
+    "admissionpolicies",
+    "admissionrequests",
+    "advancepayments",
+    "appointments",
+    "auditlogs",
+    "authratelimits",
+    "bedassignmenthistories",
+    "bedholds",
+    "bedtransfers",
+    "billing_invoice_items",
+    "billing_invoices",
+    "billing_payments",
+    "branches",
+    "consenttemplates",
+    "departments",
+    "dhamockclaimadjudications",
+    "dhamockclaimappeals",
+    "dhamockclaimclosures",
+    "dhamockclaimdischarges",
+    "dhamockclaimpreviews",
+    "dhamockclaimqueries",
+    "dhamockclaimsubmissions",
+    "dhamockpaymentallocations",
+    "dhamockpaymentreconciliations",
+    "dhamockremittanceadvices",
+    "doctoravailabilityexceptions",
+    "doctorleaves",
+    "doctors",
+    "doctorsequences",
+    "emergencyencounters",
+    "guardianprofiles",
+    "hmsbeds",
+    "hmswards",
+    "imaging_reports",
+    "inpatientadmissions",
+    "inpatientroundnotes",
+    "inpatientvitals",
+    "insuranceauthorizations",
+    "insurancebenefitconfigs",
+    "insuranceclaims",
+    "insuranceeligibilityverifications",
+    "insurancemembers",
+    "insurancepolicies",
+    "insuranceschemes",
+    "laboratory_results",
+    "medicines",
+    "mpesa_callback_events",
+    "notifications",
+    "opdclinicalorders",
+    "opdconsultations",
+    "opdfollowups",
+    "opdprescriptions",
+    "opdreferrals",
+    "opdvisits",
+    "opdvitals",
+    "otpchallenges",
+    "passwordresettokens",
+    "patientaccessgrants",
+    "patientdocuments",
+    "patientnumbersequences",
+    "patients",
+    "patienttimelineevents",
+    "payers",
+    "permissioncategories",
+    "permissiongroups",
+    "permissions",
+    "pharmacy_medicine_batches",
+    "pharmacy_medicine_inventory",
+    "pharmacy_medicine_stock_movements",
+    "pharmacydispensings",
+    "procedurebookings",
+    "procedurerecommendations",
+    "refreshtokens",
+    "registrationtokens",
+    "roles",
+    "sequences",
+    "services",
+    "shaservicemappings",
+    "systemsettings",
+    "users"
+  ],
+  "databases": [
+    {
+      "name": "HMS_GENERAL",
+      "isConfiguredDatabase": true,
+      "collections": [
+        {
+          "name": "administrationdashboardsnapshots",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "admissionpolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "admissionrequests",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "advancepayments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "appointments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "auditlogs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1204
+        },
+        {
+          "name": "authratelimits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedassignmenthistories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedholds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedtransfers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "billing_invoice_items",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "billing_invoices",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "billing_payments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "branches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "consenttemplates",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "dhamockclaimadjudications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimappeals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimclosures",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimdischarges",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimpreviews",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimqueries",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockclaimsubmissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockpaymentallocations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockpaymentreconciliations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dhamockremittanceadvices",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctoravailabilityexceptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctorleaves",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctors",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "doctorsequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "emergencyencounters",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "guardianprofiles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "hmsbeds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "hmswards",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "imaging_reports",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientadmissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientroundnotes",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceauthorizations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancebenefitconfigs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceclaims",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceeligibilityverifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancemembers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancepolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceschemes",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "laboratory_results",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "medicines",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdclinicalorders",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "opdconsultations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "opdfollowups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdprescriptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdreferrals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdvisits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "opdvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "ophthalmologyattachments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologyclinicalreviews",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologyconfigurations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "ophthalmologyconsultationfinalizations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologycontexts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "ophthalmologydashboardsnapshots",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologypublications",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologystations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "ophthalmologyworkflowprofiles",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "otpchallenges",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "passwordresettokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patientaccessgrants",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "patientdocuments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "patientnumbersequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patients",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "patienttimelineevents",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 26
+        },
+        {
+          "name": "payers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "permissioncategories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "permissiongroups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 16
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 237
+        },
+        {
+          "name": "pharmacy_medicine_batches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "pharmacy_medicine_inventory",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "pharmacy_medicine_stock_movements",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "pharmacydispensings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "procedurebookings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "procedurerecommendations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "refreshtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 657
+        },
+        {
+          "name": "registrationtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 33
+        },
+        {
+          "name": "sequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "services",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 18
+        },
+        {
+          "name": "shaservicemappings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "systemsettings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 14
+        }
+      ]
+    },
+    {
+      "name": "HMS_INDIA",
+      "isConfiguredDatabase": false,
+      "collections": [
+        {
+          "name": "administrationdashboardsnapshots",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "admissionpolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "admissionrequests",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "advancepayments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "appointments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 106
+        },
+        {
+          "name": "auditlogs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11901
+        },
+        {
+          "name": "authratelimits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedassignmenthistories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "bedholds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "bedtransfers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "billing_invoice_items",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 70
+        },
+        {
+          "name": "billing_invoices",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 38
+        },
+        {
+          "name": "billing_payments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 16
+        },
+        {
+          "name": "branches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "check",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "consenttemplates",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "dental_prosthetic_lab_orders",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "dental_treatment_episodes",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "dental_treatment_quotations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "dental_treatment_stages",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 20
+        },
+        {
+          "name": "dentalchairsideimages",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 27
+        },
+        {
+          "name": "doctoravailabilityexceptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctorleaves",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "doctors",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "doctorsequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "emergencyencounters",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "guardianprofiles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "hmsbeds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "hmswards",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "imaging_reports",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "inpatientadmissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 9
+        },
+        {
+          "name": "inpatientroundnotes",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "insuranceauthorizations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancebenefitconfigs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceeligibilityverifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancemembers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insurancepolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "insuranceschemes",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "laboratory_results",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "medicines",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "mobile_devices",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 34
+        },
+        {
+          "name": "opdclinicalorders",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 45
+        },
+        {
+          "name": "opdconsultations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 54
+        },
+        {
+          "name": "opddentalexaminations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 16
+        },
+        {
+          "name": "opdfollowups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "opdprescriptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 31
+        },
+        {
+          "name": "opdreferrals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "opdvisits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 70
+        },
+        {
+          "name": "opdvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 51
+        },
+        {
+          "name": "otpchallenges",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "passwordresettokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patient_pre_consultations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "patientaccessgrants",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 15
+        },
+        {
+          "name": "patientdocuments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 64
+        },
+        {
+          "name": "patientnumbersequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "patients",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 35
+        },
+        {
+          "name": "patientsequences",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patienttimelineevents",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 726
+        },
+        {
+          "name": "payers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "permissioncategories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "permissiongroups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 16
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 231
+        },
+        {
+          "name": "pharmacy_medicine_batches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 7
+        },
+        {
+          "name": "pharmacy_medicine_inventory",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "pharmacy_medicine_stock_movements",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 23
+        },
+        {
+          "name": "pharmacydispensings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 23
+        },
+        {
+          "name": "procedurebookings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "procedurerecommendations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "refreshtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 42
+        },
+        {
+          "name": "registrationproofs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "registrationtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "sequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "services",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 50
+        },
+        {
+          "name": "shaservicemappings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "systemsettings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 68
+        }
+      ]
+    },
+    {
+      "name": "hms",
+      "isConfiguredDatabase": false,
+      "collections": [
+        {
+          "name": "administrationdashboardsnapshots",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "admissionpolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "admissionrequests",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "advancepayments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "appointments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 98
+        },
+        {
+          "name": "auditlogs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11409
+        },
+        {
+          "name": "authratelimits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedassignmenthistories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "bedholds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "bedtransfers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "billing_invoice_items",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 67
+        },
+        {
+          "name": "billing_invoices",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 36
+        },
+        {
+          "name": "billing_payments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 18
+        },
+        {
+          "name": "branches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "check",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "consenttemplates",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "dental_prosthetic_lab_orders",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "dental_treatment_episodes",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "dental_treatment_quotations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "dental_treatment_stages",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "dentalchairsideimages",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 18
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 27
+        },
+        {
+          "name": "doctoravailabilityexceptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctorleaves",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "doctors",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "doctorsequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "emergencyencounters",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "guardianprofiles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "hmsbeds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "hmswards",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "imaging_reports",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "inpatientadmissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 9
+        },
+        {
+          "name": "inpatientroundnotes",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "laboratory_results",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "medicines",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 23
+        },
+        {
+          "name": "opdclinicalorders",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 43
+        },
+        {
+          "name": "opdconsultations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 53
+        },
+        {
+          "name": "opddentalexaminations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 14
+        },
+        {
+          "name": "opdfollowups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "opdprescriptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 29
+        },
+        {
+          "name": "opdreferrals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "opdvisits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 69
+        },
+        {
+          "name": "opdvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 51
+        },
+        {
+          "name": "otpchallenges",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "passwordresettokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patient_pre_consultations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "patientaccessgrants",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "patientdocuments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 60
+        },
+        {
+          "name": "patientnumbersequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "patients",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 31
+        },
+        {
+          "name": "patientsequences",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patienttimelineevents",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 691
+        },
+        {
+          "name": "permissioncategories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "permissiongroups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 15
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 180
+        },
+        {
+          "name": "pharmacy_medicine_batches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 7
+        },
+        {
+          "name": "pharmacy_medicine_inventory",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "pharmacy_medicine_stock_movements",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "pharmacydispensings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "procedurebookings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "procedurerecommendations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "refreshtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "registrationproofs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "registrationtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "sequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "services",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 50
+        },
+        {
+          "name": "systemsettings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 64
+        }
+      ]
+    },
+    {
+      "name": "productiondb",
+      "isConfiguredDatabase": false,
+      "collections": [
+        {
+          "name": "administrationdashboardsnapshots",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "admissionpolicies",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "admissionrequests",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "advancepayments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "appointments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_action_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 126
+        },
+        {
+          "name": "approval_delegations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_reassignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 64
+        },
+        {
+          "name": "areas",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "audit_logs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 829
+        },
+        {
+          "name": "auditlogs",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedassignmenthistories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedholds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "bedtransfers",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "billing_invoice_items",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "billing_invoices",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "billing_payments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "branches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "cells",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "check",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "collection",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "consenttemplates",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dashboard_snapshots",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "doctoravailabilityexceptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctorleaves",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctors",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "doctorsequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "emergencyencounters",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "export_jobs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "gauge_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 50
+        },
+        {
+          "name": "guardianprofiles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "hmsbeds",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "hmswards",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "idempotency_keys",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "imaging_reports",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inpatientadmissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inspection_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "job_work_orders",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "laboratory_results",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "locations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "machines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "maintenance_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "material_categories",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "medicines",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "notification_delivery_attempts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 770
+        },
+        {
+          "name": "notification_events",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 293
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 385
+        },
+        {
+          "name": "opdclinicalorders",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdconsultations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdfollowups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdprescriptions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdreferrals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdvisits",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "opdvitals",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "otpchallenges",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "passwordresettokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patientaccessgrants",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patientdocuments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patientnumbersequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patients",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "patienttimelineevents",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "permissioncategories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "permissiongroups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 191
+        },
+        {
+          "name": "pharmacy_medicine_batches",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "pharmacy_medicine_inventory",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "pharmacy_medicine_stock_movements",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "pharmacydispensings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "pm_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "procedurebookings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "procedurerecommendations",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "processes",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_custom_form_submissions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "production_custom_form_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "production_custom_forms",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "production_lines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_machine_oil_readings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_shift_allocations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "products",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_alerts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_calibration_occurrences",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_calibration_plans",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_card_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_cards",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_checklist_mappings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_gauge_checklists",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_gauge_details",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_gauge_masters",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_gr_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_inspection_calendar_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_inspection_cases",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_register_book_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_rejection_cases",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_store_action_triggers",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_temperature_readings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_temperature_thresholds",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "record_attachments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "record_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 164
+        },
+        {
+          "name": "record_pdf_artifacts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "records",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 57
+        },
+        {
+          "name": "refreshtokens",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "role_permissions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 561
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 14
+        },
+        {
+          "name": "sequences",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "services",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "sessions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 341
+        },
+        {
+          "name": "shifts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "store_actions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "systemsettings",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "tdo_design_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 35
+        },
+        {
+          "name": "tdo_drawing_revisions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "tdo_drawings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 29
+        },
+        {
+          "name": "tdo_print_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "tdo_tool_sequence_counters",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "template_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "template_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 34
+        },
+        {
+          "name": "templates",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "user_departments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "user_requesting_engineers",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "user_roles",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "user_shift_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "workflow_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "workflow_execution_states",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 15
+        },
+        {
+          "name": "workflow_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "workflows",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 14
+        },
+        {
+          "name": "workstations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        }
+      ]
+    },
+    {
+      "name": "rte-paperless-dev",
+      "isConfiguredDatabase": false,
+      "collections": [
+        {
+          "name": "approval_action_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 126
+        },
+        {
+          "name": "approval_delegations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_reassignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 64
+        },
+        {
+          "name": "areas",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "audit_logs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 807
+        },
+        {
+          "name": "cells",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "dashboard_snapshots",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 9
+        },
+        {
+          "name": "gauge_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 50
+        },
+        {
+          "name": "idempotency_keys",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inspection_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "job_work_orders",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "locations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "machines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "maintenance_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "material_categories",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "notification_delivery_attempts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 764
+        },
+        {
+          "name": "notification_events",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 290
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 382
+        },
+        {
+          "name": "permissioncategories",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "permissiongroups",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 190
+        },
+        {
+          "name": "pm_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "processes",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_custom_form_submissions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "production_custom_form_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "production_custom_forms",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "production_lines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_machine_oil_readings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_shift_allocations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "products",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_alerts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_calibration_occurrences",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_calibration_plans",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_checklist_mappings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_gauge_checklists",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "record_attachments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "record_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 154
+        },
+        {
+          "name": "record_pdf_artifacts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "records",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 53
+        },
+        {
+          "name": "role_permissions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 560
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 14
+        },
+        {
+          "name": "sessions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 343
+        },
+        {
+          "name": "shifts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "tdo_design_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 31
+        },
+        {
+          "name": "tdo_drawing_revisions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 21
+        },
+        {
+          "name": "tdo_drawings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "tdo_print_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "tdo_tool_sequence_counters",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "template_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 34
+        },
+        {
+          "name": "templates",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "user_departments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "user_requesting_engineers",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "user_roles",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "workflow_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "workflow_execution_states",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 15
+        },
+        {
+          "name": "workflow_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "workflows",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 14
+        }
+      ]
+    },
+    {
+      "name": "test",
+      "isConfiguredDatabase": false,
+      "collections": [
+        {
+          "name": "approval_action_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 219
+        },
+        {
+          "name": "approval_delegations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "approval_reassignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "approval_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 116
+        },
+        {
+          "name": "areas",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "audit_logs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2980
+        },
+        {
+          "name": "cells",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 4
+        },
+        {
+          "name": "dashboard_snapshots",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "departments",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 9
+        },
+        {
+          "name": "export_jobs",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 5
+        },
+        {
+          "name": "gauge_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 17
+        },
+        {
+          "name": "idempotency_keys",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "inspection_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 10
+        },
+        {
+          "name": "job_work_orders",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "locations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 10
+        },
+        {
+          "name": "machines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 20
+        },
+        {
+          "name": "maintenance_types",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 8
+        },
+        {
+          "name": "material_categories",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "notification_delivery_attempts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1044
+        },
+        {
+          "name": "notification_events",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 391
+        },
+        {
+          "name": "notifications",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 540
+        },
+        {
+          "name": "permissions",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 183
+        },
+        {
+          "name": "pm_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "processes",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "production_lines",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "production_machine_oil_readings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "production_shift_allocations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 77
+        },
+        {
+          "name": "production_tasks",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "products",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "quality_alerts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 16
+        },
+        {
+          "name": "quality_calibration_occurrences",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 12
+        },
+        {
+          "name": "quality_calibration_plans",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "quality_card_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "quality_cards",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "quality_checklist_mappings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "quality_gauge_checklists",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 2
+        },
+        {
+          "name": "quality_gauge_details",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "quality_gauge_masters",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "quality_gr_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "quality_inspection_calendar_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "quality_inspection_cases",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "quality_register_book_entries",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 0,
+          "confirmedEmpty": true
+        },
+        {
+          "name": "quality_rejection_cases",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "quality_store_action_triggers",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "quality_temperature_readings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 15
+        },
+        {
+          "name": "quality_temperature_thresholds",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 6
+        },
+        {
+          "name": "record_attachments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 20
+        },
+        {
+          "name": "record_history",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 417
+        },
+        {
+          "name": "record_pdf_artifacts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "records",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 115
+        },
+        {
+          "name": "role_permissions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1965
+        },
+        {
+          "name": "roles",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 52
+        },
+        {
+          "name": "sessions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1086
+        },
+        {
+          "name": "shifts",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 3
+        },
+        {
+          "name": "store_actions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 1
+        },
+        {
+          "name": "tdo_design_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 83
+        },
+        {
+          "name": "tdo_drawing_revisions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 53
+        },
+        {
+          "name": "tdo_drawings",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 62
+        },
+        {
+          "name": "tdo_print_requests",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "tdo_tool_sequence_counters",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 7
+        },
+        {
+          "name": "template_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 11
+        },
+        {
+          "name": "template_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 40
+        },
+        {
+          "name": "templates",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 22
+        },
+        {
+          "name": "user_departments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 154
+        },
+        {
+          "name": "user_requesting_engineers",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 9
+        },
+        {
+          "name": "user_roles",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 154
+        },
+        {
+          "name": "user_shift_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 72
+        },
+        {
+          "name": "users",
+          "type": "collection",
+          "referencedByCurrentModels": true,
+          "estimatedDocuments": 154
+        },
+        {
+          "name": "workflow_assignments",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 14
+        },
+        {
+          "name": "workflow_execution_states",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 61
+        },
+        {
+          "name": "workflow_versions",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 19
+        },
+        {
+          "name": "workflows",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 13
+        },
+        {
+          "name": "workstations",
+          "type": "collection",
+          "referencedByCurrentModels": false,
+          "estimatedDocuments": 20
+        }
+      ]
+    }
+  ]
+}

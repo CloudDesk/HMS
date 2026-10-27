@@ -20,7 +20,15 @@ export class AuthRateLimitRepository {
       );
       return Boolean(result);
     } catch (error) {
-      if (isDuplicateKey(error)) return false;
+      if (isDuplicateKey(error)) {
+        // Another request can create this bucket between the upsert's match
+        // and insert. Retry without upsert; a genuinely full bucket still fails.
+        const retry = await AuthRateLimitModel.updateOne(
+          { _id: bucketId, count: { $lt: limit } },
+          { $inc: { count: 1 } },
+        );
+        return retry.modifiedCount === 1;
+      }
       throw error;
     }
   }

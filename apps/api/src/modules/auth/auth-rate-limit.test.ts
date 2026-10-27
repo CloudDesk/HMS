@@ -51,6 +51,14 @@ describe('M-006 public staff login rate limiting', () => {
     await expect(auth.login({ identifier: 'missing@example.test', password: 'wrong' }, metadata)).rejects.toMatchObject({ statusCode: 429, code: 'AUTH_RATE_LIMITED' });
   });
 
+  it('admits exactly the limit during concurrent first-bucket creation', async () => {
+    const repository = new AuthRateLimitRepository();
+    const results = await Promise.all(Array.from({ length: 20 }, () =>
+      repository.consume('concurrent-test', 'synthetic-key', 8, 60, now)));
+    expect(results.filter(Boolean)).toHaveLength(8);
+    expect(await repository.consume('concurrent-test', 'synthetic-key', 8, 60, now)).toBe(false);
+  });
+
   it('blocks excessive login attempts by IP across different identities', async () => {
     const auth = createAuth({ ipLimit: 2 });
     const metadata = { ipAddress: '192.0.2.2', userAgent: 'rate-limit-test' };
