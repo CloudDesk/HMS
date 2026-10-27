@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ const correctionEditorSchema = z.object({ ...treatmentWriteBaseSchema.shape, id:
 }).strict();
 const formSchema = z.object({ reason: z.string().trim().max(2000), section: z.enum(['', 'patient_instructions', 'clinical_summary', 'follow_up_decision', 'treatment_plans']), after: z.string().max(10000), follow_up_decision: z.enum(['', 'FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP']), plans: z.array(correctionEditorSchema).max(100) });
 function FinalizationDialog({ workspace, completion: c, feature: f }: { workspace: CompletionWorkspace; completion: OphthalmologyCompletionFeature; feature: OphthalmologyFinalizationFeature }) {
-  const [baseline] = useState({ version: c.finalizationVersion, readiness: c.readiness, signature: JSON.stringify(c.readiness), source: f.source, episode: c.history?.amendment_episodes.find((e) => e.status === 'OPEN')?.id });
+  const [baseline, setBaseline] = useState({ version: c.finalizationVersion, readiness: c.readiness, signature: JSON.stringify(c.readiness), source: f.source, episode: c.history?.amendment_episodes.find((e) => e.status === 'OPEN')?.id });
   const [linkRow, setLinkRow] = useState<string | null>(null);
   const key = useRef(crypto.randomUUID());
   const { register, control, handleSubmit, setError, setValue, formState: { errors, isDirty, isSubmitting } } = useForm<z.infer<typeof formSchema>>({ resolver: zodResolver(formSchema), defaultValues: { reason: '', section: '', after: '', follow_up_decision: baseline.source?.current.follow_up_decision ?? '', plans: baseline.source?.current.treatment_plans.map((plan) => ({
@@ -35,6 +36,25 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
   const disabled = !allowed || changed || f.busy || isSubmitting;
   const close = () => { if (!f.busy && !isSubmitting) c.setQuery({ finalization_action: null }); };
   const before = values.section ? baseline.source?.current[values.section] : undefined;
+  const isClinicalReviewMissing = f.action === 'complete' && baseline.readiness?.clinical_review_version === null;
+
+  const handleRefreshSaved = async () => {
+    try {
+      await c.refresh();
+      if (f.action === 'amend') await f.sourceQuery.refetch();
+      setBaseline({
+        version: c.finalizationVersion,
+        readiness: c.readiness,
+        signature: JSON.stringify(c.readiness),
+        source: f.source,
+        episode: c.history?.amendment_episodes.find((e) => e.status === 'OPEN')?.id,
+      });
+      toast.success('Consultation readiness information refreshed.');
+    } catch {
+      toast.error('Failed to refresh consultation information.');
+    }
+  };
+
   const clearReferences = (index: number) => {
     const options = { shouldDirty: true, shouldValidate: true } as const;
     setValue(`plans.${index}.medication_prescription_id`, null, options); setValue(`plans.${index}.optical_prescription_id`, null, options);
@@ -44,13 +64,52 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
   };
   return <Modal open size="large" className="oph-workspace" title={f.action === 'complete' ? 'Doctor approval and completion' : f.action === 'reopen' ? 'Reopen for amendment' : 'Correct clinical source'} onClose={close} footer={<><button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={close}>Close</button><button className="doc-btn primary" type="submit" form="oph-finalization" disabled={disabled}>{f.action === 'complete' ? 'Approve exact consultation version' : f.action === 'reopen' ? 'Open amendment episode' : 'Save correction for reapproval'}</button></>}>
     <p>Original finalization version {baseline.version}. Approval records your authenticated doctor identity and time.</p>{changed && <p role="alert">Saved information changed. Your entries remain here; close and review the latest versions before continuing.</p>}
-    <button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={() => { void c.refresh(); if (f.action === 'amend') void f.sourceQuery.refetch(); }}>Refresh saved information</button>
+    {isClinicalReviewMissing && (
+      <div
+        className="oph-alert-banner"
+        role="alert"
+        style={{
+          background: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          <i className="ph ph-warning-circle" style={{ fontSize: '1.25rem', color: '#d97706' }} />
+          <strong style={{ color: '#92400e', fontSize: '0.92rem' }}>
+            Clinical Review &amp; Treatment Plan Required Before Finalization
+          </strong>
+        </div>
+        <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: '#78350f' }}>
+          A saved Clinical Review &amp; Treatment Plan (Step 4) is a mandatory clinical prerequisite. You cannot complete consultation until Step 4 has been saved.
+        </p>
+        <button
+          type="button"
+          className="doc-btn primary compact"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}
+          onClick={() => {
+            close();
+            c.setQuery({ finalization_action: null, section: 'clinical', care_tab: 'treatment' });
+          }}
+        >
+          <i className="ph ph-arrow-right" />
+          <span>Go to Step 4 (Clinical Review &amp; Treatment Plan)</span>
+        </button>
+      </div>
+    )}
+    <button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={handleRefreshSaved}>Refresh saved information</button>
     <form id="oph-finalization" onSubmit={handleSubmit(async (values) => {
       if (disabled || baseline.version === undefined || !baseline.readiness) return;
       try {
         let saved;
         if (f.action === 'complete') {
-          if (baseline.readiness.clinical_review_version === null) return;
+          if (baseline.readiness.clinical_review_version === null) {
+            toast.error('Clinical Review & Treatment Plan must be saved in Step 4 before approval.');
+            setError('root', { message: 'Clinical Review & Treatment Plan has not been saved. Please complete Step 4 first.' });
+            return;
+          }
           if (!window.confirm('Approve and complete these exact consultation versions? Outstanding checks require an existing authorized server override. This records authenticated approval; it does not publish patient records.')) return;
           saved = await f.complete(completeWriteSchema.parse({ expected_version: baseline.version, expected_context_version: baseline.readiness.context_version,
             expected_consultation_version: baseline.readiness.consultation_version, expected_clinical_review_version: baseline.readiness.clinical_review_version,
@@ -105,7 +164,17 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
 export function OphthalmologyFinalizationTools({ workspace, completion: c }: { workspace: CompletionWorkspace; completion: OphthalmologyCompletionFeature }) {
   const f = useOphthalmologyFinalizationFeature(workspace, c);
   return <section className="doc-card"><h4>Doctor approval and amendment</h4><p>Completion evaluates the approved server configuration. Missing hospital configuration is not treated as satisfied. Publication is a separate authorized action.</p><div className="oph-toolbar">
-    {f.canComplete && <button className="doc-btn primary" type="button" disabled={f.busy} onClick={() => c.setQuery({ completion_action: null, finalization_action: 'complete' })}>{c.history?.status === 'AMENDMENT_OPEN' ? 'Reapprove corrected consultation' : 'Approve and complete consultation'}</button>}
+    {c.history?.status !== 'COMPLETED' && (
+      <button
+        className="doc-btn primary"
+        type="button"
+        disabled={!f.canComplete || f.busy}
+        title={!f.canComplete ? (!f.fresh ? 'Status refreshing or stale' : !c.readiness?.clinical_review_version ? 'Clinical review must be saved' : !c.readiness?.ready && !f.exceptionMatches ? `${c.unmet.length} readiness requirements unmet` : 'Sign-off not permitted') : undefined}
+        onClick={() => c.setQuery({ completion_action: null, finalization_action: 'complete' })}
+      >
+        {c.history?.status === 'AMENDMENT_OPEN' ? 'Reapprove corrected consultation' : 'Sign & Complete Consultation'}
+      </button>
+    )}
     {f.canReopen && <button className="doc-btn" type="button" disabled={f.busy} onClick={() => c.setQuery({ completion_action: null, finalization_action: 'reopen' })}>Reopen for amendment</button>}
     {f.canAmend && <button className="doc-btn" type="button" disabled={f.busy} onClick={() => c.setQuery({ completion_action: null, finalization_action: 'amend' })}>Correct clinical source</button>}
   </div>{f.action === 'amend' && !f.source && <><p role="status">{f.sourceQuery.isError ? 'Clinical source could not be loaded.' : 'Loading supported clinical source…'}</p><button type="button" className="doc-btn" onClick={() => void f.sourceQuery.refetch()}>Retry clinical source</button><button type="button" className="doc-btn" onClick={() => c.setQuery({ finalization_action: null })}>Close amendment</button></>}

@@ -29,7 +29,7 @@ export type OphthalmologyAlert = z.infer<typeof alertSchema>;
 export const clinicalWorkspaceSchema = z.object({ alerts: z.array(alertSchema).default([]), can_clear_emergency: z.boolean().default(false), context: contextSchema.nullable(), visit: z.object({
   id: ophthalmologyIdSchema, visit_number: z.string(), patient_id: ophthalmologyIdSchema, patient_number: z.string(), patient_name: z.string(), doctor_name: z.string(),
   branch_id: ophthalmologyIdSchema, department_id: ophthalmologyIdSchema, visit_type: z.enum(['NEW_CONSULTATION', 'FOLLOW_UP', 'PROCEDURE', 'EMERGENCY', 'WALK_IN', 'REVIEW']),
-  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), status: z.enum(['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']),
+  priority: z.enum(['ROUTINE', 'URGENT', 'EMERGENCY']), status: z.enum(['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CLINICALLY_COMPLETED', 'SKIPPED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']),
   reason: z.string().nullable().optional(), notes: z.string().nullable().optional(),
 }) });
 export type OphthalmologyContext = z.infer<typeof contextSchema>;

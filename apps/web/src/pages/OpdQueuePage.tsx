@@ -14,11 +14,12 @@ import {
   visitPriorityClass,
   visitStatusClass,
 } from './opd-utils';
+import { CloseOpdJourneyModal } from '../components/opd/CloseOpdJourneyModal';
 
-type StatusFilter = Extract<ApiOpdVisitStatus, 'READY_FOR_CONSULTATION' | 'IN_CONSULTATION' | 'SKIPPED' | 'COMPLETED'> | '';
+type StatusFilter = Extract<ApiOpdVisitStatus, 'CHECKED_IN' | 'WAITING_FOR_VITALS' | 'READY_FOR_CONSULTATION' | 'IN_CONSULTATION' | 'CLINICALLY_COMPLETED' | 'SKIPPED' | 'COMPLETED'> | '';
 type PriorityFilter = ApiOpdVisitPriority | '';
 
-const clinicianStatuses = new Set<ApiOpdVisitStatus>(['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED']);
+const clinicianStatuses = new Set<ApiOpdVisitStatus>(['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CLINICALLY_COMPLETED', 'SKIPPED', 'COMPLETED']);
 
 const tokenFor = (visit: OpdVisitResponse, index: number) =>
   `O${String(visit.queue_token_number ?? index + 1).padStart(3, '0')}`;
@@ -36,7 +37,7 @@ const visitSort = (left: OpdVisitResponse, right: OpdVisitResponse) => {
 };
 
 const isStatusFilter = (value: string | null): value is Exclude<StatusFilter, ''> =>
-  value !== null && ['READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'SKIPPED', 'COMPLETED'].includes(value);
+  value !== null && ['CHECKED_IN', 'WAITING_FOR_VITALS', 'READY_FOR_CONSULTATION', 'IN_CONSULTATION', 'CLINICALLY_COMPLETED', 'SKIPPED', 'COMPLETED'].includes(value);
 
 const isPriorityFilter = (value: string | null): value is ApiOpdVisitPriority =>
   value !== null && ['ROUTINE', 'URGENT', 'EMERGENCY'].includes(value);
@@ -72,9 +73,11 @@ export function OpdQueuePage() {
   const clinicianVisits = useMemo(() => visits.filter((visit) => clinicianStatuses.has(visit.status)).sort(visitSort), [visits]);
   const readyVisits = clinicianVisits.filter((visit) => visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED');
   const inConsultation = clinicianVisits.filter((visit) => visit.status === 'IN_CONSULTATION');
+  const clinicallyCompleted = clinicianVisits.filter((visit) => visit.status === 'CLINICALLY_COMPLETED');
   const completed = clinicianVisits.filter((visit) => visit.status === 'COMPLETED');
-  const averageWait = readyVisits.length ? Math.round(readyVisits.reduce((total, visit) => total + waitMinutes(visit), 0) / readyVisits.length) : 0;
   const isPastDate = Boolean(filters.date && filters.date < todayInputValue());
+
+  const [selectedCloseVisit, setSelectedCloseVisit] = useState<OpdVisitResponse | null>(null);
 
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -120,8 +123,8 @@ export function OpdQueuePage() {
         {([
           ['ph-users-three', 'orange', 'Ready for Consultation', readyVisits.length, 'Clinical queue'],
           ['ph-stethoscope', 'cyan', 'In Consultation', inConsultation.length, 'Doctor active'],
+          ['ph-clipboard-text', 'purple', 'Clinically Completed', clinicallyCompleted.length, 'Awaiting settlement'],
           ['ph-check-circle', 'green', 'Completed', completed.length, 'Selected date'],
-          ['ph-timer', 'purple', 'Average Wait', `${averageWait} min`, 'Live estimate'],
         ] as const).map(([icon, tone, label, value, copy]) => (
           <article className="doc-kpi" key={label}><span className={`doc-kpi-icon ${tone}`}><i className={`ph ${icon}`} aria-hidden="true" /></span><div className="doc-kpi-copy"><span>{label}</span><strong>{isLoading ? '-' : value}</strong><small>{copy}</small></div></article>
         ))}
@@ -131,7 +134,7 @@ export function OpdQueuePage() {
         <div className="doc-field grow doc-search"><label htmlFor="opd-search">Search Doctor Queue</label><i className="ph ph-magnifying-glass" aria-hidden="true" /><input id="opd-search" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search visit, MRN, patient, or doctor" type="search" value={filters.search} /></div>
         <div className="doc-field"><label htmlFor="opd-department">Department</label><select id="opd-department" onChange={(event) => setFilters((current) => ({ ...current, department_id: event.target.value }))} value={filters.department_id}><option value="">All Departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
         <div className="doc-field"><label htmlFor="opd-doctor">Doctor</label><select id="opd-doctor" onChange={(event) => setFilters((current) => ({ ...current, doctor_id: event.target.value }))} value={filters.doctor_id}><option value="">All Doctors</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.display_name}</option>)}</select></div>
-        <div className="doc-field"><label htmlFor="opd-status">Status</label><select id="opd-status" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as StatusFilter }))} value={filters.status}><option value="">All Clinical Statuses</option><option value="READY_FOR_CONSULTATION">Ready for Consultation</option><option value="IN_CONSULTATION">In Consultation</option><option value="SKIPPED">Skipped</option><option value="COMPLETED">Completed</option></select></div>
+        <div className="doc-field"><label htmlFor="opd-status">Status</label><select id="opd-status" onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as StatusFilter }))} value={filters.status}><option value="">All Statuses</option><option value="CHECKED_IN">Checked In</option><option value="WAITING_FOR_VITALS">Waiting for Vitals</option><option value="READY_FOR_CONSULTATION">Ready for Consultation</option><option value="IN_CONSULTATION">In Consultation</option><option value="CLINICALLY_COMPLETED">Clinically Completed</option><option value="SKIPPED">Skipped</option><option value="COMPLETED">Completed</option></select></div>
         <div className="doc-field"><label htmlFor="opd-priority">Priority</label><select id="opd-priority" onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as PriorityFilter }))} value={filters.priority}><option value="">All Priorities</option>{Object.entries(opdVisitPriorityLabels).map(([priority, label]) => <option key={priority} value={priority}>{label}</option>)}</select></div>
         <div className="doc-field"><label htmlFor="opd-date">Date</label><input id="opd-date" onChange={(event) => setFilters((current) => ({ ...current, date: event.target.value }))} type="date" value={filters.date} /></div>
       </section>
@@ -165,8 +168,23 @@ export function OpdQueuePage() {
                   <td><span className={`doc-status ${visitPriorityClass(visit.priority)}`}>{opdVisitPriorityLabels[visit.priority]}</span></td>
                   <td><span className={`doc-status ${visitStatusClass(visit.status)}`}>{opdVisitStatusLabels[visit.status]}</span></td>
                   <td><div style={{ alignItems: 'center', display: 'flex', gap: '0.35rem', justifyContent: 'flex-end', minWidth: 'max-content' }}>
+                    {(visit.status === 'CHECKED_IN' || visit.status === 'WAITING_FOR_VITALS') ? <button className="doc-btn secondary compact" onClick={() => navigate('/appointments/queue')} type="button" title="Record vitals in appointment triage"><i className="ph ph-heartbeat" aria-hidden="true" /> Take Vitals</button> : null}
                     {(visit.status === 'READY_FOR_CONSULTATION' || visit.status === 'SKIPPED') && canEditConsultation && canEditVisit ? <button className="doc-btn primary compact" disabled={isUpdating || isPastDate} onClick={() => void startConsultation(visit)} type="button"><i className="ph ph-stethoscope" aria-hidden="true" /> Start Consultation</button> : null}
                     {visit.status === 'IN_CONSULTATION' && canViewConsultation ? <button className="doc-btn primary compact" onClick={() => { if (isOphthalmology(visit)) { navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}`); } else { navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`); } }} type="button">Consultation</button> : null}
+                    {visit.status === 'CLINICALLY_COMPLETED' && (
+                      <>
+                        {canViewConsultation && (
+                          <button className="doc-btn secondary compact" onClick={() => { if (isOphthalmology(visit)) { navigate(`/opd/ophthalmology?visit_id=${encodeURIComponent(visit.id)}`); } else { navigate(`/opd/consultation?id=${encodeURIComponent(visit.id)}`); } }} type="button">
+                            Summary
+                          </button>
+                        )}
+                        {canEditVisit && (
+                          <button className="doc-btn success compact" onClick={() => setSelectedCloseVisit(visit)} type="button">
+                            <i className="ph ph-check-circle" aria-hidden="true" /> Close Journey
+                          </button>
+                        )}
+                      </>
+                    )}
                     <button className="doc-action" onClick={() => navigate(`/opd/visit?id=${encodeURIComponent(visit.id)}`)} title="View visit" type="button"><i className="ph ph-arrow-square-out" aria-hidden="true" /></button>
                   </div></td>
                 </tr>
@@ -223,6 +241,16 @@ export function OpdQueuePage() {
           </div>
         )}
       </section>
+
+      <CloseOpdJourneyModal
+        open={Boolean(selectedCloseVisit)}
+        visit={selectedCloseVisit}
+        onClose={() => setSelectedCloseVisit(null)}
+        onSuccess={() => {
+          setSelectedCloseVisit(null);
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

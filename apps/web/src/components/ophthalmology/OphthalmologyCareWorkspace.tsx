@@ -96,6 +96,14 @@ export function OphthalmologyCareWorkspace({
 
   const [procedureModalOpen, setProcedureModalOpen] = useState(false);
   const [procedureInitialReason, setProcedureInitialReason] = useState('');
+  const [procedureTargetEye, setProcedureTargetEye] = useState<'OD' | 'OS' | 'OU' | ''>('');
+  const [procedureCreatedCallback, setProcedureCreatedCallback] = useState<((created: { id: string }) => void) | null>(null);
+
+  const isRoutineBlocked = Boolean(
+    workspace.emergencyAlerts?.some(
+      (a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED' || (a.status === 'CLEARED' && !a.clearance?.resumption_permitted)
+    )
+  );
 
   const branchId = workspace.visit?.branch_id ?? '';
   const departmentsQuery = useDepartmentsList({ status: 'ACTIVE', page: 1, limit: 100 }, Boolean(branchId));
@@ -109,8 +117,14 @@ export function OphthalmologyCareWorkspace({
   const doctors = doctorsQuery.data?.data ?? [];
   const procedureServices = servicesQuery.data?.data ?? [];
 
-  const handleOpenProcedure = (initialReason?: string) => {
-    setProcedureInitialReason(initialReason || '');
+  const handleOpenProcedure = (options?: { initialReason?: string; targetEye?: 'OD' | 'OS' | 'OU' | ''; onCreated?: (created: { id: string }) => void }) => {
+    if (isRoutineBlocked) {
+      toast.error('Procedure recommendations cannot be created during an active emergency alert.');
+      return;
+    }
+    setProcedureInitialReason(options?.initialReason || '');
+    setProcedureTargetEye(options?.targetEye || '');
+    setProcedureCreatedCallback(() => options?.onCreated || null);
     setProcedureModalOpen(true);
   };
 
@@ -205,6 +219,8 @@ export function OphthalmologyCareWorkspace({
               type="button"
               className="doc-btn"
               style={{ fontSize: '0.78rem', background: '#eef2ff', color: '#4338ca', borderColor: '#c7d2fe', fontWeight: 600 }}
+              disabled={isRoutineBlocked}
+              title={isRoutineBlocked ? 'Procedure recommendations blocked during active emergency alert' : undefined}
               onClick={() => handleOpenProcedure()}
             >
               ✂️ + Recommend Surgery / Procedure
@@ -373,16 +389,16 @@ export function OphthalmologyCareWorkspace({
             )}
 
             {/* Diagnosis History Audit Accordion */}
-            {f.consultation?.clinical_history && f.consultation.clinical_history.length > 0 && (
-              <details className="oph-audit-accordion" style={{ marginTop: '1rem' }}>
-                <summary className="oph-audit-summary">
-                  <span style={{ fontWeight: 600, fontSize: '0.82rem', color: '#475569' }}>
-                    📜 Diagnostic Revision History ({f.consultation.clinical_history.length} versions)
-                  </span>
-                  <span style={{ fontSize: '0.76rem', color: '#64748b' }}>View revisions</span>
-                </summary>
-                <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {f.consultation.clinical_history.map((entry) => (
+            <details className="oph-audit-accordion" style={{ marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+              <summary className="oph-audit-summary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                <span style={{ fontWeight: 600, fontSize: '0.82rem', color: '#475569' }}>
+                  📜 Diagnostic Revision History ({(f.consultation?.clinical_history?.length || 0) + 1} versions)
+                </span>
+                <span style={{ fontSize: '0.78rem', color: '#2563eb', fontWeight: 600 }}>View revisions →</span>
+              </summary>
+              <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {f.consultation?.clinical_history && f.consultation.clinical_history.length > 0 ? (
+                  f.consultation.clinical_history.map((entry) => (
                     <div key={entry.consultation_version} style={{ padding: '6px 10px', background: '#ffffff', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.78rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                         <strong>Version {entry.consultation_version}</strong>
@@ -394,10 +410,14 @@ export function OphthalmologyCareWorkspace({
                         </div>
                       ))}
                     </div>
-                  ))}
-                </div>
-              </details>
-            )}
+                  ))
+                ) : (
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic' }}>
+                    Currently at initial consultation version v{f.consultation?.version ?? 1}. Subsequent updates will appear here.
+                  </p>
+                )}
+              </div>
+            </details>
           </section>
 
           {/* Treatment Plan Editor with Procedure Recommendation Callback */}
@@ -443,24 +463,29 @@ export function OphthalmologyCareWorkspace({
 
       {/* Continuing Care & Downstream Workflows Navigation Card */}
       {f.tab === 'treatment' && (
-        <section className="doc-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <section className="doc-card" style={{ marginTop: '14px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="ph ph-arrow-circle-right-bold" style={{ fontSize: '1.2rem' }} />
+            </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
                 Next Clinical Steps &amp; Downstream Care
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                Advance through prescriptions, optical correction, specialist handoffs, and final consultation sign-off.
+                Transition this consultation to specialized sub-workflows based on diagnostic findings
               </p>
             </div>
           </div>
 
-          <div className="oph-toolbar" style={{ marginTop: '12px' }}>
+          <div className="oph-toolbar" style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {/* Direct Procedure / Surgery Button */}
             <button
               className="doc-btn primary"
               type="button"
-              style={{ background: '#4f46e5', borderColor: '#4338ca', color: '#ffffff', fontWeight: 600 }}
+              style={{ background: '#2563eb', borderColor: '#1d4ed8', color: '#ffffff', fontWeight: 600, fontSize: '0.8rem' }}
+              disabled={isRoutineBlocked}
+              title={isRoutineBlocked ? 'Procedure recommendations blocked during active emergency alert' : undefined}
               onClick={() => handleOpenProcedure()}
             >
               ✂️ + Recommend Surgery / Procedure
@@ -468,6 +493,7 @@ export function OphthalmologyCareWorkspace({
             <button
               className="doc-btn"
               type="button"
+              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
               onClick={() => workspace.setQuery('care_tab', 'prescription')}
             >
               💊 Step 3: Prescriptions &amp; Orders →
@@ -475,6 +501,7 @@ export function OphthalmologyCareWorkspace({
             <button
               className="doc-btn"
               type="button"
+              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
               onClick={() => workspace.setQuery('care_tab', 'optical')}
             >
               👓 Step 4: Optical Prescription →
@@ -482,6 +509,7 @@ export function OphthalmologyCareWorkspace({
             <button
               className="doc-btn"
               type="button"
+              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
               onClick={() => workspace.setQuery('care_tab', 'referral')}
             >
               🔄 Step 5: Referral &amp; Follow-up →
@@ -489,6 +517,7 @@ export function OphthalmologyCareWorkspace({
             <button
               className="doc-btn"
               type="button"
+              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
               onClick={() => workspace.setQuery('section', 'completion')}
             >
               📋 Step 6: Consultation Summary →
@@ -504,7 +533,10 @@ export function OphthalmologyCareWorkspace({
       <NewProcedureRecommendationModal
         requireTargetEye
         open={procedureModalOpen}
-        onClose={() => setProcedureModalOpen(false)}
+        onClose={() => {
+          setProcedureModalOpen(false);
+          setProcedureCreatedCallback(null);
+        }}
         branchId={branchId}
         departments={departments}
         doctors={doctors}
@@ -519,13 +551,18 @@ export function OphthalmologyCareWorkspace({
           recommending_doctor_id: (workspace.visit as { doctor_id?: string })?.doctor_id,
           encounter_id: workspace.visitId,
           clinical_reason: procedureInitialReason || f.diagnoses.map((d) => `${d.display} (${d.code}) - ${d.laterality ?? 'OU'}`).join('; ') || (workspace.visit as { reason?: string })?.reason || '',
-          target_eye: (f.diagnoses.find((d) => d.laterality && ['OD', 'OS', 'OU'].includes(d.laterality))?.laterality as 'OD' | 'OS' | 'OU') || (workspace.context?.affected_eye && ['OD', 'OS', 'OU'].includes(workspace.context.affected_eye) ? (workspace.context.affected_eye as 'OD' | 'OS' | 'OU') : undefined),
+          target_eye: procedureTargetEye || (f.diagnoses.find((d) => d.laterality && ['OD', 'OS'].includes(d.laterality))?.laterality as 'OD' | 'OS') || (workspace.context?.affected_eye && ['OD', 'OS'].includes(workspace.context.affected_eye) ? (workspace.context.affected_eye as 'OD' | 'OS') : undefined),
           sourceContext: 'Ophthalmology Consultation',
         }}
-        onCreateSuccess={() => {
+        onCreateSuccess={(created) => {
           toast.success('Procedure recommendation created and linked to this encounter.');
           void f.clinicalQuery.refetch();
           void queryClient.invalidateQueries({ queryKey: ['ophthalmology-summary', workspace.visitId] });
+          if (created && procedureCreatedCallback) {
+            procedureCreatedCallback(created);
+          }
+          setProcedureModalOpen(false);
+          setProcedureCreatedCallback(null);
         }}
       />
     </section>

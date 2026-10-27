@@ -234,6 +234,7 @@ export class OpdVisitRepository {
     return { total: row?.total ?? 0, by_status: {
       CHECKED_IN: counts.get('CHECKED_IN') ?? 0, WAITING_FOR_VITALS: counts.get('WAITING_FOR_VITALS') ?? 0,
       READY_FOR_CONSULTATION: counts.get('READY_FOR_CONSULTATION') ?? 0, IN_CONSULTATION: counts.get('IN_CONSULTATION') ?? 0,
+      CLINICALLY_COMPLETED: counts.get('CLINICALLY_COMPLETED') ?? 0,
       SKIPPED: counts.get('SKIPPED') ?? 0, COMPLETED: counts.get('COMPLETED') ?? 0,
       CANCELLED: counts.get('CANCELLED') ?? 0, NO_SHOW: counts.get('NO_SHOW') ?? 0,
     }, follow_ups: row?.followUps ?? 0, walk_ins: row?.walkIns ?? 0, urgent: row?.urgent ?? 0 };

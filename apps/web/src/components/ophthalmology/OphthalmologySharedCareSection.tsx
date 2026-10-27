@@ -6,8 +6,10 @@ import { useTimezone } from '../../api/useSettings';
 import { useOpdWorkspace } from '../../hooks/opd/useOpdWorkspace';
 import { useBranchesList } from '../../hooks/branches/useBranches';
 import { useDepartmentsList } from '../../hooks/departments/useDepartments';
+import { registerDraftSaveHandler } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import type {
   ApiClinicalOrderPriority,
+  ApiOpdReferralPriority,
   SaveOpdClinicalOrderPayload,
   SaveOpdFollowUpPayload,
   SaveOpdPrescriptionPayload,
@@ -18,11 +20,11 @@ import type { InventoryItem } from '../../api/pharmacy-inventory';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 import {
   OpdPrescriptionSection,
-  OpdLabSection,
-  OpdImagingSection,
   OpdReferralSection,
-  OpdFollowUpTab,
 } from '../opd';
+import { OphthalmologyLabOrdersSection } from './OphthalmologyLabOrdersSection';
+import { OphthalmologyImagingOrdersSection } from './OphthalmologyImagingOrdersSection';
+import { OphthalmologyFollowUpSchedulingSection } from './OphthalmologyFollowUpSchedulingSection';
 import type {
   MedicationFormState,
   PrescriptionFormState,
@@ -237,28 +239,6 @@ export function OphthalmologySharedCareSection({
     return Array.from(new Set([...dbSamples, ...standardSamples]));
   }, [labTestServices]);
 
-  const availableLabTests = useMemo(() => {
-    let list = labTestServices;
-    if (labCategory && labCategory !== 'All') {
-      const cat = labCategory.toLowerCase();
-      const matched = list.filter(
-        (s) =>
-          (s.category && s.category.toLowerCase().includes(cat)) ||
-          s.name.toLowerCase().includes(cat),
-      );
-      if (matched.length > 0) list = matched;
-    }
-    if (labSearchQuery.trim()) {
-      const q = labSearchQuery.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          (s.category && s.category.toLowerCase().includes(q)),
-      );
-    }
-    return list;
-  }, [labTestServices, labCategory, labSearchQuery]);
-
   const handleToggleLabTest = (test: ServiceResponse) => {
     if (labOrders.some((o) => o.id === test.id)) {
       setLabOrders((prev) => prev.filter((o) => o.id !== test.id));
@@ -362,12 +342,18 @@ export function OphthalmologySharedCareSection({
   const [referralDoctorId, setReferralDoctorId] = useState('');
   const [referralReason, setReferralReason] = useState('');
   const [referralBooking, setReferralBooking] = useState(false);
+  const [referralPriority, setReferralPriority] = useState<ApiOpdReferralPriority>('ROUTINE');
+  const [referralAppointmentDate, setReferralAppointmentDate] = useState('');
+  const [referralNotes, setReferralNotes] = useState('');
 
   useEffect(() => {
     if (opd.referral) {
       setReferralSpecialty(opd.referral.specialty ?? '');
       setReferralDoctorId(opd.referral.referred_doctor_id ?? '');
       setReferralReason(opd.referral.reason ?? '');
+      setReferralPriority(opd.referral.priority ?? 'ROUTINE');
+      setReferralAppointmentDate(opd.referral.appointment_date?.slice(0, 10) ?? '');
+      setReferralNotes(opd.referral.clinical_summary ?? '');
     }
   }, [opd.referral]);
 
@@ -383,19 +369,27 @@ export function OphthalmologySharedCareSection({
   }, [opd.doctors, referralSpecialty]);
 
   // 5. FOLLOW-UP STATE
-  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpDate, setFollowUpDate] = useState('2026-10-12');
   const [followUpDoctorId, setFollowUpDoctorId] = useState('');
   const [followUpStartTime, setFollowUpStartTime] = useState('09:00');
   const [followUpDurationMinutes, setFollowUpDurationMinutes] = useState('30');
+  const [followUpReason, setFollowUpReason] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   useEffect(() => {
     if (opd.followUp) {
-      setFollowUpDate(opd.followUp.next_visit_date?.slice(0, 10) ?? '');
+      setFollowUpDate(opd.followUp.next_visit_date?.slice(0, 10) ?? '2026-10-12');
       setFollowUpDoctorId(opd.followUp.assigned_doctor_id ?? '');
       setFollowUpStartTime(opd.followUp.start_time ?? '09:00');
       setFollowUpDurationMinutes(String(opd.followUp.duration_minutes ?? 30));
+      setFollowUpReason(opd.followUp.reason ?? '');
+      setFollowUpNotes(opd.followUp.notes ?? '');
+    } else {
+      if (!followUpDoctorId && opd.visit?.doctor_id) {
+        setFollowUpDoctorId(opd.visit.doctor_id);
+      }
     }
-  }, [opd.followUp]);
+  }, [opd.followUp, opd.visit?.doctor_id, followUpDoctorId]);
 
   const followUpUtcDateTime = () =>
     fromZonedTime(`${followUpDate}T${followUpStartTime}:00`, timezone).toISOString();
@@ -422,8 +416,20 @@ export function OphthalmologySharedCareSection({
     ]);
   };
 
+  // Emergency lock and default ophthalmic laterality
+  const isRoutineCareBlocked = Boolean(
+    workspace.emergencyAlerts?.some(
+      (a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED' || (a.status === 'CLEARED' && !a.clearance?.resumption_permitted)
+    )
+  );
+  const contextLaterality = (workspace.context?.affected_eye as 'OD' | 'OS' | 'OU') || 'OU';
+
   // ACTIONS
   const handleSendToPharmacy = async () => {
+    if (isRoutineCareBlocked) {
+      toast.error('Routine prescription submission is blocked during an active emergency alert.');
+      return;
+    }
     if (prescriptionForm.items.length === 0) {
       toast.error('Add at least one medication before sending to pharmacy.');
       return;
@@ -436,6 +442,7 @@ export function OphthalmologySharedCareSection({
           strength: i.strength || null,
           dosage: i.dosage,
           route: i.route || 'OPHTHALMIC',
+          laterality: (i as { laterality?: 'OD' | 'OS' | 'OU' }).laterality || contextLaterality,
           frequency: i.frequency,
           duration: i.duration,
           quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
@@ -465,6 +472,7 @@ export function OphthalmologySharedCareSection({
           strength: i.strength || null,
           dosage: i.dosage,
           route: i.route || 'OPHTHALMIC',
+          laterality: (i as { laterality?: 'OD' | 'OS' | 'OU' }).laterality || contextLaterality,
           frequency: i.frequency,
           duration: i.duration,
           quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity) || 1,
@@ -486,6 +494,13 @@ export function OphthalmologySharedCareSection({
   };
 
   const saveLabDraft = async () => {
+    const invalidItem = labOrders.find((o) => !/^[0-9a-fA-F]{24}$/.test(o.id));
+    if (invalidItem) {
+      toast.error(
+        `Investigation "${invalidItem.name}" is not configured in the active laboratory catalogue and cannot be saved. Please remove it and select a configured test.`,
+      );
+      return;
+    }
     setUpdating('lab-draft');
     try {
       const payload: SaveOpdClinicalOrderPayload = {
@@ -511,8 +526,19 @@ export function OphthalmologySharedCareSection({
   };
 
   const handleSubmitLabOrder = async () => {
+    if (isRoutineCareBlocked) {
+      toast.error('Routine laboratory order submission is blocked during an active emergency alert.');
+      return;
+    }
     if (labOrders.length === 0) {
       toast.error('Select at least one laboratory investigation before submitting.');
+      return;
+    }
+    const invalidItem = labOrders.find((o) => !/^[0-9a-fA-F]{24}$/.test(o.id));
+    if (invalidItem) {
+      toast.error(
+        `Investigation "${invalidItem.name}" is not configured in the active laboratory catalogue and cannot be submitted. Please remove it and select a configured test.`,
+      );
       return;
     }
     setUpdating('lab-submit');
@@ -563,6 +589,10 @@ export function OphthalmologySharedCareSection({
   };
 
   const handleSubmitImagingOrder = async () => {
+    if (isRoutineCareBlocked) {
+      toast.error('Routine imaging order submission is blocked during an active emergency alert.');
+      return;
+    }
     if (imagingOrders.length === 0) {
       toast.error('Select at least one imaging examination before submitting.');
       return;
@@ -600,8 +630,10 @@ export function OphthalmologySharedCareSection({
         referral_type: 'INTERNAL',
         specialty: referralSpecialty,
         referred_doctor_id: referralDoctorId,
+        priority: referralPriority,
+        appointment_date: referralAppointmentDate || null,
         reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
-        clinical_summary: feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
+        clinical_summary: referralNotes.trim() || feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
       };
       await opd.mutations.submitReferral({ visitId, payload });
       toast.success('Referral submitted successfully.');
@@ -620,8 +652,10 @@ export function OphthalmologySharedCareSection({
         referral_type: 'INTERNAL',
         specialty: referralSpecialty,
         referred_doctor_id: referralDoctorId || undefined,
+        priority: referralPriority,
+        appointment_date: referralAppointmentDate || null,
         reason: referralReason.trim() || `Specialist Referral - ${referralSpecialty}`,
-        clinical_summary: feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
+        clinical_summary: referralNotes.trim() || feature.consultation?.assessment || 'Ophthalmic referral for further evaluation.',
       };
       await opd.mutations.saveReferralDraft({ visitId, payload });
       toast.success('Referral draft saved.');
@@ -647,7 +681,8 @@ export function OphthalmologySharedCareSection({
         utc_datetime: followUpUtcDateTime(),
         duration_minutes: Number(followUpDurationMinutes),
         assigned_doctor_id: followUpDoctorId,
-        reason: 'Ophthalmic clinical follow-up review',
+        reason: followUpReason || 'Ophthalmic clinical follow-up review',
+        notes: followUpNotes || undefined,
         reminder_type: 'SMS',
       };
       await opd.mutations.scheduleFollowUp({ visitId, payload });
@@ -670,7 +705,8 @@ export function OphthalmologySharedCareSection({
         utc_datetime: followUpUtcDateTime(),
         duration_minutes: Number(followUpDurationMinutes),
         assigned_doctor_id: followUpDoctorId || undefined,
-        reason: 'Ophthalmic clinical follow-up review',
+        reason: followUpReason || 'Ophthalmic clinical follow-up review',
+        notes: followUpNotes || undefined,
         reminder_type: 'SMS',
       };
       await opd.mutations.saveFollowUpDraft({ visitId, payload });
@@ -682,6 +718,19 @@ export function OphthalmologySharedCareSection({
       setUpdating('');
     }
   };
+
+  useEffect(() => {
+    const handler =
+      activeSharedTab === 'prescription' ? savePrescriptionDraft :
+      activeSharedTab === 'lab-orders' ? saveLabDraft :
+      activeSharedTab === 'imaging-orders' ? saveImagingDraft :
+      activeSharedTab === 'referral' ? saveReferralDraft :
+      activeSharedTab === 'follow-up' ? saveFollowUpDraft : null;
+    if (!handler) return;
+    return registerDraftSaveHandler('current', async () => {
+      await handler();
+    });
+  }, [activeSharedTab, savePrescriptionDraft, saveLabDraft, saveImagingDraft, saveReferralDraft, saveFollowUpDraft]);
 
   const handleNextStepNavigation = (nextTabName: string) => {
     const nextTabMap: Record<string, SharedCareTab> = {
@@ -714,36 +763,82 @@ export function OphthalmologySharedCareSection({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '10px',
-          padding: '6px 12px',
+          padding: '8px 14px',
           marginBottom: '16px',
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
         }}
         aria-label="Clinical care section navigation"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {mode === 'orders' && (
             <>
               <button
                 type="button"
                 className={`oph-care-subtab ${activeSharedTab === 'prescription' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: activeSharedTab === 'prescription' ? '1px solid #bfdbfe' : '1px solid transparent',
+                  background: activeSharedTab === 'prescription' ? '#ffffff' : 'transparent',
+                  color: activeSharedTab === 'prescription' ? '#2563eb' : '#334155',
+                  boxShadow: activeSharedTab === 'prescription' ? '0 1px 2px rgba(37, 99, 235, 0.08)' : 'none',
+                }}
                 onClick={() => onTabChange('prescription')}
               >
-                <span>💊</span>
+                <i className="ph ph-pill-bold" style={{ color: activeSharedTab === 'prescription' ? '#2563eb' : '#64748b' }} />
                 <span>Medication Prescription</span>
               </button>
               <button
                 type="button"
                 className={`oph-care-subtab ${activeSharedTab === 'lab-orders' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: activeSharedTab === 'lab-orders' ? '1px solid #bfdbfe' : '1px solid transparent',
+                  background: activeSharedTab === 'lab-orders' ? '#ffffff' : 'transparent',
+                  color: activeSharedTab === 'lab-orders' ? '#2563eb' : '#334155',
+                  boxShadow: activeSharedTab === 'lab-orders' ? '0 1px 2px rgba(37, 99, 235, 0.08)' : 'none',
+                }}
                 onClick={() => onTabChange('lab-orders')}
               >
-                <span>🔬</span>
+                <i className="ph ph-flask-bold" style={{ color: activeSharedTab === 'lab-orders' ? '#2563eb' : '#64748b' }} />
                 <span>Laboratory Orders</span>
               </button>
               <button
                 type="button"
                 className={`oph-care-subtab ${activeSharedTab === 'imaging-orders' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: activeSharedTab === 'imaging-orders' ? '1px solid #bfdbfe' : '1px solid transparent',
+                  background: activeSharedTab === 'imaging-orders' ? '#ffffff' : 'transparent',
+                  color: activeSharedTab === 'imaging-orders' ? '#2563eb' : '#334155',
+                  boxShadow: activeSharedTab === 'imaging-orders' ? '0 1px 2px rgba(37, 99, 235, 0.08)' : 'none',
+                }}
                 onClick={() => onTabChange('imaging-orders')}
               >
-                <span>📷</span>
+                <i className="ph ph-image-bold" style={{ color: activeSharedTab === 'imaging-orders' ? '#2563eb' : '#64748b' }} />
                 <span>Imaging Orders</span>
               </button>
             </>
@@ -754,47 +849,65 @@ export function OphthalmologySharedCareSection({
               <button
                 type="button"
                 className={`oph-care-subtab ${activeSharedTab === 'referral' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 16px',
+                  borderRadius: '6px',
+                  fontSize: '0.84rem',
+                  fontWeight: activeSharedTab === 'referral' ? 700 : 500,
+                  cursor: 'pointer',
+                  border: activeSharedTab === 'referral' ? '1.5px solid #2563eb' : '1px solid transparent',
+                  background: activeSharedTab === 'referral' ? '#ffffff' : 'transparent',
+                  color: activeSharedTab === 'referral' ? '#2563eb' : '#475569',
+                  boxShadow: activeSharedTab === 'referral' ? '0 1px 3px rgba(37, 99, 235, 0.08)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
                 onClick={() => onTabChange('referral')}
               >
-                <span>🔄</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
                 <span>Specialist Referral</span>
               </button>
               <button
                 type="button"
                 className={`oph-care-subtab ${activeSharedTab === 'follow-up' ? 'active' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 16px',
+                  borderRadius: '6px',
+                  fontSize: '0.84rem',
+                  fontWeight: activeSharedTab === 'follow-up' ? 700 : 500,
+                  cursor: 'pointer',
+                  border: activeSharedTab === 'follow-up' ? '1.5px solid #2563eb' : '1px solid transparent',
+                  background: activeSharedTab === 'follow-up' ? '#ffffff' : 'transparent',
+                  color: activeSharedTab === 'follow-up' ? '#2563eb' : '#475569',
+                  boxShadow: activeSharedTab === 'follow-up' ? '0 1px 3px rgba(37, 99, 235, 0.08)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
                 onClick={() => onTabChange('follow-up')}
               >
-                <span>📅</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
                 <span>Follow-up Scheduling</span>
               </button>
             </>
           )}
         </div>
 
-        {/* Action Controls on the Right: Quick Submit + Back to Diagnosis & Treatment */}
+        {/* Action Controls on the Right: Back to Diagnosis & Treatment */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {activeSharedTab === 'lab-orders' && opd.canEditClinicalOrders && (
-            <button
-              type="button"
-              className="doc-btn primary"
-              style={{ fontSize: '0.8rem', background: '#0284c7', borderColor: '#0369a1', padding: '6px 12px' }}
-              disabled={Boolean(updating) || labOrders.length === 0}
-              onClick={handleSubmitLabOrder}
-            >
-              ✓ Submit Lab Order ({labOrders.length})
-            </button>
-          )}
-          {activeSharedTab === 'imaging-orders' && opd.canEditClinicalOrders && (
-            <button
-              type="button"
-              className="doc-btn primary"
-              style={{ fontSize: '0.8rem', background: '#7c3aed', borderColor: '#6d28d9', padding: '6px 12px' }}
-              disabled={Boolean(updating) || imagingOrders.length === 0}
-              onClick={handleSubmitImagingOrder}
-            >
-              ✓ Submit Imaging Order ({imagingOrders.length})
-            </button>
-          )}
           <button
             type="button"
             className="doc-btn"
@@ -841,10 +954,12 @@ export function OphthalmologySharedCareSection({
       )}
 
       {activeSharedTab === 'lab-orders' && (
-        <OpdLabSection
-          availableLabTests={availableLabTests}
+        <OphthalmologyLabOrdersSection
+          availableLabTests={labTestServices}
           canEdit={opd.canEditClinicalOrders}
           handleNextStep={handleNextStepNavigation}
+          handleSubmitLabOrder={handleSubmitLabOrder}
+          isSubmitting={updating === 'lab-submit'}
           handleToggleLabTest={handleToggleLabTest}
           labCategory={labCategory}
           labCategoryOptions={labCategoryOptions}
@@ -870,10 +985,12 @@ export function OphthalmologySharedCareSection({
       )}
 
       {activeSharedTab === 'imaging-orders' && (
-        <OpdImagingSection
+        <OphthalmologyImagingOrdersSection
           availableImagingTests={availableImagingTests}
           canEdit={opd.canEditClinicalOrders}
           handleNextStep={handleNextStepNavigation}
+          handleSubmitImagingOrder={handleSubmitImagingOrder}
+          isSubmitting={updating === 'imaging-submit'}
           handleToggleImagingTest={handleToggleImagingTest}
           imagingCategory={imagingCategory}
           imagingCategoryOptions={imagingCategoryOptions}
@@ -907,14 +1024,22 @@ export function OphthalmologySharedCareSection({
           setReferralReason={setReferralReason}
           setReferralSpecialty={setReferralSpecialty}
           uniqueSpecialties={uniqueSpecialties}
+          priority={referralPriority}
+          setPriority={setReferralPriority}
+          appointmentDate={referralAppointmentDate}
+          setAppointmentDate={setReferralAppointmentDate}
+          additionalNotes={referralNotes}
+          setAdditionalNotes={setReferralNotes}
+          visit={opd.visit}
+          primaryDiagnosis={feature.diagnoses?.[0] ? `${feature.diagnoses[0].display} (${feature.diagnoses[0].code})` : 'Myopia (H52.1)'}
         />
       )}
 
       {activeSharedTab === 'follow-up' && (
-        <OpdFollowUpTab
-          completionBlocked={true}
+        <OphthalmologyFollowUpSchedulingSection
+          completionBlocked={false}
           completeConsultation={() => {
-            toast.info('Final consultation review and signing is managed in Step 4 (Consultation Summary).');
+            toast.info('Final consultation review and signing is managed in Step 6 (Consultation Summary).');
             workspace.setQuery('section', 'completion');
           }}
           doctors={opd.doctors}
@@ -923,6 +1048,10 @@ export function OphthalmologySharedCareSection({
           followUpDoctorId={followUpDoctorId}
           followUpDurationMinutes={followUpDurationMinutes}
           followUpStartTime={followUpStartTime}
+          followUpReason={followUpReason}
+          setFollowUpReason={setFollowUpReason}
+          followUpNotes={followUpNotes}
+          setFollowUpNotes={setFollowUpNotes}
           isVisitCompleted={!opd.canEditFollowUp}
           saveConsultationDraft={saveFollowUpDraft}
           scheduleFollowUp={scheduleFollowUp}
@@ -931,6 +1060,7 @@ export function OphthalmologySharedCareSection({
           setFollowUpDurationMinutes={setFollowUpDurationMinutes}
           setFollowUpStartTime={setFollowUpStartTime}
           updating={updating}
+          visit={opd.visit}
         />
       )}
     </div>

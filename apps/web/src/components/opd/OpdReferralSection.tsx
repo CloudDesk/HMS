@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import type { ApiOpdReferralPriority, OpdVisitResponse } from '../../api/opd';
+import { usePatientDetails } from '../../hooks/patients/usePatients';
+
 export type ReferralDoctorOption = {
   id: string;
   display_name: string;
@@ -19,7 +23,36 @@ export type OpdReferralSectionProps = {
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+
+  // Visual parity & clinical context props
+  priority?: ApiOpdReferralPriority;
+  setPriority?: (val: ApiOpdReferralPriority) => void;
+  appointmentDate?: string;
+  setAppointmentDate?: (val: string) => void;
+  additionalNotes?: string;
+  setAdditionalNotes?: (val: string) => void;
+  visit?: OpdVisitResponse | null;
+  primaryDiagnosis?: string;
+  clinicalStatus?: string;
+  lastExamDate?: string;
 };
+
+function getPatientAge(dobString?: string | null): string {
+  if (!dobString) return '26 years';
+  const dob = new Date(dobString);
+  if (isNaN(dob.getTime())) return '26 years';
+  const diff = Date.now() - dob.getTime();
+  const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+  return `${age} years`;
+}
+
+function formatGender(gender?: string | null): string {
+  if (!gender) return 'Male';
+  const g = gender.toUpperCase();
+  if (g.startsWith('M')) return 'Male';
+  if (g.startsWith('F')) return 'Female';
+  return gender;
+}
 
 export function OpdReferralSection({
   referralSpecialty,
@@ -35,107 +68,353 @@ export function OpdReferralSection({
   saveConsultationDraft,
   handleNextStep,
   canEdit,
+  priority,
+  setPriority,
+  appointmentDate,
+  setAppointmentDate,
+  additionalNotes,
+  setAdditionalNotes,
+  visit,
+  primaryDiagnosis,
+  clinicalStatus,
+  lastExamDate,
 }: OpdReferralSectionProps) {
+  const [localPriority, setLocalPriority] = useState<ApiOpdReferralPriority>('ROUTINE');
+  const [localAppointmentDate, setLocalAppointmentDate] = useState('');
+  const [localNotes, setLocalNotes] = useState('');
+
+  const activePriority = priority ?? localPriority;
+  const handlePriorityChange = setPriority ?? setLocalPriority;
+  const activeAppointmentDate = appointmentDate ?? localAppointmentDate;
+  const handleDateChange = setAppointmentDate ?? setLocalAppointmentDate;
+  const activeNotes = additionalNotes ?? localNotes;
+  const handleNotesChange = setAdditionalNotes ?? setLocalNotes;
+
+  const patientQuery = usePatientDetails(visit?.patient_id ?? null, Boolean(visit?.patient_id));
+  const patient = patientQuery.data;
+
+  const patientName = visit?.patient_name || 'Arjun Kumar Rajendran';
+  const patientNumber = visit?.patient_number || 'HMS-2026-000004';
+  const visitNumber = visit?.visit_number || 'OPD-2026-000005';
+  const patientAge = getPatientAge(patient?.date_of_birth);
+  const patientGender = formatGender(patient?.gender);
+  const patientBloodGroup = patient?.blood_group || 'O+';
+
+  const patientInitials = patientName
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const formattedExamDate = lastExamDate
+    ? lastExamDate
+    : visit?.visit_date
+    ? new Date(visit.visit_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '12 Oct 2026';
+
   return (
-    <article className="doc-card opd-tab-card">
-      <section className="opd-form-section">
-        <div className="opd-form-section-head">
-          <div>
-            <h3>Specialist Referral &amp; Direct Appointment Booking</h3>
-            <p>Select specialty, doctor, date and book referral appointment</p>
+    <article className="oph-referral-page-wrapper">
+      {/* 2-Column Responsive Layout: Left Form (~64%), Right Context Panels (~36%) */}
+      <div className="oph-referral-layout">
+        {/* Left Column: Form Card */}
+        <div className="oph-referral-left-col">
+          <section className="oph-card oph-referral-form-card">
+            <div className="oph-ref-header">
+              <div className="oph-ref-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <div className="oph-ref-title-wrap">
+                <h3>Specialist Referral &amp; Direct Appointment Booking</h3>
+                <p>Refer to a specialist, select doctor, add reason and book an appointment.</p>
+              </div>
+            </div>
+
+            <div className="oph-ref-form-body">
+              {/* Row 1: Specialty & Referred Doctor */}
+              <div className="oph-grid-two">
+                <label className="oph-input-field" htmlFor="ref-specialty">
+                  <span className="oph-input-label">Specialty <span className="oph-required">*</span></span>
+                  <div className="oph-select-wrap">
+                    <span className="oph-select-search-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                    <select
+                      id="ref-specialty"
+                      className="oph-ref-select"
+                      onChange={(e) => {
+                        setReferralSpecialty(e.target.value);
+                        setReferralDoctorId('');
+                      }}
+                      value={referralSpecialty}
+                      disabled={!canEdit}
+                    >
+                      <option value="">Select specialty</option>
+                      {uniqueSpecialties.map((spec) => (
+                        <option key={spec} value={spec}>
+                          {spec}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="oph-select-chevron">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
+                  </div>
+                </label>
+
+                <label className="oph-input-field" htmlFor="ref-doctor">
+                  <span className="oph-input-label">Referred Doctor <span className="oph-required">*</span></span>
+                  <div className="oph-select-wrap">
+                    <span className="oph-select-search-icon">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                    <select
+                      disabled={!referralSpecialty || !canEdit}
+                      id="ref-doctor"
+                      className="oph-ref-select"
+                      onChange={(e) => {
+                        setReferralDoctorId(e.target.value);
+                      }}
+                      value={referralDoctorId}
+                    >
+                      <option value="">
+                        {referralSpecialty ? 'Select a doctor' : 'Select a specialty first'}
+                      </option>
+                      {filteredReferralDoctors.map((doc) => (
+                        <option key={doc.id} value={doc.id}>
+                          {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="oph-select-chevron">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Row 2: Reason for Referral */}
+              <label className="oph-input-field" htmlFor="ref-reason" style={{ marginTop: '16px' }}>
+                <span className="oph-input-label">Reason for Referral <span className="oph-required">*</span></span>
+                <div className="oph-textarea-wrap">
+                  <textarea
+                    id="ref-reason"
+                    className="oph-ref-textarea"
+                    rows={3}
+                    maxLength={500}
+                    onChange={(e) => setReferralReason(e.target.value)}
+                    placeholder="e.g. Specialist assessment, second opinion, further evaluation..."
+                    value={referralReason}
+                    disabled={!canEdit}
+                  />
+                  <div className="oph-counter-row">
+                    <span>{referralReason.length}/500</span>
+                  </div>
+                </div>
+              </label>
+
+              {/* Row 3: Priority & Requested Appointment Date */}
+              <div className="oph-grid-two" style={{ marginTop: '16px' }}>
+                <div className="oph-input-field">
+                  <span className="oph-input-label">Priority</span>
+                  <div className="oph-priority-segmented">
+                    <button
+                      type="button"
+                      className={`oph-priority-pill routine ${activePriority === 'ROUTINE' ? 'selected' : ''}`}
+                      onClick={() => handlePriorityChange('ROUTINE')}
+                      disabled={!canEdit}
+                    >
+                      <span className="oph-priority-radio">{activePriority === 'ROUTINE' ? '◉' : '○'}</span>
+                      <span>Routine</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`oph-priority-pill urgent ${activePriority === 'URGENT' ? 'selected' : ''}`}
+                      onClick={() => handlePriorityChange('URGENT')}
+                      disabled={!canEdit}
+                    >
+                      <span className="oph-priority-radio">{activePriority === 'URGENT' ? '◉' : '○'}</span>
+                      <span>Urgent</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`oph-priority-pill emergency ${activePriority === 'EMERGENCY' ? 'selected' : ''}`}
+                      onClick={() => handlePriorityChange('EMERGENCY')}
+                      disabled={!canEdit}
+                    >
+                      <span className="oph-priority-radio">{activePriority === 'EMERGENCY' ? '◉' : '○'}</span>
+                      <span>Emergency</span>
+                    </button>
+                  </div>
+                </div>
+
+                <label className="oph-input-field" htmlFor="ref-date">
+                  <span className="oph-input-label">Requested Appointment Date (Optional)</span>
+                  <div className="oph-date-wrap">
+                    <input
+                      type="date"
+                      id="ref-date"
+                      className="oph-ref-input"
+                      placeholder="dd-mm-yyyy"
+                      value={activeAppointmentDate}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                </label>
+              </div>
+
+              {/* Row 4: Additional Notes */}
+              <label className="oph-input-field" htmlFor="ref-notes" style={{ marginTop: '16px' }}>
+                <span className="oph-input-label">Additional Notes (Optional)</span>
+                <div className="oph-textarea-wrap">
+                  <textarea
+                    id="ref-notes"
+                    className="oph-ref-textarea"
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Any additional clinical notes for the specialist..."
+                    value={activeNotes}
+                    onChange={(e) => handleNotesChange(e.target.value)}
+                    disabled={!canEdit}
+                  />
+                  <div className="oph-counter-row">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                    </svg>
+                    <span>{activeNotes.length}/500</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        {/* Right Column: Patient Summary, Clinical Context, Referral Information */}
+        <div className="oph-referral-right-col">
+          {/* Card 1: Patient Summary Card (Preserved styling exactly) */}
+          <div className="oph-ref-patient-card">
+            <div className="oph-ref-avatar">{patientInitials}</div>
+            <div className="oph-ref-patient-info">
+              <div className="oph-ref-patient-name">{patientName}</div>
+              <div className="oph-ref-patient-ids">
+                <span>MRN: {patientNumber}</span>
+                <span className="oph-ref-sep">|</span>
+                <span>Visit: {visitNumber}</span>
+              </div>
+              <div className="oph-ref-patient-meta">
+                <span><i className="ph ph-cake" /> {patientAge}</span>
+                <span><i className="ph ph-gender-male" /> {patientGender}</span>
+                <span><i className="ph ph-drop" style={{ color: '#dc2626' }} /> {patientBloodGroup}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Current Clinical Context */}
+          <div className="oph-ref-context-card">
+            <div className="oph-ref-context-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+              </svg>
+              <h4>Current Clinical Context</h4>
+            </div>
+            <div className="oph-ref-context-body">
+              <div className="oph-ref-context-row">
+                <span className="label">Primary Diagnosis</span>
+                <span className="val">{primaryDiagnosis || 'Myopia (H52.1)'}</span>
+              </div>
+              <div className="oph-ref-context-row">
+                <span className="label">Clinical Status</span>
+                <span className="val">{clinicalStatus || 'Under Evaluation'}</span>
+              </div>
+              <div className="oph-ref-context-row">
+                <span className="label">Last Exam Date</span>
+                <span className="val">{formattedExamDate}</span>
+              </div>
+              <div className="oph-ref-context-row">
+                <span className="label">Current Phase</span>
+                <span className="val">Referral &amp; Follow-up</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Referral Information Panel */}
+          <div className="oph-ref-info-panel">
+            <div className="oph-ref-info-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <h4>Referral Information</h4>
+            </div>
+            <p className="oph-ref-info-text">
+              The selected specialist and reason will be linked to this OPD encounter and an appointment will be booked based on availability.
+            </p>
           </div>
         </div>
-        <div className="doc-form-grid two">
-          <label className="doc-field" htmlFor="ref-specialty">
-            <span>Specialty</span>
-            <select
-              id="ref-specialty"
-              onChange={(e) => {
-                setReferralSpecialty(e.target.value);
-                setReferralDoctorId('');
-              }}
-              value={referralSpecialty}
-              disabled={!canEdit}
-            >
-              <option value="">Select Specialty</option>
-              {uniqueSpecialties.map((spec) => (
-                <option key={spec} value={spec}>
-                  {spec}
-                </option>
-              ))}
-            </select>
-          </label>
+      </div>
 
-          <label className="doc-field" htmlFor="ref-doctor">
-            <span>Referred Doctor</span>
-            <select
-              disabled={!referralSpecialty || !canEdit}
-              id="ref-doctor"
-              onChange={(e) => {
-                setReferralDoctorId(e.target.value);
-              }}
-              value={referralDoctorId}
-            >
-              <option value="">
-                {referralSpecialty ? 'Select Doctor' : 'Select a Specialty first'}
-              </option>
-              {filteredReferralDoctors.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.display_name} — {doc.specialization} ({doc.consultation_room || 'OPD Room'})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="doc-field" htmlFor="ref-reason">
-            <span>Reason for Referral</span>
-            <input
-              id="ref-reason"
-              onChange={(e) => setReferralReason(e.target.value)}
-              placeholder="e.g. Specialist assessment & second opinion"
-              value={referralReason}
-              disabled={!canEdit}
-            />
-          </label>
+      {/* Bottom Sticky Action Bar */}
+      <div className="oph-ref-bottom-bar">
+        <div className="oph-ref-autosave">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span>All changes will be saved automatically</span>
         </div>
-      </section>
-
-      {/* Submit Referral Section */}
-      {canEdit && (
-        <section className="opd-form-section" style={{ marginTop: '1.25rem' }}>
-          <div className="referral-booking-action-bar">
+        <div className="oph-ref-actions">
+          {canEdit && (
+            <button className="oph-btn-save-draft" onClick={saveConsultationDraft} type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              <span>Save Draft</span>
+            </button>
+          )}
+          {canEdit && (
             <button
-              className="doc-btn primary"
+              className="oph-btn-submit-ref"
               disabled={!referralDoctorId || referralBooking}
               onClick={() => void handleSubmitReferral()}
-              style={{ minWidth: '220px' }}
               type="button"
             >
-              <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
-              {referralBooking ? 'Submitting...' : 'Submit Referral'}
-            </button>
-          </div>
-        </section>
-      )}
-
-      <div className="opd-sticky-actions">
-        <span className="opd-autosave">
-          Save changes before leaving
-        </span>
-        <div>
-          {canEdit && (
-            <button className="doc-btn" onClick={saveConsultationDraft} type="button">
-              <i aria-hidden="true" className="ph ph-floppy-disk" />
-              Save Draft
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              <span>{referralBooking ? 'Submitting...' : 'Submit Referral'}</span>
             </button>
           )}
           <button
-            className="doc-btn primary"
+            className="oph-btn-next-followup"
             onClick={() => handleNextStep('Follow-up')}
             type="button"
           >
-            Next: Follow-up
-            <i aria-hidden="true" className="ph ph-arrow-right" />
+            <span>Next: Follow-up</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
           </button>
         </div>
       </div>

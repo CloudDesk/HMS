@@ -1,5 +1,6 @@
 import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
+import { MedicalSpinner } from '../ui/MedicalLoader';
 
 export type LabOrderItem = {
   id: string;
@@ -32,6 +33,8 @@ export type OpdLabSectionProps = {
   setLabOrderSummary: (val: string) => void;
   saveConsultationDraft: () => void;
   handleNextStep: (tab: string) => void;
+  handleSubmitLabOrder?: () => void;
+  isSubmitting?: boolean;
   canEdit: boolean;
 };
 
@@ -59,6 +62,8 @@ export function OpdLabSection({
   setLabOrderSummary,
   saveConsultationDraft,
   handleNextStep,
+  handleSubmitLabOrder,
+  isSubmitting,
   canEdit,
 }: OpdLabSectionProps) {
   return (
@@ -307,8 +312,29 @@ export function OpdLabSection({
             <i aria-hidden="true" className="ph ph-printer" />
             Print Laboratory Order
           </button>
+          {canEdit && handleSubmitLabOrder && (
+            <button
+              className="doc-btn primary"
+              style={{ background: '#0284c7', borderColor: '#0369a1' }}
+              disabled={isSubmitting || labOrders.length === 0}
+              onClick={handleSubmitLabOrder}
+              type="button"
+            >
+              {isSubmitting ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <i aria-hidden="true" className="ph ph-paper-plane-tilt" />
+                  Submit Laboratory Order ({labOrders.length})
+                </>
+              )}
+            </button>
+          )}
           <button
-            className="doc-btn primary"
+            className="doc-btn"
             onClick={() => handleNextStep('Imaging Orders')}
             type="button"
           >

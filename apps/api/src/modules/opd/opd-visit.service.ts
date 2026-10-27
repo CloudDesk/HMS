@@ -7,11 +7,17 @@ import type { Appointment } from '../appointments/appointment.types.js';
 import type { DoctorRepository } from '../doctors/doctor.repository.js';
 import type { PatientRepository } from '../patients/patient.repository.js';
 import type { Patient } from '../patients/patient.types.js';
-import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
+import type { CreateOpdVisitDTO, OpdVisit, OpdVisitListQuery, UpdateOpdVisitStatusDTO, CloseOpdJourneyDTO, CloseOpdJourneyResult } from './opd-visit.types.js';
 import type { OpdVisitRepository } from './opd-visit.repository.js';
 import type { OpdConsultationRepository } from './opd-consultation.repository.js';
 import type { SequenceService } from '../../shared/sequence/sequence.service.js';
 import type { NotificationService } from '../notifications/notification.service.js';
+import { BillingInvoiceModel } from '../billing/billing.model.js';
+import { ServiceModel } from '../services/service.model.js';
+import { OpdPrescriptionModel } from './opd-prescription.model.js';
+import { PharmacyDispensingModel } from '../pharmacy-dispensing/pharmacy-dispensing.model.js';
+import { OphthalmologyAlertModel } from '../ophthalmology/ophthalmology-intake.model.js';
+import { OphthalmologyConsultationFinalizationModel } from '../ophthalmology/ophthalmology-consultation.model.js';
 
 const terminalAppointmentStatuses = ['CANCELLED', 'RESCHEDULED', 'NO_SHOW', 'COMPLETED'];
 
@@ -20,7 +26,8 @@ const allowedVisitStatusTransitions: Record<OpdVisit['status'], OpdVisit['status
   WAITING_FOR_VITALS: ['READY_FOR_CONSULTATION', 'SKIPPED', 'CANCELLED', 'NO_SHOW'],
   READY_FOR_CONSULTATION: ['IN_CONSULTATION', 'SKIPPED', 'CANCELLED', 'NO_SHOW'],
   SKIPPED: ['IN_CONSULTATION', 'CANCELLED', 'NO_SHOW'],
-  IN_CONSULTATION: ['COMPLETED', 'CANCELLED'],
+  IN_CONSULTATION: ['CLINICALLY_COMPLETED', 'COMPLETED', 'CANCELLED'],
+  CLINICALLY_COMPLETED: ['COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: [],
   NO_SHOW: [],
@@ -131,10 +138,10 @@ export class OpdVisitService {
       if (!directOphthalmologyQueue && !this.isStatusTransitionAllowed(current.status, data.status)) {
         throw new AppError('OPD visit status transition is not allowed', 400, 'INVALID_STATUS_TRANSITION');
       }
-      if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
+      if (['CLINICALLY_COMPLETED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(data.status) && !data.notes?.trim()) {
         throw new AppError('A reason is required for this OPD visit status', 400, 'STATUS_REASON_REQUIRED');
       }
-      if (data.status === 'COMPLETED') {
+      if (data.status === 'CLINICALLY_COMPLETED' || data.status === 'COMPLETED') {
         const consultation = await this.consultationRepository.getByVisit(current.id, session);
         if (consultation?.status !== 'COMPLETED') {
           throw new AppError('Complete the clinical consultation before closing the OPD visit', 400, 'CONSULTATION_NOT_COMPLETED');
@@ -200,7 +207,7 @@ export class OpdVisitService {
 
   async callNextPatient(id: string, userId: string) {
     const current = await this.getById(id, userId);
-    if (current.status !== 'COMPLETED') {
+    if (!['CLINICALLY_COMPLETED', 'COMPLETED'].includes(current.status)) {
       throw new AppError('Complete the current consultation before calling the next patient', 409, 'CURRENT_VISIT_NOT_COMPLETED');
     }
 
@@ -249,6 +256,195 @@ export class OpdVisitService {
       throw new AppError('No patient is ready for consultation in this doctor queue', 404, 'NO_READY_PATIENT');
     }
     return nextVisit;
+  }
+
+  async closeJourney(id: string, userId: string, data?: CloseOpdJourneyDTO): Promise<CloseOpdJourneyResult> {
+    this.validateId(id, 'OPD visit id is invalid');
+    const scope = await this.repository.resolveBranchScope(userId);
+    const existing = await this.repository.getById(id, scope);
+    if (!existing) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+
+    if (existing.status === 'COMPLETED') {
+      return {
+        success: true,
+        visit: existing,
+        settlement: {
+          billing_settled: true,
+          dispensing_settled: true,
+          closed_at: existing.updated_at ? new Date(existing.updated_at).toISOString() : new Date().toISOString(),
+        },
+        message: 'The OPD journey is already completed.',
+      };
+    }
+
+    if (existing.status !== 'CLINICALLY_COMPLETED') {
+      throw new AppError('The OPD journey cannot be closed because clinical consultation is not completed.', 409, 'OPD_CLINICAL_COMPLETION_PENDING');
+    }
+
+    return executeRequiredTransaction(this.repository, async (session) => {
+      const current = await this.repository.getById(id, scope, session);
+      if (!current) throw new AppError('OPD visit not found', 404, 'NOT_FOUND');
+
+      if (current.status === 'COMPLETED') {
+        return {
+          success: true,
+          visit: current,
+          settlement: {
+            billing_settled: true,
+            dispensing_settled: true,
+            closed_at: current.updated_at ? new Date(current.updated_at).toISOString() : new Date().toISOString(),
+          },
+          message: 'The OPD journey is already completed.',
+        };
+      }
+
+      if (current.status !== 'CLINICALLY_COMPLETED') {
+        throw new AppError('The OPD journey cannot be closed because clinical consultation is not completed.', 409, 'OPD_CLINICAL_COMPLETION_PENDING');
+      }
+
+      // Gate A: Clinical Consultation Gate
+      const consultation = await this.consultationRepository.getByVisit(current.id, session);
+      if (!consultation || consultation.status !== 'COMPLETED') {
+        throw new AppError('The OPD journey cannot be closed because clinical consultation is not completed.', 409, 'OPD_CLINICAL_COMPLETION_PENDING');
+      }
+
+      const isOph = await this.appointmentRepository.isOphthalmologyDepartment(current.branch_id, current.department_id, session);
+      if (isOph) {
+        const finalization = await OphthalmologyConsultationFinalizationModel.findOne({
+          visitId: new Types.ObjectId(current.id),
+          status: 'COMPLETED',
+        }).session(session).lean();
+
+        if (!finalization) {
+          throw new AppError('The OPD journey cannot be closed because specialty consultation finalization is incomplete.', 409, 'OPD_CLINICAL_COMPLETION_PENDING');
+        }
+
+        const activeAlert = await OphthalmologyAlertModel.findOne({
+          visitId: new Types.ObjectId(current.id),
+          type: 'EMERGENCY_SCREENING',
+          status: { $ne: 'CLEARED' },
+          deletedAt: null,
+        }).session(session).lean();
+
+        if (activeAlert && (!activeAlert.clearance || activeAlert.clearance.resumptionPermitted !== true)) {
+          throw new AppError('The OPD journey cannot be closed because an emergency restriction is active.', 409, 'OPD_EMERGENCY_RESTRICTION_ACTIVE');
+        }
+      }
+
+      // Gate B: Billing Settlement Gate
+      const invoices = await BillingInvoiceModel.find({
+        $or: [{ visitId: new Types.ObjectId(current.id) }, { encounterId: new Types.ObjectId(current.id) }],
+        status: { $ne: 'CANCELLED' },
+        deletedAt: null,
+      }).session(session).lean();
+
+      if (invoices.length === 0) {
+        const isZeroTariff = isOph && Boolean(await ServiceModel.findOne({
+          code: 'OPHTHALMOLOGY_CONSULTATION',
+          departmentId: new Types.ObjectId(current.department_id),
+          standardPrice: 0,
+          status: 'ACTIVE',
+          deletedAt: null,
+        }).session(session).lean());
+
+        if (!isZeroTariff) {
+          throw new AppError('The OPD journey cannot be closed because billing settlement has not been recorded.', 409, 'OPD_BILLING_SETTLEMENT_PENDING');
+        }
+      } else {
+        const unsettledInvoice = invoices.find((inv) => (inv.balanceAmount ?? 0) > 0.01 || inv.status !== 'PAID');
+        if (unsettledInvoice) {
+          throw new AppError('The OPD journey cannot be closed because the patient has an outstanding invoice balance.', 409, 'OPD_BILLING_SETTLEMENT_PENDING');
+        }
+      }
+
+      // Gate C: Pharmacy Dispensing Gate
+      const prescriptions = await OpdPrescriptionModel.find({
+        visitId: new Types.ObjectId(current.id),
+        deletedAt: null,
+      }).session(session).lean();
+
+      if (prescriptions.some((p) => p.status === 'DRAFT')) {
+        throw new AppError('The OPD journey cannot be closed because a medication prescription is still in draft.', 409, 'OPD_MEDICATION_DISPENSING_PENDING');
+      }
+
+      if (prescriptions.some((p) => p.status === 'SUBMITTED')) {
+        throw new AppError('The OPD journey cannot be closed because medication dispensing is incomplete.', 409, 'OPD_MEDICATION_DISPENSING_PENDING');
+      }
+
+      const dispensedPrescriptions = prescriptions.filter((p) => p.status === 'DISPENSED');
+      if (dispensedPrescriptions.length > 0) {
+        const dispensingRecords = await PharmacyDispensingModel.find({
+          prescriptionId: { $in: dispensedPrescriptions.map((p) => p._id) },
+          deletedAt: null,
+        }).session(session).lean();
+
+        if (dispensingRecords.some((d) => d.status === 'DRAFT')) {
+          throw new AppError('The OPD journey cannot be closed because medication dispensing is incomplete.', 409, 'OPD_MEDICATION_DISPENSING_PENDING');
+        }
+
+        for (const record of dispensingRecords) {
+          if (record.status === 'CONFIRMED') {
+            const isPartial = record.items.some(
+              (item) => item.requestedQuantity != null && item.confirmedQuantity != null && item.confirmedQuantity < item.requestedQuantity,
+            );
+            if (isPartial) {
+              throw new AppError('The OPD journey cannot be closed because medication dispensing is incomplete.', 409, 'OPD_MEDICATION_DISPENSING_PENDING');
+            }
+          }
+        }
+      }
+
+      // Gate D: Atomic Update
+      const notes = data?.notes?.trim() || 'OPD journey completed and settled.';
+      const updatedVisit = await this.repository.updateStatusIf(
+        current.id,
+        ['CLINICALLY_COMPLETED'],
+        { status: 'COMPLETED', notes },
+        userId,
+        session,
+        current.version,
+      );
+
+      if (!updatedVisit) {
+        throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_VERSION_CONFLICT');
+      }
+
+      await this.repository.auditStatusTransition(updatedVisit, current.status, userId, session);
+
+      await this.patientRepository.addTimelineEvent(
+        updatedVisit.patient_id,
+        {
+          event_type: 'OPD_VISIT_STATUS_UPDATED',
+          title: 'OPD visit completed',
+          description: `${updatedVisit.visit_number} journey closed and settled.`,
+        },
+        userId,
+        session,
+      );
+
+      if (current.appointment_id) {
+        const updatedAppointment = await this.appointmentRepository.updateStatus(
+          current.appointment_id,
+          { status: 'COMPLETED', notes },
+          userId,
+          scope,
+          session,
+        );
+        if (!updatedAppointment) {
+          throw new AppError('Linked appointment changed after it was loaded', 409, 'OPD_APPOINTMENT_CONFLICT');
+        }
+      }
+
+      return {
+        success: true,
+        visit: updatedVisit,
+        settlement: {
+          billing_settled: true,
+          dispensing_settled: true,
+          closed_at: new Date().toISOString(),
+        },
+      };
+    });
   }
 
   private async createFromAppointment(data: CreateOpdVisitDTO, userId: string) {

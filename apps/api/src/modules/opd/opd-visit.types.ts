@@ -3,6 +3,7 @@ export type OpdVisitStatus =
   | 'WAITING_FOR_VITALS'
   | 'READY_FOR_CONSULTATION'
   | 'IN_CONSULTATION'
+  | 'CLINICALLY_COMPLETED'
   | 'SKIPPED'
   | 'COMPLETED'
   | 'CANCELLED'
@@ -83,4 +84,19 @@ export type UpdateOpdVisitStatusDTO = {
   expected_status?: OpdVisitStatus;
   expected_version?: number;
   notes?: string | null;
+};
+
+export type CloseOpdJourneyDTO = {
+  notes?: string | null;
+};
+
+export type CloseOpdJourneyResult = {
+  success: boolean;
+  visit: OpdVisit;
+  settlement: {
+    billing_settled: boolean;
+    dispensing_settled: boolean;
+    closed_at: string;
+  };
+  message?: string;
 };

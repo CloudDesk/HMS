@@ -6,6 +6,7 @@ export type ApiOpdVisitStatus =
   | 'WAITING_FOR_VITALS'
   | 'READY_FOR_CONSULTATION'
   | 'IN_CONSULTATION'
+  | 'CLINICALLY_COMPLETED'
   | 'SKIPPED'
   | 'COMPLETED'
   | 'CANCELLED'
@@ -96,6 +97,21 @@ export type UpdateOpdVisitStatusPayload = {
   expected_status?: ApiOpdVisitStatus;
   expected_version?: number;
   notes?: string | null;
+};
+
+export type CloseOpdJourneyPayload = {
+  notes?: string | null;
+};
+
+export type CloseOpdJourneyResponse = {
+  success: boolean;
+  visit: OpdVisitResponse;
+  settlement: {
+    billing_settled: boolean;
+    dispensing_settled: boolean;
+    closed_at: string;
+  };
+  message?: string;
 };
 
 export type OpdVitalsResponse = {
@@ -218,6 +234,7 @@ export type OpdPrescriptionItemResponse = {
   strength: string | null;
   dosage: string;
   route: string;
+  laterality?: 'OD' | 'OS' | 'OU' | null;
   frequency: string;
   duration: string;
   quantity: number | null;
@@ -452,6 +469,13 @@ export const opdApi = {
   callNextPatient(id: string) {
     return apiClient.request<OpdVisitResponse>(`/opd/visits/${encodeURIComponent(id)}/call-next`, {
       method: 'POST',
+    });
+  },
+
+  closeJourney(id: string, payload?: CloseOpdJourneyPayload) {
+    return apiClient.request<CloseOpdJourneyResponse>(`/opd/visits/${encodeURIComponent(id)}/close-journey`, {
+      method: 'POST',
+      body: payload,
     });
   },
 

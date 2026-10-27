@@ -6,6 +6,7 @@ export const opdVisitStatusLabels: Record<ApiOpdVisitStatus, string> = {
   WAITING_FOR_VITALS: 'Waiting for vitals',
   READY_FOR_CONSULTATION: 'Ready for consultation',
   IN_CONSULTATION: 'In consultation',
+  CLINICALLY_COMPLETED: 'Clinically Completed',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
   NO_SHOW: 'No show',
@@ -46,6 +47,7 @@ export const formatVisitDateTime = (value: string | null | undefined) => {
 
 export const visitStatusClass = (status: ApiOpdVisitStatus) => {
   if (status === 'COMPLETED') return 'completed';
+  if (status === 'CLINICALLY_COMPLETED') return 'signed';
   if (status === 'IN_CONSULTATION') return 'in-consultation';
   if (status === 'READY_FOR_CONSULTATION') return 'submitted';
   if (status === 'WAITING_FOR_VITALS' || status === 'CHECKED_IN') return 'scheduled';
@@ -73,6 +75,7 @@ export const activeVisitStatuses: ApiOpdVisitStatus[] = [
   'WAITING_FOR_VITALS',
   'READY_FOR_CONSULTATION',
   'IN_CONSULTATION',
+  'CLINICALLY_COMPLETED',
   'SKIPPED',
 ];
 
@@ -81,6 +84,7 @@ export const isActiveVisit = (visit: OpdVisitResponse) => activeVisitStatuses.in
 export const getOpdErrorMessage = (error: unknown) => {
   if (error instanceof ApiError) {
     if (error.status === 400) return error.message || 'Validation error. Please check the OPD visit details.';
+    if (error.status === 409) return error.message || 'The OPD journey could not be closed due to an active clinical or settlement requirement.';
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
     if (error.status === 403) return 'You do not have permission to access OPD visits.';
     if (error.status === 404) return 'OPD visit not found.';

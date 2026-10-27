@@ -1,0 +1,4558 @@
+{
+  "checkedAt": "2026-10-27T05:24:23.462Z",
+  "configuredDatabase": "HMS_GENERAL",
+  "scope": "Authorized user databases; admin/config/local excluded",
+  "totalCollections": 500,
+  "summary": [
+    {
+      "database": "HMS_GENERAL",
+      "collections": 91,
+      "empty": 53,
+      "nonEmpty": 38,
+      "unknownCount": 0,
+      "matchingHmsModel": 90
+    },
+    {
+      "database": "HMS_INDIA",
+      "collections": 77,
+      "empty": 15,
+      "nonEmpty": 62,
+      "unknownCount": 0,
+      "matchingHmsModel": 69
+    },
+    {
+      "database": "hms",
+      "collections": 68,
+      "empty": 8,
+      "nonEmpty": 60,
+      "unknownCount": 0,
+      "matchingHmsModel": 61
+    },
+    {
+      "database": "productiondb",
+      "collections": 130,
+      "empty": 91,
+      "nonEmpty": 39,
+      "unknownCount": 0,
+      "matchingHmsModel": 57
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collections": 61,
+      "empty": 22,
+      "nonEmpty": 39,
+      "unknownCount": 0,
+      "matchingHmsModel": 7
+    },
+    {
+      "database": "test",
+      "collections": 73,
+      "empty": 6,
+      "nonEmpty": 67,
+      "unknownCount": 0,
+      "matchingHmsModel": 5
+    }
+  ],
+  "collections": [
+    {
+      "database": "hms",
+      "collection": "administrationdashboardsnapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/administration-dashboard/administration-dashboard.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "admissionpolicies",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "admissionrequests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "advancepayments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/advance-payment/advance-payment.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "appointments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/appointments/appointment.model.ts",
+      "estimatedDocuments": 98,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "auditlogs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 11409,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "authratelimits",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth-rate-limit.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "bedassignmenthistories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "bedholds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "bedtransfers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "billing_invoice_items",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 67,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "billing_invoices",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 36,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "billing_payments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 18,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "branches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/branches/branch.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "consenttemplates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/consents/consent.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "dental_prosthetic_lab_orders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "dental_treatment_episodes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "dental_treatment_quotations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "dental_treatment_stages",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "dentalchairsideimages",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 18,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 27,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "doctoravailabilityexceptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "doctorleaves",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "doctors",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "doctorsequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "emergencyencounters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/emergency/emergency.model.ts",
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "guardianprofiles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/guardian-profile.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "hmsbeds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "hmswards",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "imaging_reports",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/imaging/imaging-report.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "inpatientadmissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 9,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "inpatientroundnotes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "inpatientvitals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "laboratory_results",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/laboratory/laboratory-result.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "medicines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/medicines/medicine.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 23,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdclinicalorders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-clinical-order.model.ts",
+      "estimatedDocuments": 43,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdconsultations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-consultation.model.ts",
+      "estimatedDocuments": 53,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opddentalexaminations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdfollowups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-follow-up.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdprescriptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-prescription.model.ts",
+      "estimatedDocuments": 29,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdreferrals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-referral.model.ts",
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdvisits",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-visit.model.ts",
+      "estimatedDocuments": 69,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "opdvitals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-vitals.model.ts",
+      "estimatedDocuments": 51,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "otpchallenges",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/otp-challenge.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "passwordresettokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patient_pre_consultations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patientaccessgrants",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/patient-access-grant.model.ts",
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patientdocuments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 60,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patientnumbersequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient-number.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patients",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 31,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "patienttimelineevents",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 691,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "permissioncategories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "permissiongroups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 15,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 180,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "pharmacy_medicine_batches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 7,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "pharmacy_medicine_inventory",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "pharmacy_medicine_stock_movements",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "pharmacydispensings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-dispensing/pharmacy-dispensing.model.ts",
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "procedurebookings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "procedurerecommendations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "refreshtokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/refresh-token.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "registrationtokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/registration-token.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "sequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/shared/sequence/sequence.model.ts",
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "services",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/services/service.model.ts",
+      "estimatedDocuments": 50,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "systemsettings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/settings/settings.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "hms",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 64,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "administrationdashboardsnapshots",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/administration-dashboard/administration-dashboard.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "admissionpolicies",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "admissionrequests",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "advancepayments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/advance-payment/advance-payment.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "appointments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/appointments/appointment.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "auditlogs",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 1246,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "authratelimits",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/auth/auth-rate-limit.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "bedassignmenthistories",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "bedholds",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "bedtransfers",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "billing_invoice_items",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "billing_invoices",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "billing_payments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "branches",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/branches/branch.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "consenttemplates",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/consents/consent.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimadjudications",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-adjudication.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimappeals",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-appeal.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimclosures",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-closure.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimdischarges",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-discharge.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimpreviews",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-preview.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimqueries",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-query.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockclaimsubmissions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-claim-submission.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockpaymentallocations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-payment-allocation.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockpaymentreconciliations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-payment-reconciliation.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "dhamockremittanceadvices",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/dha/dha-remittance-advice.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "doctoravailabilityexceptions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "doctorleaves",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "doctors",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/doctors/doctor.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "doctorsequences",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "emergencyencounters",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/emergency/emergency.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "guardianprofiles",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patient-portal/guardian-profile.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "hmsbeds",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "hmswards",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "imaging_reports",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/imaging/imaging-report.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "inpatientadmissions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "inpatientroundnotes",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "inpatientvitals",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insuranceauthorizations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance-authorization.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insurancebenefitconfigs",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insuranceclaims",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance-claim.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insuranceeligibilityverifications",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insurancemembers",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insurancepolicies",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "insuranceschemes",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "laboratory_results",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/laboratory/laboratory-result.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "medicines",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/medicines/medicine.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "mpesa_callback_events",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdclinicalorders",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-clinical-order.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdconsultations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-consultation.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdfollowups",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-follow-up.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdprescriptions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-prescription.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdreferrals",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-referral.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdvisits",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-visit.model.ts",
+      "estimatedDocuments": 7,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "opdvitals",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/opd/opd-vitals.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyattachments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-phase10.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyclinicalreviews",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-review.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyconfigurations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology.model.ts",
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyconsultationfinalizations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-consultation.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologycontexts",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologydashboardsnapshots",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-phase10.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyopticalprescriptions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-review.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologypublications",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology-phase10.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologystations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "ophthalmologyworkflowprofiles",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/ophthalmology/ophthalmology.model.ts",
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "otpchallenges",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patient-portal/otp-challenge.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "passwordresettokens",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "patientaccessgrants",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patient-portal/patient-access-grant.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "patientdocuments",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "patientnumbersequences",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patients/patient-number.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "patients",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "patienttimelineevents",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 34,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "payers",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "permissioncategories",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "permissiongroups",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 16,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 237,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "pharmacy_medicine_batches",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "pharmacy_medicine_inventory",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "pharmacy_medicine_stock_movements",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "pharmacydispensings",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/pharmacy-dispensing/pharmacy-dispensing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "procedurebookings",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "procedurerecommendations",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "refreshtokens",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/auth/refresh-token.model.ts",
+      "estimatedDocuments": 679,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "registrationtokens",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/patient-portal/registration-token.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 33,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "sequences",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/shared/sequence/sequence.model.ts",
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "services",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/services/service.model.ts",
+      "estimatedDocuments": 18,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "shaservicemappings",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/insurance/insurance-integration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "systemsettings",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/settings/settings.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_GENERAL",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": true,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "administrationdashboardsnapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/administration-dashboard/administration-dashboard.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "admissionpolicies",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "admissionrequests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "advancepayments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/advance-payment/advance-payment.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "appointments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/appointments/appointment.model.ts",
+      "estimatedDocuments": 106,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "auditlogs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 11904,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "authratelimits",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth-rate-limit.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "bedassignmenthistories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "bedholds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "bedtransfers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "billing_invoice_items",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 70,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "billing_invoices",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 38,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "billing_payments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 16,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "branches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/branches/branch.model.ts",
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "consenttemplates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/consents/consent.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "dental_prosthetic_lab_orders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "dental_treatment_episodes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "dental_treatment_quotations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "dental_treatment_stages",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 20,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "dentalchairsideimages",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 27,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "doctoravailabilityexceptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "doctorleaves",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "doctors",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "doctorsequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "emergencyencounters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/emergency/emergency.model.ts",
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "guardianprofiles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/guardian-profile.model.ts",
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "hmsbeds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "hmswards",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "imaging_reports",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/imaging/imaging-report.model.ts",
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "inpatientadmissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 9,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "inpatientroundnotes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "inpatientvitals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insuranceauthorizations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance-authorization.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insurancebenefitconfigs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insuranceeligibilityverifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insurancemembers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insurancepolicies",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "insuranceschemes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "laboratory_results",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/laboratory/laboratory-result.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "medicines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/medicines/medicine.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "mobile_devices",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 34,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdclinicalorders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-clinical-order.model.ts",
+      "estimatedDocuments": 45,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdconsultations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-consultation.model.ts",
+      "estimatedDocuments": 54,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opddentalexaminations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 16,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdfollowups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-follow-up.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdprescriptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-prescription.model.ts",
+      "estimatedDocuments": 31,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdreferrals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-referral.model.ts",
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdvisits",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-visit.model.ts",
+      "estimatedDocuments": 70,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "opdvitals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-vitals.model.ts",
+      "estimatedDocuments": 51,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "otpchallenges",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/otp-challenge.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "passwordresettokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patient_pre_consultations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patientaccessgrants",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/patient-access-grant.model.ts",
+      "estimatedDocuments": 15,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patientdocuments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 64,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patientnumbersequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient-number.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patients",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 35,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "patienttimelineevents",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 726,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "payers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "permissioncategories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "permissiongroups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 16,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 231,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "pharmacy_medicine_batches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 7,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "pharmacy_medicine_inventory",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "pharmacy_medicine_stock_movements",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 23,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "pharmacydispensings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-dispensing/pharmacy-dispensing.model.ts",
+      "estimatedDocuments": 23,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "procedurebookings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "procedurerecommendations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "refreshtokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/refresh-token.model.ts",
+      "estimatedDocuments": 45,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "registrationtokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/registration-token.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "sequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/shared/sequence/sequence.model.ts",
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "services",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/services/service.model.ts",
+      "estimatedDocuments": 50,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "shaservicemappings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/insurance/insurance-integration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "systemsettings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/settings/settings.model.ts",
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "HMS_INDIA",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 68,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "administrationdashboardsnapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/administration-dashboard/administration-dashboard.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "admissionpolicies",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "admissionrequests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "advancepayments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/advance-payment/advance-payment.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "appointments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/appointments/appointment.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "approval_action_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 126,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "approval_delegations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "approval_reassignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "approval_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 64,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "areas",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "audit_logs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 829,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "auditlogs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "bedassignmenthistories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "bedholds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "bedtransfers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "billing_invoice_items",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "billing_invoices",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "billing_payments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/billing/billing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "branches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/branches/branch.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "cells",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "check",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "collection",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "consenttemplates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/consents/consent.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "dashboard_snapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "doctoravailabilityexceptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "doctorleaves",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "doctors",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "doctorsequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "emergencyencounters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/emergency/emergency.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "export_jobs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "gauge_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 50,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "guardianprofiles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/guardian-profile.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "hmsbeds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "hmswards",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/admissions-configuration/admissions-configuration.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "idempotency_keys",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "imaging_reports",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/imaging/imaging-report.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "inpatientadmissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/inpatient-admissions/inpatient-admission.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "inspection_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "job_work_orders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "laboratory_results",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/laboratory/laboratory-result.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "locations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "machines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "maintenance_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "material_categories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "medicines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/medicines/medicine.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "notification_delivery_attempts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 770,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "notification_events",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 293,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 385,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdclinicalorders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-clinical-order.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdconsultations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-consultation.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdfollowups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-follow-up.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdprescriptions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-prescription.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdreferrals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-referral.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdvisits",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-visit.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "opdvitals",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/opd/opd-vitals.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "otpchallenges",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/otp-challenge.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "passwordresettokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/auth.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "patientaccessgrants",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patient-portal/patient-access-grant.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "patientdocuments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "patientnumbersequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient-number.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "patients",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "patienttimelineevents",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/patients/patient.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "permissioncategories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "permissiongroups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 191,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "pharmacy_medicine_batches",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "pharmacy_medicine_inventory",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "pharmacy_medicine_stock_movements",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-inventory/pharmacy-inventory.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "pharmacydispensings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/pharmacy-dispensing/pharmacy-dispensing.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "pm_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "procedurebookings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "procedurerecommendations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/surgery/surgery.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "processes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_custom_form_submissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_custom_form_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_custom_forms",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_lines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_machine_oil_readings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_shift_allocations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "production_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "products",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_alerts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_calibration_occurrences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_calibration_plans",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_card_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_cards",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_checklist_mappings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_gauge_checklists",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_gauge_details",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_gauge_masters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_gr_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_inspection_calendar_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_inspection_cases",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_register_book_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_rejection_cases",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_store_action_triggers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_temperature_readings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "quality_temperature_thresholds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "record_attachments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "record_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 164,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "record_pdf_artifacts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "records",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 57,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "refreshtokens",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/auth/refresh-token.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "role_permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 561,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "sequences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/shared/sequence/sequence.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "services",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/services/service.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "sessions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 341,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "shifts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "store_actions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "systemsettings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/settings/settings.model.ts",
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "tdo_design_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 35,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "tdo_drawing_revisions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "tdo_drawings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 29,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "tdo_print_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "tdo_tool_sequence_counters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "template_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "template_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 34,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "templates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "user_departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "user_requesting_engineers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "user_roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "user_shift_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "workflow_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "workflow_execution_states",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 15,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "workflow_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "workflows",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "productiondb",
+      "collection": "workstations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "approval_action_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 126,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "approval_delegations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "approval_reassignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "approval_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 64,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "areas",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "audit_logs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 807,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "cells",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "dashboard_snapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 9,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "gauge_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 50,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "idempotency_keys",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "inspection_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "job_work_orders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "locations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "machines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "maintenance_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "material_categories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "notification_delivery_attempts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 764,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "notification_events",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 290,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 382,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "permissioncategories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "permissiongroups",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 190,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "pm_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "processes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_custom_form_submissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_custom_form_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_custom_forms",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_lines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_machine_oil_readings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_shift_allocations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "production_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "products",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "quality_alerts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "quality_calibration_occurrences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "quality_calibration_plans",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "quality_checklist_mappings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "quality_gauge_checklists",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "record_attachments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "record_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 154,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "record_pdf_artifacts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "records",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 53,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "role_permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 560,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "sessions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 343,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "shifts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "tdo_design_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 31,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "tdo_drawing_revisions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 21,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "tdo_drawings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "tdo_print_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "tdo_tool_sequence_counters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "template_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 34,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "templates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "user_departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "user_requesting_engineers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "user_roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "workflow_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "workflow_execution_states",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 15,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "workflow_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "rte-paperless-dev",
+      "collection": "workflows",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "approval_action_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 219,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "approval_delegations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "approval_reassignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "approval_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 116,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "areas",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "audit_logs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2980,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "cells",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 4,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "dashboard_snapshots",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/departments/department.model.ts",
+      "estimatedDocuments": 9,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "export_jobs",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 5,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "gauge_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 17,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "idempotency_keys",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "inspection_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 10,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "job_work_orders",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "locations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 10,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "machines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 20,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "maintenance_types",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 8,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "material_categories",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "notification_delivery_attempts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1044,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "notification_events",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 391,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "notifications",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/notifications/notification.model.ts",
+      "estimatedDocuments": 540,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/permissions/permission.model.ts",
+      "estimatedDocuments": 183,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "pm_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "processes",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "production_lines",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "production_machine_oil_readings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "production_shift_allocations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 77,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "production_tasks",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "products",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_alerts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 16,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_calibration_occurrences",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 12,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_calibration_plans",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_card_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_cards",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_checklist_mappings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_gauge_checklists",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 2,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_gauge_details",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_gauge_masters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_gr_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_inspection_calendar_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_inspection_cases",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_register_book_entries",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 0,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_rejection_cases",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_store_action_triggers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_temperature_readings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 15,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "quality_temperature_thresholds",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 6,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "record_attachments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 20,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "record_history",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 417,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "record_pdf_artifacts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "records",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 115,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "role_permissions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1965,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/roles/role.model.ts",
+      "estimatedDocuments": 52,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "sessions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1086,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "shifts",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 3,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "store_actions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 1,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "tdo_design_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 83,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "tdo_drawing_revisions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 53,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "tdo_drawings",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 62,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "tdo_print_requests",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "tdo_tool_sequence_counters",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 7,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "template_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 11,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "template_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 40,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "templates",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 22,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "user_departments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 154,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "user_requesting_engineers",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 9,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "user_roles",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 154,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "user_shift_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 72,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "users",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": "apps/api/src/modules/users/user.model.ts",
+      "estimatedDocuments": 154,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "workflow_assignments",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 14,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "workflow_execution_states",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 61,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "workflow_versions",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 19,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "workflows",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 13,
+      "countError": null
+    },
+    {
+      "database": "test",
+      "collection": "workstations",
+      "type": "collection",
+      "configuredDatabase": false,
+      "modelSource": null,
+      "estimatedDocuments": 20,
+      "countError": null
+    }
+  ]
+}

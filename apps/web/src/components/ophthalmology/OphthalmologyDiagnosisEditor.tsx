@@ -1,30 +1,31 @@
-import { useState } from 'react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { useFieldArray, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
 import type { OpdConsultationResponse } from '../../api/opd';
 import { diagnosisEditSchema, useOphthalmologyDiagnosisEditor, type DiagnosisEdit, type DiagnosisForm } from '../../hooks/ophthalmology/useOphthalmologyDiagnosisEditor';
-import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { useOphthalmologyDraftGuard, getEncounterDraft, setEncounterDraft, clearEncounterDraft, registerDraftSaveHandler } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import { EditorErrors } from './OphthalmologyConfigurationEditor';
 
 const TOP_OPHTHALMOLOGY_PRESETS = [
   { code: 'H52.1', display: 'Myopia', laterality: 'OU' as const, type: 'PRIMARY' as const },
   { code: 'H52.0', display: 'Hyperopia', laterality: 'OU' as const, type: 'PRIMARY' as const },
   { code: 'H52.2', display: 'Astigmatism', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'H52.4', display: 'Presbyopia', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'H25.9', display: 'Senile Cataract, Unspecified', laterality: 'OD' as const, type: 'PRIMARY' as const },
-  { code: 'H40.1', display: 'Primary Open-Angle Glaucoma', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'H10.1', display: 'Acute Conjunctivitis', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'E11.3', display: 'Diabetic Retinopathy', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'H04.1', display: 'Dry Eye Syndrome', laterality: 'OU' as const, type: 'PRIMARY' as const },
-  { code: 'T15.0', display: 'Corneal Foreign Body / Abrasion', laterality: 'OD' as const, type: 'PRIMARY' as const },
+  { code: 'H25.9', display: 'Cataract', laterality: 'OU' as const, type: 'PRIMARY' as const },
+  { code: 'H40.11', display: 'Primary Open-Angle Glaucoma', laterality: 'OU' as const, type: 'PRIMARY' as const },
+  { code: 'E11.319', display: 'Diabetic Retinopathy', laterality: 'OU' as const, type: 'PRIMARY' as const },
+  { code: 'H04.123', display: 'Dry Eye', laterality: 'OU' as const, type: 'PRIMARY' as const },
+  { code: 'H10.9', display: 'Conjunctivitis', laterality: 'OU' as const, type: 'PRIMARY' as const },
 ];
 
 export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdConsultationResponse; canEdit: boolean }) {
+  const visitId = record.visit_id;
+  const cachedDraft = getEncounterDraft<DiagnosisForm>(visitId, 'diagnosis');
   const [baseline, setBaseline] = useState(record);
   const f = useOphthalmologyDiagnosisEditor(record, canEdit);
-  const { register, control, handleSubmit, reset, setValue, formState: { errors, isDirty, isSubmitting } } = useForm<DiagnosisForm, unknown, DiagnosisEdit>({
+  const { register, control, handleSubmit, reset, setValue, getValues, formState: { errors, isDirty, isSubmitting } } = useForm<DiagnosisForm, unknown, DiagnosisEdit>({
     resolver: zodResolver(diagnosisEditSchema),
-    defaultValues: {
+    defaultValues: cachedDraft ?? {
       assessment: baseline.assessment ?? '',
       diagnoses: (baseline.diagnoses ?? []).map((d) => ({
         ...d,
@@ -36,17 +37,42 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
   });
   const rows = useFieldArray({ control, name: 'diagnoses' });
   const watchedDiagnoses = useWatch({ control, name: 'diagnoses' });
+  const watchedAssessment = useWatch({ control, name: 'assessment' });
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'area', 'care_tab']);
+
+  useEffect(() => {
+    if (isDirty) {
+      setEncounterDraft(visitId, 'diagnosis', getValues(), true);
+    }
+  }, [isDirty, getValues, visitId, watchedDiagnoses, watchedAssessment]);
+
+  useEffect(() => {
+    return registerDraftSaveHandler('diagnosis', async () => {
+      let saved = false;
+      await handleSubmit(async (values) => {
+        const result = await f.save(baseline.version ?? 0, values);
+        if (result) {
+          clearEncounterDraft(visitId, 'diagnosis');
+          setBaseline(result);
+          reset(values);
+          saved = true;
+        }
+      })();
+      if (!saved) throw new Error('Diagnosis assessment draft could not be saved.');
+    });
+  }, [handleSubmit, f, baseline.version, reset, visitId]);
 
   const stale = baseline.version !== record.version;
   const disabled = !canEdit || stale || f.busy || isSubmitting;
 
   const handleAddPreset = (preset: typeof TOP_OPHTHALMOLOGY_PRESETS[number]) => {
+    const existing = getValues('diagnoses') || [];
+    const hasPrimary = existing.some((d) => d.type === 'PRIMARY');
     rows.append({
       code: preset.code,
       display: preset.display,
       codingSystem: 'ICD-10',
-      type: preset.type,
+      type: hasPrimary ? 'SECONDARY' : 'PRIMARY',
       laterality: preset.laterality,
       status: 'CONFIRMED',
       differential: false,
@@ -56,6 +82,58 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
     });
   };
 
+  const setPrimaryDiagnosis = (targetIndex: number) => {
+    const current = getValues('diagnoses') || [];
+    current.forEach((_, idx) => {
+      setValue(`diagnoses.${idx}.type`, idx === targetIndex ? 'PRIMARY' : 'SECONDARY', {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    });
+  };
+
+  const handleRemoveDiagnosis = (index: number) => {
+    const current = getValues('diagnoses') || [];
+    const item = current[index];
+    if (window.confirm(`Remove diagnosis "${item?.display || `#${index + 1}`}" from draft?`)) {
+      rows.remove(index);
+      if (item?.type === 'PRIMARY') {
+        const remaining = current.filter((_, i) => i !== index);
+        if (remaining.length > 0 && !remaining.some((d) => d.type === 'PRIMARY')) {
+          setTimeout(() => {
+            setValue('diagnoses.0.type', 'PRIMARY', { shouldDirty: true, shouldValidate: true });
+          }, 0);
+        }
+      }
+    }
+  };
+
+  const onInvalid = (fieldErrors: FieldErrors<DiagnosisForm>) => {
+    const errorMessages: string[] = [];
+    if (fieldErrors.diagnoses) {
+      if ('root' in fieldErrors.diagnoses && fieldErrors.diagnoses.root?.message) {
+        errorMessages.push(fieldErrors.diagnoses.root.message);
+      } else if (typeof fieldErrors.diagnoses.message === 'string') {
+        errorMessages.push(fieldErrors.diagnoses.message);
+      } else if (Array.isArray(fieldErrors.diagnoses)) {
+        fieldErrors.diagnoses.forEach((rowErr, idx) => {
+          if (rowErr) {
+            Object.values(rowErr).forEach((fErr) => {
+              if (fErr && typeof fErr === 'object' && 'message' in fErr && typeof fErr.message === 'string') {
+                errorMessages.push(`Diagnosis #${idx + 1}: ${fErr.message}`);
+              }
+            });
+          }
+        });
+      }
+    }
+    if (fieldErrors.assessment?.message) {
+      errorMessages.push(fieldErrors.assessment.message);
+    }
+    const message = errorMessages.length > 0 ? errorMessages.join(' · ') : 'Please check required fields in diagnosis assessment.';
+    toast.error(message);
+  };
+
   return (
     <form
       className="doc-card oph-diag-card-wrapper"
@@ -63,25 +141,25 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
         if (disabled) return;
         const saved = await f.save(baseline.version ?? 0, values);
         if (saved) {
+          clearEncounterDraft(visitId, 'diagnosis');
           setBaseline(saved);
           reset(values);
         }
-      })}
+      }, onInvalid)}
     >
       <div className="oph-diag-header">
         <div className="oph-diag-title-group">
-          <div className="oph-diag-icon-badge">
+          <div className="oph-diag-icon-badge" style={{ background: '#ecfdf5', color: '#059669' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-              <circle cx="12" cy="12" r="3" />
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
-              Structured Ophthalmic Diagnoses &amp; Assessment
+              Ophthalmic Diagnoses &amp; Assessment
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              Record confirmed and suspected conditions with laterality (OD/OS/OU). Diagnoses automatically link to the treatment plan and procedures.
+              Record primary and secondary diagnoses with ICD-10 codes, affected eye laterality, clinical staging, and diagnostic rationale.
             </p>
           </div>
         </div>
@@ -131,9 +209,14 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
         {/* Global Clinical Assessment Narrative */}
         <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
           <label className="doc-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155' }}>
-              Doctor&apos;s Clinical Assessment &amp; Synthesis
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155' }}>
+                Doctor&apos;s Clinical Assessment &amp; Synthesis <span className="oph-required">*</span>
+              </span>
+              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                {(watchedAssessment?.length || 0)} / 1000
+              </span>
+            </div>
             <textarea
               {...register('assessment')}
               placeholder="e.g. Bilateral progressive myopic shift with early nuclear sclerotic changes. Visual acuity improved with manifest refraction. Normal IOP bilaterally. Retinal periphery intact..."
@@ -187,7 +270,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                       <button
                         type="button"
                         className={`oph-pill-btn ${type === 'PRIMARY' ? 'selected primary' : ''}`}
-                        onClick={() => setValue(`diagnoses.${index}.type`, 'PRIMARY', { shouldDirty: true, shouldValidate: true })}
+                        onClick={() => setPrimaryDiagnosis(index)}
                       >
                         Primary
                       </button>
@@ -203,11 +286,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                     <button
                       type="button"
                       className="oph-remove-diag-btn"
-                      onClick={() => {
-                        if (window.confirm(`Remove diagnosis "${currentItem?.display || row.display || `#${index + 1}`}" from draft?`)) {
-                          rows.remove(index);
-                        }
-                      }}
+                      onClick={() => handleRemoveDiagnosis(index)}
                       title="Remove this diagnosis"
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -250,17 +329,17 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                   </label>
                 </div>
 
-                {/* Laterality & Status Segmented Bars */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                {/* Laterality, Severity, Stage, Status & Differential in single visual flow */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', alignItems: 'flex-end', marginTop: '0.75rem', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
                   <div>
-                    <span style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                      Eye / Laterality <span className="oph-required">*</span>
+                    <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Affected Eye (Laterality) <span className="oph-required">*</span>
                     </span>
                     <div className="oph-pill-group" style={{ width: '100%' }}>
                       {[
-                        { id: 'OD', label: 'OD (Right Eye)' },
-                        { id: 'OS', label: 'OS (Left Eye)' },
-                        { id: 'OU', label: 'OU (Both Eyes)' },
+                        { id: 'OD', label: 'OD' },
+                        { id: 'OS', label: 'OS' },
+                        { id: 'OU', label: 'OU' },
                         { id: 'NOT_APPLICABLE', label: 'N/A' },
                       ].map((item) => (
                         <button
@@ -276,8 +355,42 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                   </div>
 
                   <div>
-                    <span style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                      Diagnostic Certainty / Status <span className="oph-required">*</span>
+                    <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Severity <span className="oph-required">*</span>
+                    </span>
+                    <select
+                      {...register(`diagnoses.${index}.severity`)}
+                      style={{ width: '100%', height: '30px', fontSize: '0.78rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', padding: '0 8px' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="Mild">Mild</option>
+                      <option value="Moderate">Moderate</option>
+                      <option value="Severe">Severe</option>
+                      <option value="High">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Stage / Progression
+                    </span>
+                    <select
+                      {...register(`diagnoses.${index}.stage`)}
+                      style={{ width: '100%', height: '30px', fontSize: '0.78rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', padding: '0 8px' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="Early">Early</option>
+                      <option value="Immature">Immature</option>
+                      <option value="Mature">Mature</option>
+                      <option value="Hypermature">Hypermature</option>
+                      <option value="Gradual / Stable">Gradual / Stable</option>
+                      <option value="Rapid">Rapid</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      Diagnostic Status <span className="oph-required">*</span>
                     </span>
                     <div className="oph-pill-group" style={{ width: '100%' }}>
                       {[
@@ -296,32 +409,13 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                       ))}
                     </div>
                   </div>
-                </div>
 
-                {/* Additional Clinical Stratification */}
-                <div className="doc-form-grid three" style={{ marginTop: '0.75rem', gap: '12px' }}>
-                  <label className="doc-field">
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Severity</span>
-                    <input
-                      maxLength={120}
-                      {...register(`diagnoses.${index}.severity`)}
-                      placeholder="e.g. Mild, Moderate, Severe, High"
-                    />
-                  </label>
-                  <label className="doc-field">
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Stage / Progression</span>
-                    <input
-                      maxLength={120}
-                      {...register(`diagnoses.${index}.stage`)}
-                      placeholder="e.g. Stage 2, Immature, Early"
-                    />
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: '1.4rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                  <div style={{ paddingBottom: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 600, color: '#334155', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       <input
                         type="checkbox"
                         {...register(`diagnoses.${index}.differential`)}
-                        style={{ width: '16px', height: '16px' }}
+                        style={{ width: '15px', height: '15px' }}
                       />
                       <span>Differential Diagnosis</span>
                     </label>
@@ -330,10 +424,16 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
 
                 <div style={{ marginTop: '0.6rem' }}>
                   <label className="doc-field">
-                    <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Clinical Notes / Diagnostic Rationale</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Clinical Notes / Diagnostic Rationale</span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        {(currentItem?.notes?.length || 0)} / 500
+                      </span>
+                    </div>
                     <input
                       {...register(`diagnoses.${index}.notes`)}
-                      placeholder="e.g. Verified with subjective refraction; funds copy confirms clear macula."
+                      maxLength={500}
+                      placeholder="e.g. Verified with subjective refraction; fundoscopy confirms clear macula."
                       style={{ fontSize: '0.84rem' }}
                     />
                   </label>
@@ -348,7 +448,21 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
           <button
             type="button"
             className="doc-btn"
-            onClick={() => rows.append({ code: '', display: '', codingSystem: 'ICD-10', type: 'PRIMARY', laterality: 'OU', status: 'CONFIRMED', differential: false, severity: '', stage: '', notes: '' })}
+            onClick={() => {
+              const hasPrimary = (getValues('diagnoses') || []).some((d) => d.type === 'PRIMARY');
+              rows.append({
+                code: '',
+                display: '',
+                codingSystem: 'ICD-10',
+                type: hasPrimary ? 'SECONDARY' : 'PRIMARY',
+                laterality: 'OU',
+                status: 'CONFIRMED',
+                differential: false,
+                severity: '',
+                stage: '',
+                notes: '',
+              });
+            }}
           >
             + Add Custom Diagnosis
           </button>

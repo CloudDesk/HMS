@@ -32,4 +32,31 @@ describe('structured treatment action selectors', () => {
     const other = renderToStaticMarkup(<OphthalmologyTreatmentLinks {...base} actionType="OTHER" />);
     expect(other).toContain('narrative-only'); expect(other).not.toContain('Refresh care references');
   });
+
+  it('renders + New Procedure Recommendation button for PROCEDURE action and respects isRoutineBlocked', () => {
+    const onCreateProcedure = vi.fn();
+    const procedureHtml = renderToStaticMarkup(
+      <OphthalmologyTreatmentLinks
+        {...base}
+        actionType="PROCEDURE"
+        onCreateProcedure={onCreateProcedure}
+      />
+    );
+    expect(procedureHtml).toContain('Saved procedure recommendation');
+    expect(procedureHtml).toContain('444444444444444444444444');
+    expect(procedureHtml).toContain('+ New Procedure Recommendation');
+    expect(procedureHtml).not.toContain('disabled=""');
+
+    const blockedHtml = renderToStaticMarkup(
+      <OphthalmologyTreatmentLinks
+        {...base}
+        actionType="PROCEDURE"
+        onCreateProcedure={onCreateProcedure}
+        isRoutineBlocked={true}
+      />
+    );
+    expect(blockedHtml).toContain('+ New Procedure Recommendation');
+    expect(blockedHtml).toContain('disabled=""');
+    expect(blockedHtml).toContain('Procedure recommendations blocked during active emergency alert');
+  });
 });

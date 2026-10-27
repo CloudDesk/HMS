@@ -1255,10 +1255,10 @@ export class OphthalmologyService {
           expected_version: consultation.version, expected_status: consultation.status, status: 'COMPLETED', completedAt: new Date(),
           visit: transactionalVisit, currentVersion: consultation.version, currentStatus: consultation.status }, userId, session);
         const completedVisit = await this.visitRepository.updateStatusIf(visitId, ['IN_CONSULTATION'],
-          { status: 'COMPLETED', notes: consultation.assessment ?? 'Ophthalmology consultation completed.' }, userId, session, transactionalVisit.version);
+          { status: 'CLINICALLY_COMPLETED', notes: consultation.assessment ?? 'Ophthalmology consultation completed.' }, userId, session, transactionalVisit.version);
         if (!completedVisit) throw new AppError('The OPD visit changed after it was loaded', 409, 'OPD_VISIT_STATUS_CONFLICT');
         if (transactionalVisit.appointment_id && !await this.appointmentRepository!.updateStatus(transactionalVisit.appointment_id,
-          { status: 'COMPLETED', notes: 'Ophthalmology consultation completed by doctor.' }, userId, undefined, session)) {
+          { status: 'CHECKED_IN', notes: 'Ophthalmology consultation signed by doctor; awaiting settlement.' }, userId, undefined, session)) {
           throw new AppError('Linked appointment not found', 409, 'OPD_APPOINTMENT_CONFLICT');
         }
       }

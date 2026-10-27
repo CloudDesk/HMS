@@ -1,0 +1,989 @@
+{
+  "checkedAt": "2026-10-27T05:42:08.552Z",
+  "branch": "DEV-OPHTHALMOLOGY-F-V2",
+  "groups": [
+    {
+      "id": "C01",
+      "collections": [
+        "administrationdashboardsnapshots",
+        "ophthalmologydashboardsnapshots"
+      ],
+      "destination": "dashboardsnapshots",
+      "code": "Easy",
+      "migration": "Easy",
+      "overall": "Easy",
+      "slotsSaved": 1,
+      "estimatedDocuments": 1,
+      "modelFiles": [
+        "apps/api/src/modules/administration-dashboard/administration-dashboard.model.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology-phase10.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/administration-dashboard/administration-dashboard.repository.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology-phase10.repository.ts"
+      ]
+    },
+    {
+      "id": "C02",
+      "collections": [
+        "sequences",
+        "doctorsequences",
+        "patientnumbersequences"
+      ],
+      "destination": "Reuse sequences",
+      "code": "Easy",
+      "migration": "Medium",
+      "overall": "Medium",
+      "slotsSaved": 2,
+      "estimatedDocuments": 5,
+      "modelFiles": [
+        "apps/api/src/modules/doctors/doctor-scheduling.model.ts",
+        "apps/api/src/modules/patients/patient-number.model.ts",
+        "apps/api/src/shared/sequence/sequence.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/doctors/doctor.repository.ts",
+        "apps/api/src/modules/patients/patient.repository.ts",
+        "apps/api/src/scripts/migrate-sequences.ts",
+        "apps/api/src/shared/sequence/sequence.service.ts"
+      ]
+    },
+    {
+      "id": "C03",
+      "collections": [
+        "opdfollowups",
+        "opdreferrals"
+      ],
+      "destination": "opdcareactions",
+      "code": "Medium",
+      "migration": "Easy",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 0,
+      "modelFiles": [
+        "apps/api/src/modules/opd/opd-follow-up.model.ts",
+        "apps/api/src/modules/opd/opd-referral.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/opd/opd-follow-up.repository.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology.repository.ts",
+        "apps/api/src/modules/inpatient-admissions/inpatient-admission.repository.ts",
+        "apps/api/src/modules/opd/opd-referral.repository.ts"
+      ]
+    },
+    {
+      "id": "C04",
+      "collections": [
+        "doctorleaves",
+        "doctoravailabilityexceptions"
+      ],
+      "destination": "doctorscheduleexceptions",
+      "code": "Medium",
+      "migration": "Easy",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 0,
+      "modelFiles": [
+        "apps/api/src/modules/doctors/doctor-scheduling.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/doctors/doctor.repository.ts"
+      ]
+    },
+    {
+      "id": "C05",
+      "collections": [
+        "laboratory_results",
+        "imaging_reports"
+      ],
+      "destination": "clinicalreports",
+      "code": "Medium",
+      "migration": "Easy",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 0,
+      "modelFiles": [
+        "apps/api/src/modules/imaging/imaging-report.model.ts",
+        "apps/api/src/modules/laboratory/laboratory-result.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/imaging/imaging.repository.ts",
+        "apps/api/src/modules/patient-portal/patient-portal.repository.ts",
+        "apps/api/src/modules/laboratory/laboratory.repository.ts"
+      ]
+    },
+    {
+      "id": "C06",
+      "collections": [
+        "opdvitals",
+        "inpatientvitals"
+      ],
+      "destination": "clinicalvitals",
+      "code": "Medium",
+      "migration": "Medium",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 3,
+      "modelFiles": [
+        "apps/api/src/modules/inpatient-admissions/inpatient-clinical-record.model.ts",
+        "apps/api/src/modules/opd/opd-vitals.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/inpatient-admissions/inpatient-admission.repository.ts",
+        "apps/api/src/modules/opd/opd-vitals.repository.ts"
+      ]
+    },
+    {
+      "id": "C07",
+      "collections": [
+        "permissioncategories",
+        "permissiongroups"
+      ],
+      "destination": "permissioncatalogue",
+      "code": "Medium",
+      "migration": "Medium",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 19,
+      "modelFiles": [
+        "apps/api/src/modules/permissions/permission.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/database/seed.ts",
+        "apps/api/src/modules/permissions/permission.repository.ts"
+      ]
+    },
+    {
+      "id": "C08",
+      "collections": [
+        "ophthalmologyconfigurations",
+        "ophthalmologyworkflowprofiles"
+      ],
+      "destination": "ophthalmologysettings",
+      "code": "Medium",
+      "migration": "Medium",
+      "overall": "Medium",
+      "slotsSaved": 1,
+      "estimatedDocuments": 43,
+      "modelFiles": [
+        "apps/api/src/modules/ophthalmology/ophthalmology.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/appointments/appointment.repository.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology.repository.ts"
+      ]
+    },
+    {
+      "id": "C09",
+      "collections": [
+        "ophthalmologyclinicalreviews",
+        "ophthalmologyconsultationfinalizations",
+        "ophthalmologyopticalprescriptions"
+      ],
+      "destination": "ophthalmologyclinicaldocuments",
+      "code": "Difficult",
+      "migration": "Medium",
+      "overall": "Difficult",
+      "slotsSaved": 2,
+      "estimatedDocuments": 1,
+      "modelFiles": [
+        "apps/api/src/modules/ophthalmology/ophthalmology-review.model.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology-consultation.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/ophthalmology/ophthalmology.repository.ts",
+        "apps/api/src/modules/opd/opd-visit.service.ts",
+        "apps/api/src/modules/ophthalmology/ophthalmology-phase10.repository.ts"
+      ]
+    },
+    {
+      "id": "C10",
+      "collections": [
+        "dhamockclaimsubmissions",
+        "dhamockclaimpreviews",
+        "dhamockclaimdischarges",
+        "dhamockclaimadjudications",
+        "dhamockclaimqueries",
+        "dhamockclaimappeals",
+        "dhamockclaimclosures"
+      ],
+      "destination": "dhaclaimrecords",
+      "code": "Difficult",
+      "migration": "Easy",
+      "overall": "Difficult",
+      "slotsSaved": 6,
+      "estimatedDocuments": 0,
+      "modelFiles": [
+        "apps/api/src/modules/insurance/dha/dha-claim-adjudication.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-appeal.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-closure.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-discharge.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-preview.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-query.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-submission.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/insurance/dha/dha-claim-adjudication.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-appeal.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-closure.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-query.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-reporting.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-remittance-advice.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-discharge.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-preview.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-submission.service.ts"
+      ]
+    },
+    {
+      "id": "C11",
+      "collections": [
+        "dhamockremittanceadvices",
+        "dhamockpaymentallocations",
+        "dhamockpaymentreconciliations"
+      ],
+      "destination": "dhafinancialrecords",
+      "code": "Difficult",
+      "migration": "Easy",
+      "overall": "Difficult",
+      "slotsSaved": 2,
+      "estimatedDocuments": 0,
+      "modelFiles": [
+        "apps/api/src/modules/insurance/dha/dha-payment-allocation.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-payment-reconciliation.model.ts",
+        "apps/api/src/modules/insurance/dha/dha-remittance-advice.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/insurance/dha/dha-claim-reporting.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-payment-allocation.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-payment-reconciliation.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-claim-closure.service.ts",
+        "apps/api/src/modules/insurance/dha/dha-remittance-advice.service.ts"
+      ]
+    },
+    {
+      "id": "C12",
+      "collections": [
+        "otpchallenges",
+        "passwordresettokens",
+        "registrationtokens",
+        "refreshtokens"
+      ],
+      "destination": "authtokens",
+      "code": "Difficult",
+      "migration": "Difficult",
+      "overall": "Difficult",
+      "slotsSaved": 3,
+      "estimatedDocuments": 677,
+      "modelFiles": [
+        "apps/api/src/modules/patient-portal/otp-challenge.model.ts",
+        "apps/api/src/modules/auth/auth.model.ts",
+        "apps/api/src/modules/auth/refresh-token.model.ts",
+        "apps/api/src/modules/patient-portal/registration-token.model.ts"
+      ],
+      "directFiles": [
+        "apps/api/src/modules/patient-portal/patient-otp.repository.ts",
+        "apps/api/src/modules/auth/auth.repository.ts",
+        "apps/api/src/modules/patient-portal/patient-portal.repository.ts",
+        "apps/api/src/modules/patients/patient.repository.ts",
+        "apps/api/src/modules/users/user.repository.ts",
+        "apps/api/src/modules/patient-portal/patient-otp.service.ts"
+      ]
+    }
+  ],
+  "register": [
+    {
+      "collection": "administrationdashboardsnapshots",
+      "estimatedDocuments": 1,
+      "assessment": "Candidate",
+      "group": "C01",
+      "difficulty": "Easy"
+    },
+    {
+      "collection": "admissionpolicies",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "admissionrequests",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Requests, recommendations and confirmed bookings have different prerequisites, active-record constraints and conversion paths."
+    },
+    {
+      "collection": "advancepayments",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Invoice, item, payment transaction and deposit requirement are different records. AdvancePayment is a requirement/balance record, not another payment ledger. Embedding invoice items is conceivable but affects claims, portal and reporting; not recommended just for one slot."
+    },
+    {
+      "collection": "appointments",
+      "estimatedDocuments": 5,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "auditlogs",
+      "estimatedDocuments": 1247,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different audiences, payloads and retention. Expiring counters must not impose TTL deletion on durable clinical/audit records."
+    },
+    {
+      "collection": "authratelimits",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different audiences, payloads and retention. Expiring counters must not impose TTL deletion on durable clinical/audit records."
+    },
+    {
+      "collection": "bedassignmenthistories",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Hierarchy, live occupancy, reservations, transfer commands and history have distinct atomicity and audit requirements."
+    },
+    {
+      "collection": "bedholds",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Hierarchy, live occupancy, reservations, transfer commands and history have distinct atomicity and audit requirements."
+    },
+    {
+      "collection": "bedtransfers",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Hierarchy, live occupancy, reservations, transfer commands and history have distinct atomicity and audit requirements."
+    },
+    {
+      "collection": "billing_invoice_items",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Invoice, item, payment transaction and deposit requirement are different records. AdvancePayment is a requirement/balance record, not another payment ledger. Embedding invoice items is conceivable but affects claims, portal and reporting; not recommended just for one slot."
+    },
+    {
+      "collection": "billing_invoices",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Invoice, item, payment transaction and deposit requirement are different records. AdvancePayment is a requirement/balance record, not another payment ledger. Embedding invoice items is conceivable but affects claims, portal and reporting; not recommended just for one slot."
+    },
+    {
+      "collection": "billing_payments",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Invoice, item, payment transaction and deposit requirement are different records. AdvancePayment is a requirement/balance record, not another payment ledger. Embedding invoice items is conceivable but affects claims, portal and reporting; not recommended just for one slot."
+    },
+    {
+      "collection": "branches",
+      "estimatedDocuments": 3,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "consenttemplates",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "departments",
+      "estimatedDocuments": 4,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "dhamockclaimadjudications",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimappeals",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimclosures",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimdischarges",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimpreviews",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimqueries",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockclaimsubmissions",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C10",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockpaymentallocations",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C11",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockpaymentreconciliations",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C11",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "dhamockremittanceadvices",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C11",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "doctoravailabilityexceptions",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C04",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "doctorleaves",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C04",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "doctors",
+      "estimatedDocuments": 5,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "doctorsequences",
+      "estimatedDocuments": 1,
+      "assessment": "Candidate",
+      "group": "C02",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "emergencyencounters",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "guardianprofiles",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "File metadata, clinical linkage, approved publication snapshots, guardian identity and access authorization differ. Existing document/publication lookups enforce visibility."
+    },
+    {
+      "collection": "hmsbeds",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Hierarchy, live occupancy, reservations, transfer commands and history have distinct atomicity and audit requirements."
+    },
+    {
+      "collection": "hmswards",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Hierarchy, live occupancy, reservations, transfer commands and history have distinct atomicity and audit requirements."
+    },
+    {
+      "collection": "imaging_reports",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C05",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "inpatientadmissions",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "inpatientroundnotes",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "inpatientvitals",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C06",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "insuranceauthorizations",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insurancebenefitconfigs",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insuranceclaims",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insuranceeligibilityverifications",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insurancemembers",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insurancepolicies",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "insuranceschemes",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "laboratory_results",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C05",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "medicines",
+      "estimatedDocuments": 6,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "mpesa_callback_events",
+      "estimatedDocuments": 1,
+      "assessment": "Owner review",
+      "group": "—",
+      "difficulty": "Unknown",
+      "reason": "One estimated document and four indexes; no matching model or collection-name reference found in current backend source. Confirm external-service/other-branch ownership. Not classified as unused."
+    },
+    {
+      "collection": "notifications",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different audiences, payloads and retention. Expiring counters must not impose TTL deletion on durable clinical/audit records."
+    },
+    {
+      "collection": "opdclinicalorders",
+      "estimatedDocuments": 2,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Already combines LABORATORY and IMAGING using `orderType`. Keep orders distinct from reports, prescriptions and appointments."
+    },
+    {
+      "collection": "opdconsultations",
+      "estimatedDocuments": 5,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "opdfollowups",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C03",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "opdprescriptions",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "opdreferrals",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C03",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "opdvisits",
+      "estimatedDocuments": 7,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Scheduling, clinical encounters, documentation, prescribing and admission have different lifecycles and downstream references."
+    },
+    {
+      "collection": "opdvitals",
+      "estimatedDocuments": 3,
+      "assessment": "Candidate",
+      "group": "C06",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "ophthalmologyattachments",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "File metadata, clinical linkage, approved publication snapshots, guardian identity and access authorization differ. Existing document/publication lookups enforce visibility."
+    },
+    {
+      "collection": "ophthalmologyclinicalreviews",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C09",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "ophthalmologyconfigurations",
+      "estimatedDocuments": 22,
+      "assessment": "Candidate",
+      "group": "C08",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "ophthalmologyconsultationfinalizations",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C09",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "ophthalmologycontexts",
+      "estimatedDocuments": 5,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "ophthalmologydashboardsnapshots",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C01",
+      "difficulty": "Easy"
+    },
+    {
+      "collection": "ophthalmologyopticalprescriptions",
+      "estimatedDocuments": 1,
+      "assessment": "Candidate",
+      "group": "C09",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "ophthalmologypublications",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "File metadata, clinical linkage, approved publication snapshots, guardian identity and access authorization differ. Existing document/publication lookups enforce visibility."
+    },
+    {
+      "collection": "ophthalmologystations",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "ophthalmologyworkflowprofiles",
+      "estimatedDocuments": 21,
+      "assessment": "Candidate",
+      "group": "C08",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "otpchallenges",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C12",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "passwordresettokens",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C12",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "patientaccessgrants",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "File metadata, clinical linkage, approved publication snapshots, guardian identity and access authorization differ. Existing document/publication lookups enforce visibility."
+    },
+    {
+      "collection": "patientdocuments",
+      "estimatedDocuments": 2,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "File metadata, clinical linkage, approved publication snapshots, guardian identity and access authorization differ. Existing document/publication lookups enforce visibility."
+    },
+    {
+      "collection": "patientnumbersequences",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C02",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "patients",
+      "estimatedDocuments": 6,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "patienttimelineevents",
+      "estimatedDocuments": 34,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different audiences, payloads and retention. Expiring counters must not impose TTL deletion on durable clinical/audit records."
+    },
+    {
+      "collection": "payers",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "permissioncategories",
+      "estimatedDocuments": 3,
+      "assessment": "Candidate",
+      "group": "C07",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "permissiongroups",
+      "estimatedDocuments": 16,
+      "assessment": "Candidate",
+      "group": "C07",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "permissions",
+      "estimatedDocuments": 237,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Preserve permission grants and assignments. C07 covers headings only."
+    },
+    {
+      "collection": "pharmacy_medicine_batches",
+      "estimatedDocuments": 6,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Stock balance, expiry batch, movement history and fulfilment are separate consistency boundaries."
+    },
+    {
+      "collection": "pharmacy_medicine_inventory",
+      "estimatedDocuments": 6,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Stock balance, expiry batch, movement history and fulfilment are separate consistency boundaries."
+    },
+    {
+      "collection": "pharmacy_medicine_stock_movements",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Stock balance, expiry batch, movement history and fulfilment are separate consistency boundaries."
+    },
+    {
+      "collection": "pharmacydispensings",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Stock balance, expiry batch, movement history and fulfilment are separate consistency boundaries."
+    },
+    {
+      "collection": "procedurebookings",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Requests, recommendations and confirmed bookings have different prerequisites, active-record constraints and conversion paths."
+    },
+    {
+      "collection": "procedurerecommendations",
+      "estimatedDocuments": 3,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Requests, recommendations and confirmed bookings have different prerequisites, active-record constraints and conversion paths."
+    },
+    {
+      "collection": "refreshtokens",
+      "estimatedDocuments": 677,
+      "assessment": "Candidate",
+      "group": "C12",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "registrationtokens",
+      "estimatedDocuments": 0,
+      "assessment": "Candidate",
+      "group": "C12",
+      "difficulty": "Difficult"
+    },
+    {
+      "collection": "roles",
+      "estimatedDocuments": 33,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Preserve permission grants and assignments. C07 covers headings only."
+    },
+    {
+      "collection": "sequences",
+      "estimatedDocuments": 4,
+      "assessment": "Candidate",
+      "group": "C02",
+      "difficulty": "Medium"
+    },
+    {
+      "collection": "services",
+      "estimatedDocuments": 18,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    },
+    {
+      "collection": "shaservicemappings",
+      "estimatedDocuments": 0,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Different parent-child, membership, coverage, verification, authorization and claim contracts. Consider DHA groups separately."
+    },
+    {
+      "collection": "systemsettings",
+      "estimatedDocuments": 1,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Distinct prerequisite, consent, system-setting, station, clinical-context and narrative-note contracts. No compelling saving offsets added coupling."
+    },
+    {
+      "collection": "users",
+      "estimatedDocuments": 14,
+      "assessment": "Keep separate",
+      "group": "—",
+      "difficulty": "Difficult",
+      "reason": "Widely referenced identities and directories with distinct uniqueness, ownership and access rules."
+    }
+  ]
+}

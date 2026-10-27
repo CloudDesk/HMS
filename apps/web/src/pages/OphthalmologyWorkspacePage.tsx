@@ -1,5 +1,6 @@
 import { OphthalmologyEmergencyClearance } from '../components/ophthalmology/OphthalmologyEmergencyClearance';
-import { useEffect, useRef } from 'react';
+import { OphthalmologyEscalateModal } from '../components/ophthalmology/OphthalmologyEscalateModal';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,14 +8,57 @@ import { toast } from 'sonner';
 import { useAppLocation } from '../routing/navigation';
 import type { OphthalmologyAlert } from '../api/ophthalmology';
 import { useOphthalmologyWorkspaceFeature, type OphthalmologyWorkspaceFeature } from '../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
-import { OphthalmologyIntakeForm } from '../components/ophthalmology/OphthalmologyIntakeForm';
+import { usePatientDetails } from '../hooks/patients/usePatients';
 import { OphthalmologyIntakeReadOnlyView } from '../components/ophthalmology/OphthalmologyIntakeReadOnlyView';
+import { OphthalmologyIntakeModal } from '../components/ophthalmology/OphthalmologyIntakeModal';
 import { OphthalmologyTestsWorkspace } from '../components/ophthalmology/OphthalmologyTestsWorkspace';
 import '../styles/ophthalmology.css';
+import { executeActiveDraftSave } from '../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { getOpdErrorMessage } from './opd-utils';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
 import { OphthalmologyCompletionWorkspace } from '../components/ophthalmology/OphthalmologyCompletionWorkspace';
 import { OphthalmologyCareWorkspace } from '../components/ophthalmology/OphthalmologyCareWorkspace';
 import { OphthalmologyContextEditor } from '../components/ophthalmology/OphthalmologyContextEditor';
+
+function getPatientAge(dobString?: string | null): string {
+  if (!dobString) return '--';
+  const dob = new Date(dobString);
+  if (Number.isNaN(dob.getTime())) return '--';
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) {
+    age--;
+  }
+  return `${Math.max(0, age)} Y`;
+}
+
+function formatGender(gender?: string | null): string {
+  if (!gender) return '--';
+  if (gender === 'MALE') return 'Male';
+  if (gender === 'FEMALE') return 'Female';
+  if (gender === 'OTHER') return 'Other';
+  return gender;
+}
+
+function formatConsultantName(name?: string | null): string {
+  if (!name) return 'Dr. Consultant';
+  return name.startsWith('Dr.') || name.startsWith('Dr ') ? name : `Dr. ${name}`;
+}
+
+function formatEncounterDateTime(dateStr?: string | null): string {
+  if (!dateStr) return '--';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '--';
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(d);
+}
 
 function ActivateContext({ feature: f }: { feature: OphthalmologyWorkspaceFeature }) {
   const defaultSubtype = f.subtypeSelected ? f.subtype : f.availableSubtypes[0] ?? 'NEW_CONSULTATION';
@@ -99,6 +143,14 @@ function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feat
 
 export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
+  const [escalateModalOpen, setEscalateModalOpen] = useState(false);
+  const [intakeModalOpen, setIntakeModalOpen] = useState(false);
+  const activeAlert = f.emergencyAlerts.find((a) => a.status === 'ACTIVE');
+  const unclearedAlert = f.emergencyAlerts.find(
+    (a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED' || (a.status === 'CLEARED' && !a.clearance?.resumption_permitted),
+  );
+  const isEmergencyActive = Boolean(activeAlert);
+  const isRoutineCareBlocked = Boolean(unclearedAlert);
   const { search } = useAppLocation();
   const params = new URLSearchParams(search);
   const careTab = params.get('care_tab') || 'treatment';
@@ -188,6 +240,42 @@ export function OphthalmologyWorkspacePage() {
     }
   };
 
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  const handleSaveDraft = async () => {
+    if (isSavingDraft || isRoutineCareBlocked) return;
+    setIsSavingDraft(true);
+    try {
+      const executedClinical = await executeActiveDraftSave('current');
+      const executedDiagnosis = await executeActiveDraftSave('diagnosis');
+      const executedExam = await executeActiveDraftSave('preliminary-exam');
+      const executedOptical = await executeActiveDraftSave('optical');
+      if (!executedClinical && !executedDiagnosis && !executedExam && !executedOptical) {
+        toast.info('No editable draft persistence contract for this section.');
+      }
+    } catch (error) {
+      toast.error(getOpdErrorMessage(error));
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const patientDetailsQuery = usePatientDetails(
+    (f.visit as { patient_id?: string | null } | undefined)?.patient_id ?? null,
+    Boolean((f.visit as { patient_id?: string | null } | undefined)?.patient_id),
+  );
+  const patient = patientDetailsQuery.data;
+  const patientAge = getPatientAge(patient?.date_of_birth);
+  const patientGender = formatGender(patient?.gender);
+  const patientBloodGroup = patient?.blood_group || '--';
+  const consultantName = formatConsultantName(f.visit?.doctor_name);
+  const encounterDateTime = formatEncounterDateTime(
+    (f.visit as { check_in_time?: string | null } | undefined)?.check_in_time ||
+    (f.visit as { visit_date?: string | null } | undefined)?.visit_date ||
+    (f.visit as { created_at?: string | null } | undefined)?.created_at
+  );
+  const departmentName = (f.visit as { department_name?: string | null } | undefined)?.department_name || 'Ophthalmology';
+
   const patientInitials = (f.visit.patient_name || 'PT')
     .split(' ')
     .map((n) => n[0])
@@ -197,50 +285,48 @@ export function OphthalmologyWorkspacePage() {
 
   return (
     <div className="opd-page oph-workspace">
-      {/* Enhanced Patient Consultation Header */}
+      {/* Compact Patient Consultation Header — single row at desktop */}
       <section className="oph-revamped-header oph-patient-header opd-page-header">
-        <div className="oph-header-top">
-          <div className="oph-patient-profile">
+        <div className="oph-header-row">
+          {/* Left: avatar + patient details */}
+          <div className="oph-header-left">
             <div className="oph-patient-avatar">{patientInitials}</div>
-            <div className="oph-patient-details">
-              <h2>{f.visit.patient_name}</h2>
-              <div className="oph-patient-meta">
-                <span><strong>MRN:</strong> {f.visit.patient_number}</span>
-                <span>·</span>
-                <span><strong>Visit:</strong> {f.visit.visit_number}</span>
-                <span>·</span>
-                <span className="oph-badge oph-badge-blue">{f.visit.status}</span>
-                <span className={`oph-badge ${f.visit.priority === 'EMERGENCY' ? 'oph-badge-red' : f.visit.priority === 'URGENT' ? 'oph-badge-amber' : 'oph-badge-blue'}`}>
+            <div className="oph-header-identity">
+              <div className="oph-header-name-row">
+                <span className="oph-patient-name">{f.visit.patient_name}</span>
+                <span className="oph-header-id">MRN: {f.visit.patient_number}</span>
+                <span className="oph-header-sep">|</span>
+                <span className="oph-header-id">Visit: {f.visit.visit_number}</span>
+                <span className={`oph-badge oph-badge-blue oph-badge-sm`}>{f.visit.status}</span>
+                <span className={`oph-badge oph-badge-sm ${f.visit.priority === 'EMERGENCY' ? 'oph-badge-red' : f.visit.priority === 'URGENT' ? 'oph-badge-amber' : 'oph-badge-blue'}`}>
                   {f.visit.priority}
                 </span>
-                <span className="oph-badge oph-badge-purple">
-                  Eye: {f.context?.affected_eye ?? 'OU'}
-                </span>
-                <span>·</span>
-                <span>Consultant: Dr. {f.visit.doctor_name}</span>
+                <span className="oph-badge oph-badge-purple oph-badge-sm">Eye: {f.context?.affected_eye ?? 'OU'}</span>
+              </div>
+              <div className="oph-header-meta-row">
+                <span><i className="ph ph-cake" /> {patientAge}</span>
+                <span><i className="ph ph-gender-intersex" /> {patientGender}</span>
+                <span><i className="ph ph-drop" style={{ color: '#dc2626' }} /> {patientBloodGroup}</span>
+                <span><i className="ph ph-stethoscope" /> {consultantName}</span>
+                <span><i className="ph ph-calendar-blank" /> {encounterDateTime}</span>
+                <span><i className="ph ph-buildings" /> {departmentName}</span>
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {f.canEscalate && !f.intakeView?.alerts.some((a) => a.status === 'ACTIVE') && (
+          {/* Right: action buttons */}
+          <div className="oph-header-actions">
+            {f.canEscalate && !isEmergencyActive && (
               <button
                 type="button"
-                className="doc-btn danger"
-                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                className="oph-btn-escalate"
                 disabled={f.busy}
-                onClick={() => {
-                  const reason = window.prompt('Enter emergency escalation reason (e.g., Acute angle-closure, IOP spike, Chemical injury, Retinal detachment):');
-                  if (reason && reason.trim()) {
-                    void f.escalate(reason.trim(), ['CLINICAL_ESCALATION'], 'EMERGENCY');
-                  }
-                }}
+                onClick={() => setEscalateModalOpen(true)}
               >
-                <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
-                Escalate Emergency
+                <i className="ph ph-warning-bold" /> Escalate Emergency
               </button>
             )}
-            <button className="doc-btn" type="button" onClick={f.back}>
-              <i className="ph ph-arrow-left" style={{ marginRight: '4px' }} /> Back to Queue
+            <button className="oph-btn-secondary" type="button" onClick={f.back}>
+              <i className="ph ph-arrow-left" /> Back to Queue
             </button>
           </div>
         </div>
@@ -259,15 +345,48 @@ export function OphthalmologyWorkspacePage() {
         </p>
 
         {/* Real-time Emergency Screening Alert Banner */}
-        {Boolean(f.intakeView?.alerts.some((alert) => alert.status === 'ACTIVE')) && (
-          <p className="oph-allergy-alert oph-banner-alert emergency">
-            <i className="ph ph-warning" style={{ marginRight: '6px' }} />
-            Emergency review required — see active alerts below.
-          </p>
+        {isRoutineCareBlocked && (
+          <div
+            className="oph-emergency-lock-banner oph-banner-alert emergency"
+            role="alert"
+            style={{
+              marginTop: '12px',
+              padding: '12px 16px',
+              background: '#fef2f2',
+              border: '2px solid #ef4444',
+              borderRadius: '8px',
+              color: '#991b1b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="ph ph-warning-octagon-fill" style={{ fontSize: '1.25rem', color: '#dc2626' }} />
+              <div>
+                <strong>Emergency Review Required: {unclearedAlert?.reason || 'Clinical alert in progress'}</strong>
+                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#7f1d1d' }}>
+                  Routine consultation activities, routine testing, and sign-off are blocked under fail-closed safety safeguards until an authorized clinician records emergency clearance permitting routine care resumption.
+                </p>
+              </div>
+            </div>
+            {f.canClearEmergency && unclearedAlert && (
+              <button
+                type="button"
+                className="doc-btn doc-btn-danger"
+                style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c', fontSize: '0.82rem', padding: '5px 12px' }}
+                onClick={() => f.setQuery('clear_alert_id', unclearedAlert.id)}
+              >
+                Clear Emergency
+              </button>
+            )}
+          </div>
         )}
       </section>
 
-      {/* Sequential 4-Tab Navigation Stepper */}
+      {/* Sequential 6-Step Consultation Navigation Stepper */}
       {f.context && (
         <nav className="oph-stepper-nav" aria-label="Ophthalmology consultation areas">
           {steps.map((step) => (
@@ -278,8 +397,9 @@ export function OphthalmologyWorkspacePage() {
               aria-current={currentStep === step.id ? 'page' : undefined}
               onClick={step.action}
             >
-              <span className="oph-step-number">{step.num}</span>
-              <i className={`ph ${step.icon}`} />
+              <span className={`oph-step-number ${currentStep === step.id ? 'active' : ''}`}>
+                {step.num}
+              </span>
               <span className="oph-step-label-text">{step.label}</span>
             </button>
           ))}
@@ -309,7 +429,27 @@ export function OphthalmologyWorkspacePage() {
           <button className="doc-btn" type="button" onClick={() => { void f.visitQuery.refetch(); void f.contextQuery.refetch(); }}>Retry encounter</button>
         </p>
       )}
-      {f.actionError && !f.intakeView && <p className="form-error-banner" role="alert">{f.actionError}</p>}
+      {f.actionError && (
+        <div className="form-error-banner" role="alert" style={{ marginBottom: '14px' }}>
+          <i className="ph ph-warning-circle" style={{ marginRight: '6px' }} />
+          <span>{f.actionError}</span>
+        </div>
+      )}
+
+      {/* Emergency Escalation Modal */}
+      <OphthalmologyEscalateModal
+        open={escalateModalOpen}
+        onClose={() => setEscalateModalOpen(false)}
+        onEscalate={f.escalate}
+        busy={f.busy}
+      />
+
+      {/* Clinical Intake & History Read-only Modal */}
+      <OphthalmologyIntakeModal
+        open={intakeModalOpen}
+        onClose={() => setIntakeModalOpen(false)}
+        feature={f}
+      />
 
       {/* Context Editors & Loaders */}
       {f.context && f.contextEditOpen && <OphthalmologyContextEditor key={`${f.visitId}-${f.context.id}`} feature={f} context={f.context} />}
@@ -324,16 +464,13 @@ export function OphthalmologyWorkspacePage() {
 
       {/* Tab 1: Comprehensive Examination (Primary Consultation Entry Point) */}
       {f.context && !f.contextEditOpen && canViewExamination && (f.section === 'tests' || isExam || currentStep === 'examination') && (
-        <>
-          <OphthalmologyIntakeReadOnlyView feature={f} />
-          <OphthalmologyTestsWorkspace workspace={f} />
-        </>
+        <OphthalmologyTestsWorkspace workspace={f} onOpenIntake={() => setIntakeModalOpen(true)} />
       )}
 
       {/* Tab 2: Diagnosis & Treatment Plan */}
       {f.context && !f.contextEditOpen && canViewDiagnosis && isTreatment && (
         <>
-          <OphthalmologyIntakeReadOnlyView feature={f} />
+          <OphthalmologyIntakeReadOnlyView feature={f} summaryOnly />
           <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
         </>
       )}
@@ -400,16 +537,18 @@ export function OphthalmologyWorkspacePage() {
             <button
               type="button"
               className="doc-btn"
-              onClick={() => {
-                toast.success('Clinical entries draft-saved to EHR.');
-              }}
+              disabled={isRoutineCareBlocked || isSavingDraft}
+              title={isRoutineCareBlocked ? 'Routine draft saving is blocked during an active emergency alert' : undefined}
+              onClick={handleSaveDraft}
             >
-              Save Draft
+              {isSavingDraft ? 'Saving Draft…' : 'Save Draft'}
             </button>
             {canSignEncounter ? (
               <button
                 type="button"
                 className="doc-btn primary"
+                disabled={isRoutineCareBlocked}
+                title={isRoutineCareBlocked ? 'Consultation finalization is blocked until emergency clearance is recorded' : undefined}
                 onClick={handleNextStep}
               >
                 {nextStep ? (
@@ -422,6 +561,8 @@ export function OphthalmologyWorkspacePage() {
               <button
                 type="button"
                 className="doc-btn primary"
+                disabled={isRoutineCareBlocked}
+                title={isRoutineCareBlocked ? 'Routine actions are blocked until emergency clearance is recorded' : undefined}
                 onClick={() => {
                   if (nextStep) {
                     nextStep.action();

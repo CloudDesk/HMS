@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { surgeryApi } from '../../api/surgery';
-import { useAuth } from '../../auth/useAuth';
+import { surgeryApi, type ProcedureRecommendation } from '../../api/surgery';
+import { AuthContext } from '../../auth/auth-context-value';
 import { useCurrentDoctor } from '../../hooks/doctors/useDoctors';
 import { usePatientsList } from '../../hooks/patients/usePatients';
 import { Modal } from '../ui/Modal';
@@ -48,7 +48,7 @@ type NewProcedureRecommendationModalProps = {
   doctors: Array<{ id: string; display_name: string; department_id?: string }>;
   services: Array<{ id: string; name: string; department_id?: string }>;
   initialContext?: InitialProcedureContext | null;
-  onCreateSuccess?: () => void;
+  onCreateSuccess?: (createdRecommendation?: ProcedureRecommendation) => void;
   requireTargetEye?: boolean;
 };
 
@@ -72,7 +72,8 @@ export function NewProcedureRecommendationModal({
   onCreateSuccess,
   requireTargetEye,
 }: NewProcedureRecommendationModalProps) {
-  const { user } = useAuth();
+  const auth = useContext(AuthContext);
+  const user = auth?.user;
   const currentDoctorQuery = useCurrentDoctor(Boolean(user));
   const currentDoctor =
     currentDoctorQuery.data ||
@@ -159,7 +160,7 @@ export function NewProcedureRecommendationModal({
         return;
       }
       setIsSubmitting(true);
-      await surgeryApi.createRecommendation({
+      const created = await surgeryApi.createRecommendation({
         patient_id: values.patient_id,
         branch_id: branchId,
         department_id: values.department_id,
@@ -173,7 +174,7 @@ export function NewProcedureRecommendationModal({
       });
       toast.success('Procedure recommendation created successfully.');
       onClose();
-      onCreateSuccess?.();
+      onCreateSuccess?.(created);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Unable to create procedure recommendation.'

@@ -61,6 +61,7 @@ const opdVisitSchema = new Schema<OpdVisitFields>(
         'WAITING_FOR_VITALS',
         'READY_FOR_CONSULTATION',
         'IN_CONSULTATION',
+        'CLINICALLY_COMPLETED',
         'SKIPPED',
         'COMPLETED',
         'CANCELLED',

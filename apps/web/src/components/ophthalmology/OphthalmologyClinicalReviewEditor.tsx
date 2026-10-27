@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { useFieldArray, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import { clinicalReviewWriteSchema, treatmentActionTypeSchema, treatmentWriteBaseSchema, type ClinicalReview } from '../../api/ophthalmology-care';
 import type { OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
 import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { getEncounterDraft, setEncounterDraft, clearEncounterDraft, registerDraftSaveHandler } from '../../hooks/ophthalmology/encounter-draft-cache';
 import { EditorErrors } from './OphthalmologyConfigurationEditor';
 import { OphthalmologyTreatmentLinks } from './OphthalmologyTreatmentLinks';
 
@@ -48,22 +50,77 @@ function initial(record: ClinicalReview | null): Editor {
   };
 }
 
+export type OpenProcedureModalOptions = {
+  initialReason?: string;
+  targetEye?: 'OD' | 'OS' | 'OU' | '';
+  onCreated?: (created: { id: string }) => void;
+};
+
 export function OphthalmologyClinicalReviewEditor({
   feature: f,
   onOpenProcedureModal,
 }: {
   feature: OphthalmologyCareFeature;
-  onOpenProcedureModal?: (initialReason?: string) => void;
+  onOpenProcedureModal?: (options?: OpenProcedureModalOptions) => void;
 }) {
+  const visitId = f.workspace?.visitId ?? '';
+  const cachedDraft = typeof getEncounterDraft === 'function' ? getEncounterDraft<Editor>(visitId, 'clinical-review') : undefined;
   const [baseline, setBaseline] = useState(f.clinical);
   const [linkRow, setLinkRow] = useState<string | null>(null);
-  const { register, control, handleSubmit, setValue, setError, reset, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({
+  const { register, control, handleSubmit, setValue, setError, reset, getValues, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({
     resolver: zodResolver(editorSchema),
-    defaultValues: initial(baseline),
+    defaultValues: cachedDraft ?? initial(baseline),
   });
   const rows = useFieldArray({ control, name: 'treatment_plans' });
   const watched = useWatch({ control, name: 'treatment_plans' });
+  const watchedSummary = useWatch({ control, name: 'clinical_summary' });
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'care_tab', 'area']);
+
+  const isRoutineBlocked = Boolean(
+    f.workspace?.emergencyAlerts?.some(
+      (a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED' || (a.status === 'CLEARED' && !a.clearance?.resumption_permitted)
+    )
+  );
+
+  useEffect(() => {
+    if (isDirty && typeof setEncounterDraft === 'function') {
+      setEncounterDraft(visitId, 'clinical-review', getValues(), true);
+    }
+  }, [isDirty, getValues, visitId, watched, watchedSummary]);
+
+  useEffect(() => {
+    if (typeof registerDraftSaveHandler !== 'function') return;
+    return registerDraftSaveHandler('current', async () => {
+      let saved = false;
+      await handleSubmit(async (values) => {
+        const treatmentPlans = values.treatment_plans.map((plan) => {
+          if (!plan.diagnosis_laterality || !plan.status || !plan.action_type || !plan.priority) {
+            return {
+              ...plan,
+              action_type: plan.action_type || 'OTHER',
+              priority: plan.priority || 'ROUTINE',
+              status: plan.status || 'PLANNED',
+              diagnosis_laterality: plan.diagnosis_laterality || 'OU',
+            };
+          }
+          return plan;
+        });
+        const body = clinicalReviewWriteSchema.parse({
+          ...values,
+          expected_version: baseline?.version ?? 0,
+          treatment_plans: treatmentPlans,
+        });
+        const result = await f.saveClinical(body);
+        if (result) {
+          if (typeof clearEncounterDraft === 'function') clearEncounterDraft(visitId, 'clinical-review');
+          setBaseline(result);
+          reset(initial(result));
+          saved = true;
+        }
+      })();
+      if (!saved) throw new Error('Treatment review draft could not be saved.');
+    });
+  }, [handleSubmit, f, baseline?.version, reset, visitId]);
 
   const changed = (baseline?.version ?? 0) !== (f.clinical?.version ?? 0) || baseline?.id !== f.clinical?.id;
   const disabled = !f.canSaveClinical || f.busy || isSubmitting || changed;
@@ -91,6 +148,31 @@ export function OphthalmologyClinicalReviewEditor({
     }
   };
 
+  const onInvalid = (fieldErrors: FieldErrors<Editor>) => {
+    const errorMessages: string[] = [];
+    if (fieldErrors.clinical_summary?.message) {
+      errorMessages.push(`Clinical Summary: ${fieldErrors.clinical_summary.message}`);
+    }
+    if (fieldErrors.treatment_plans) {
+      if ('root' in fieldErrors.treatment_plans && fieldErrors.treatment_plans.root?.message) {
+        errorMessages.push(fieldErrors.treatment_plans.root.message);
+      } else if (Array.isArray(fieldErrors.treatment_plans)) {
+        fieldErrors.treatment_plans.forEach((rowErr, idx) => {
+          if (rowErr) {
+            Object.values(rowErr).forEach((fErr) => {
+              if (fErr && typeof fErr === 'object' && 'message' in fErr && typeof fErr.message === 'string') {
+                errorMessages.push(`Plan #${idx + 1}: ${fErr.message}`);
+              }
+            });
+          }
+        });
+      }
+    }
+    const message = errorMessages.length > 0 ? errorMessages.join(' · ') : 'Please check required fields in treatment plan.';
+    setError('root', { message });
+    toast.error(message);
+  };
+
   return (
     <form
       className="doc-card oph-treatment-card-wrapper"
@@ -105,14 +187,20 @@ export function OphthalmologyClinicalReviewEditor({
             )
           );
           if (blocked) {
-            setError('root', {
-              message: 'Planned or active treatment cannot use a ruled-out diagnosis. Update the action status or select a current diagnosis.',
-            });
+            const msg = 'Planned or active treatment cannot use a ruled-out diagnosis. Update the action status or select a current diagnosis.';
+            setError('root', { message: msg });
+            toast.error(msg);
             return;
           }
           const treatmentPlans = values.treatment_plans.map(({ legacy_category, ...plan }) => {
             void legacy_category;
-            return plan;
+            return {
+              ...plan,
+              action_type: plan.action_type || 'OTHER',
+              priority: plan.priority || 'ROUTINE',
+              status: plan.status || 'PLANNED',
+              diagnosis_laterality: plan.diagnosis_laterality || 'OU',
+            };
           });
           const body = clinicalReviewWriteSchema.parse({
             ...values,
@@ -121,21 +209,27 @@ export function OphthalmologyClinicalReviewEditor({
           });
           const saved = await f.saveClinical(body);
           if (saved) {
+            if (typeof clearEncounterDraft === 'function') clearEncounterDraft(visitId, 'clinical-review');
             setBaseline(saved);
             reset(initial(saved));
+            toast.success('Clinical review and treatment plan saved.');
+          } else {
+            const errorMsg = f.error || 'Failed to save clinical review. Please check entries.';
+            setError('root', { message: errorMsg });
+            toast.error(errorMsg);
           }
         } catch (error) {
-          setError('root', {
-            message: error instanceof z.ZodError
-              ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ')
-              : 'Check the treatment entries.',
-          });
+          const msg = error instanceof z.ZodError
+            ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ')
+            : (error instanceof Error ? error.message : 'Check the treatment entries.');
+          setError('root', { message: msg });
+          toast.error(msg);
         }
-      })}
+      }, onInvalid)}
     >
             <div className="oph-diag-header">
         <div className="oph-diag-title-group">
-          <div className="oph-diag-icon-badge treatment">
+          <div className="oph-diag-icon-badge treatment" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -150,18 +244,14 @@ export function OphthalmologyClinicalReviewEditor({
               Ophthalmic Treatment &amp; Management Plan
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              Coordinate procedures, medications, optical correction, investigations, and referrals linked to diagnosed conditions.
-            </p>
-            <p>
-              {baseline?.status ?? 'Not saved'} · Version {baseline?.version ?? 0}.
-              Saving a draft does not approve or complete this consultation.
+              Define clinical management strategy, interventions, medications, follow-up intervals, and patient education
             </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span className="oph-status-badge version">
-            Review v{baseline?.version ?? 0}
+            Draft v{baseline?.version ?? 0}
           </span>
 
           <button
@@ -181,7 +271,8 @@ export function OphthalmologyClinicalReviewEditor({
           {f.workspace?.canEscalate && (
             <button
               type="button"
-              className="doc-btn doc-btn-danger"
+              className="doc-btn"
+              style={{ background: '#ffffff', color: '#dc2626', borderColor: '#fecaca', fontWeight: 600 }}
               disabled={f.busy}
               onClick={async () => {
                 const reason = window.prompt(
@@ -197,7 +288,7 @@ export function OphthalmologyClinicalReviewEditor({
                 }
               }}
             >
-              <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
+              <i className="ph ph-warning-bold" style={{ marginRight: '4px', color: '#dc2626' }} />
               Escalate Emergency
             </button>
           )}
@@ -232,9 +323,14 @@ export function OphthalmologyClinicalReviewEditor({
         {/* Clinical Summary Narrative */}
         <div style={{ marginTop: '0.75rem', marginBottom: '1.25rem' }}>
           <label className="doc-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155' }}>
-              Clinical Summary &amp; Treatment Rationale <span className="oph-required">*</span>
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155' }}>
+                Clinical Summary &amp; Treatment Rationale <span className="oph-required">*</span>
+              </span>
+              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                {(watchedSummary?.length || 0)} / 2000
+              </span>
+            </div>
             <textarea
               maxLength={10000}
               {...register('clinical_summary')}
@@ -474,10 +570,21 @@ export function OphthalmologyClinicalReviewEditor({
                             type="button"
                             className="doc-btn primary"
                             style={{ fontSize: '0.8rem', padding: '6px 14px', background: '#4f46e5', borderColor: '#4338ca' }}
+                            disabled={isRoutineBlocked}
+                            title={isRoutineBlocked ? 'Procedure recommendations blocked during active emergency alert' : undefined}
                             onClick={() => {
                               const reason = currentPlan?.treatment ||
                                 `${currentPlan?.diagnosis_code || 'Ophthalmic'} procedure (${currentPlan?.diagnosis_laterality || 'OU'})`;
-                              onOpenProcedureModal?.(reason);
+                              const targetEye = (currentPlan?.diagnosis_laterality && ['OD', 'OS'].includes(currentPlan.diagnosis_laterality))
+                                ? (currentPlan.diagnosis_laterality as 'OD' | 'OS')
+                                : '';
+                              onOpenProcedureModal?.({
+                                initialReason: reason,
+                                targetEye,
+                                onCreated: (created) => {
+                                  setValue(`treatment_plans.${index}.procedure_recommendation_id`, created.id, { shouldDirty: true, shouldValidate: true });
+                                },
+                              });
                             }}
                           >
                             + Recommend Procedure / Surgery Now
@@ -599,6 +706,21 @@ export function OphthalmologyClinicalReviewEditor({
                           values={currentPlan ?? row}
                           onSelect={(key, value) => setValue(`treatment_plans.${index}.${key}`, value, { shouldDirty: true, shouldValidate: true })}
                           onOrders={(values) => setValue(`treatment_plans.${index}.clinical_order_ids`, values, { shouldDirty: true, shouldValidate: true })}
+                          onCreateProcedure={() => {
+                            const reason = currentPlan?.treatment ||
+                              `${currentPlan?.diagnosis_code || 'Ophthalmic'} procedure (${currentPlan?.diagnosis_laterality || 'OU'})`;
+                            const targetEye = (currentPlan?.diagnosis_laterality && ['OD', 'OS'].includes(currentPlan.diagnosis_laterality))
+                              ? (currentPlan.diagnosis_laterality as 'OD' | 'OS')
+                              : '';
+                            onOpenProcedureModal?.({
+                              initialReason: reason,
+                              targetEye,
+                              onCreated: (created) => {
+                                setValue(`treatment_plans.${index}.procedure_recommendation_id`, created.id, { shouldDirty: true, shouldValidate: true });
+                              },
+                            });
+                          }}
+                          isRoutineBlocked={isRoutineBlocked}
                         />
                       </div>
                     )}
@@ -648,7 +770,7 @@ export function OphthalmologyClinicalReviewEditor({
           <label className="doc-field">
             <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Follow-up Review Schedule</span>
             <select {...register('follow_up_decision', { setValueAs: (value: string) => value || null })}>
-              <option value="">-- No follow-up recorded --</option>
+              <option value="">Select interval...</option>
               <option value="FOLLOW_UP_RECORDED">Follow-up recorded in shared encounter</option>
               <option value="NO_FOLLOW_UP">No follow-up required / routine review</option>
             </select>

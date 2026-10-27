@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../../auth/useAuth';
 import { hasPermission } from '../../auth/access-control';
 import { navigate, useAppLocation } from '../../routing/navigation';
-import type { OphthalmologyContext } from '../../api/ophthalmology';
+import type { OphthalmologyAlert, OphthalmologyContext } from '../../api/ophthalmology';
 import type { DeferralWrite, OverrideWrite, CompletionCode, Finalization, CompleteWrite, ReopenWrite } from '../../api/ophthalmology-completion';
 import type { OpdVisitResponse } from '../../api/opd';
 import { useDoctorsList } from '../doctors/useDoctors';
@@ -16,6 +16,7 @@ export type CompletionWorkspace = {
   visitId: string; visit?: Pick<OpdVisitResponse, 'patient_id' | 'branch_id' | 'department_id' | 'status'>;
   context?: Pick<OphthalmologyContext, 'id' | 'version' | 'configuration_version_id' | 'workflow_status'>;
   canView: boolean; scopeError: boolean; visitQuery: { isError: boolean }; contextQuery: { isError: boolean; refetch: () => Promise<unknown> };
+  emergencyAlerts?: OphthalmologyAlert[];
 };
 export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace) {
   const { user } = useAuth(); const { search } = useAppLocation(); const params = new URLSearchParams(search);
@@ -38,6 +39,7 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
   const canComplete = can('Ophthalmology Consultation', 'Complete');
   const canReopen = can('Ophthalmology Consultation', 'Reopen');
   const canAmend = can('Ophthalmology Consultation', 'Amend');
+  const canCloseVisit = permitted('OPD', 'OPD Visits', 'Edit');
   const action = canOverride && (params.get('completion_action') === 'defer' || params.get('completion_action') === 'override') ? params.get('completion_action') : null;
   const deferring = active && action === 'defer';
   const page = (key: string) => { const n = Number(params.get(key) ?? 1); return Number.isSafeInteger(n) && n > 0 ? n : 1; };
@@ -78,7 +80,7 @@ export function useOphthalmologyCompletionFeature(workspace: CompletionWorkspace
     canView, active, readinessQuery, historyQuery, history, readiness, scopeError, staleContext, writable, deferralLookupsUnavailable, canOverride, action, page, unmet,
     finalizationVersion: active && !scopeError && (historyQuery.data === null || history) ? history?.version ?? 0 : undefined,
     tasksQuery, tasks, labQuery, imagingQuery, orders, doctorsQuery, doctors, canReadTasks: can('Ophthalmology Test Queue'), canReadOrders: can('OPD Clinical Orders'), canReadDoctors: permitted('Doctors', 'Doctor Directory'),
-    canComplete, canReopen, canAmend, summaryQuery,
+    canComplete, canReopen, canAmend, canCloseVisit, summaryQuery,
     busy: mutations.defer.isPending || mutations.override.isPending || finalizationMutations.complete.isPending || finalizationMutations.reopen.isPending, error: failure?.scope === lifecycle ? failure.message : null, setQuery, linkFor,
     refresh: async () => { if (active) { await workspace.contextQuery.refetch(); if (canQuery && !scopeError) await Promise.all([readinessQuery.refetch(), historyQuery.refetch(), summaryQuery.refetch()]); } },
     openRequirement: (code: CompletionCode) => { const link = linkFor(code); if (!link) return; setQuery({ area: null, completion_action: null, section: link.section ?? null, care_tab: link.care_tab ?? null }); },

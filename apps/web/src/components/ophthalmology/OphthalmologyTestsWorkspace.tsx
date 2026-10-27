@@ -126,7 +126,7 @@ function CoreResultEditor({ f, workspace, task: latestTask, result: latestResult
     {result && <section className="doc-card"><h3>Clinical-version history</h3><p>Current version {result.current_clinical_version} · {result.current.source_type} · {result.current.status}</p><p>Attachments: {result.current.document_ids.length}; prior versions: {result.history.length}</p>{result.history.map((version) => <p key={version.clinical_version}>Version {version.clinical_version} · {version.status} · {new Date(version.performed_at).toLocaleString()} · performer {version.performer_user_id} · {version.amendment_reason ?? 'Original result'}</p>)}</section>}
   </form>;
 }
-export function OphthalmologyTestsWorkspace({ workspace }: { workspace: OphthalmologyResultWorkspace }) {
+export function OphthalmologyTestsWorkspace({ workspace, onOpenIntake }: { workspace: OphthalmologyResultWorkspace; onOpenIntake?: () => void }) {
   const f = useOphthalmologyResultFeature(workspace);
   const { search } = useAppLocation();
   const profileId = f.result?.current.form_profile_version_id ?? new URLSearchParams(search).get('form_profile_id') ?? '';
@@ -135,7 +135,7 @@ export function OphthalmologyTestsWorkspace({ workspace }: { workspace: Ophthalm
   if (!f.canView) return <p role="alert">Ophthalmology Test Queue View permission is required.</p>;
   if (f.scopeError) return <p role="alert">The selected task/result does not belong to this encounter. Reopen the task.</p>;
   return <section>
-    {!f.taskId && <OphthalmologyExaminationDashboard feature={f} workspace={workspace} />}
+    {!f.taskId && <OphthalmologyExaminationDashboard feature={f} workspace={workspace} onOpenIntake={onOpenIntake} />}
     {f.taskId && (
       <div className="oph-toolbar" style={{ marginTop: '20px' }}>
         <h3>Clinical Task Result Editor</h3>

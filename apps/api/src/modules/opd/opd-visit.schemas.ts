@@ -3,6 +3,7 @@ const opdVisitStatusEnum = [
   'WAITING_FOR_VITALS',
   'READY_FOR_CONSULTATION',
   'IN_CONSULTATION',
+  'CLINICALLY_COMPLETED',
   'SKIPPED',
   'COMPLETED',
   'CANCELLED',
@@ -72,6 +73,15 @@ export const updateOpdVisitStatusBodySchema = {
     status: { type: 'string', enum: opdVisitStatusEnum },
     expected_status: { type: 'string', enum: opdVisitStatusEnum },
     expected_version: { type: 'integer', minimum: 0 },
+    notes: { type: ['string', 'null'] },
+  },
+} as const;
+
+export const closeOpdJourneyBodySchema = {
+  type: 'object',
+  nullable: true,
+  additionalProperties: false,
+  properties: {
     notes: { type: ['string', 'null'] },
   },
 } as const;

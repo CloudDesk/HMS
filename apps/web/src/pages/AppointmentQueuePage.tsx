@@ -321,7 +321,7 @@ export function AppointmentQueuePage() {
                     const linkedVisit = visitForAppointment(appointment.id);
                     const isCheckInAvailable = canCheckIn && !linkedVisit && (appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED');
                     const isOphthalmologyWaiting = Boolean(linkedVisit && isOphthalmologyVisit(linkedVisit) && (linkedVisit.status === 'CHECKED_IN' || linkedVisit.status === 'WAITING_FOR_VITALS'));
-                    const isTakeVitalsAvailable = !isOphthalmologyWaiting && canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
+                    const isTakeVitalsAvailable = canCreateVitals && canEditVisit && (linkedVisit?.status === 'CHECKED_IN' || linkedVisit?.status === 'WAITING_FOR_VITALS');
                     const isStartConsultationAvailable = canViewConsultation && canEditVisit && (linkedVisit?.status === 'READY_FOR_CONSULTATION' || linkedVisit?.status === 'SKIPPED');
                     const isInConsultationAvailable = canViewConsultation && linkedVisit?.status === 'IN_CONSULTATION';
                     const globalIndex = (page - 1) * pageSize + index;

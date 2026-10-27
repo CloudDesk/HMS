@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { Controller, useForm, useWatch, type FieldErrors } from 'react-hook-form';
+import { toast } from 'sonner';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { opticalPowerSchema, opticalWriteSchema, type OpticalPrescription } from '../../api/ophthalmology-care';
 import type { OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
 import type { CareWorkspace } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
 import { useOphthalmologyDraftGuard } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { getEncounterDraft, setEncounterDraft, clearEncounterDraft, registerDraftSaveHandler } from '../../hooks/ophthalmology/encounter-draft-cache';
 import { EditorErrors, inputInstant, localDateTime } from './OphthalmologyConfigurationEditor';
 
 const blankPower = opticalPowerSchema.extend({ sphere: z.number().nullable() });
@@ -52,44 +54,154 @@ function initial(record: OpticalPrescription | null): Partial<Editor> {
 const optionalNumber = (value: string) => value === '' ? null : Number(value);
 
 const prescriptionTypes = [
-  { id: 'DISTANCE', label: 'Distance', desc: 'General & driving vision' },
-  { id: 'NEAR', label: 'Near / Reading', desc: 'Close-up reading work' },
-  { id: 'BIFOCAL', label: 'Bifocal', desc: 'Distance + reading segment' },
-  { id: 'PROGRESSIVE', label: 'Progressive (PAL)', desc: 'Smooth multifocal corridor' },
-  { id: 'OCCUPATIONAL', label: 'Occupational', desc: 'Computer & intermediate desk' },
+  {
+    id: 'DISTANCE',
+    label: 'Distance',
+    desc: 'General distance vision',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'NEAR',
+    label: 'Near / Reading',
+    desc: 'Reading and near work',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'BIFOCAL',
+    label: 'Bifocal',
+    desc: 'Distance and near (two powers)',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="6" cy="12" r="4" />
+        <circle cx="18" cy="12" r="4" />
+        <line x1="10" y1="12" x2="14" y2="12" />
+        <path d="M2 12c1.5-2 3-3 4-3" />
+        <path d="M22 12c-1.5-2-3-3-4-3" />
+      </svg>
+    ),
+  },
+  {
+    id: 'PROGRESSIVE',
+    label: 'Progressive (PAL)',
+    desc: 'Continuous range of vision',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.178-8-12.356-8-5.096 0-5.096 8 0 8 5.178 0 7.261-8 12.356-8z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'OCCUPATIONAL',
+    label: 'Occupational',
+    desc: 'Work specific usage',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+        <line x1="8" y1="21" x2="16" y2="21" />
+        <line x1="12" y1="17" x2="12" y2="21" />
+      </svg>
+    ),
+  },
 ] as const;
 
 export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature: OphthalmologyCareFeature; workspace: CareWorkspace }) {
+  const visitId = workspace?.visitId ?? '';
+  const cachedDraft = typeof getEncounterDraft === 'function' ? getEncounterDraft<Editor>(visitId, 'optical') : undefined;
   const [baseline, setBaseline] = useState(f.optical);
   const [showSlip, setShowSlip] = useState(false);
-  const { register, control, handleSubmit, setValue, setError, reset, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({
+  const { register, control, handleSubmit, setValue, setError, reset, getValues, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({
     resolver: zodResolver(editorSchema),
-    defaultValues: initial(baseline),
+    defaultValues: cachedDraft ?? initial(baseline),
   });
   const values = useWatch({ control });
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'care_tab', 'area']);
+
+  useEffect(() => {
+    if (isDirty && typeof setEncounterDraft === 'function') {
+      setEncounterDraft(visitId, 'optical', getValues(), true);
+    }
+  }, [isDirty, getValues, visitId, values]);
+
+  const onInvalid = (fieldErrors: FieldErrors<Editor>) => {
+    const messages: string[] = [];
+    if (fieldErrors.power) messages.push('Enter at least one prescribed eye with a valid sphere power.');
+    if (fieldErrors.pupillary_distance) messages.push('Enter valid pupillary distance (PD).');
+    if (fieldErrors.lens_type) messages.push('Select or enter Lens Type.');
+    if (fieldErrors.material) messages.push('Select or enter Material.');
+    if (fieldErrors.usage_instructions) messages.push('Usage Instructions are required.');
+    if (fieldErrors.valid_until) messages.push('Prescription Validity date is required.');
+    if (fieldErrors.root?.message) messages.push(fieldErrors.root.message);
+
+    const displayMsg = messages.length > 0
+      ? messages.join(' ')
+      : 'Please complete all required fields (Power, PD, Lens Type, Material, Usage Instructions, Validity) to save draft.';
+    toast.error(`Incomplete Prescription: ${displayMsg}`);
+  };
+
+  useEffect(() => {
+    if (typeof registerDraftSaveHandler !== 'function') return;
+    const saveFn = async () => {
+      let saved = false;
+      await handleSubmit(async (formValues) => {
+        const cleanPower = {
+          OD: formValues.power?.OD?.sphere != null ? formValues.power.OD : null,
+          OS: formValues.power?.OS?.sphere != null ? formValues.power.OS : null,
+        };
+        const body = opticalWriteSchema.parse({
+          ...formValues,
+          power: cleanPower,
+          coating_codes: (formValues.coating_codes ?? []).map((code) => code.trim()).filter(Boolean),
+          expected_version: baseline?.version ?? 0,
+        });
+        const result = await f.saveOptical(body);
+        if (result) {
+          if (typeof clearEncounterDraft === 'function') clearEncounterDraft(visitId, 'optical');
+          apply(result);
+          saved = true;
+          toast.success('Optical prescription draft saved.');
+        }
+      }, onInvalid)();
+      if (!saved) throw new Error('Optical prescription draft could not be saved.');
+    };
+    const unregisterOptical = registerDraftSaveHandler('optical', saveFn);
+    const unregisterCurrent = registerDraftSaveHandler('current', saveFn);
+    return () => {
+      unregisterOptical();
+      unregisterCurrent();
+    };
+  }, [handleSubmit, f, reset, visitId, baseline?.version]);
 
   const changed = baseline?.id !== f.optical?.id || (baseline?.version ?? 0) !== (f.optical?.version ?? 0);
   const disabled = !f.canSaveOptical || f.busy || isSubmitting || changed;
 
   const apply = (saved: OpticalPrescription) => {
+    if (typeof clearEncounterDraft === 'function') clearEncounterDraft(visitId, 'optical');
     setBaseline(saved);
     reset(initial(saved));
   };
 
-  const field = (name: 'lens_type' | 'material', label: string, options: string[] | null) => (
-    <label className="doc-field">
-      <span>{label} <span className="oph-required">*</span></span>
+  const field = (name: 'lens_type' | 'material', label: string, placeholder: string, options: string[] | null) => (
+    <label className="oph-input-field">
+      <span className="oph-input-label">{label} <span className="oph-required">*</span></span>
       {options ? (
-        <select {...register(name)}>
-          <option value="">Select configured value</option>
+        <select className="oph-text-input" {...register(name)}>
+          <option value="">{placeholder}</option>
           {values[name] && !options.includes(values[name]) && (
             <option value={values[name]}>Saved {values[name]} (not currently configured)</option>
           )}
           {options.map((value) => <option key={value} value={value}>{value}</option>)}
         </select>
       ) : (
-        <input maxLength={80} placeholder={`Enter ${label.toLowerCase()}`} {...register(name)} />
+        <input className="oph-text-input" maxLength={80} placeholder={placeholder} {...register(name)} />
       )}
     </label>
   );
@@ -98,8 +210,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
 
   return (
     <form
-      className="doc-card"
-      style={{ padding: '24px' }}
+      className="oph-optical-form-container"
       onSubmit={handleSubmit(async (formValues) => {
         try {
           const cleanPower = {
@@ -113,42 +224,53 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
             expected_version: baseline?.version ?? 0,
           });
           const saved = await f.saveOptical(body);
-          if (saved) apply(saved);
+          if (saved) {
+            apply(saved);
+            toast.success('Optical prescription draft saved.');
+          }
         } catch (error) {
-          setError('root', {
-            message: error instanceof z.ZodError
-              ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ')
-              : error instanceof Error ? error.message : 'Check the optical prescription.',
-          });
+          const msg = error instanceof z.ZodError
+            ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ')
+            : error instanceof Error ? error.message : 'Check the optical prescription.';
+          setError('root', { message: msg });
+          toast.error(msg);
         }
-      })}
+      }, onInvalid)}
     >
-      {/* Top Professional Header Bar */}
-      <div className="oph-optical-header">
+      {/* 1. Header Card with Title, Status Badges & Latest Prescription Action */}
+      <div className="oph-optical-top-header">
         <div className="oph-optical-header-left">
-          <div className="oph-optical-title">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="6" cy="15" r="4"></circle>
-              <circle cx="18" cy="15" r="4"></circle>
-              <line x1="10" y1="15" x2="14" y2="15"></line>
-              <path d="M14 15a2 2 0 0 0-2-2 2 2 0 0 0-2 2"></path>
-              <path d="M2.5 13L5 7c.7-1.3 1.9-2 3.5-2h7c1.6 0 2.8.7 3.5 2l2.5 6"></path>
-            </svg>
-            <span>Optical & Spectacle Prescription</span>
+          <div className="oph-optical-title-group">
+            <div className="oph-optical-icon-box">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6" cy="15" r="4" />
+                <circle cx="18" cy="15" r="4" />
+                <line x1="10" y1="15" x2="14" y2="15" />
+                <path d="M14 15a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+                <path d="M2.5 13L5 7c.7-1.3 1.9-2 3.5-2h7c1.6 0 2.8.7 3.5 2l2.5 6" />
+              </svg>
+            </div>
+            <h2 className="oph-optical-title">Optical & Spectacle Prescription</h2>
           </div>
-          <span className={`oph-intake-status-pill ${status === 'APPROVED' ? 'completed' : status === 'DRAFT' ? 'draft' : 'not-saved'}`}>
-            {status === 'APPROVED' ? '✓ Approved & Locked' : status === 'DRAFT' ? 'Draft Prescription' : 'Not Saved'}
-          </span>
-          <span className={isDirty ? 'oph-intake-dirty-pill' : 'oph-intake-clean-pill'}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isDirty ? '#f97316' : '#10b981' }}></span>
-            {isDirty ? 'Unsaved changes' : 'Synchronized'}
-            {baseline ? ` · v${baseline.version}` : ''}
-          </span>
+          <div className="oph-optical-badge-group">
+            <span className={`oph-status-badge ${status === 'APPROVED' ? 'approved' : status === 'DRAFT' ? 'draft' : 'not-saved'}`}>
+              {status === 'APPROVED' ? '✓ Approved & Locked' : status === 'DRAFT' ? 'Draft Prescription' : 'Not Saved'}
+            </span>
+            {isDirty ? (
+              <span className="oph-badge-unsaved">
+                <span className="oph-badge-dot">⚠️</span> Unsaved Changes
+              </span>
+            ) : (
+              <span className="oph-badge-clean">
+                <span className="oph-badge-dot-clean"></span> Synchronized{baseline ? ` · v${baseline.version}` : ''}
+              </span>
+            )}
+          </div>
         </div>
         <div className="oph-optical-header-right">
           <button
             type="button"
-            className="doc-btn"
+            className="oph-btn-outline"
             disabled={f.busy || f.opticalQuery.isError}
             onClick={() => {
               if (!isDirty || window.confirm('Discard entered values and load the latest saved optical prescription?')) {
@@ -157,12 +279,16 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
               }
             }}
           >
-            Load latest saved prescription
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Load Latest Saved Prescription</span>
           </button>
           {baseline && (
             <button
               type="button"
-              className="doc-btn"
+              className="oph-btn-outline"
               onClick={() => setShowSlip((prev) => !prev)}
             >
               {showSlip ? 'Hide Spectacle Slip' : 'Preview & Print Spectacle Slip'}
@@ -178,13 +304,20 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
       )}
 
       {/* Clinical Profile Binding Banner */}
-      <div className="oph-profile-banner">
-        <div>
+      <div className="oph-profile-callout">
+        <div className="oph-profile-callout-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+        </div>
+        <div className="oph-profile-callout-text">
           <strong>Bound Clinical Profile:</strong> {f.configuration?.name ?? 'Default Ophthalmology Completion Profile'}
-          <span style={{ marginLeft: '10px', color: '#64748b' }}>· Refraction findings are not an approved prescription until authorized.</span>
+          <span className="oph-profile-subtext">· Refraction findings are not an approved prescription until authorized.</span>
         </div>
         {f.configurationQuery.isError && (
-          <button type="button" className="doc-btn" onClick={() => void f.configurationQuery.refetch()}>
+          <button type="button" className="oph-btn-outline" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => void f.configurationQuery.refetch()}>
             Retry bound profile
           </button>
         )}
@@ -192,38 +325,33 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
 
       <EditorErrors errors={errors} />
 
-      <fieldset className="oph-fieldset" disabled={disabled}>
-        {/* 1. Prescription Type Selection */}
-        <div className="oph-power-card">
-          <div className="oph-section-header">
-            <div className="oph-section-header-left">
-              <span className="oph-section-number">1</span>
-              <div className="oph-section-title-wrap">
-                <h3>Prescription Classification <span className="oph-required">*</span></h3>
-                <p className="oph-section-subtitle">Select intended optical focal range and usage purpose.</p>
-              </div>
-            </div>
-            {values.prescription_type && (
-              <span className="oph-badge oph-badge-blue">
-                {values.prescription_type}
-              </span>
-            )}
+      <fieldset className="oph-optical-fieldset" disabled={disabled}>
+        {/* Card 1: 1. Prescription Classification */}
+        <div className="oph-card">
+          <div className="oph-card-header">
+            <h3 className="oph-card-title">
+              1. Prescription Classification <span className="oph-required">*</span>
+            </h3>
+            <p className="oph-card-subtitle">Select intended optical focal range and usage purpose.</p>
           </div>
 
-          <div className="oph-type-selector">
-            {prescriptionTypes.map((type) => (
-              <button
-                key={type.id}
-                type="button"
-                className={`oph-type-btn ${values.prescription_type === type.id ? 'active' : ''}`}
-                onClick={() => setValue('prescription_type', type.id, { shouldDirty: true })}
-              >
-                <span>{values.prescription_type === type.id ? '✓' : '•'}</span>
-                <span>{type.label}</span>
-              </button>
-            ))}
+          <div className="oph-class-grid">
+            {prescriptionTypes.map((type) => {
+              const isSelected = values.prescription_type === type.id;
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  className={`oph-class-card ${isSelected ? 'selected' : ''}`}
+                  onClick={() => setValue('prescription_type', type.id, { shouldDirty: true })}
+                >
+                  <div className="oph-class-icon">{type.icon}</div>
+                  <div className="oph-class-label">{type.label}</div>
+                  <div className="oph-class-desc">{type.desc}</div>
+                </button>
+              );
+            })}
           </div>
-          {/* Synchronized select for full accessibility and validation */}
           <select {...register('prescription_type')} style={{ display: 'none' }}>
             <option value="">Select type</option>
             {opticalWriteSchema.shape.prescription_type.options.map((t) => (
@@ -232,26 +360,23 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </select>
         </div>
 
-        {/* 2. Unified Optical Refraction Power Matrix (OD vs OS) */}
-        <div className="oph-power-card">
-          <div className="oph-section-header">
-            <div className="oph-section-header-left">
-              <span className="oph-section-number">2</span>
-              <div className="oph-section-title-wrap">
-                <h3>Refraction Power Matrix (Rx) <span className="oph-required">*</span></h3>
-                <p className="oph-section-subtitle">Ophthalmic corrective power parameters for Right Eye (OD) and Left Eye (OS).</p>
-              </div>
-            </div>
+        {/* Card 2: 2. Refraction Power Matrix (Rx) */}
+        <div className="oph-card">
+          <div className="oph-card-header">
+            <h3 className="oph-card-title">
+              2. Refraction Power Matrix (Rx) <span className="oph-required">*</span>
+            </h3>
+            <p className="oph-card-subtitle">Ophthalmic corrective power parameters for Right Eye (OD) and Left Eye (OS).</p>
           </div>
 
-          <div className="oph-power-table-wrapper">
-            <table className="oph-power-table">
+          <div className="oph-rx-table-container">
+            <table className="oph-rx-table">
               <thead>
                 <tr>
-                  <th style={{ width: '105px' }}>Eye Laterality</th>
-                  <th style={{ width: '85px', textAlign: 'center' }}>Prescribe</th>
-                  <th>Sphere (SPH) *</th>
-                  <th>Cylinder (CYL)</th>
+                  <th style={{ width: '130px' }}>Eye</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>Prescription</th>
+                  <th>Sphere (S) *</th>
+                  <th>Cylinder (C)</th>
                   <th>Axis (°)</th>
                   <th>Near Add (ADD)</th>
                   <th>Prism</th>
@@ -267,14 +392,14 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                   const isMultifocal = ['BIFOCAL', 'PROGRESSIVE'].includes(values.prescription_type ?? '');
 
                   return (
-                    <tr key={eye} className={!isPrescribed ? 'disabled-row' : ''}>
+                    <tr key={eye} className={!isPrescribed ? 'row-disabled' : ''}>
                       <td>
-                        <span className={`oph-badge ${isOD ? 'oph-badge-blue' : 'oph-badge-green'}`} style={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                          {isOD ? 'OD (Right Eye)' : 'OS (Left Eye)'}
+                        <span className={`oph-eye-pill ${isOD ? 'od' : 'os'}`}>
+                          {isOD ? 'OD Right Eye' : 'OS Left Eye'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', margin: 0, fontWeight: 600, fontSize: '0.82rem', color: isPrescribed ? '#2563eb' : '#64748b' }}>
+                        <label className="oph-checkbox-label">
                           <input
                             type="checkbox"
                             checked={isPrescribed}
@@ -287,7 +412,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                               }
                             }}
                           />
-                          <span>{isPrescribed ? 'Active' : 'Not Prescribed'}</span>
+                          <span>Active</span>
                         </label>
                       </td>
                       <td>
@@ -297,8 +422,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           min="-40"
                           max="40"
                           disabled={!isPrescribed}
-                          placeholder="e.g. -1.50"
-                          className="oph-power-input"
+                          placeholder="e.g. -2.50"
+                          className="oph-rx-input"
                           {...register(`power.${eye}.sphere`, { setValueAs: optionalNumber })}
                         />
                       </td>
@@ -309,8 +434,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           min="-20"
                           max="20"
                           disabled={!isPrescribed}
-                          placeholder="e.g. -0.50"
-                          className="oph-power-input"
+                          placeholder="e.g. -0.75"
+                          className="oph-rx-input"
                           {...register(`power.${eye}.cylinder`, { setValueAs: optionalNumber })}
                         />
                       </td>
@@ -321,8 +446,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           min="0"
                           max="180"
                           disabled={!isPrescribed}
-                          placeholder={hasCyl ? 'Axis Req *' : '0-180'}
-                          className="oph-power-input"
+                          placeholder="e.g. 180"
+                          className="oph-rx-input"
                           style={{ borderColor: hasCyl && values.power?.[eye]?.axis == null ? '#ef4444' : undefined }}
                           {...register(`power.${eye}.axis`, { setValueAs: optionalNumber })}
                         />
@@ -335,7 +460,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           max="10"
                           disabled={!isPrescribed}
                           placeholder="e.g. +2.00"
-                          className="oph-power-input"
+                          className="oph-rx-input"
                           {...register(`power.${eye}.addition`, { setValueAs: optionalNumber })}
                         />
                       </td>
@@ -346,22 +471,22 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           min="0"
                           max="30"
                           disabled={!isPrescribed}
-                          placeholder="0-30"
-                          className="oph-power-input"
+                          placeholder="e.g. 1.0"
+                          className="oph-rx-input"
                           {...register(`power.${eye}.prism`, { setValueAs: optionalNumber })}
                         />
                       </td>
                       <td>
                         <select
                           disabled={!isPrescribed}
-                          className="oph-power-input"
+                          className="oph-rx-input oph-rx-select"
                           {...register(`power.${eye}.prism_base`, { setValueAs: (v) => v || null })}
                         >
-                          <option value="">Base</option>
-                          <option value="BU">BU (Up)</option>
-                          <option value="BD">BD (Down)</option>
-                          <option value="BI">BI (In)</option>
-                          <option value="BO">BO (Out)</option>
+                          <option value="">Base In</option>
+                          <option value="BI">Base In</option>
+                          <option value="BO">Base Out</option>
+                          <option value="BU">Base Up</option>
+                          <option value="BD">Base Down</option>
                         </select>
                       </td>
                       <td>
@@ -371,8 +496,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           min="5"
                           max="50"
                           disabled={!isPrescribed}
-                          placeholder={isMultifocal ? 'Seg Ht Req *' : 'mm'}
-                          className="oph-power-input"
+                          placeholder="e.g. 28"
+                          className="oph-rx-input"
                           style={{ borderColor: isMultifocal && isPrescribed && values.segment_height?.[eye] == null ? '#f59e0b' : undefined }}
                           {...register(`segment_height.${eye}`, { setValueAs: optionalNumber })}
                         />
@@ -385,74 +510,77 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </div>
         </div>
 
-        {/* 3. Pupillary Distance (PD) */}
-        <div className="oph-spec-card">
-          <div className="oph-section-header">
-            <div className="oph-section-header-left">
-              <span className="oph-section-number">3</span>
-              <div className="oph-section-title-wrap">
-                <h3>Pupillary Distance & Centration (PD) <span className="oph-required">*</span></h3>
-                <p className="oph-section-subtitle">Specify binocular total PD or monocular naso-pupillary distances in millimeters.</p>
-              </div>
-            </div>
+        {/* Card 3: 3. Pupillary Distance & Centration (PD) */}
+        <div className="oph-card">
+          <div className="oph-card-header">
+            <h3 className="oph-card-title">
+              3. Pupillary Distance & Centration (PD) <span className="oph-required">*</span>
+            </h3>
+            <p className="oph-card-subtitle">Specify binocular total PD or monocular naso-pupillary distances in millimeters.</p>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', margin: '8px 0 16px', flexWrap: 'wrap' }}>
+          <div className="oph-pd-toggle-row">
             {[
               { id: 'BINOCULAR', label: 'Binocular PD (Single Total)' },
               { id: 'MONOCULAR', label: 'Monocular PD (Separate OD & OS)' },
-            ].map((fmt) => (
-              <button
-                key={fmt.id}
-                type="button"
-                className={`oph-type-btn ${values.pupillary_distance?.format === fmt.id ? 'active' : ''}`}
-                onClick={() => setValue('pupillary_distance.format', fmt.id as 'BINOCULAR' | 'MONOCULAR', { shouldDirty: true })}
-              >
-                <span>{values.pupillary_distance?.format === fmt.id ? '✓' : '•'}</span>
-                <span>{fmt.label}</span>
-              </button>
-            ))}
+            ].map((fmt) => {
+              const isActive = values.pupillary_distance?.format === fmt.id;
+              return (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  className={`oph-pd-pill-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => setValue('pupillary_distance.format', fmt.id as 'BINOCULAR' | 'MONOCULAR', { shouldDirty: true })}
+                >
+                  <span className="oph-radio-circle">{isActive ? '◉' : '○'}</span>
+                  <span>{fmt.label}</span>
+                </button>
+              );
+            })}
           </div>
           <select {...register('pupillary_distance.format')} style={{ display: 'none' }}>
             <option value="BINOCULAR">BINOCULAR</option>
             <option value="MONOCULAR">MONOCULAR</option>
           </select>
 
-          <div className="doc-form-grid two">
+          <div className="oph-grid-two" style={{ marginTop: '14px' }}>
             {values.pupillary_distance?.format === 'BINOCULAR' && (
-              <label className="doc-field">
-                <span>Binocular PD (mm) <span className="oph-required">*</span></span>
+              <label className="oph-input-field">
+                <span className="oph-input-label">Binocular PD (mm) <span className="oph-required">*</span></span>
                 <input
                   type="number"
                   step="0.5"
                   min="30"
                   max="90"
                   placeholder="e.g. 63.0"
+                  className="oph-text-input"
                   {...register('pupillary_distance.binocular', { setValueAs: optionalNumber })}
                 />
               </label>
             )}
             {values.pupillary_distance?.format === 'MONOCULAR' && (
               <>
-                <label className="doc-field">
-                  <span>OD Monocular PD (mm) <span className="oph-required">*</span></span>
+                <label className="oph-input-field">
+                  <span className="oph-input-label">OD Monocular PD (mm) <span className="oph-required">*</span></span>
                   <input
                     type="number"
                     step="0.5"
                     min="15"
                     max="50"
                     placeholder="e.g. 31.5"
+                    className="oph-text-input"
                     {...register('pupillary_distance.OD', { setValueAs: optionalNumber })}
                   />
                 </label>
-                <label className="doc-field">
-                  <span>OS Monocular PD (mm) <span className="oph-required">*</span></span>
+                <label className="oph-input-field">
+                  <span className="oph-input-label">OS Monocular PD (mm) <span className="oph-required">*</span></span>
                   <input
                     type="number"
                     step="0.5"
                     min="15"
                     max="50"
                     placeholder="e.g. 31.5"
+                    className="oph-text-input"
                     {...register('pupillary_distance.OS', { setValueAs: optionalNumber })}
                   />
                 </label>
@@ -461,55 +589,54 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </div>
         </div>
 
-        {/* 4. Lens Design, Material & Surface Coatings */}
-        <div className="oph-spec-card">
-          <div className="oph-section-header">
-            <div className="oph-section-header-left">
-              <span className="oph-section-number">4</span>
-              <div className="oph-section-title-wrap">
-                <h3>Lens Design, Materials & Coatings</h3>
-                <p className="oph-section-subtitle">Ophthalmic lens refractive index, substrate material, and surface treatments.</p>
-              </div>
-            </div>
+        {/* Card 4: 4. Lens Design, Materials & Coatings */}
+        <div className="oph-card">
+          <div className="oph-card-header">
+            <h3 className="oph-card-title">
+              4. Lens Design, Materials & Coatings
+            </h3>
+            <p className="oph-card-subtitle">Ophthalmic lens refractive index, substrate material, and surface treatments.</p>
           </div>
 
-          <div className="doc-form-grid two">
-            {field('lens_type', 'Lens Type', f.lensTypes ?? ['Single Vision', 'Progressive Addition (PAL)', 'Bifocal (D-Segment)', 'Trifocal', 'Occupational / Office'])}
-            {field('material', 'Lens Material', f.materials ?? ['CR-39 Standard Plastic', 'Polycarbonate (Impact Resistant)', 'Hi-Index 1.60', 'Hi-Index 1.67 Ultra-Thin', 'Trivex High-Definition'])}
+          <div className="oph-grid-two" style={{ marginTop: '14px' }}>
+            {field('lens_type', 'Lens Type', 'Select lens type', f.lensTypes ?? ['Single Vision', 'Progressive Addition (PAL)', 'Bifocal (D-Segment)', 'Trifocal', 'Occupational / Office'])}
+            {field('material', 'Lens Material', 'Select lens material', f.materials ?? ['CR-39 Standard Plastic', 'Polycarbonate (Impact Resistant)', 'Hi-Index 1.60', 'Hi-Index 1.67 Ultra-Thin', 'Trivex High-Definition'])}
           </div>
 
           <div style={{ marginTop: '16px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
+            <label className="oph-input-label" style={{ display: 'block', marginBottom: '8px' }}>
               Applied Coatings & Treatments
             </label>
             <Controller
               control={control}
               name="coating_codes"
-              render={({ field }) => {
-                const availableCoatings = f.coatings ?? ['Anti-Reflective (AR)', 'Blue Light Filter', 'UV 400 Protection', 'Hard Scratch-Resistant', 'Photochromic (Transitions)'];
-                const currentList = field.value ?? [];
+              render={({ field: cField }) => {
+                const availableCoatings = f.coatings && f.coatings.length > 0
+                  ? f.coatings
+                  : ['Anti-Reflective', 'Blue Block', 'UV 400', 'Scratch Resistant', 'Photochromic'];
+                const currentList = cField.value ?? [];
                 return (
-                  <div className="oph-coating-grid">
+                  <div className="oph-coating-row">
                     {availableCoatings.map((code) => {
                       const isSelected = currentList.includes(code);
                       return (
                         <label
                           key={code}
-                          className={`oph-coating-chip ${isSelected ? 'selected' : ''}`}
+                          className={`oph-coating-pill ${isSelected ? 'selected' : ''}`}
                         >
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={(event) => {
                               const checked = event.target.checked;
-                              field.onChange(
+                              cField.onChange(
                                 checked
                                   ? [...new Set([...currentList, code])]
                                   : currentList.filter((entry) => entry !== code)
                               );
                             }}
                           />
-                          <span>{isSelected ? '✓' : '+'}</span>
+                          {isSelected && <span className="oph-pill-check">✓</span>}
                           <span>{code}</span>
                         </label>
                       );
@@ -521,29 +648,27 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </div>
         </div>
 
-        {/* 5. Validity Period & Usage Instructions */}
-        <div className="oph-spec-card">
-          <div className="oph-section-header">
-            <div className="oph-section-header-left">
-              <span className="oph-section-number">5</span>
-              <div className="oph-section-title-wrap">
-                <h3>Validity Period & Dispensing Instructions</h3>
-                <p className="oph-section-subtitle">Prescription expiry timeline, clinical review date, and instructions for optician and patient.</p>
-              </div>
-            </div>
+        {/* Card 5: 5. Validity Period & Dispensing Instructions */}
+        <div className="oph-card">
+          <div className="oph-card-header">
+            <h3 className="oph-card-title">
+              5. Validity Period & Dispensing Instructions
+            </h3>
+            <p className="oph-card-subtitle">Prescription expiry timeline, clinical review date, and instructions for optician and patient.</p>
           </div>
 
-          <div className="doc-form-grid two">
+          <div className="oph-grid-two" style={{ marginTop: '14px' }}>
             <Controller
               control={control}
               name="valid_until"
-              render={({ field }) => (
-                <label className="doc-field">
-                  <span>Valid Until (Local Time) <span className="oph-required">*</span></span>
+              render={({ field: dField }) => (
+                <label className="oph-input-field">
+                  <span className="oph-input-label">Valid Until (Local Time) <span className="oph-required">*</span></span>
                   <input
                     type="datetime-local"
-                    value={localDateTime(field.value)}
-                    onChange={(event) => field.onChange(inputInstant(event.target.value) ?? '')}
+                    className="oph-text-input"
+                    value={localDateTime(dField.value)}
+                    onChange={(event) => dField.onChange(inputInstant(event.target.value) ?? '')}
                   />
                 </label>
               )}
@@ -551,48 +676,79 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
             <Controller
               control={control}
               name="review_date"
-              render={({ field }) => (
-                <label className="doc-field">
-                  <span>Review Date (Local Time - Optional)</span>
+              render={({ field: dField }) => (
+                <label className="oph-input-field">
+                  <span className="oph-input-label">Review Date (Local Time) - Optional</span>
                   <input
                     type="datetime-local"
-                    value={localDateTime(field.value)}
-                    onChange={(event) => field.onChange(inputInstant(event.target.value))}
+                    className="oph-text-input"
+                    value={localDateTime(dField.value)}
+                    onChange={(event) => dField.onChange(inputInstant(event.target.value))}
                   />
                 </label>
               )}
             />
           </div>
 
-          <label className="doc-field" style={{ marginTop: '12px' }}>
-            <span>Usage Instructions & Patient Advice <span className="oph-required">*</span></span>
+          <label className="oph-input-field" style={{ marginTop: '14px' }}>
+            <span className="oph-input-label">Usage Instructions & Patient Advice <span className="oph-required">*</span></span>
             <textarea
               rows={3}
-              maxLength={2000}
+              maxLength={500}
               placeholder="e.g. Full-time wear for distance vision and driving. Reading glasses as prescribed. Clean with microfiber cloth only."
+              className="oph-textarea"
               {...register('usage_instructions')}
             />
+            <div className="oph-char-count">
+              {(values.usage_instructions ?? '').length}/500
+            </div>
           </label>
         </div>
 
-        {/* Action & Submission Footer */}
-        <div className="oph-intake-submit-bar">
-          <div style={{ fontSize: '0.86rem', color: '#64748b' }}>
-            {baseline?.status === 'APPROVED' ? (
-              <span style={{ color: '#047857', fontWeight: 600 }}>✓ Prescription is approved and locked. Ready for dispensing.</span>
-            ) : isDirty ? (
-              <span style={{ color: '#b45309', fontWeight: 600 }}>● You have unsaved changes in this prescription draft.</span>
+        {/* Bottom Action Bar */}
+        <div className="oph-bottom-action-bar">
+          <div className="oph-action-status-wrap">
+            {isDirty ? (
+              <span className="oph-status-dirty">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <span>You have unsaved changes in this prescription draft.</span>
+              </span>
+            ) : baseline?.status === 'APPROVED' ? (
+              <span className="oph-status-clean">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Prescription is approved and locked. Ready for dispensing.</span>
+              </span>
             ) : (
-              <span style={{ color: '#047857', fontWeight: 600 }}>✓ Optical draft is saved.</span>
+              <span className="oph-status-clean">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Prescription draft is up to date.</span>
+              </span>
             )}
           </div>
-          <div className="oph-submit-actions">
-            <button className="oph-submit-btn primary" type="submit" disabled={disabled}>
-              {f.busy ? 'Saving…' : 'Save Optical Draft'}
+          <div className="oph-action-buttons">
+            <button
+              className="oph-btn-save-draft"
+              type="submit"
+              disabled={disabled}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              <span>{f.busy ? 'Saving…' : 'Save Draft'}</span>
             </button>
             <button
               type="button"
-              className="oph-submit-btn success"
+              className="oph-btn-approve"
               disabled={!f.canApproveOptical || f.busy || isDirty || changed || !baseline || baseline.status !== 'DRAFT'}
               onClick={async () => {
                 if (baseline && window.confirm(`Approve saved optical prescription version ${baseline.version}? Approval locks its contents.`)) {
@@ -601,7 +757,10 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                 }
               }}
             >
-              Approve Optical Prescription
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Approve Optical Prescription</span>
             </button>
           </div>
         </div>
@@ -729,8 +888,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           <summary className="oph-config-summary">
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 14 14"></polyline>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 14 14" />
               </svg>
               <span>Saved Prescription Version History ({f.optical?.history.length})</span>
             </span>

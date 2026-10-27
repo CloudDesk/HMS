@@ -1,162 +1,83 @@
+import { useState } from 'react';
 import { OphthalmologyConsultationSummaryCard } from './OphthalmologyConsultationSummaryCard';
-import { OphthalmologyBillingCard } from './OphthalmologyBillingCard';
 import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
 import { OphthalmologyFinalizationTools } from './OphthalmologyFinalizationTools';
 import { useOphthalmologyCompletionFeature, type CompletionWorkspace } from '../../hooks/ophthalmology/useOphthalmologyCompletionFeature';
 import { OphthalmologyCompletionActionDialog } from './OphthalmologyCompletionActionDialog';
+import { CloseOpdJourneyModal } from '../opd/CloseOpdJourneyModal';
 import { Reading } from './OphthalmologyCareWorkspace';
 import { queueTime } from '../../hooks/ophthalmology/queue-actions';
+import type { OpdVisitResponse } from '../../api/opd';
 
 export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: CompletionWorkspace }) {
+  const [showCloseJourneyModal, setShowCloseJourneyModal] = useState(false);
   const f = useOphthalmologyCompletionFeature(workspace);
   const latestCompletion = f.history?.completions.at(-1);
   if (!f.canView) return <p role="alert">Ophthalmology Consultation View permission is required.</p>;
   if (f.scopeError) return <p role="alert">The completion record does not match this patient encounter. Reopen the encounter.</p>;
 
   const isCompleted = f.history?.status === 'COMPLETED';
-  const isAmendment = f.history?.status === 'AMENDMENT_OPEN';
-  const allReady = f.readiness?.ready ?? false;
-  const unmetCount = f.unmet.length;
 
   return (
     <section className="oph-completion-workspace">
-      {/* 1. Primary Consolidated Clinical Summary */}
-      <OphthalmologyConsultationSummaryCard feature={f} />
+      {/* 1. Primary Consolidated Clinical Summary (8-card sequential structure) */}
+      <OphthalmologyConsultationSummaryCard feature={f} workspace={workspace} />
 
-      {/* 2. Clinical Readiness & Doctor Finalization Card */}
-      <section className="doc-card oph-signoff-card" style={{ marginTop: '20px' }}>
-        <div className="oph-signoff-header">
-          <div className="oph-signoff-title-wrap">
-            <div className="oph-signoff-badge-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                <path d="m9 12 2 2 4-4"></path>
-              </svg>
-            </div>
+      {/* Finalization Modal Dialogs & Tools */}
+      <OphthalmologyFinalizationTools workspace={workspace} completion={f} />
+
+      {/* Post-Sign-Off Status Banner for Clinically Completed Journeys */}
+      {isCompleted && workspace.visit?.status === 'CLINICALLY_COMPLETED' && (
+        <section className="doc-card oph-journey-banner clinically-completed" style={{ marginTop: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
-                Clinical Readiness & Doctor Finalization
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
-                Verify prerequisite clinical checks and record authenticated doctor sign-off.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.25rem' }}>🩺</span>
+                <h4 style={{ margin: 0, color: '#1e40af', fontSize: '1.05rem', fontWeight: 700 }}>
+                  Clinical Consultation Completed
+                </h4>
+                <span className="doc-status signed" style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+                  CLINICALLY_COMPLETED
+                </span>
+              </div>
+              <p style={{ margin: '6px 0 0 0', color: '#1e3a8a', fontSize: '0.88rem' }}>
+                Doctor sign-off has been recorded. The patient's OPD journey remains open until the required billing and medication dispensing steps are completed.
+              </p>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.8rem' }}>
+                Verification occurs during authorized checkout.
               </p>
             </div>
+            {f.canCloseVisit && (
+              <button
+                type="button"
+                className="doc-btn success"
+                onClick={() => setShowCloseJourneyModal(true)}
+              >
+                <i className="ph ph-check-circle" aria-hidden="true" /> Close OPD Journey
+              </button>
+            )}
           </div>
+        </section>
+      )}
+
+      {isCompleted && workspace.visit?.status === 'COMPLETED' && (
+        <section className="doc-card oph-journey-banner completed" style={{ marginTop: '20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className={`oph-badge ${isCompleted ? 'oph-badge-green' : isAmendment ? 'oph-badge-amber' : allReady ? 'oph-badge-blue' : 'oph-badge-amber'}`} style={{ fontSize: '0.82rem', padding: '5px 12px' }}>
-              {isCompleted ? '✓ Consultation Finalized' : isAmendment ? '● Amendment in Progress' : allReady ? '✓ Ready for Doctor Approval' : `${unmetCount} Action(s) Required`}
+            <span style={{ fontSize: '1.25rem' }}>🏁</span>
+            <h4 style={{ margin: 0, color: '#166534', fontSize: '1.05rem', fontWeight: 700 }}>
+              OPD Journey Closed
+            </h4>
+            <span className="doc-status completed" style={{ fontSize: '0.8rem', padding: '3px 8px' }}>
+              COMPLETED
             </span>
-            <button
-              type="button"
-              className="doc-btn"
-              disabled={!f.active || f.busy || f.readinessQuery.isFetching || f.historyQuery.isFetching}
-              onClick={() => void f.refresh()}
-            >
-              Refresh Status
-            </button>
           </div>
-        </div>
-
-        {/* Informative Status banner if refresh error occurs */}
-        {(f.readinessQuery.isError || f.historyQuery.isError) && (
-          <div className="oph-info-banner" style={{ margin: '14px 0', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.84rem', color: '#991b1b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Readiness or history could not be refreshed. Cached information may be stale; actions are disabled.</span>
-            <button type="button" className="doc-btn" onClick={() => void f.refresh()}>Retry saved information</button>
-          </div>
-        )}
-
-        {f.staleContext && (
-          <p role="alert" className="form-error-banner" style={{ margin: '12px 0' }}>
-            The encounter context changed. Refresh the context and readiness together before recording an exception.
+          <p style={{ margin: '6px 0 0 0', color: '#14532d', fontSize: '0.88rem' }}>
+            Doctor consultation, billing settlement, and medication dispensing are finalized and closed.
           </p>
-        )}
+        </section>
+      )}
 
-        {/* Prerequisites Checklist */}
-        {f.readiness && (
-          <div style={{ marginTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                Encounter Prerequisite Checklist:
-              </span>
-              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                Reported readiness: {f.readiness.ready ? 'Configured checks satisfied' : 'Unmet configured checks'}
-              </span>
-            </div>
-            <div className="oph-readiness-grid">
-              {f.readiness.requirements.map((row) => (
-                <div key={row.code} className={`oph-readiness-chip ${row.satisfied ? 'satisfied' : 'unmet'}`}>
-                  <div className="oph-readiness-chip-left">
-                    <span className="oph-readiness-icon">{row.satisfied ? '✓' : '•'}</span>
-                    <div>
-                      <div className="oph-readiness-name">{row.code.replaceAll('_', ' ')}</div>
-                      <div className="oph-readiness-details">{row.details || (row.satisfied ? 'Requirement met' : 'Review required')}</div>
-                    </div>
-                  </div>
-                  <div>
-                    {!row.satisfied && f.linkFor(row.code) ? (
-                      <button
-                        type="button"
-                        className="oph-readiness-link-btn"
-                        onClick={() => f.openRequirement(row.code)}
-                      >
-                        Open Section →
-                      </button>
-                    ) : (
-                      <span className={`oph-badge ${row.satisfied ? 'oph-badge-green' : 'oph-badge-amber'}`} style={{ fontSize: '0.72rem' }}>
-                        {row.satisfied ? 'Satisfied' : 'Unmet'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Doctor Finalization Actions & Governance */}
-        <div className="oph-signoff-action-box" style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-                Doctor Signature & Clinical Approval
-              </h4>
-              <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-                {isCompleted
-                  ? `Authenticated and approved by Doctor ${latestCompletion?.approver_doctor_id ?? ''} on ${latestCompletion?.approved_at ? queueTime(latestCompletion.approved_at) : ''}.`
-                  : 'Reported readiness evaluates the configured prerequisites. Review the encounter sections and any authorized exceptions before recording doctor approval.'}
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              {f.canOverride && (
-                <>
-                  <button
-                    type="button"
-                    className="doc-btn"
-                    disabled={!f.writable || f.busy}
-                    onClick={() => f.setQuery({ completion_action: 'defer' })}
-                  >
-                    Record result deferral
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-btn"
-                    disabled={!f.writable || f.busy || !f.unmet.length}
-                    onClick={() => f.setQuery({ completion_action: 'override' })}
-                  >
-                    Request authorized override
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Tools Dialogs / Actions */}
-        <OphthalmologyFinalizationTools workspace={workspace} completion={f} />
-      </section>
-
-      {/* 3. Publication Tools if Approved */}
+      {/* 2. Publication Tools if Approved */}
       {f.history && latestCompletion && (
         <OphthalmologyPublicationTools
           scope={f.history}
@@ -169,12 +90,7 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
         />
       )}
 
-      {/* 4. Billing Card */}
-      <div style={{ marginTop: '20px' }}>
-        <OphthalmologyBillingCard workspace={workspace} />
-      </div>
-
-      {/* 5. Collapsible Regulatory Audit & History */}
+      {/* 3. Collapsible Regulatory Audit & History */}
       <details className="doc-card oph-audit-accordion" style={{ marginTop: '20px' }}>
         <summary className="oph-audit-summary">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -264,6 +180,17 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
         <OphthalmologyCompletionActionDialog key={`${workspace.visitId}:${f.action}`} feature={f} action={f.action} />
       )}
       {f.error && !f.action && <p className="form-error-banner" role="alert" style={{ marginTop: '12px' }}>{f.error}</p>}
+
+      <CloseOpdJourneyModal
+        open={showCloseJourneyModal}
+        visit={(workspace.visit as OpdVisitResponse) ?? null}
+        onClose={() => setShowCloseJourneyModal(false)}
+        onSuccess={() => {
+          setShowCloseJourneyModal(false);
+          void f.refresh();
+          window.location.reload();
+        }}
+      />
     </section>
   );
 }

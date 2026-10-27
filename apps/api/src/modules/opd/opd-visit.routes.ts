@@ -3,12 +3,13 @@ import { requirePermission } from '../../middleware/require-permission.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
 import {
+  closeOpdJourneyBodySchema,
   createOpdVisitBodySchema,
   listOpdVisitsQuerySchema,
   opdVisitIdParamsSchema,
   updateOpdVisitStatusBodySchema,
 } from './opd-visit.schemas.js';
-import type { CreateOpdVisitDTO, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
+import type { CloseOpdJourneyDTO, CreateOpdVisitDTO, OpdVisitListQuery, UpdateOpdVisitStatusDTO } from './opd-visit.types.js';
 
 type OpdVisitIdParams = {
   id: string;
@@ -75,5 +76,17 @@ export const registerOpdVisitRoutes = async (app: FastifyInstance, services: Ser
       schema: { params: opdVisitIdParamsSchema },
     },
     async (request) => ok(await services.opdVisits.callNextPatient(request.params.id, request.user!.id)),
+  );
+
+  app.post<{ Params: OpdVisitIdParams; Body?: CloseOpdJourneyDTO }>(
+    '/api/opd/visits/:id/close-journey',
+    {
+      preHandler: requirePermission(services, 'OPD', 'OPD Visits', 'Edit'),
+      schema: {
+        params: opdVisitIdParamsSchema,
+        body: closeOpdJourneyBodySchema,
+      },
+    },
+    async (request) => ok(await services.opdVisits.closeJourney(request.params.id, request.user!.id, request.body)),
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Modal } from '../ui/Modal';
 import { useFundusCameraCapture } from '../../hooks/ophthalmology/useFundusCameraCapture';
@@ -6,6 +6,13 @@ import { usePatientDocuments, useUploadPatientDocument } from '../../hooks/patie
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 import { navigate } from '../../routing/navigation';
 import type { OphthalmologyResultFeature, OphthalmologyResultWorkspace } from '../../hooks/ophthalmology/useOphthalmologyResultFeature';
+import { useOpdConsultation, useSaveOpdConsultationDraft } from '../../hooks/opd/useOpd';
+import { getEncounterDraft, setEncounterDraft, registerDraftSaveHandler } from '../../hooks/ophthalmology/encounter-draft-cache';
+import {
+  serializeOphthalmicExam,
+  parseOphthalmicExam,
+  type OphthalmicExamState,
+} from '../../hooks/ophthalmology/ophthalmology-exam-storage';
 
 type CapturedFundusPhoto = {
   id: string;
@@ -23,9 +30,10 @@ type CapturedFundusPhoto = {
 type Props = {
   feature: OphthalmologyResultFeature;
   workspace: OphthalmologyResultWorkspace;
+  onOpenIntake?: () => void;
 };
 
-export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Props) {
+export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpenIntake }: Props) {
   // 1. Visual Acuity State
   const [vaMode, setVaMode] = useState<'without' | 'with'>('without');
   const [vaOdUnaided, setVaOdUnaided] = useState('');
@@ -111,6 +119,236 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
   const [fundusDirectNotes, setFundusDirectNotes] = useState('');
   const [fundusIndirectNotes, setFundusIndirectNotes] = useState('');
 
+  // Draft Persistence & Opd Consultation Hook
+  const consultationQuery = useOpdConsultation(workspace.visitId, Boolean(workspace.visitId));
+  const saveConsultationDraft = useSaveOpdConsultationDraft({ notifyOnError: false });
+  const [isSavingExamDraft, setIsSavingExamDraft] = useState(false);
+  const isHydratedRef = useRef(false);
+
+  const currentExamState: OphthalmicExamState = useMemo(() => ({
+    vaMode,
+    vaOdUnaided,
+    vaOsUnaided,
+    vaOdPh,
+    vaOsPh,
+    vaOdNearUn,
+    vaOsNearUn,
+    vaCorrType,
+    vaOdCorr,
+    vaOsCorr,
+    vaOdNearCorr,
+    vaOsNearCorr,
+    vaLensWorn,
+    vaColorVision,
+    vaNotes,
+
+    refTab,
+    arOdSph,
+    arOdCyl,
+    arOdAxis,
+    arOsSph,
+    arOsCyl,
+    arOsAxis,
+    arPd,
+    arNotes,
+    subjType,
+    subjOdSph,
+    subjOdCyl,
+    subjOdAxis,
+    subjOsSph,
+    subjOsCyl,
+    subjOsAxis,
+    subjAdd,
+    subjDuochrome,
+
+    iopMethod,
+    iopOd,
+    iopOs,
+    iopTime,
+    iopNotes,
+
+    slitTab,
+    slitOdLids,
+    slitOsLids,
+    slitOdConj,
+    slitOsConj,
+    slitOdCornea,
+    slitOsCornea,
+    slitOdAc,
+    slitOsAc,
+    slitOdIris,
+    slitOdLens,
+    slitOsLens,
+    slitAntNotes,
+    slitOdVitreous,
+    slitOsVitreous,
+    slitOdOnh,
+    slitOsOnh,
+    slitOdMacula,
+    slitOsMacula,
+    slitOdVessels,
+    slitOsVessels,
+    slitOdPole,
+    slitOsPole,
+    slitPostNotes,
+    slitOsIris,
+
+    fundusTab,
+    fundusOdDisc,
+    fundusOsDisc,
+    fundusOdMacula,
+    fundusOsMacula,
+    fundusOdVessels,
+    fundusOsVessels,
+    fundusDirectNotes,
+    fundusIndirectNotes,
+  }), [
+    vaMode, vaOdUnaided, vaOsUnaided, vaOdPh, vaOsPh, vaOdNearUn, vaOsNearUn,
+    vaCorrType, vaOdCorr, vaOsCorr, vaOdNearCorr, vaOsNearCorr, vaLensWorn, vaColorVision, vaNotes,
+    refTab, arOdSph, arOdCyl, arOdAxis, arOsSph, arOsCyl, arOsAxis, arPd, arNotes,
+    subjType, subjOdSph, subjOdCyl, subjOdAxis, subjOsSph, subjOsCyl, subjOsAxis, subjAdd, subjDuochrome,
+    iopMethod, iopOd, iopOs, iopTime, iopNotes,
+    slitTab, slitOdLids, slitOsLids, slitOdConj, slitOsConj, slitOdCornea, slitOsCornea,
+    slitOdAc, slitOsAc, slitOdIris, slitOsIris, slitOdLens, slitOsLens, slitAntNotes,
+    slitOdVitreous, slitOsVitreous, slitOdOnh, slitOsOnh, slitOdMacula, slitOsMacula,
+    slitOdVessels, slitOsVessels, slitOdPole, slitOsPole, slitPostNotes,
+    fundusTab, fundusOdDisc, fundusOsDisc, fundusOdMacula, fundusOsMacula,
+    fundusOdVessels, fundusOsVessels, fundusDirectNotes, fundusIndirectNotes,
+  ]);
+
+  const applyExamState = useCallback((s: Partial<OphthalmicExamState>) => {
+    if (s.vaMode !== undefined) setVaMode(s.vaMode);
+    if (s.vaOdUnaided !== undefined) setVaOdUnaided(s.vaOdUnaided);
+    if (s.vaOsUnaided !== undefined) setVaOsUnaided(s.vaOsUnaided);
+    if (s.vaOdPh !== undefined) setVaOdPh(s.vaOdPh);
+    if (s.vaOsPh !== undefined) setVaOsPh(s.vaOsPh);
+    if (s.vaOdNearUn !== undefined) setVaOdNearUn(s.vaOdNearUn);
+    if (s.vaOsNearUn !== undefined) setVaOsNearUn(s.vaOsNearUn);
+    if (s.vaCorrType !== undefined) setVaCorrType(s.vaCorrType);
+    if (s.vaOdCorr !== undefined) setVaOdCorr(s.vaOdCorr);
+    if (s.vaOsCorr !== undefined) setVaOsCorr(s.vaOsCorr);
+    if (s.vaOdNearCorr !== undefined) setVaOdNearCorr(s.vaOdNearCorr);
+    if (s.vaOsNearCorr !== undefined) setVaOsNearCorr(s.vaOsNearCorr);
+    if (s.vaLensWorn !== undefined) setVaLensWorn(s.vaLensWorn);
+    if (s.vaColorVision !== undefined) setVaColorVision(s.vaColorVision);
+    if (s.vaNotes !== undefined) setVaNotes(s.vaNotes);
+
+    if (s.refTab !== undefined) setRefTab(s.refTab);
+    if (s.arOdSph !== undefined) setArOdSph(s.arOdSph);
+    if (s.arOdCyl !== undefined) setArOdCyl(s.arOdCyl);
+    if (s.arOdAxis !== undefined) setArOdAxis(s.arOdAxis);
+    if (s.arOsSph !== undefined) setArOsSph(s.arOsSph);
+    if (s.arOsCyl !== undefined) setArOsCyl(s.arOsCyl);
+    if (s.arOsAxis !== undefined) setArOsAxis(s.arOsAxis);
+    if (s.arPd !== undefined) setArPd(s.arPd);
+    if (s.arNotes !== undefined) setArNotes(s.arNotes);
+    if (s.subjType !== undefined) setSubjType(s.subjType);
+    if (s.subjOdSph !== undefined) setSubjOdSph(s.subjOdSph);
+    if (s.subjOdCyl !== undefined) setSubjOdCyl(s.subjOdCyl);
+    if (s.subjOdAxis !== undefined) setSubjOdAxis(s.subjOdAxis);
+    if (s.subjOsSph !== undefined) setSubjOsSph(s.subjOsSph);
+    if (s.subjOsCyl !== undefined) setSubjOsCyl(s.subjOsCyl);
+    if (s.subjOsAxis !== undefined) setSubjOsAxis(s.subjOsAxis);
+    if (s.subjAdd !== undefined) setSubjAdd(s.subjAdd);
+    if (s.subjDuochrome !== undefined) setSubjDuochrome(s.subjDuochrome);
+
+    if (s.iopMethod !== undefined) setIopMethod(s.iopMethod);
+    if (s.iopOd !== undefined) setIopOd(s.iopOd);
+    if (s.iopOs !== undefined) setIopOs(s.iopOs);
+    if (s.iopTime !== undefined) setIopTime(s.iopTime);
+    if (s.iopNotes !== undefined) setIopNotes(s.iopNotes);
+
+    if (s.slitTab !== undefined) setSlitTab(s.slitTab);
+    if (s.slitOdLids !== undefined) setSlitOdLids(s.slitOdLids);
+    if (s.slitOsLids !== undefined) setSlitOsLids(s.slitOsLids);
+    if (s.slitOdConj !== undefined) setSlitOdConj(s.slitOdConj);
+    if (s.slitOsConj !== undefined) setSlitOsConj(s.slitOsConj);
+    if (s.slitOdCornea !== undefined) setSlitOdCornea(s.slitOdCornea);
+    if (s.slitOsCornea !== undefined) setSlitOsCornea(s.slitOsCornea);
+    if (s.slitOdAc !== undefined) setSlitOdAc(s.slitOdAc);
+    if (s.slitOsAc !== undefined) setSlitOsAc(s.slitOsAc);
+    if (s.slitOdIris !== undefined) setSlitOdIris(s.slitOdIris);
+    if (s.slitOsIris !== undefined) setSlitOsIris(s.slitOsIris);
+    if (s.slitOdLens !== undefined) setSlitOdLens(s.slitOdLens);
+    if (s.slitOsLens !== undefined) setSlitOsLens(s.slitOsLens);
+    if (s.slitAntNotes !== undefined) setSlitAntNotes(s.slitAntNotes);
+    if (s.slitOdVitreous !== undefined) setSlitOdVitreous(s.slitOdVitreous);
+    if (s.slitOsVitreous !== undefined) setSlitOsVitreous(s.slitOsVitreous);
+    if (s.slitOdOnh !== undefined) setSlitOdOnh(s.slitOdOnh);
+    if (s.slitOsOnh !== undefined) setSlitOsOnh(s.slitOsOnh);
+    if (s.slitOdMacula !== undefined) setSlitOdMacula(s.slitOdMacula);
+    if (s.slitOsMacula !== undefined) setSlitOsMacula(s.slitOsMacula);
+    if (s.slitOdVessels !== undefined) setSlitOdVessels(s.slitOdVessels);
+    if (s.slitOsVessels !== undefined) setSlitOsVessels(s.slitOsVessels);
+    if (s.slitOdPole !== undefined) setSlitOdPole(s.slitOdPole);
+    if (s.slitOsPole !== undefined) setSlitOsPole(s.slitOsPole);
+    if (s.slitPostNotes !== undefined) setSlitPostNotes(s.slitPostNotes);
+
+    if (s.fundusTab !== undefined) setFundusTab(s.fundusTab);
+    if (s.fundusOdDisc !== undefined) setFundusOdDisc(s.fundusOdDisc);
+    if (s.fundusOsDisc !== undefined) setFundusOsDisc(s.fundusOsDisc);
+    if (s.fundusOdMacula !== undefined) setFundusOdMacula(s.fundusOdMacula);
+    if (s.fundusOsMacula !== undefined) setFundusOsMacula(s.fundusOsMacula);
+    if (s.fundusOdVessels !== undefined) setFundusOdVessels(s.fundusOdVessels);
+    if (s.fundusOsVessels !== undefined) setFundusOsVessels(s.fundusOsVessels);
+    if (s.fundusDirectNotes !== undefined) setFundusDirectNotes(s.fundusDirectNotes);
+    if (s.fundusIndirectNotes !== undefined) setFundusIndirectNotes(s.fundusIndirectNotes);
+  }, []);
+
+  // Hydrate from in-memory cache or remote consultation record
+  useEffect(() => {
+    if (isHydratedRef.current) return;
+    const cached = getEncounterDraft<OphthalmicExamState>(workspace.visitId, 'preliminary-exam');
+    if (cached) {
+      applyExamState(cached);
+      isHydratedRef.current = true;
+      return;
+    }
+    if (consultationQuery.data?.physical_examination) {
+      const parsed = parseOphthalmicExam(consultationQuery.data.physical_examination);
+      if (parsed) {
+        applyExamState(parsed);
+        isHydratedRef.current = true;
+      }
+    } else if (consultationQuery.isSuccess) {
+      isHydratedRef.current = true;
+    }
+  }, [workspace.visitId, consultationQuery.data, consultationQuery.isSuccess, applyExamState]);
+
+  // Synchronize to in-memory draft cache when user edits findings
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setEncounterDraft(workspace.visitId, 'preliminary-exam', currentExamState, true);
+  }, [workspace.visitId, currentExamState]);
+
+  // Persistent save handler
+  const handleSaveExamDraft = useCallback(async () => {
+    if (isSavingExamDraft) return;
+    setIsSavingExamDraft(true);
+    try {
+      const serialized = serializeOphthalmicExam(currentExamState);
+      await saveConsultationDraft.mutateAsync({
+        visitId: workspace.visitId,
+        payload: {
+          physical_examination: serialized,
+          expected_version: consultationQuery.data?.version ?? 0,
+          expected_status: 'DRAFT',
+        },
+      });
+      setEncounterDraft(workspace.visitId, 'preliminary-exam', currentExamState, false);
+      toast.success('Preliminary examination findings saved.');
+    } catch (err) {
+      toast.error(`Failed to save examination findings: ${getOpdErrorMessage(err)}`);
+    } finally {
+      setIsSavingExamDraft(false);
+    }
+  }, [isSavingExamDraft, currentExamState, saveConsultationDraft, workspace.visitId, consultationQuery.data?.version]);
+
+  // Register with footer / global draft save registry
+  useEffect(() => {
+    return registerDraftSaveHandler('preliminary-exam', handleSaveExamDraft);
+  }, [handleSaveExamDraft]);
+
   // Real Camera & Cloud Storage Upload Hooks
   const camera = useFundusCameraCapture(fundusTab === 'camera');
   const uploadPatientDoc = useUploadPatientDocument({ notifyOnError: false });
@@ -125,6 +363,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
   const [uploadingEye, setUploadingEye] = useState<'OD' | 'OS' | null>(null);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedFundusPhoto[]>([]);
   const [selectedModalPhoto, setSelectedModalPhoto] = useState<CapturedFundusPhoto | null>(null);
+  const [examCollapsed, setExamCollapsed] = useState(false);
 
   const odFileInputRef = useRef<HTMLInputElement>(null);
   const osFileInputRef = useRef<HTMLInputElement>(null);
@@ -284,63 +523,91 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
 
   return (
     <div className="oph-exam-dashboard">
-      {/* Authorized Tasks & Emergency Action Bar */}
-      <div className="oph-revamped-header" style={{ padding: '12px 18px', background: '#f8fafc', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          {f.tasks.length === 0 ? (
-            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-              No examination performed yet. Please select an assigned station task or record preliminary findings.
+      {/* Examination Findings Unified Parent Container */}
+      <div className="oph-exam-section-container">
+        {/* Examination Findings Section Header */}
+        <div className="oph-exam-section-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="oph-exam-header-icon">
+              <i className="ph ph-eye" />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
+              Examination Findings
             </span>
-          ) : (
-            <>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
-                Preliminary Assessment &amp; Clinical Tasks ({f.tasks.length} Authorized):
+            {f.tasks.length === 0 ? (
+              <span className="oph-exam-status-badge empty">
+                <span>🚫</span> No examination performed yet
               </span>
-              {f.tasks.map((task) => (
-                <button
-                  type="button"
-                  key={task.id}
-                  className="doc-btn"
-                  style={{ fontSize: '0.78rem', padding: '4px 10px', background: '#ffffff' }}
-                  onClick={() => workspace.setQuery('task_id', task.id)}
-                >
-                  <span style={{ fontWeight: 600 }}>{task.test_name}</span> · {task.laterality} ·{' '}
-                  <span className={`oph-badge ${task.status === 'COMPLETED' ? 'oph-badge-green' : task.status === 'IN_PROGRESS' ? 'oph-badge-blue' : 'oph-badge-amber'}`}>
-                    {task.status}
-                  </span>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-        {workspace.canEscalate && (
-          <button
-            type="button"
-            className="doc-btn doc-btn-danger"
-            style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-            onClick={async () => {
-              const reason = window.prompt('Emergency escalation clinical reason identified during preliminary examination:');
-              if (reason && reason.trim() && workspace.escalate) {
-                await workspace.escalate(reason.trim(), ['PRELIMINARY_EXAM_FINDING'], 'EMERGENCY');
-              }
-            }}
-          >
-            <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
-            Escalate Emergency Finding
-          </button>
-        )}
-      </div>
+            ) : (
+              <span className="oph-exam-status-badge available">
+                {f.tasks.length} Authorized Tasks Available
+              </span>
+            )}
+          </div>
 
-      {f.tasksQuery.data && f.tasksQuery.data.meta.totalPages > 1 && (
-        <div className="oph-toolbar" style={{ marginBottom: '16px' }}>
-          <button type="button" className="doc-btn" disabled={f.page <= 1} onClick={() => workspace.setQuery('task_page', String(f.page - 1))}>Previous tasks</button>
-          <span>Page {f.page} of {f.tasksQuery.data.meta.totalPages}</span>
-          <button type="button" className="doc-btn" disabled={f.page >= f.tasksQuery.data.meta.totalPages} onClick={() => workspace.setQuery('task_page', String(f.page + 1))}>Next tasks</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {onOpenIntake && (
+              <button
+                type="button"
+                className="oph-btn-clinical-intake"
+                onClick={onOpenIntake}
+                title="View patient clinical intake and history"
+              >
+                <i className="ph ph-clipboard-text" />
+                <span>Clinical Intake</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="doc-btn primary"
+              onClick={handleSaveExamDraft}
+              disabled={isSavingExamDraft}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', padding: '4px 10px' }}
+              title="Save preliminary examination findings to consultation draft"
+            >
+              <i className={`ph ${isSavingExamDraft ? 'ph-spinner ph-spin' : 'ph-floppy-disk'}`} />
+              <span>{isSavingExamDraft ? 'Saving Exam...' : 'Save Exam Draft'}</span>
+            </button>
+            {f.tasks.length > 0 && f.tasks.map((task) => (
+              <button
+                type="button"
+                key={task.id}
+                className="doc-btn"
+                style={{ fontSize: '0.75rem', padding: '3px 8px', background: '#f8fafc' }}
+                onClick={() => workspace.setQuery('task_id', task.id)}
+              >
+                <span style={{ fontWeight: 600 }}>{task.test_name}</span> · {task.laterality} ·{' '}
+                <span className={`oph-badge ${task.status === 'COMPLETED' ? 'oph-badge-green' : task.status === 'IN_PROGRESS' ? 'oph-badge-blue' : 'oph-badge-amber'}`}>
+                  {task.status}
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="doc-btn compact"
+              onClick={() => setExamCollapsed(!examCollapsed)}
+              style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+              title={examCollapsed ? 'Expand Examination Findings' : 'Collapse Examination Findings'}
+              aria-expanded={!examCollapsed}
+              aria-controls="oph-exam-findings-content"
+            >
+              <i className={`ph ph-caret-${examCollapsed ? 'down' : 'up'}`} />
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Row 1 (Sequential 1, 2, 3): Visual Acuity, Refraction, Intraocular Pressure */}
-      <div className="oph-exam-grid-3">
+        {!examCollapsed && (
+          <div id="oph-exam-findings-content" className="oph-exam-section-body">
+            {f.tasksQuery.data && f.tasksQuery.data.meta.totalPages > 1 && (
+              <div className="oph-toolbar" style={{ margin: '0 0 10px 0' }}>
+                <button type="button" className="doc-btn" disabled={f.page <= 1} onClick={() => workspace.setQuery('task_page', String(f.page - 1))}>Previous tasks</button>
+                <span>Page {f.page} of {f.tasksQuery.data.meta.totalPages}</span>
+                <button type="button" className="doc-btn" disabled={f.page >= f.tasksQuery.data.meta.totalPages} onClick={() => workspace.setQuery('task_page', String(f.page + 1))}>Next tasks</button>
+              </div>
+            )}
+
+        {/* Row 1 (Sequential 1, 2, 3): Visual Acuity, Refraction, Intraocular Pressure */}
+        <div className="oph-exam-grid-3">
 
         {/* 1. VISUAL ACUITY */}
         <div className="oph-exam-card">
@@ -373,9 +640,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                 <table className="oph-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '40%' }}>Unaided Modality</th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill od">OD · Right</span></th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill os">OS · Left</span></th>
+                      <th style={{ width: '40%' }}>Parameter</th>
+                      <th style={{ width: '30%' }}><span className="oph-eye-pill od">OD - Right</span></th>
+                      <th style={{ width: '30%' }}><span className="oph-eye-pill os">OS - Left</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -455,9 +722,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
                 <table className="oph-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '40%' }}>Corrected Modality</th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill od">OD · Right</span></th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill os">OS · Left</span></th>
+                      <th style={{ width: '40%' }}>Parameter</th>
+                      <th style={{ width: '30%' }}><span className="oph-eye-pill od">OD - Right</span></th>
+                      <th style={{ width: '30%' }}><span className="oph-eye-pill os">OS - Left</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1412,6 +1679,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace }: Pro
           )}
 
         </div>
+      </div>
+          </div>
+        )}
       </div>
 
       {/* Lightbox Modal for Full Resolution Stored Photos */}

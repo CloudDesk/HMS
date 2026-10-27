@@ -7,7 +7,10 @@ const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOW
 vi.mock('../routing/navigation', async (importOriginal) => ({ ...await importOriginal<typeof import('../routing/navigation')>(), useAppLocation: () => ({ pathname: '/opd/ophthalmology', search: '?section=tests' }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyWorkspaceFeature', () => ({ useOphthalmologyWorkspaceFeature: () => ({
   canView: true, canConfigure: true, canEscalate: state.canEscalate, escalate: state.escalate, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
-  intakeView: state.alertStatus ? { shared_history: {}, alerts: [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] } : undefined, visit: { patient_name: 'QA Patient', patient_number: 'QA', visit_number: 'QA-OPD' }, contextQuery: {}, intakeQuery: {}, visitQuery: {}, setQuery: state.setQuery,
+  canViewExamination: true, canViewDiagnosis: true, canViewClinical: true, canSignEncounter: true,
+  intakeView: state.alertStatus ? { shared_history: {}, alerts: [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] } : undefined,
+  emergencyAlerts: state.alertStatus ? [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] : [],
+  visit: { patient_name: 'QA Patient', patient_number: 'QA', visit_number: 'QA-OPD' }, contextQuery: {}, intakeQuery: {}, visitQuery: {}, setQuery: state.setQuery,
 }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyResultFeature', () => ({ useOphthalmologyResultFeature: () => ({
   task: state.task, result: state.result, taskId: '333333333333333333333333', canView: true, canEdit: state.canEdit, canComplete: state.canEdit,
@@ -15,6 +18,7 @@ vi.mock('../hooks/ophthalmology/useOphthalmologyResultFeature', () => ({ useOpht
 }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyComparisonFeature', () => ({ useOphthalmologyComparisonFeature: () => ({ open: false, page: 1, query: {}, data: undefined, canSelect: false }) }));
 vi.mock('../hooks/appointments/useAppointments', () => ({ useAppointmentDetails: () => ({ data: undefined }) }));
+vi.mock('../hooks/patients/usePatients', () => ({ usePatientDetails: () => ({ data: undefined }) }));
 import { OphthalmologyWorkspacePage } from './OphthalmologyWorkspacePage';
 
 const id = '111111111111111111111111';
@@ -111,14 +115,45 @@ describe('ophthalmology structured form interaction', () => {
     await act(async () => { setter?.call(reason, 'Verified QA transcription correction'); reason.dispatchEvent(new Event('input', { bubbles: true })); });
     await submit(); expect(state.save).not.toHaveBeenCalled(); expect(state.amend).toHaveBeenCalledWith(expect.objectContaining({ expected_task_status: 'COMPLETED', expected_task_version: 3, expected_result_version: 2, source_type: 'MANUAL_CORRECTION', reason: 'Verified QA transcription correction' }));
   });
-  it('renders Escalate Emergency button when user has escalation grant and dispatches escalation', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValueOnce('Severe chemical burn OD');
+  it('renders Escalate Emergency button when user has escalation grant and dispatches escalation via modal', async () => {
     state.canEscalate = true;
     state.alertStatus = null;
     await act(async () => root.render(<OphthalmologyWorkspacePage />));
     const btn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Escalate Emergency'));
     expect(btn).toBeDefined();
     await act(async () => { btn?.click(); });
+
+    // Modal is opened
+    const reasonInput = document.querySelector<HTMLTextAreaElement>('#emergency-escalation-reason');
+    expect(reasonInput).not.toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    await act(async () => {
+      setter?.call(reasonInput, 'Severe chemical burn OD');
+      reasonInput?.dispatchEvent(new Event('input', { bubbles: true }));
+      reasonInput?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const submitBtn = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('Escalate Emergency') && b.getAttribute('type') === 'submit');
+    expect(submitBtn).toBeDefined();
+    await act(async () => {
+      submitBtn?.click();
+    });
     expect(state.escalate).toHaveBeenCalledWith('Severe chemical burn OD', ['CLINICAL_ESCALATION'], 'EMERGENCY');
+  });
+
+  it('renders fail-closed active emergency banner and blocks routine consultation actions when emergency is active', async () => {
+    state.canEscalate = true;
+    state.alertStatus = 'ACTIVE';
+    await act(async () => root.render(<OphthalmologyWorkspacePage />));
+
+    expect(container.textContent).toContain('Emergency Review Required');
+    expect(container.textContent).toContain('Routine consultation activities, routine testing, and sign-off are blocked');
+
+    // Routine buttons should be disabled
+    const saveDraftBtn = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Draft');
+    expect(saveDraftBtn?.disabled).toBe(true);
+
+    const signEncounterBtn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Finalize & Sign Encounter') || b.textContent?.includes('Save & Next'));
+    expect(signEncounterBtn?.disabled).toBe(true);
   });
 });

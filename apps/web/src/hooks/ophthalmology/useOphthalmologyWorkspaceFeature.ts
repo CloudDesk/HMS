@@ -102,13 +102,29 @@ export function useOphthalmologyWorkspaceFeature() {
       if (lifecycle.active) toast.success(success);
       return lifecycle.active ? result : undefined;
     } catch (error) {
-      if (lifecycle.active) setActionError({ visitId, message: getOpdErrorMessage(error) });
+      const message = getOpdErrorMessage(error);
+      if (lifecycle.active) {
+        setActionError({ visitId, message });
+        toast.error(message);
+      }
       return undefined;
     }
   }
   const lookupData = (query: typeof complaintsQuery) => lookupEnabled ? (query.data?.data ?? []).filter((item) => item.branch_id === branchId && item.status === 'ACTIVE') : [];
+  const combinedAlerts = (() => {
+    const list = [
+      ...(clinicalWorkspaceQuery.data?.alerts ?? []),
+      ...(intakeView?.alerts ?? []),
+    ];
+    const seen = new Set<string>();
+    return list.filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  })();
   return {
-        emergencyAlerts: (canClear ? clinicalWorkspaceQuery.data?.alerts : intakeView?.alerts) ?? [],
+    emergencyAlerts: combinedAlerts,
     clearanceQuery: clinicalWorkspaceQuery,
     canClearEmergency: canClear && clinicalWorkspaceQuery.data?.can_clear_emergency === true && editableVisit
       && !scopeError && !clinicalWorkspaceQuery.isError && !clinicalWorkspaceQuery.isFetching,
@@ -192,7 +208,35 @@ export function useOphthalmologyWorkspaceFeature() {
       return perform(() => mutations.complete.mutateAsync({ expected_status: 'DRAFT', expected_version: intake.version, expected_context_version: context.version }), 'Intake completed. Emergency routing was processed by the server.');
     },
     alert: (alert: OphthalmologyAlert, action: 'route' | 'acknowledge', note: string | null) => canEscalate && editableVisit && matchesScope(alert) && alert.status === 'ACTIVE' && !scopeError ? perform(() => mutations.alert.mutateAsync({ id: alert.id, action, body: { expected_version: alert.version, expected_status: 'ACTIVE', ...(action === 'acknowledge' ? { note } : {}) } }), action === 'route' ? 'Emergency routing processed.' : 'Emergency alert acknowledged.') : Promise.resolve(undefined),
-    escalate: (reason: string, triggerFindings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => canEscalate && editableVisit && !scopeError ? perform(() => mutations.escalate.mutateAsync({ reason, trigger_findings: triggerFindings, urgency: urgency ?? 'EMERGENCY' }), 'Emergency escalation processed. On-duty ophthalmologists notified.') : Promise.resolve(undefined),
+    escalate: (reason: string, triggerFindings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => {
+      if (!canEscalate) {
+        const msg = 'Permission denied. Emergency escalation requires authorized clinical access.';
+        setActionError({ visitId, message: msg });
+        toast.error(msg);
+        return Promise.resolve(undefined);
+      }
+      if (!editableVisit) {
+        const msg = 'Emergency escalation cannot be recorded on a closed or cancelled encounter.';
+        setActionError({ visitId, message: msg });
+        toast.error(msg);
+        return Promise.resolve(undefined);
+      }
+      if (scopeError) {
+        const msg = 'Encounter scope mismatch. Reopen encounter before escalating.';
+        setActionError({ visitId, message: msg });
+        toast.error(msg);
+        return Promise.resolve(undefined);
+      }
+      return perform(
+        () =>
+          mutations.escalate.mutateAsync({
+            reason,
+            trigger_findings: triggerFindings,
+            urgency: urgency ?? 'EMERGENCY',
+          }),
+        'Emergency escalation processed. On-duty ophthalmologists notified.'
+      );
+    },
   };
 }
 export type OphthalmologyWorkspaceFeature = ReturnType<typeof useOphthalmologyWorkspaceFeature>;
