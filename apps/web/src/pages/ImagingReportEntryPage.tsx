@@ -42,58 +42,137 @@ export function ImagingReportEntryPage() {
     });
   };
 
-  if (!id) return <div className="diagnostic-empty card"><h3>Select an imaging order</h3><button className="btn-primary" onClick={() => navigate('/imaging/queue')}>Open Work Queue</button></div>;
-  if (isLoading) return <div className="diagnostic-empty card"><span className="loading-spinner" /> Loading report workspace...</div>;
-  if (isError || !order) return <div className="diagnostic-empty card" role="alert"><i className="ph ph-warning" /><h3>Report workspace unavailable</h3><button className="btn-secondary" onClick={() => navigate('/imaging/queue')}>Return to Queue</button></div>;
-
-  return <div className="diagnostic-page imaging">
-    <section className="diagnostic-order-header card">
-      <div>
-        <span className="eyebrow">Imaging report</span>
-        <h2>{order.patient_name}</h2>
-        <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
-        <p>{order.patient_number} — {order.items.map((item) => item.service_name).join(', ')}</p>
+  if (!id) {
+    return (
+      <div className="diagnostic-page imaging">
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card">
+          <i className="ph ph-cursor-click" />
+          <h3>Select an imaging order</h3>
+          <p>Open an imaging order from the work queue to begin report entry.</p>
+          <button className="btn-primary" onClick={() => navigate('/imaging/queue')}>Open Work Queue</button>
+        </div>
       </div>
-      <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
-    </section>
+    );
+  }
 
-    <form className="card diagnostic-panel diagnostic-report-form" onSubmit={form.handleSubmit(saveReport)}>
-      <div className="form-section-title">Radiology Report</div>
-      <label className="form-field">
-        <span>Findings <span className="required">*</span></span>
-        <textarea disabled={readOnly} rows={9} {...form.register('findings')} />
-        {form.formState.errors.findings ? <small className="field-error">{form.formState.errors.findings.message}</small> : null}
-      </label>
-      <label className="form-field">
-        <span>Impression <span className="required">*</span></span>
-        <textarea disabled={readOnly} rows={6} {...form.register('impression')} />
-        {form.formState.errors.impression ? <small className="field-error">{form.formState.errors.impression.message}</small> : null}
-      </label>
-      <label className="form-field">
-        <span>Recommendations</span>
-        <textarea disabled={readOnly} rows={4} {...form.register('recommendations')} />
-      </label>
-
-      {readOnly ? <div className="diagnostic-readonly"><i className="ph ph-seal-check" /> This report is verified and read-only.</div> : null}
-      {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> A report can be entered only after the order is in progress.</div> : null}
-
-      <div className="diagnostic-form-actions">
-        <button className="btn-secondary" type="button" onClick={() => navigate(`/imaging/workspace?id=${id}`)}>Back</button>
-        {readOnly && report ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
-        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterReport} type="submit">{isSaving ? 'Saving...' : 'Save Report'}</button> : null}
+  if (isLoading) {
+    return (
+      <div className="diagnostic-page imaging">
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card">
+          <span className="loading-spinner" /> Loading report workspace...
+        </div>
       </div>
-    </form>
-    <ImagingAttachmentsPanel
-      attachments={attachments}
-      canUpload={canUploadAttachments}
-      canView={canViewAttachments}
-      isDownloading={downloadingAttachment}
-      isError={attachmentsError}
-      isLoading={attachmentsLoading}
-      isUploading={uploadingAttachments}
-      onDownload={actions.downloadAttachment}
-      onUpload={actions.uploadAttachments}
-    />
-    {printOpen && report ? <PrintImagingReportModal onClose={() => setPrintOpen(false)} order={order} report={report} /> : null}
-  </div>;
+    );
+  }
+
+  if (isError || !order) {
+    return (
+      <div className="diagnostic-page imaging">
+        <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card" role="alert">
+          <i className="ph ph-warning" />
+          <h3>Report workspace unavailable</h3>
+          <p>The order could not be loaded or is outside your branch access.</p>
+          <button className="btn-secondary" onClick={() => navigate('/imaging/queue')}>Return to Queue</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="diagnostic-page imaging">
+      <section className="opd-page-header">
+        <div>
+          <h2>Imaging Report Entry</h2>
+          <p>Record clinical observations, radiologist impressions, and recommendations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/imaging/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+
+      <section className="diagnostic-order-header card">
+        <div>
+          <span className="eyebrow">Imaging report</span>
+          <h2>{order.patient_name}</h2>
+          <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
+          <p>{order.patient_number} — {order.items.map((item) => item.service_name).join(', ')}</p>
+        </div>
+        <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
+      </section>
+
+      <form className="card diagnostic-panel diagnostic-report-form" onSubmit={form.handleSubmit(saveReport)}>
+        <div className="form-section-title">Radiology Report</div>
+        <label className="form-field">
+          <span>Findings <span className="required">*</span></span>
+          <textarea disabled={readOnly} rows={9} {...form.register('findings')} />
+          {form.formState.errors.findings ? <small className="field-error">{form.formState.errors.findings.message}</small> : null}
+        </label>
+        <label className="form-field">
+          <span>Impression <span className="required">*</span></span>
+          <textarea disabled={readOnly} rows={6} {...form.register('impression')} />
+          {form.formState.errors.impression ? <small className="field-error">{form.formState.errors.impression.message}</small> : null}
+        </label>
+        <label className="form-field">
+          <span>Recommendations</span>
+          <textarea disabled={readOnly} rows={4} {...form.register('recommendations')} />
+        </label>
+
+        {readOnly ? <div className="diagnostic-readonly"><i className="ph ph-seal-check" /> This report is verified and read-only.</div> : null}
+        {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> A report can be entered only after the order is in progress.</div> : null}
+
+        <div className="diagnostic-form-actions">
+          <button className="btn-secondary" type="button" onClick={() => navigate(`/imaging/workspace?id=${id}`)}>Back</button>
+          {readOnly && report ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
+          {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterReport} type="submit">{isSaving ? 'Saving...' : 'Save Report'}</button> : null}
+        </div>
+      </form>
+      <ImagingAttachmentsPanel
+        attachments={attachments}
+        canUpload={canUploadAttachments}
+        canView={canViewAttachments}
+        isDownloading={downloadingAttachment}
+        isError={attachmentsError}
+        isLoading={attachmentsLoading}
+        isUploading={uploadingAttachments}
+        onDownload={actions.downloadAttachment}
+        onUpload={actions.uploadAttachments}
+      />
+      {printOpen && report ? <PrintImagingReportModal onClose={() => setPrintOpen(false)} order={order} report={report} /> : null}
+    </div>
+  );
 }

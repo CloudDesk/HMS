@@ -271,6 +271,25 @@ export function PatientSearchPage() {
 
   return (
     <div className="appointment-page full-height-layout patient-directory-page" onClick={() => setActiveMenuId(null)}>
+      {/* Patient Directory Page Header */}
+      <section className="opd-page-header">
+        <div>
+          <h2>Patients</h2>
+          <p>Search, view medical records, and manage patient profiles</p>
+        </div>
+        <div className="opd-page-actions">
+          {canCreatePatient ? (
+            <button
+              className="doc-btn primary"
+              onClick={() => setRegistrationOpen(true)}
+              type="button"
+            >
+              <i className="ph ph-plus" aria-hidden="true" /> Register Patient
+            </button>
+          ) : null}
+        </div>
+      </section>
+
       {/* Patient Search Form Card */}
       <section className="doc-card patient-search-card">
         <form

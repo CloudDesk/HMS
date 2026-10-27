@@ -7,6 +7,8 @@ export function LaboratoryQueuePage() {
   return (
     <DiagnosticQueue
       module="laboratory"
+      title="Laboratory Work Queue"
+      description="Manage laboratory orders, sample processing, and test results"
       statuses={['SUBMITTED', 'RECEIVED', 'SAMPLE_COLLECTED', 'IN_PROGRESS', 'RESULT_ENTERED', 'VERIFIED', 'COMPLETED']}
       {...feature}
     />

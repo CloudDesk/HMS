@@ -195,6 +195,12 @@ export function EmergencyQueuePage() {
 
   return (
     <div className="emergency-page emergency-theme">
+      <div className="emergency-queue-header" style={{ marginBottom: '0.25rem' }}>
+        <div className="emergency-page-title">
+          <h2>Emergency Waiting Queue</h2>
+          <p>Review emergency arrivals, triage priority, and doctor evaluation queue</p>
+        </div>
+      </div>
       {/* Filter Toolbar - Search First + Refresh Button */}
       <div className="emergency-queue-toolbar">
         <div className="doc-field doc-field--search">

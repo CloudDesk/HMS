@@ -86,7 +86,7 @@ export const getOpdErrorMessage = (error: unknown) => {
     if (error.status === 400) return error.message || 'Validation error. Please check the OPD visit details.';
     if (error.status === 409) return error.message || 'The OPD journey could not be closed due to an active clinical or settlement requirement.';
     if (error.status === 401) return 'Your session has expired. Please sign in again.';
-    if (error.status === 403) return 'You do not have permission to access OPD visits.';
+    if (error.status === 403) return error.message || 'You do not have permission to access OPD visits.';
     if (error.status === 404) return 'OPD visit not found.';
     if (error.status === 409) return error.message || 'An active OPD visit already exists.';
     if (error.status >= 500) return error.message || 'An unexpected error occurred while processing the OPD request.';

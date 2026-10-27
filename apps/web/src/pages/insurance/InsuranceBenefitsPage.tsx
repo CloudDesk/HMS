@@ -348,6 +348,20 @@ export function InsuranceBenefitsPage() {
 
   return (
     <div className="insurance-page">
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+      <div className="insurance-page-head">
+        <div>
+          <h2>Benefit Configuration</h2>
+          <p>Define coverage limits, copays, deductibles, and pre-authorization requirements.</p>
+        </div>
+        <div className="insurance-head-actions">
+          {canManage && (
+            <button className="btn-primary" onClick={openCreateModal} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Add Rule
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── KPI Row ────────────────────────────────────────────────────────── */}
       <div className="um-kpi-row" aria-label="Benefit Configuration Statistics">
         <div className="kpi-card">

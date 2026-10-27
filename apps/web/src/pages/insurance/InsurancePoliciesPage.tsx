@@ -286,6 +286,20 @@ export function InsurancePoliciesPage() {
 
   return (
     <div className="insurance-page">
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+      <div className="insurance-page-head">
+        <div>
+          <h2>Insurance Policies</h2>
+          <p>Track policy contracts, coverage terms, policyholders, and validity periods.</p>
+        </div>
+        <div className="insurance-head-actions">
+          {canCreate && (
+            <button className="btn-primary" onClick={openCreateModal} type="button">
+              <i className="ph ph-plus" aria-hidden="true" /> Add Policy
+            </button>
+          )}
+        </div>
+      </div>
       {/* ── KPI Row ────────────────────────────────────────────────────────── */}
       <div className="um-kpi-row" aria-label="Policy Statistics">
         <div className="kpi-card">

@@ -55,55 +55,134 @@ export function LaboratoryResultEntryPage() {
     });
   };
 
-  if (!id) return <div className="diagnostic-empty card"><h3>Select a laboratory order</h3><button className="btn-primary" onClick={() => navigate('/laboratory/queue')}>Open Work Queue</button></div>;
-  if (isLoading) return <div className="diagnostic-empty card"><span className="loading-spinner" /> Loading result workspace...</div>;
-  if (isError || !order) return <div className="diagnostic-empty card" role="alert"><i className="ph ph-warning" /><h3>Result workspace unavailable</h3><button className="btn-secondary" onClick={() => navigate('/laboratory/queue')}>Return to Queue</button></div>;
-
-  return <div className="diagnostic-page laboratory">
-    <section className="diagnostic-order-header card">
-      <div>
-        <span className="eyebrow">Laboratory results</span>
-        <h2>{order.patient_name}</h2>
-        <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
-        <p>{order.patient_number} — {order.doctor_name}</p>
+  if (!id) {
+    return (
+      <div className="diagnostic-page laboratory">
+        <section className="opd-page-header">
+        <div>
+          <h2>Laboratory Result Entry</h2>
+          <p>Record laboratory test parameter values, units, reference ranges, and observations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/laboratory/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card">
+          <i className="ph ph-cursor-click" />
+          <h3>Select a laboratory order</h3>
+          <p>Open a laboratory order from the work queue to begin result entry.</p>
+          <button className="btn-primary" onClick={() => navigate('/laboratory/queue')}>Open Work Queue</button>
+        </div>
       </div>
-      <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
-    </section>
+    );
+  }
 
-    <form className="card diagnostic-panel" onSubmit={form.handleSubmit(saveResult)}>
-      <div className="form-section-title">Result Entry</div>
-      <div className="table-responsive">
-        <table className="data-table diagnostic-result-table">
-          <thead><tr><th>Service</th><th>Value</th><th>Unit</th><th>Reference Range</th><th>Comments</th></tr></thead>
-          <tbody>
-            {fields.fields.map((field, index) => <tr key={field.id}>
-              <td>
-                <strong>{field.service_name}</strong>
-                <input type="hidden" {...form.register(`result_items.${index}.service_id`)} />
-                <input type="hidden" {...form.register(`result_items.${index}.service_name`)} />
-              </td>
-              <td>
-                <input disabled={readOnly} {...form.register(`result_items.${index}.value`)} />
-                {form.formState.errors.result_items?.[index]?.value ? <small className="field-error">{form.formState.errors.result_items[index]?.value?.message}</small> : null}
-              </td>
-              <td><input disabled={readOnly} {...form.register(`result_items.${index}.unit`)} /></td>
-              <td><input disabled={readOnly} {...form.register(`result_items.${index}.reference_range`)} /></td>
-              <td><input disabled={readOnly} {...form.register(`result_items.${index}.comments`)} /></td>
-            </tr>)}
-          </tbody>
-        </table>
+  if (isLoading) {
+    return (
+      <div className="diagnostic-page laboratory">
+        <section className="opd-page-header">
+        <div>
+          <h2>Laboratory Result Entry</h2>
+          <p>Record laboratory test parameter values, units, reference ranges, and observations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/laboratory/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card">
+          <span className="loading-spinner" /> Loading result workspace...
+        </div>
       </div>
-      <label className="form-field"><span>Remarks</span><textarea disabled={readOnly} rows={4} {...form.register('remarks')} /></label>
+    );
+  }
 
-      {readOnly ? <div className="diagnostic-readonly"><i className="ph ph-seal-check" /> This result is verified and read-only.</div> : null}
-      {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> Results can be entered only after the order is in progress.</div> : null}
-
-      <div className="diagnostic-form-actions">
-        <button className="btn-secondary" type="button" onClick={() => navigate(`/laboratory/workspace?id=${id}`)}>Back</button>
-        {readOnly && result ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
-        {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterResult} type="submit">{isSaving ? 'Saving...' : 'Save Results'}</button> : null}
+  if (isError || !order) {
+    return (
+      <div className="diagnostic-page laboratory">
+        <section className="opd-page-header">
+        <div>
+          <h2>Laboratory Result Entry</h2>
+          <p>Record laboratory test parameter values, units, reference ranges, and observations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/laboratory/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+        <div className="diagnostic-empty card" role="alert">
+          <i className="ph ph-warning" />
+          <h3>Result workspace unavailable</h3>
+          <p>The order could not be loaded or is outside your branch access.</p>
+          <button className="btn-secondary" onClick={() => navigate('/laboratory/queue')}>Return to Queue</button>
+        </div>
       </div>
-    </form>
-    {printOpen && result ? <PrintLaboratoryResultModal onClose={() => setPrintOpen(false)} order={order} result={result} /> : null}
-  </div>;
+    );
+  }
+
+  return (
+    <div className="diagnostic-page laboratory">
+      <section className="opd-page-header">
+        <div>
+          <h2>Laboratory Result Entry</h2>
+          <p>Record laboratory test parameter values, units, reference ranges, and observations</p>
+        </div>
+        <div className="opd-page-actions">
+          <button className="doc-btn" onClick={() => navigate(`/laboratory/workspace?id=${id}`)} type="button">
+            <i className="ph ph-arrow-left" /> Back to Workspace
+          </button>
+        </div>
+      </section>
+
+      <section className="diagnostic-order-header card">
+        <div>
+          <span className="eyebrow">Laboratory results</span>
+          <h2>{order.patient_name}</h2>
+          <span className="status-badge">{order.source_type.replaceAll('_', ' ')}</span>
+          <p>{order.patient_number} — {order.doctor_name}</p>
+        </div>
+        <span className={`diagnostic-status status-${order.status.toLowerCase().replaceAll('_', '-')}`}>{order.status.replaceAll('_', ' ')}</span>
+      </section>
+
+      <form className="card diagnostic-panel" onSubmit={form.handleSubmit(saveResult)}>
+        <div className="form-section-title">Result Entry</div>
+        <div className="table-responsive">
+          <table className="data-table diagnostic-result-table">
+            <thead><tr><th>Service</th><th>Value</th><th>Unit</th><th>Reference Range</th><th>Comments</th></tr></thead>
+            <tbody>
+              {fields.fields.map((field, index) => <tr key={field.id}>
+                <td>
+                  <strong>{field.service_name}</strong>
+                  <input type="hidden" {...form.register(`result_items.${index}.service_id`)} />
+                  <input type="hidden" {...form.register(`result_items.${index}.service_name`)} />
+                </td>
+                <td>
+                  <input disabled={readOnly} {...form.register(`result_items.${index}.value`)} />
+                  {form.formState.errors.result_items?.[index]?.value ? <small className="field-error">{form.formState.errors.result_items[index]?.value?.message}</small> : null}
+                </td>
+                <td><input disabled={readOnly} {...form.register(`result_items.${index}.unit`)} /></td>
+                <td><input disabled={readOnly} {...form.register(`result_items.${index}.reference_range`)} /></td>
+                <td><input disabled={readOnly} {...form.register(`result_items.${index}.comments`)} /></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <label className="form-field"><span>Remarks</span><textarea disabled={readOnly} rows={4} {...form.register('remarks')} /></label>
+
+        {readOnly ? <div className="diagnostic-readonly"><i className="ph ph-seal-check" /> This result is verified and read-only.</div> : null}
+        {!canEdit ? <div className="diagnostic-readonly"><i className="ph ph-info" /> Results can be entered only after the order is in progress.</div> : null}
+
+        <div className="diagnostic-form-actions">
+          <button className="btn-secondary" type="button" onClick={() => navigate(`/laboratory/workspace?id=${id}`)}>Back</button>
+          {readOnly && result ? <button className="btn-secondary" type="button" onClick={() => setPrintOpen(true)}><i className="ph ph-printer" /> Print Report</button> : null}
+          {canEdit && !readOnly ? <button className="btn-primary" disabled={isSaving || !canEnterResult} type="submit">{isSaving ? 'Saving...' : 'Save Results'}</button> : null}
+        </div>
+      </form>
+      {printOpen && result ? <PrintLaboratoryResultModal onClose={() => setPrintOpen(false)} order={order} result={result} /> : null}
+    </div>
+  );
 }
