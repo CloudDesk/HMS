@@ -1,6 +1,7 @@
 import type { InsuranceClaimService } from '../../modules/insurance/insurance-claim.service.js';
 import type { MpesaCallbackService } from '../../modules/mpesa/mpesa-callback.service.js';
 import type { MpesaAttemptService } from '../../modules/mpesa/mpesa-attempt.service.js';
+import type { MpesaPostingService } from '../../modules/mpesa/mpesa-posting.service.js';
 import type { InsuranceIntegrationService } from '../../modules/insurance/insurance-integration.service.js';
 import type { InsuranceAuthorizationService } from '../../modules/insurance/insurance-authorization.service.js';
 import type { checkDatabaseHealth } from '../../database/health.js';
@@ -87,6 +88,7 @@ export type ServiceRegistry = {
   billing: BillingService;
   mpesaCallback: MpesaCallbackService;
   mpesaAttempts: MpesaAttemptService;
+  mpesaPosting: MpesaPostingService;
   settings: SettingsService;
   notification: NotificationService;
   pharmacyDispensing: PharmacyDispensingService;

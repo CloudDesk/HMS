@@ -55,6 +55,13 @@ export type BillingPaymentFields = {
   paymentMethod: BillingPaymentMethod;
   paymentDate: Date;
   referenceNumber?: string | null;
+  provider?: string | null;
+  mpesaAttemptId?: string | null;
+  merchantRequestId?: string | null;
+  checkoutRequestId?: string | null;
+  mpesaReceiptNumber?: string | null;
+  transactionVerificationTimestamp?: Date | null;
+  financialPostingTimestamp?: Date | null;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   deletedBy?: Types.ObjectId;
@@ -148,11 +155,18 @@ const paymentSchema = new Schema<BillingPaymentFields>(
     amount: { type: Number, required: true, min: 0.01 },
     paymentMethod: {
       type: String,
-      enum: ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER'],
+      enum: ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'MPESA'],
       required: true,
     },
     paymentDate: { type: Date, required: true },
     referenceNumber: { type: String, default: null, trim: true },
+    provider: { type: String, default: null },
+    mpesaAttemptId: { type: String, default: null },
+    merchantRequestId: { type: String, default: null },
+    checkoutRequestId: { type: String, default: null },
+    mpesaReceiptNumber: { type: String, default: null },
+    transactionVerificationTimestamp: { type: Date, default: null },
+    financialPostingTimestamp: { type: Date, default: null },
     ...auditFields,
   },
   { collection: 'billing_payments', timestamps: true },
@@ -161,8 +175,15 @@ const paymentSchema = new Schema<BillingPaymentFields>(
 paymentSchema.index({ invoiceId: 1 });
 paymentSchema.index({ paymentDate: -1 });
 paymentSchema.index({ branchId: 1, paymentDate: -1 });
+paymentSchema.index(
+  { mpesaAttemptId: 1 },
+  { unique: true, partialFilterExpression: { mpesaAttemptId: { $type: 'string' } } },
+);
+paymentSchema.index(
+  { checkoutRequestId: 1 },
+  { unique: true, partialFilterExpression: { checkoutRequestId: { $type: 'string' } } },
+);
 
 export const BillingInvoiceModel = mongoose.model<BillingInvoiceFields>('BillingInvoice', invoiceSchema);
 export const BillingInvoiceItemModel = mongoose.model<BillingInvoiceItemFields>('BillingInvoiceItem', invoiceItemSchema);
 export const BillingPaymentModel = mongoose.model<BillingPaymentFields>('BillingPayment', paymentSchema);
-

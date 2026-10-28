@@ -4,7 +4,7 @@ export type BillingInvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_PAID' | 'PAI
 export type BillingServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
 export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE';
 export type ManualBillingServiceType = Exclude<BillingServiceType, 'PHARMACY'>;
-export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
+export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'MPESA';
 
 export type BillingInvoiceItem = {
   id: string;

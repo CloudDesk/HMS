@@ -11,6 +11,7 @@ import { MpesaCallbackService } from '../../modules/mpesa/mpesa-callback.service
 import { MpesaCallbackRepository } from '../../modules/mpesa/mpesa-callback.repository.js';
 import { MpesaAttemptRepository } from '../../modules/mpesa/mpesa-attempt.repository.js';
 import { MpesaAttemptService } from '../../modules/mpesa/mpesa-attempt.service.js';
+import { MpesaPostingService } from '../../modules/mpesa/mpesa-posting.service.js';
 import { MpesaDarajaClient } from '../../modules/mpesa/mpesa-daraja.client.js';
 import { AuthRepository } from '../../modules/auth/auth.repository.js';
 import { AuthRateLimitRepository } from '../../modules/auth/auth-rate-limit.repository.js';
@@ -185,6 +186,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     serviceRepository,
     advancePaymentService,
   );
+  const mpesaPosting = new MpesaPostingService(new MpesaAttemptRepository(), billingRepository, advancePaymentService, billingService);
   const insuranceAuthorizationRepository = new InsuranceAuthorizationRepository();
   const insuranceRepository = new InsuranceRepository();
   const insuranceIntegrationRepository = new InsuranceIntegrationRepository();
@@ -379,6 +381,7 @@ export const createServiceRegistry = (): ServiceRegistry => {
     advancePayment: advancePaymentService,
     mpesaCallback: new MpesaCallbackService(mpesaCallbacks, new AuthRateLimitRepository(), env.mpesa, mpesaAttempts),
     mpesaAttempts,
+    mpesaPosting,
     insurance: insuranceServiceInstance,
     insuranceClaims: insuranceClaimService,
     insuranceIntegration: insuranceIntegrationService,

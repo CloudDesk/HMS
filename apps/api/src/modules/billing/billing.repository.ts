@@ -140,6 +140,13 @@ const toPayment = (payment: PaymentLean): BillingPayment => ({
   payment_method: payment.paymentMethod,
   payment_date: payment.paymentDate,
   reference_number: payment.referenceNumber ?? null,
+  provider: payment.provider ?? null,
+  mpesa_attempt_id: payment.mpesaAttemptId ?? null,
+  merchant_request_id: payment.merchantRequestId ?? null,
+  checkout_request_id: payment.checkoutRequestId ?? null,
+  mpesa_receipt_number: payment.mpesaReceiptNumber ?? null,
+  transaction_verification_timestamp: payment.transactionVerificationTimestamp ?? null,
+  financial_posting_timestamp: payment.financialPostingTimestamp ?? null,
   created_by: payment.createdBy?.toString() ?? null,
   updated_by: payment.updatedBy?.toString() ?? null,
   created_at: payment.createdAt,
@@ -426,6 +433,13 @@ export class BillingRepository {
       paymentMethod: data.payment_method,
       paymentDate: data.payment_date ? new Date(data.payment_date) : new Date(),
       referenceNumber: data.reference_number?.trim() || null,
+      provider: data.provider || null,
+      mpesaAttemptId: data.mpesa_attempt_id || null,
+      merchantRequestId: data.merchant_request_id || null,
+      checkoutRequestId: data.checkout_request_id || null,
+      mpesaReceiptNumber: data.mpesa_receipt_number || null,
+      transactionVerificationTimestamp: data.transaction_verification_timestamp || null,
+      financialPostingTimestamp: data.financial_posting_timestamp || null,
       createdBy: objectId(userId),
       updatedBy: objectId(userId),
     }], { session: session ?? undefined, ordered: true });
@@ -466,6 +480,13 @@ export class BillingRepository {
       .lean<PaymentLean[]>();
     if (session) query.session(session);
     return (await query).map(toPayment);
+  }
+
+  async getPaymentByMpesaAttemptId(mpesaAttemptId: string, session?: ClientSession) {
+    const payment = await BillingPaymentModel.findOne({ mpesaAttemptId, deletedAt: null })
+      .session(session ?? null)
+      .lean<PaymentLean>();
+    return payment ? toPayment(payment) : null;
   }
 
   async getPaymentById(id: string, branchIds?: string[]) {

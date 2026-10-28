@@ -1,4 +1,4 @@
-import type { BillingInvoiceStatus, BillingServiceType, BillingSourceType } from '../api/billing';
+import type { BillingInvoiceStatus, BillingPaymentMethod, BillingServiceType, BillingSourceType } from '../api/billing';
 import { ApiError } from '../api/api-error';
 
 export const formatBillingDate = (value: string) => new Intl.DateTimeFormat('en', {
@@ -15,6 +15,14 @@ export const billingStatusLabel: Record<BillingInvoiceStatus, string> = {
   PARTIALLY_PAID: 'Partially Paid',
   PAID: 'Paid',
   CANCELLED: 'Cancelled',
+};
+
+export const billingPaymentMethodLabel: Record<BillingPaymentMethod, string> = {
+  CASH: 'Cash',
+  CARD: 'Card',
+  UPI: 'UPI',
+  BANK_TRANSFER: 'Bank Transfer',
+  MPESA: 'M-Pesa',
 };
 
 export const billingServiceLabel: Record<BillingServiceType, string> = {

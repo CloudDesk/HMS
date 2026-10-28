@@ -1,0 +1,598 @@
+CLOUD DESK
+Healthcare Management System
+Phase 2 Functional Scope Document
+
+Field
+Details
+Prepared For
+Internal
+Prepared By
+Cloud Desk
+Document Type
+Functional Scope Document
+Project Phase
+Phase 2
+Baseline Relationship
+Builds on Phase 1 OPD scope
+Version
+1.0
+Date
+
+
+
+Contents
+No.
+Section
+1
+Document Purpose and Scope Basis
+2
+Phase 2 Scope Boundary
+3
+Phase 2 Functional Scope Summary
+4
+User Roles and Access Scope
+5
+Application Tabs / Screen Areas
+6
+Whiteboard Item to Phase 2 Interpretation
+7
+Administration and Master Configuration
+8
+Patient Record / EMR Extensions
+9
+Reception, Referral and Booking Extensions
+10
+Doctor Phase 2 Consultation Outputs
+11
+Surgery / Procedure Booking Scope
+12
+IP Bed Management and Admission Conversion
+13
+Emergency Workflow Scope
+14
+Pharmacy, Lab and Scan Extensions
+15
+Billing, Payment, Advance Payment and Payment Status
+16
+Consent and Document Attachment
+17
+Reports and Dashboards
+18
+Status Masters
+19
+Validations and Controls
+20
+Exception Scenarios
+21
+Release Acceptance Criteria
+
+
+1. Document Purpose and Scope Basis
+This document defines the functional scope for HMS Phase 2 development. Phase 2 is planned to implement the items that were not included in the orange-marked Phase 1 OPD scope on the manager-reviewed whiteboard.
+Phase 1 remains the baseline for OPD patient registration, booking, vitals, consultation, e-prescription, lab, scan, basic billing and patient EMR timeline. Phase 2 shall extend the application into the additional flows identified on the whiteboard, mainly IP beds, surgery/procedure booking, emergency handling, consent attachment, bed availability/allotment and advance payment handling.
+Important implementation rule
+Phase 2 should reuse the same patient record, encounter/visit context, doctor availability rules, billing permission model and EMR timeline behavior already established in Phase 1. New Phase 2 activities must not create disconnected patient records or isolated module entries.
+
+2. Phase 2 Scope Boundary
+Area
+Phase 2 Scope Boundary
+Primary scope
+Extend the HMS from OPD-only workflow into emergency, surgery/procedure scheduling and IP bed/admission conversion workflows.
+Patient record rule
+All Phase 2 workflows must connect to the same patient profile, EMR timeline, documents and relevant visit/encounter.
+Billing rule
+Billing is permission-driven. The role performing billing must be controlled through Admin permissions and must not be hard-coded to Reception or any fixed user type.
+Configuration rule
+Admin controls masters and configuration for IP beds, surgery/procedure services, consent forms, department setup, advance payment rules and authorized screen actions.
+
+3. Phase 2 Functional Scope Summary
+IP bed configuration and bed availability management.
+Reception-led bed checking, bed allotment and admission conversion support.
+Doctor-driven surgery/procedure referral and department selection with surgery date capture.
+Surgery/procedure booking through Reception based on doctor availability, department availability and bed availability where required.
+Consent form attachment for surgery/admission-related flows.
+Advance payment capture and allocation before surgery/IP bed allotment where configured.
+Emergency patient flow with downstream pharmacy, lab and scan handling.
+Emergency disposition: discharge from emergency or convert to IP through Reception/admission workflow.
+Pharmacy, lab and scan request processing for Phase 2 sources such as emergency, surgery/procedure and IP/admission workflows.
+Payment status visibility across pharmacy, lab, scan, surgery/procedure, emergency and admission-related services.
+Reports for emergency register, surgery/procedure schedule, bed occupancy, admission conversion, advance payment and pending payment/discharge status.
+Permission-based access, audit trail and connected EMR timeline updates for all Phase 2 activities.
+4. User Roles and Access Scope
+User / Actor
+Phase 2 Responsibility
+Admin
+Configure users, permissions, branches, departments, IP beds, wards/rooms if applicable, surgery/procedure services, emergency settings, consent templates, advance payment rules and authorized billing access.
+Patient
+Receives emergency, surgery/procedure or admission-related services while retaining the same patient record and EMR timeline.
+Receptionist
+Handles referred appointments, surgery/procedure booking, bed availability check, consent attachment, advance payment coordination and conversion of emergency cases to IP/admission where applicable.
+Clinician / Nurse
+Supports emergency or pre-procedure vitals/assessment only where configured. Full ward nursing documentation is To Be Confirmed.
+Doctor
+Creates surgery/procedure referral, emergency disposition, IP/admission recommendation and continued pharmacy/lab/scan orders.
+Emergency User / Team
+Registers or manages emergency patient flow, routes patient to doctor and downstream pharmacy/lab/scan, and supports discharge or conversion to IP.
+Surgery / Procedure Department User
+Views surgery/procedure requests, tracks schedule/date/status and updates procedure status where approved.
+Bed / Ward Coordinator
+Views bed board, manages bed hold/allotment/release/transfer where this role is configured.
+Pharmacy User
+Processes prescriptions generated from emergency, surgery/procedure or IP/admission-related flows and updates dispensing/payment status.
+Lab User
+Processes test requests from emergency/surgery/IP contexts and attaches reports to the same patient/encounter.
+Scan / Imaging User
+Processes scan/imaging requests from emergency/surgery/IP contexts and attaches reports/images to the same patient/encounter.
+Authorized Billing User
+Performs invoices, advance payments, service payments, refunds/reversals if approved, and payment status updates based on Admin-granted permission.
+Management User
+Views Phase 2 operational dashboards and reports for bed occupancy, emergency flow, surgery schedule, payments and conversion outcomes.
+
+5. Application Tabs / Screen Areas
+Role / Module
+Phase 2 Tabs / Screen Areas
+Admin
+IP Bed Master; Ward/Room Master; Surgery/Procedure Department Master; Emergency Configuration; Consent Templates; Advance Payment Rules; Bed Status Master; Surgery Status Master; User Permissions; Audit Logs.
+Reception
+Referral Booking; Surgery/Procedure Booking; Doctor Availability; Bed Availability; Bed Allotment; Consent Attachment; Advance Payment View; Emergency Conversion to IP; Reschedule/Cancel.
+Doctor
+Emergency Consultation; Surgery/Procedure Referral; Admission/IP Recommendation; Surgery Date/Department Selection; Patient EMR; Orders; Referral Notes; Disposition.
+Emergency
+Emergency Registration/Queue; Emergency Assessment; Emergency Orders; Emergency Billing Status; Discharge/Convert to IP; Emergency Timeline.
+Bed / Ward
+Bed Board; Bed Hold; Bed Allotment; Bed Transfer; Bed Release; Occupancy Status; Admission View.
+Surgery / Procedure
+Procedure Request Queue; Surgery/Procedure Schedule; Pre-Procedure Checklist; Consent Status; Procedure Status; Department Assignment.
+Pharmacy
+Prescription Queue by Source; Emergency/IP/Surgery Prescriptions; Dispensing; Payment Status; Medication Record.
+Lab
+Lab Request Queue by Source; Emergency/IP/Surgery Requests; Result Entry; Report Attachment; Payment Status.
+Scan / Imaging
+Scan Request Queue by Source; Emergency/IP/Surgery Requests; Report/Image Attachment; Payment Status.
+Billing
+Emergency Bill; Surgery/Procedure Bill; Advance Payment; IP Deposit/Payment; Service Invoice; Payment Status; Discharge Billing; Reversal/Refund if approved.
+Management
+Bed Occupancy Dashboard; Emergency Dashboard; Surgery Schedule Dashboard; Payment/Advance Dashboard; Pending Discharge/Conversion Report.
+
+6. Phase 2 Interpretation
+ Note
+Phase 2 Interpretation
+Functional Outcome
+IP beds
+Admin and operations must manage inpatient bed setup and availability.
+Bed master, bed board, availability, hold, allotment, transfer/release and occupancy reporting.
+Doctor -> Surgery (Surg date) -> department
+Doctor can recommend or refer patient for surgery/procedure and identify department/date requirement.
+Surgery/procedure referral record, department selection, surgery date, status and patient timeline update.
+Reception -> Doctor refer -> check avail -> book appointment
+Reception books referred appointments after doctor referral.
+Referral booking flow with doctor availability validation and same patient context.
+Doctor avail -> book surgery (check bed) -> advance payment -> allotted
+Surgery/procedure booking requires doctor availability, bed availability where applicable, advance payment rule and final allotment.
+Surgery booking workflow with bed check, advance payment and allocation status.
+Consent form attach
+Consent documents must be attached before surgery/admission-related activities where required.
+Consent document upload, status validation and audit trail.
+Emergency -> Pharmacy, Lab, Scans -> Discharge / convert to IP -> Receptionist
+Emergency workflow routes to downstream services and ends with discharge or IP conversion through Reception/admission workflow.
+Emergency case workflow, emergency services, disposition status, IP conversion and discharge/payment closure.
+Payment status near pharmacy/lab/scans
+Departments should have visibility of payment/billing status where required by policy.Once payment is confirmed, the stock must be reduced.
+Payment status display linked to service/visit/encounter for authorized users.
+Lab/Scan reports, payment, invoices, no appointments
+Lab/scan processing is request-based; separate appointment flow is not assumed unless later approved.
+Request queue, report attachment, invoice/payment status without independent appointment booking.
+
+7. Administration and Master Configuration
+Admin shall configure the Phase 2 operational foundation. Only authorized users shall be able to create, edit, deactivate or delete master data. All sensitive configuration changes shall be logged.
+Configuration Area
+Required Functional Scope
+IP Bed Master
+Create bed ID, bed type, ward/room, branch, gender restriction if applicable, status, charge category and active/inactive flag.
+Ward / Room Master
+Configure ward/room name, branch, room type, bed capacity and operational status where wards/rooms are required.
+Surgery / Procedure Department Master
+Configure surgical/procedure departments, service types, linked doctors, schedule rules and billable service mapping.
+Emergency Configuration
+Configure emergency visit type, emergency priority, emergency service billing, doctor routing and disposition statuses.
+Consent Templates
+Maintain consent form templates, document types, mandatory consent triggers and version history if applicable.
+Advance Payment Rules
+Configure whether advance payment is required before surgery booking, bed allotment or IP conversion, including minimum amount or percentage if agreed.
+Billing Permissions
+Assign which roles can create bills, accept payments, view payment status, reverse/refund and close accounts.
+Status Masters
+Maintain controlled statuses for bed, surgery/procedure, emergency, admission, consent, advance payment and discharge.
+
+8. Patient Record / EMR Extensions
+Maintain a single patient record across OPD, emergency, surgery/procedure and IP/admission-related workflows.
+Display emergency encounters, surgery/procedure referrals, bed allotment, consent documents, advance payments and discharge/conversion outcome in the EMR timeline.
+Do not create separate patient profiles for emergency or IP conversion when an existing patient record is available.
+Allow authorized users to view history, lab reports, scan reports, prescriptions, documents and payment status based on permissions.
+Support document attachment for consent forms and relevant Phase 2 clinical/operational documents.
+Timeline Event
+Triggered By
+Expected Timeline Output
+Emergency encounter created
+Emergency/Reception user
+Emergency visit entry linked to patient.
+Doctor recommends surgery/procedure
+Doctor
+Surgery/procedure referral entry with department/date/status.
+Bed allotted
+Reception/Bed coordinator
+Admission/bed allocation entry with bed details.
+Consent attached
+Reception/Authorized user
+Document entry and consent status.
+Advance payment received
+Authorized billing user
+Payment entry linked to surgery/admission/emergency context.
+Emergency discharged
+Doctor/Authorized user
+Emergency disposition and closure status.
+Emergency converted to IP
+Reception/Authorized user
+Conversion entry and new admission/IP context.
+
+9. Reception, Referral and Booking Extensions
+Reception shall continue to handle patient lookup, referred booking and availability checks, but Phase 2 adds surgery/procedure booking, bed availability check, consent attachment and conversion workflows.
+Reception Function
+Required Behaviour
+Referral booking
+When Doctor refers the patient, Reception shall retrieve the same patient record, check doctor/service availability and create the referred appointment or booking.
+Surgery/procedure booking
+Reception shall book surgery/procedure only after required doctor/department availability checks and any required bed/advance payment validations are complete.
+Bed availability check
+Reception shall see available beds based on branch, ward/room, bed type and current status.
+Consent attachment
+Reception or authorized user shall attach consent form where required before surgery/admission-related confirmation.
+Advance payment coordination
+Reception may view whether advance payment is pending/received, but payment capture shall remain permission-driven.
+Emergency conversion to IP
+When emergency case is marked Convert to IP, Reception shall complete admission/bed allotment workflow.
+Reschedule/cancel
+Reception shall reschedule surgery/procedure/referral booking only to valid available slots and shall capture reason for cancellation/reschedule.
+
+10. Doctor Phase 2 Consultation Outputs
+Doctor Action
+System Behaviour
+Refer to another doctor/service
+Create referral entry; Reception can check availability and book future appointment.
+Recommend surgery/procedure
+Create surgery/procedure recommendation with department, clinical reason, proposed date if available and linked patient/visit.
+Request bed/IP conversion
+Create admission/IP recommendation or conversion request, subject to bed availability and configured approval rules.
+Emergency disposition
+Mark emergency patient for discharge, further service, observation or convert to IP based on allowed statuses.
+Order pharmacy/lab/scan
+Continue to create downstream requests from emergency/surgery/IP context while keeping records connected.
+Update EMR
+All outputs shall update patient EMR timeline and be visible to authorized users.
+
+
+11. Surgery / Procedure Booking Scope
+Scope interpretation
+With surgery date and department, plus Reception booking with bed check, consent form and advance payment. This document treats Phase 2 as surgery/procedure booking and operational tracking. Full OT/anesthesia/nursing intra-operative documentation is listed as To Be Confirmed unless separately approved.
+
+11.1 Surgery / Procedure Booking Flow
+1. Doctor recommends surgery/procedure and selects department/service.
+2. System creates surgery/procedure referral linked to patient and active encounter/visit.
+3. Reception opens referral request and checks doctor/service availability.
+4. Reception selects proposed surgery/procedure date and time if available.
+5. System validates no doctor schedule conflict and no duplicate active surgery booking for same patient/service.
+6. Reception checks bed requirement and bed availability where surgery requires admission/bed.
+7. Reception attaches required consent form or marks consent pending.
+8. System checks whether advance payment is required.
+9. Authorized billing user records advance payment if required.
+10. Reception confirms surgery/procedure booking and allotment status.
+11. Patient EMR timeline is updated with booking, consent, payment and allotment information.
+Scenario
+Required System Behaviour
+Doctor refers patient for surgery
+Create surgery/procedure referral and make it visible to Reception/authorized users.
+No doctor availability
+Do not confirm booking; show alternative available dates/times.
+No bed available
+Allow waiting list/hold status if configured; do not allot unavailable bed.
+Consent missing
+Block confirmation if consent is configured as mandatory; otherwise show pending consent warning.
+Advance payment missing
+Block booking/allotment if payment is configured as mandatory; otherwise mark advance pending.
+Surgery date changed
+Reschedule booking and maintain audit trail with old/new date and reason.
+Patient cancels procedure
+Cancel booking, release bed/slot if held and update billing/advance payment status based on policy.
+Doctor cancels procedure
+Mark impacted booking and trigger reschedule/cancel workflow.
+
+12. IP Bed Management and Admission Conversion
+12.1 Bed Management Functional Requirements
+Feature
+Requirement
+Bed master
+Create and maintain bed records by branch, ward/room, bed type and active status.
+Bed board
+Display real-time bed status to authorized users.
+Bed availability
+Show only beds that are available for allotment based on branch, bed type and current status.
+Bed hold
+Allow temporary bed hold if configured, with expiry/approval rules.
+Bed allotment
+Assign available bed to patient admission/conversion context.
+Bed transfer
+Move patient from one bed to another with reason and audit trail if permitted.
+Bed release
+Release bed on discharge/cancellation/transfer based on configured process.
+Occupancy reporting
+Provide occupancy, available bed and held bed reports.
+
+12.2 Bed Statuses
+Status
+Meaning
+Available
+Bed can be allotted.
+Held
+Bed temporarily reserved but not fully allotted.
+Allotted / Occupied
+Bed assigned to a patient.
+Cleaning / Turnover
+Bed is not available until cleared.
+Maintenance
+Bed is temporarily unavailable.
+Blocked
+Bed is manually blocked by authorized user.
+Released
+Bed has been vacated and returned to availability workflow.
+
+12.3 Admission / IP Conversion Flow
+1. Doctor or emergency workflow marks patient for IP conversion/admission.
+2. Reception/authorized user retrieves patient and opens conversion request.
+3. System checks existing active admission/IP context to avoid duplicate admission.
+4. Reception selects branch, ward/room and bed type.
+5. System shows available beds only.
+6. Reception places hold or allots bed based on policy.
+7. Consent form is attached where required.
+8. Advance payment/deposit is captured if required by configuration.
+9. Admission/IP context is created and linked to patient EMR timeline.
+10. Emergency or OPD encounter is updated as converted to IP where applicable.
+13. Emergency Workflow Scope
+Emergency source note
+Emergency -> Pharmacy, Lab, Scans -> Discharge / convert to IP -> Receptionist. Phase 2 shall therefore include emergency workflow with downstream service routing and disposition to discharge or IP conversion.
+
+13.1 Emergency Flow
+1. Emergency patient arrives or is created as emergency case.
+2. Reception/Emergency user searches existing patient or creates minimum emergency record if details are incomplete.
+3. Emergency encounter is created with priority and source details.
+4. Doctor/Emergency clinician evaluates patient and records emergency notes/disposition.
+5. Doctor orders pharmacy, lab and/or scan services if required.
+6. Pharmacy/Lab/Scan process their requests and update same emergency encounter.
+7. Billing/payment status is updated for emergency services by authorized billing user.
+8. Doctor marks final disposition: Discharge from emergency or Convert to IP.
+9. If discharged, emergency bill/payment and summary are completed and EMR timeline is updated.
+10. If converted to IP, Reception completes bed availability, consent, advance payment and bed allotment workflow.
+Emergency Scenario
+Required System Behaviour
+Patient identity unknown/incomplete
+Allow minimum data registration with temporary/emergency identifier and mark profile completion pending.
+Existing patient found
+Link emergency encounter to existing patient record.
+Pharmacy/lab/scan required
+Create downstream requests linked to emergency encounter.
+Emergency discharged
+Mark disposition as discharged, complete billing/payment status and update timeline.
+Emergency converted to IP
+Route to Reception/admission workflow for bed allotment and advance payment if required.
+Patient leaves before closure
+Mark status as left/abandoned with reason and pending billing status if applicable.
+
+14. Pharmacy, Lab and Scan Extensions
+Phase 2 shall extend existing pharmacy, lab and scan workflows so they can receive requests not only from OPD consultation but also from emergency, surgery/procedure and IP/admission-related workflows.
+Department
+Phase 2 Extension
+Pharmacy
+Receive e-prescriptions from emergency or admission/surgery-related contexts; show source; check availability; dispense; update medication record, stock where enabled and payment status.
+Laboratory
+Receive lab requests from emergency/surgery/IP contexts; process tests; record results/reports; attach to patient/encounter; show payment/invoice status if authorized.
+Scan / Imaging
+Receive scan requests from emergency/surgery/IP contexts; process requests; attach report/image/document; show payment/invoice status if authorized.
+System/Timeline
+Every department update must return to the same patient and the same relevant encounter/admission/emergency/surgery context.
+
+Scenario
+Required System Behaviour
+Emergency lab request
+Lab request shall show emergency source and be linked to emergency encounter.
+Surgery pre-procedure test
+Lab/scan request shall be linked to surgery/procedure booking.
+Result report completed
+Report shall attach to patient record and relevant encounter.
+Payment required before service
+Department shall see payment status where policy requires payment verification.
+Report corrected
+System shall keep correction/version audit if correction workflow is enabled.
+No separate appointment for lab/scan
+Request should be queue-based unless a separate appointment workflow is later approved.
+
+14.1 Pharmacy Inventory, E-Prescription Billing and Stock Deduction
+The Pharmacy workflow shall include inventory-linked billing from the doctor-generated e-prescription. The e-prescription must be visible to the Pharmacy user and must be usable as the source for bill creation and medicine dispensing.
+Required flow
+Doctor creates an e-prescription from the consultation workflow.
+The e-prescription is displayed in the Pharmacy work queue/list under the same patient and encounter/visit context.
+Pharmacy opens the e-prescription and reviews all medicine line items before billing or dispensing.
+Pharmacy shall be able to create the pharmacy bill directly from the e-prescription.
+The system shall check pharmacy inventory before final bill/dispense confirmation.
+Once the bill/dispense action is confirmed, the final dispensed quantity shall be deducted from Pharmacy inventory stock.
+The deduction shall update the medicine/item stock balance and remain linked to the patient, visit/encounter, prescription and bill.
+Editable pharmacy fields
+Pharmacy shall be able to edit the medicine/item name before final billing/dispensing where substitution or correction is required.
+Pharmacy shall be able to edit quantity before final billing/dispensing.
+Pharmacy shall be able to edit other prescription/billing line fields required for dispensing, such as unit, batch, dose/instructions, rate/amount and remarks, based on configured permissions.
+All edits made by Pharmacy to the e-prescription billing line shall be saved with audit details, including user, date/time and changed values where applicable.
+Inventory deduction rules
+Stock deduction must happen based on the final confirmed quantity, not merely the quantity originally prescribed by the doctor.
+If Pharmacy increases the quantity, the system must validate available stock before allowing billing/dispensing.
+If Pharmacy reduces the quantity, stock shall be deducted only for the reduced final dispensed quantity.
+If the selected quantity is not available, the system shall block final dispensing or allow partial dispensing only if the configured pharmacy policy permits it.
+Cancelled or unconfirmed e-prescriptions shall not deduct stock.
+If a pharmacy bill or dispensing action is reversed/cancelled, inventory reversal shall be controlled by permission and audit log.
+15. Billing, Payment, Advance Payment and Payment Status
+Billing must remain permission-driven and not tied to a fixed role.
+Phase 2 billing shall support emergency services, surgery/procedure services, bed/admission-related charges where confirmed, pharmacy, lab and scan charges.
+Advance payment/deposit shall be configurable for surgery/procedure booking and bed allotment.
+Payment status shall be visible to authorized users in pharmacy, lab, scan, reception and management screens where required.
+Invoices and receipts shall be linked to patient and relevant encounter/admission/surgery/emergency context.
+Refund/reversal/adjustment shall be included only if approved and permission-controlled.
+Billing Item
+Required Behaviour
+Emergency services
+Generate billable items for emergency consultation/services and link to emergency encounter.
+Surgery/procedure booking
+Generate procedure/service billing and advance payment requirement based on configuration.
+Bed/admission
+Support bed/deposit/advance payment as configured; detailed ward charge automation is To Be Confirmed.
+Pharmacy/Lab/Scan
+Maintain payment status against requested services and invoices.
+Discharge/closure
+Emergency discharge or IP conversion should reflect pending/paid/advance status.
+
+16. Consent and Document Attachment
+Consent / Document Function
+Required Behaviour
+Consent template
+Admin can configure consent templates and document categories.
+Consent attachment
+Reception/authorized user can upload/attach consent document to patient/booking/admission/procedure.
+Mandatory consent validation
+If configured, surgery/procedure/admission confirmation shall be blocked until consent is attached.
+Version and audit
+Consent attachment should store uploaded by, uploaded date/time and document version or category.
+EMR visibility
+Consent documents shall appear in patient documents/timeline for authorized users.
+
+17. Reports and Dashboards
+Report / Dashboard
+Purpose
+Bed occupancy report
+View available, occupied, held, maintenance and blocked beds by branch/ward/room.
+Emergency register
+List emergency cases, status, downstream orders, discharge or IP conversion outcome.
+Surgery/procedure schedule
+Track scheduled procedures by date, doctor, department, patient and status.
+Advance payment report
+Track advance payments received, pending, adjusted or refunded if applicable.
+Payment status report
+View payment status by patient, service, department and encounter context.
+IP conversion report
+Track cases converted from emergency/OPD to IP/admission.
+Consent pending report
+List bookings/admissions/procedures missing mandatory consent.
+Department pending report
+Pending pharmacy/lab/scan requests by emergency/surgery/IP source.
+Management dashboard
+Summarize emergency volume, procedure schedule, bed usage and pending payments.
+
+18. Status Masters
+Status Group
+Suggested Statuses
+Emergency
+Registered; In Assessment; Orders Pending; Under Treatment; Discharged; Convert to IP; Closed; Cancelled; Left/Abandoned.
+Surgery / Procedure
+Recommended; Pending Booking; Scheduled; Consent Pending; Advance Pending; Confirmed; Rescheduled; Cancelled; Completed; Closed.
+Bed
+Available; Held; Allotted/Occupied; Cleaning; Maintenance; Blocked; Released.
+Admission / IP Conversion
+Recommended; Pending Bed; Pending Consent; Pending Advance; Admitted/Converted; Cancelled; Discharged/Closed.
+Consent
+Not Required; Pending; Attached; Verified; Rejected/Invalid; Expired if applicable.
+Advance Payment
+Not Required; Pending; Partially Paid; Paid; Adjusted; Refunded; Cancelled.
+Payment Status
+Unbilled; Pending; Partially Paid; Paid; Outstanding; Cancelled; Reversed/Refunded if approved.
+
+19. Validations and Controls
+Validation Area
+Required Validation / Control
+Patient reuse
+Search existing patient before creating new emergency/admission/surgery record.
+Bed double allotment
+Do not allow the same bed to be allotted to more than one active patient at the same time.
+Bed availability
+Only available or configured holdable beds can be selected.
+Doctor availability
+Do not allow surgery/procedure booking against unavailable/conflicting doctor slots.
+Surgery duplicate check
+Warn/block duplicate active surgery/procedure booking for same patient/service/date based on configuration.
+Consent validation
+Block confirmation if consent is mandatory and missing.
+Advance payment validation
+Block booking/allotment if advance payment is mandatory and unpaid.
+Emergency conversion
+Convert to IP only through authorized workflow with bed and patient context validation.
+Department request linkage
+Pharmacy/lab/scan requests must remain linked to originating encounter/admission/procedure.
+Billing permission
+Only authorized users can bill, receive payment, reverse, refund or view sensitive financial details.
+Audit trail
+Capture user, role, action, date/time, module, old/new values and reason where applicable.
+
+20. Exception Scenarios
+Area
+Exception Scenario
+System Handling
+Bed
+No bed available
+Show no availability; allow waitlist/hold request only if configured.
+Bed
+Bed selected by another user simultaneously
+Revalidate before final allotment and show slot/bed no longer available if taken.
+Surgery
+Doctor unavailable for surgery date
+Prevent booking or require reschedule.
+Surgery
+Consent not attached
+Mark consent pending or block confirmation based on rules.
+Surgery
+Advance payment not received
+Mark advance pending or block confirmation/allotment based on rules.
+Emergency
+Patient details incomplete
+Allow emergency registration and mark profile completion pending.
+Emergency
+Patient to be discharged
+Complete emergency closure and billing/payment status.
+Emergency
+Patient to be converted to IP
+Route to Reception/admission workflow and require bed availability.
+Pharmacy
+Medicine unavailable
+Mark unavailable and update patient/encounter status.
+Lab/Scan
+Report delayed
+Keep request pending and visible in department pending report.
+Billing
+Unauthorized user attempts payment update
+Deny action and log attempt.
+Billing
+Refund/reversal requested
+Require permission, reason and approval if included.
+System
+Disconnected record risk
+Require all requests, documents and payments to reference patient and encounter/admission/procedure ID.
+
+
+
+
+21. Release Acceptance Criteria
+IP bed master and bed board are usable by authorized users.
+Surgery/procedure referral and booking workflow works from Doctor to Reception.
+Bed availability and allotment controls prevent double allocation.
+Consent attachment and advance payment rules work as configured.
+Emergency workflow supports downstream pharmacy, lab and scan requests.
+Emergency disposition supports discharge or conversion to IP.
+All Phase 2 activities update patient EMR/timeline.
+Billing/payment status is permission-driven and linked to the same patient/context.
+Pharmacy, bill generation, allow user to edit the components and create bill.
+Stock handlidling from pharmacy bills.
+Reports for emergency, bed occupancy, surgery schedule and payment status are available.
+Exception scenarios and permission validations pass UAT.

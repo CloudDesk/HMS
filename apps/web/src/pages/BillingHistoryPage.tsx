@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { type BillingInvoiceStatus } from '../api/billing';
+import { MpesaExceptionsModal } from '../components/billing/MpesaExceptionsModal';
 import { useCurrencyFormatter } from '../api/useSettings';
 import { navigate } from '../routing/navigation';
 import { billingSourceLabel, billingStatusClass, billingStatusLabel, formatBillingDate } from './billing-utils';
@@ -8,6 +10,7 @@ const statuses: BillingInvoiceStatus[] = ['DRAFT', 'PENDING', 'PARTIALLY_PAID', 
 
 export function BillingHistoryPage() {
   const formatBillingMoney = useCurrencyFormatter();
+  const [exceptionsOpen, setExceptionsOpen] = useState(false);
   
   const {
     state: { page, patientId, status, dateFrom, dateTo, branchId, invoiceInput, meta },
@@ -19,7 +22,7 @@ export function BillingHistoryPage() {
   return <div className="billing-page">
     <div className="billing-page-head">
       <div><h2>Billing History</h2><p>Search invoices and review payment status</p></div>
-      <div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing')} type="button"><i className="ph ph-gauge" /> Dashboard</button>{canCreate ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}</div>
+      <div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing')} type="button"><i className="ph ph-gauge" /> Dashboard</button><button className="btn-secondary" onClick={() => setExceptionsOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{canCreate ? <button className="btn-primary" onClick={() => navigate('/billing/workspace?mode=create')} type="button"><i className="ph ph-plus" /> New Invoice</button> : null}</div>
     </div>
 
     <section className="billing-card billing-filter-card">
@@ -53,5 +56,6 @@ export function BillingHistoryPage() {
       </tbody></table></div>
       <div className="um-pagination"><span>{meta.total ? `Showing ${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}` : 'No invoices'}</span><div className="um-page-controls"><button className="pg-btn" disabled={page <= 1} onClick={() => update({ page: page - 1 })} type="button"><i className="ph ph-caret-left" /></button><span className="pg-btn active">{page}</span><button className="pg-btn" disabled={page >= meta.totalPages} onClick={() => update({ page: page + 1 })} type="button"><i className="ph ph-caret-right" /></button></div></div>
     </section>
+    <MpesaExceptionsModal open={exceptionsOpen} onClose={() => setExceptionsOpen(false)} />
   </div>;
 }

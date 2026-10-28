@@ -1,0 +1,222 @@
+\n===== PAGE 1 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 2
+1. System Scope
+• Supports SHA, private insurance companies, TPAs, corporate medical schemes, individual medical policies and contracted
+healthcare providers.
+• Core lifecycle: Payer & scheme setup → Member management → Eligibility → Benefit verification → Pre-authorization →
+Service utilization → Claim intake → Validation → Adjudication → Query/rejection → Appeal/resubmission → Payment →
+Allocation → Reconciliation → Closure.
+2. User Roles
+• System Administrator — system configuration, users and permissions.
+• Insurance Administrator — payer, scheme, benefit, tariff and rule configuration.
+• Membership Officer — member registration, amendments, dependants and eligibility.
+• Pre-Authorization Officer — authorization requests, review and decisions within limits.
+• Claims Officer — claim intake, validation, queries and resubmission.
+• Claims Adjudicator — coverage, tariff, benefit and financial adjudication.
+• Claims Manager — escalations, high-value claims, overrides and final approvals.
+• Appeals Officer — appeal preparation, submission and tracking.
+• Finance Officer — payment batches, remittance, allocation and reconciliation.
+• Finance Manager — payment approvals, write-offs, variances and financial adjustments.
+• Management/Reporting User — dashboards and management reports.
+• Auditor — read-only access and audit review.
+• Provider Portal User — provider-side claim and authorization interaction.
+3. Payer / Insurance Company Setup
+• Workflow: Payer registration → Contract setup → Scheme setup → Benefit setup → Tariff setup → Integration setup →
+Activation.
+• Fields: Payer ID/code, payer name, payer type, registration/tax details, contacts, claims/finance contacts, payment terms,
+API/EDI availability, portal availability, integration details, effective dates and status.
+4. Scheme / Policy Setup
+• Hierarchy: Insurance Company → Scheme → Policy → Principal Member → Dependants.
+• Configuration: scheme/policy number, policy period, annual limit, OPD/IPD limits, maternity/dental/optical limits, room limit,
+copay, deductible, exclusions, authorization rules, provider network, tariff and payment terms.
+5. Member Management
+• Workflow: New member → Registration → Policy assignment → Benefit assignment → Activation.
+• Statuses: DRAFT, ACTIVE, SUSPENDED, EXPIRED, CANCELLED, DECEASED, TERMINATED.
+• Fields: Member ID, member number, policy number, scheme, principal member, relationship, employer, effective/expiry
+dates, status, benefit utilization and available balance.
+6. Eligibility Verification
+• Workflow: Member number → Verify membership → Check policy → Check effective date → Check status → Check benefit
+→ Eligibility result.
+• Verification channels: API, EDI, portal or manual verification.
+\n===== PAGE 2 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 3
+• Results: ELIGIBLE, NOT_ELIGIBLE, INACTIVE, EXPIRED, NOT_FOUND, PENDING, MANUAL_VERIFICATION.
+• Failure reasons: inactive membership, expired policy, suspended member, exhausted benefit, member not found or
+excluded service.
+7. Benefit Verification
+• Workflow: Member → Scheme → Benefit → Limit → Utilization → Available balance.
+• Benefit decision: Covered, partially covered, not covered or authorization required.
+• Controls: annual limits, service limits, frequency limits, copay, deductible, exclusions and remaining balance.
+8. Pre-Authorization
+• Workflow: Authorization request → Eligibility check → Benefit check → Service/clinical review → Cost review → Decision.
+• Decisions: APPROVED, PARTIALLY_APPROVED, REJECTED.
+• Statuses: DRAFT, SUBMITTED, PENDING, APPROVED, PARTIALLY_APPROVED, REJECTED, CANCELLED,
+EXPIRED, CLOSED.
+• Fields: Authorization ID/number, member, payer, scheme, provider, service/procedure, diagnosis/justification, quantity,
+estimated amount, attachments, urgency, validity dates and external reference.
+9. Service Utilization
+• Workflow: Authorized service → Service used → Actual cost → Benefit utilization → Member balance update.
+• Controls: authorized vs utilized quantity, authorized vs actual amount, remaining authorization and remaining member
+benefit.
+10. Claim Intake
+• Claim sources: hospital/provider, pharmacy, laboratory, doctor, dental provider, optical provider and other contracted
+providers.
+• Workflow: Provider service → Claim created → Member linked → Authorization linked → Benefit linked → Invoice linked.
+• Claim fields: claim ID/number, provider, member, payer, scheme, policy, authorization, service period, invoice, claim
+amount, documents and submission reference.
+11. Claim Validation
+• Validation sequence: Member → Policy → Eligibility → Authorization → Benefit → Tariff → Duplicate → Documents →
+Amount.
+• Outcomes: VALIDATED or VALIDATION_FAILED.
+• Typical errors: invalid member, expired policy, missing/invalid authorization, benefit exhausted, incorrect tariff, duplicate
+claim, missing documents or invalid amount.
+12. Claim Adjudication
+• Workflow: Validated claim → Coverage → Benefit → Tariff → Authorization → Rule/clinical check → Duplicate/fraud
+controls → Financial calculation → Decision.
+• Decisions: APPROVED, PARTIALLY_APPROVED, REJECTED.
+• Calculation: Gross claim → contractual adjustment → non-covered amount → benefit limit adjustment → copay →
+deductible → insurance liability.
+13. Claim Query Management
+\n===== PAGE 3 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 4
+• Workflow: Claim → Query → Reason → Assign → Provider response → Document upload → Review → Resolve/reject →
+Resubmit.
+• Statuses: OPEN, ASSIGNED, AWAITING_PROVIDER, RESPONSE_RECEIVED, UNDER_REVIEW, RESOLVED,
+REJECTED.
+• Fields: Query ID, claim, reason, amount affected, assigned user/department, query date, due date, response, documents,
+resolution and status.
+14. Claim Rejection & Resubmission
+• Workflow: Rejected → Rejection reason → Provider notification → Correction/appeal → Internal review → Resubmission →
+Adjudication.
+• Reasons: invalid member, expired policy, exhausted benefit, excluded service, no authorization, authorization exceeded,
+incorrect tariff, duplicate claim, missing documentation or data/coding error.
+15. Appeals
+• Workflow: Rejected/disputed claim → Appeal raised → Supporting documents → Internal review → Appeal submitted →
+Payer review → Decision.
+• Outcomes: APPEAL_APPROVED, APPEAL_PARTIALLY_APPROVED, APPEAL_REJECTED.
+16. Payment Processing
+• Workflow: Approved claims → Payment batch → Payment approval → Payment instruction → Bank payment → Payment
+confirmation → Remittance advice → Allocation.
+• Payment statuses: DRAFT, APPROVAL_PENDING, APPROVED, PROCESSING, PAID, PARTIALLY_ALLOCATED,
+FULLY_ALLOCATED, RECONCILED.
+17. Payment Allocation
+• Workflow: Payment received → Remittance → Match claim numbers → Match amounts → Allocate → Reconcile.
+• Outcomes: FULL_MATCH, PARTIAL_MATCH, OVERPAYMENT, UNDERPAYMENT, UNALLOCATED.
+18. Reconciliation
+• Three-way match: Approved Claim ↔ Remittance Advice ↔ Bank Payment.
+• Results: Reconciled, variance identified, unallocated or pending investigation.
+• Variance reasons: contractual deduction, benefit adjustment, tariff difference, disputed amount, administrative deduction or
+other configured reason.
+19. Complete Status Lifecycle
+• Member: DRAFT → ACTIVE → SUSPENDED → EXPIRED → TERMINATED.
+• Authorization: DRAFT → SUBMITTED → PENDING → APPROVED/PARTIALLY_APPROVED/REJECTED →
+EXPIRED/CANCELLED → CLOSED.
+• Claim: DRAFT → VALIDATING → VALIDATION_FAILED/READY_FOR_ADJUDICATION → UNDER_REVIEW →
+QUERY/APPROVED/PARTIALLY_APPROVED/REJECTED → APPEAL/RESUBMITTED → PAYMENT_PENDING →
+PARTIALLY_PAID/PAID → RECONCILED → CLOSED.
+• Payment: DRAFT → APPROVAL_PENDING → APPROVED → PROCESSING → PAID →
+PARTIALLY_ALLOCATED/FULLY_ALLOCATED → RECONCILED.
+20. Approval Rules
+• Approval limits must be configurable by payer, scheme, transaction type and amount.
+\n===== PAGE 4 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 5
+• No user may approve their own transaction.
+• High-value authorizations and claims require escalation according to configured limits.
+• Financial adjustments, write-offs and material payment variances require Finance Manager or authorized management
+approval.
+• Overrides require a mandatory reason, approver, timestamp and audit record.
+21. Main System Screens
+• Setup: Insurance Company, TPA, Provider, Scheme, Policy, Benefit, Service Catalogue, Tariff, Exclusions, Authorization
+Rules.
+• Membership: Member Registration, Dependants, Member Search, Eligibility Verification, Benefit Utilization.
+• Authorization: Authorization Request, Authorization Queue, Authorization Review, Authorization Approval, Authorization
+History.
+• Claims: Claim Intake, Claim Validation, Claim Queue, Claim Adjudication, Claim Query, Claim Rejection, Claim
+Resubmission, Claim Appeal, Claim History.
+• Payments/Finance: Payment Batch, Remittance, Payment Allocation, Payment Approval, Reconciliation, Payment Variance,
+Receivables, Aging, Outstanding Claims, Payer Performance, Claims Dashboard.
+22. Core Database Tables
+• payers: payer_id, payer_code, payer_name, payer_type, registration_no, tax_pin, contacts, payment_terms, api_enabled,
+edi_enabled, portal_enabled, status.
+• insurance_schemes: scheme_id, payer_id, scheme_code, scheme_name, scheme_type, start_date, end_date,
+annual_limit, copay, deductible, authorization_required, status.
+• insurance_members: member_id, scheme_id, payer_id, member_number, policy_number, principal_member_id,
+relationship, employer, effective_date, expiry_date, status.
+• benefits: benefit_id, scheme_id, benefit_type, benefit_limit, used_amount, remaining_amount, copay,
+authorization_required, status.
+• payer_tariffs: tariff_id, payer_id, scheme_id, service_id, contract_rate, patient_rate, copay, effective_from, effective_to,
+authorization_required, status.
+• authorizations: authorization_id, authorization_number, member_id, payer_id, scheme_id, provider_id, requested_amount,
+approved_amount, request_date, approval_date, expiry_date, status, external_reference.
+• claims: claim_id, claim_number, provider_id, member_id, payer_id, scheme_id, authorization_id, claim_date,
+gross_amount, claimed_amount, approved_amount, rejected_amount, paid_amount, outstanding_amount, status.
+• claim_lines: claim_line_id, claim_id, service_id, service_code, quantity, claimed_amount, approved_amount,
+rejected_amount, rejection_reason, status.
+• claim_documents: document_id, claim_id, document_type, file_name, uploaded_by, uploaded_at, version, status.
+• claim_queries: query_id, claim_id, query_type, query_reason, amount_affected, assigned_to, query_date, due_date,
+response, response_date, status.
+• payments: payment_id, payer_id, payment_method, amount, payment_date, bank_reference, remittance_reference, status.
+• payment_allocations: allocation_id, payment_id, claim_id, allocated_amount, variance_amount, variance_reason, status.
+• audit_logs: audit_id, user_id, module, record_type, record_id, action, old_value, new_value, timestamp, ip_address,
+remarks.
+23. Integration Architecture
+• Use a Payer Integration Gateway between the Insurance System and external payers.
+• Supported methods: API, EDI, portal, secure file and manual/email workflows.
+\n===== PAGE 5 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 6
+• Gateway responsibilities: authentication, request/response handling, retries, error handling, external references, webhook
+processing, integration logs, encryption and payer-specific mapping.
+• Architecture: Insurance System → Payer Integration Gateway → SHA / Private Insurers / TPAs.
+24. Notifications
+• Authorization: submitted, approved, rejected and expiring.
+• Claims: ready, submitted, query, rejected, resubmission due, approved and payment received.
+• Finance: payment received, variance, unallocated payment and overdue receivable.
+• Channels: in-system notification, email and SMS where configured.
+25. Management Reports
+• Claims: submitted, approved, rejected, queried, pending, paid, outstanding, aging, by payer, by scheme, by provider and
+rejection analysis.
+• Membership: active members, expired members, new members, dependants and benefit utilization.
+• Finance: insurance receivables, payment reconciliation, unallocated payments, payment variance, outstanding balances
+and write-offs.
+• Authorization: pending, approved, rejected, high-value, expiring and utilization vs authorization.
+26. SHA & Private Insurance Workflow
+• Common lifecycle: Eligibility → Benefits → Authorization → Claim → Validation → Adjudication → Payment →
+Reconciliation.
+• SHA and private payer integrations can use different technical methods. Private insurers/TPAs may use API, EDI, portal,
+secure file, email or manual workflows.
+• Payer-specific tariffs, benefits, limits, authorization rules and integration mappings must be configurable rather than
+hard-coded.
+27. Key Business Rules
+• A claim cannot proceed to adjudication if mandatory validation fails.
+• Authorization must be linked when the scheme requires it.
+• Claims cannot exceed configured benefit/authorization rules without an approved override.
+• Duplicate claim detection must run before adjudication.
+• Every query and rejection must have a reason code.
+• Payment allocation must retain a full audit trail.
+• Partially paid claims remain outstanding until resolved or formally adjusted.
+• Every financial adjustment must record reason, approver and timestamp.
+• Closed claims cannot be edited; corrections use controlled adjustment/resubmission workflows.
+• Payer-specific tariffs, benefits, limits and authorization rules must be effective-date driven.
+28. End-to-End Reference Workflow
+• 1. Register payer.
+• 2. Configure contract and scheme.
+• 3. Configure policy and benefits.
+• 4. Register and activate member.
+\n===== PAGE 6 =====\nInsurance Management & Claims System — Kenya | BRD v1.0
+Page 7
+• 5. Verify eligibility.
+• 6. Verify benefits.
+• 7. Receive service/authorization request.
+• 8. Approve, partially approve or reject authorization.
+• 9. Receive provider claim.
+• 10. Validate claim.
+• 11. Adjudicate claim.
+• 12. Query or reject where required.
+• 13. Approve or resubmit.
+• 14. Create payment batch.
+• 15. Receive bank payment/remittance.
+• 16. Allocate payment to claims.
+• 17. Reconcile.
+• 18. Resolve variances.
+• 19. Update receivables.
+• 20. Close claim.

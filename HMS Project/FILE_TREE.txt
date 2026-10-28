@@ -1,0 +1,691 @@
+HMS Project/
+  BRANCH_DOCUMENT_MATRIX.md
+  DOCUMENT_INVENTORY.md
+  DOCUMENT_MANIFEST.json
+  FILE_TREE.txt
+  FINAL_REPORT.md
+  MISSING_DOCUMENTS.md
+  README.md
+  VALIDATION.md
+  VERSION_COMPARISON.md
+  FSD/
+    Advance Payments/
+      Advance_Payments_FSD.md
+    Appointments/
+      Appointments_FSD.md
+    Authentication/
+      Authentication_FSD.md
+    Bed and Ward Management/
+      Bed_and_Ward_Management_FSD.md
+    Billing/
+      Billing_FSD.md
+    Branch Management/
+      Branch_Management_FSD.md
+    Consent Management/
+      Consent_Management_FSD.md
+    Corporate Billing/
+      Corporate_Billing_FSD.md
+    Cross-Module HMS/
+      Cross-Module_HMS_FSD.md
+      fsd.txt
+      HMS_Release2_FSD.docx
+      HMS_Release_1_Scope_Document_v2.docx
+    Dashboard/
+      Dashboard_FSD.md
+    Dental OPD/
+      Dental_OPD_FSD.md
+    Department Management/
+      Department_Management_FSD.md
+    Doctor Management/
+      Doctor_Management_FSD.md
+    Emergency/
+      Emergency_FSD.md
+    EMR/
+      EMR_FSD.md
+    General Inventory/
+      General_Inventory_FSD.md
+    Health and Readiness/
+      Health_and_Readiness_FSD.md
+    Imaging/
+      Imaging_FSD.md
+    Infrastructure/
+      Infrastructure_FSD.md
+    Insurance/
+      Insurance_FSD.md
+    IPD/
+      IPD_FSD.md
+    Laboratory/
+      Laboratory_FSD.md
+    M-Pesa/
+      M-Pesa_FSD.md
+    Medical Devices/
+      Medical_Devices_FSD.md
+    Medicine Catalog/
+      Medicine_Catalog_FSD.md
+    Mobile Application/
+      Mobile_Application_FSD.md
+    Notifications/
+      Notifications_FSD.md
+    Nursing and Triage/
+      Nursing_and_Triage_FSD.md
+    OPD Consultation/
+      OPD_Consultation_FSD.md
+    Ophthalmology OPD/
+      Ophthalmology_OPD_FSD.md
+    Patient Documents/
+      Patient_Documents_FSD.md
+    Patient Management/
+      Patient_Management_FSD.md
+    Patient Portal/
+      Patient_Portal_FSD.md
+    Payments/
+      Payments_FSD.md
+    Pharmacy Dispensing/
+      Pharmacy_Dispensing_FSD.md
+    Pharmacy Inventory/
+      Pharmacy_Inventory_FSD.md
+    Prescriptions/
+      Prescriptions_FSD.md
+    RBAC/
+      HMS_Role_Permission_Assignment_Matrix.docx
+      RBAC_FSD.md
+    Referral Management/
+      Referral_Management_FSD.md
+    Reporting/
+      Reporting_FSD.md
+    Service Catalog/
+      Service_Catalog_FSD.md
+    Settings/
+      Settings_FSD.md
+    Surgery/
+      Surgery_FSD.md
+    UI Shell/
+      UI_Shell_FSD.md
+    User Administration/
+      User_Administration_FSD.md
+  Design/
+    Advance Payments/
+      review.md
+    Appointments/
+      HMS_PHASE1_DEVELOPER2_APPOINTMENT_QUEUE_GAP_ANALYSIS.md
+      M-007_PATIENT_APPOINTMENT_PAGINATION_GAP_NOTE.md
+      review.md
+    Authentication/
+      H-001_PATIENT_OTP_SECURITY_GAP_NOTE.md
+      H-003_PATIENT_REFRESH_SESSION_GAP_NOTE.md
+      M-006_OTP_LOGIN_RATE_LIMIT_GAP_NOTE__7516eb32d1.md
+      M-006_OTP_LOGIN_RATE_LIMIT_GAP_NOTE__c6c9990129.md
+      MINOR_GUARDIAN_LOGIN_ERROR_INVESTIGATION.md
+    Bed and Ward Management/
+      .gitkeep
+    Billing/
+      review.md
+    Branch Management/
+      review.md
+    Consent Management/
+      review.md
+    Corporate Billing/
+      .gitkeep
+    Cross-Module HMS/
+      C1-H11-security-follow-up.md
+      FLOW_ANALYSIS.md
+      H-005_CLINICAL_BROWSER_STORAGE_GAP_NOTE.md
+      H13-soft-delete-indexes.md
+      HMS_EMERGENCY_ADMISSIONS_SURGERY_CURRENT_IMPLEMENTATION.md
+      HMS_Engineering_Best_Practices_Checklist.md
+      HMS_GENERAL_PHASE3_LOCAL_CONNECTION_REPORT.md
+      HMS_PHASE1_PROGRESS_AUDIT.md
+      HMS_PHASE1_SECURITY_AUTHORIZATION_GAP_NOTE.md
+      HMS_SCOPE2_PHASE3_CONTRACT.md
+      HMS_SCOPE2_PHASE3_FINAL_INTEGRATION_GAP_NOTE.md
+      HMS_SCOPE2_PHASE3_IP_SURGERY_DOWNSTREAM_GAP_NOTE.md
+      HMS_SCOPE2_PHASE3_P5_GAP_NOTE.md
+      HMS_SCOPE2_PHASE3_P6_GAP_NOTE.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__120083ea9f.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__1e681a30b9.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__78949460ed.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__a2a66c0c02.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__a59f1ec12f.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__ed1bcee77b.md
+      HMS_SCOPE2_PHASE3_PHASE_WISE_EXECUTION_PLAN__f80943164b.md
+      M-013_HTTP_RESPONSE_CONTRACTS_GAP_NOTE.md
+      NEXT_RELEASE_PHARMACY_INPATIENT_GAP_ANALYSIS.md
+      NEXT_RELEASE_PHASE_WISE_EXECUTION_PLAN.md
+      NEXT_RELEASE_R0_FOUNDATION_CONTRACT.md
+      PROJECT_RULES__527200ff0d.md
+      PROJECT_RULES__588556e2c5.md
+      PROJECT_RULES__9795a1d596.md
+      README.md
+      REMOVED_INACTIVE_COLLECTIONS_HMS_GENERAL.md
+    Dashboard/
+      HMS_DASHBOARD_FOCUSED_HARDENING_GAP_NOTE.md
+      HMS_OVERVIEW_DASHBOARD_LIVE_DATA_GAP_NOTE.md
+      review.md
+    Dental OPD/
+      HMS_DENTAL_3D_ANATOMY_UI_GAP_NOTE.md
+      HMS_DENTAL_FLOW_INTAKE_SELF_CHECKIN_GAP_NOTE.md
+      HMS_DENTAL_ODONTOGRAM_UI_GAP_NOTE.md
+      HMS_DENTAL_PHASE10_GAP_NOTE.md
+      HMS_DENTAL_PHASE11A_GAP_NOTE.md
+      HMS_DENTAL_PHASE6_GAP_NOTE.md
+      HMS_DENTAL_PHASE7_GAP_NOTE.md
+      HMS_DENTAL_PHASE8_GAP_NOTE.md
+      HMS_DENTAL_PHASE9_GAP_NOTE.md
+      HMS_GENERAL_ORAL_EXAMINATION_UI_CONSISTENCY_GAP_NOTE.md
+      README.md
+    Department Management/
+      HMS_DEPARTMENT_MODULE_VISIBILITY_GAP_NOTE.md
+      review.md
+    Doctor Management/
+      review.md
+    Emergency/
+      HMS_EMERGENCY_TRIAGE_CONSULTATION_GAP_NOTE.md
+      M-010_EMERGENCY_WORKSPACE_LAYERING_GAP_NOTE.md
+      review.md
+    EMR/
+      .gitkeep
+    General Inventory/
+      .gitkeep
+    Health and Readiness/
+      review.md
+    Imaging/
+      .gitkeep
+    Infrastructure/
+      BACKEND_HOSTING_PORTABILITY_AUDIT.md
+      branch-usage.md
+      CLOUD_RUN_COMPATIBILITY_AUDIT.md
+      CLOUD_RUN_COST_ANALYSIS.md
+      CLOUD_RUN_LATENCY_BENCHMARK.md
+      CLOUD_RUN_POC_FINAL_REPORT.md
+      CLOUDFLARE_WORKERS_COMPATIBILITY.md
+      collection-inventory.md
+      HMS_GENERAL-consolidation-assessment.md
+      HMS_GENERAL_BACKUP_REPORT.md
+      HMS_GENERAL_PHASE2_RESTORE_REPORT.md
+      HMS_MONGODB_COLLECTION_REVIEW.md
+      HOSTING_MIGRATION_IMPACT.md
+      LATENCY_PHASE_1_PROFILING_REPORT.md
+      market-localization-mismatch.md
+      render-region-vs-mongo-region.md
+      RENDER_ALWAYS_ON_AUDIT.md
+      RENDER_API_PERFORMANCE_PROFILE.md
+      RENDER_COLD_START_MITIGATION.md
+      RENDER_DEPENDENCY_MAP.md
+      RENDER_POST_OPTIMIZATION_BENCHMARK.md
+    Insurance/
+      D05_FINANCE_POLICY_REPOSITORY_RECONCILIATION.md
+      HMS_INSURANCE_PHASE4_HOTFIX_GAP_NOTE.md
+      HMS_INSURANCE_PHASE5_GAP_NOTE.md
+      HMS_INSURANCE_PHASE6_GAP_NOTE.md
+      HMS_INSURANCE_PHASE7_GAP_NOTE.md
+      HMS_INSURANCE_PHASE8_GAP_NOTE.md
+      HMS_INSURANCE_TWO_DEVELOPER_PHASE_WISE_EXECUTION_PLAN.md
+      INSURANCE_V1_PHASE0_FIELD_AND_API_CONTRACT_DRAFT.md
+      INSURANCE_V1_PHASE1A_IMPLEMENTATION_CONTRACT.md
+      PHASE_0_GAP_AND_DECISION_NOTE.md
+      PHASE_0_VERIFICATION.md
+      PHASE_1A_SLICE_1_GAP_NOTE.md
+      PHASE_1A_SLICE_2_GAP_NOTE.md
+      PHASE_1A_SLICE_3_GAP_NOTE.md
+      PHASE_1A_SLICE_4_GAP_NOTE.md
+      workflow.txt
+    IPD/
+      HMS_SCOPE2_PHASE3_ADMISSION_REQUEST_REFACTOR_GAP_NOTE.md
+      M-010_INPATIENT_WORKSPACE_LAYERING_GAP_NOTE.md
+      M-010_INPATIENT_WORKSPACE_LAYERING_VERIFICATION.md
+      review.md
+    Laboratory/
+      review.md
+    M-Pesa/
+      HMS_MPESA_ATTEMPTS_GAP_NOTE.md
+      HMS_MPESA_STEP5_GAP_NOTE.md
+    Medical Devices/
+      .gitkeep
+    Medicine Catalog/
+      review.md
+    Mobile Application/
+      A_MVP_SCOPE.md
+      API_ERROR_DIAGNOSTICS.md
+      APPOINTMENT_MOBILE_UI_FIX.md
+      B_API_CONTRACT_GAPS.md
+      BILLING_CAPABILITY_AUDIT.md
+      CAPABILITY_AUDIT.md
+      CAPABILITY_AUDIT__c842c24aa4.md
+      CONSENT_SYNC_INVESTIGATION.md
+      E_MOBILE_ARCHITECTURE.md
+      EAS_ACCOUNT_AND_FREE_TIER_INVESTIGATION.md
+      EAS_PROJECT_LINK_REPORT.md
+      EXPO_ACCOUNT_STATUS.md
+      EXPO_GOOGLE_AUTH_STATUS.md
+      GAP_NOTE.md
+      LOGIN_RATE_LIMIT_INVESTIGATION.md
+      OPTIONAL_CLINICAL_HISTORY_DATA_FLOW_AUDIT.md
+      PATIENT MOBILE DEVELOPMENT — PATIENT WEB PROTECTION RULES.txt
+      PATIENT_MOBILE_READINESS_ANALYSIS.md
+      PHYSICAL_DEVICE_API_CONNECTIVITY_REPORT.md
+      SECURITY_AUDIT.md
+      SESSION_RESTORE_PHYSICAL_DEVICE_DIAGNOSTIC.md
+    Notifications/
+      H-002_NOTIFICATION_AUTHORIZATION_GAP_NOTE.md
+      review.md
+    Nursing and Triage/
+      .gitkeep
+    OPD Consultation/
+      M-010_OPD_VISIT_LAYERING_GAP_NOTE.md
+      review.md
+    Ophthalmology OPD/
+      HMS_MONGODB_COLLECTION_USAGE.md
+      HMS_OPHTHALMOLOGY_ACTUAL_WORKFLOW_CONTINUATION.md
+      HMS_OPHTHALMOLOGY_AUDIT_FIX_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_BACKEND_API_CONTRACT_V1__9c8dd270aa.md
+      HMS_OPHTHALMOLOGY_BACKEND_API_CONTRACT_V1__d4850d927e.md
+      HMS_OPHTHALMOLOGY_BACKEND_API_CONTRACT_V1__f7f9470cc4.md
+      HMS_OPHTHALMOLOGY_C10_STRUCTURED_TREATMENT_FRONTEND_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_C9_STRUCTURED_TREATMENT_BACKEND_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_COMBINED_WORKFLOW_GAP_CLOSURE.md
+      HMS_OPHTHALMOLOGY_DEFERRED_ISSUES.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B0_ASSESSMENT.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B0_FIELD_MAPPING.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B1_B2_REMAINING_GAPS__2cae150617.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B1_B2_REMAINING_GAPS__b3e90dd5e2.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B1_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B2_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B3_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B4_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B5_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B6_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C1_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C2_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C3_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C4_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_FRONTEND_CONTRACT_RECONCILIATION.md
+      HMS_OPHTHALMOLOGY_FULL_IMPLEMENTATION_PLAN__0f2a3f9e8c.md
+      HMS_OPHTHALMOLOGY_FULL_IMPLEMENTATION_PLAN__3d07bac04a.md
+      HMS_OPHTHALMOLOGY_GAP_CLOSURE_20261020.md
+      HMS_OPHTHALMOLOGY_GAP_CLOSURE_REPORT.md
+      HMS_OPHTHALMOLOGY_IMPLEMENTATION_AUDIT_REPORT.md
+      HMS_OPHTHALMOLOGY_INTEGRATION_DECISIONS.md
+      HMS_Ophthalmology_OPD_Developer_A_Backend_Prompts__b03b3eb5cd.md
+      HMS_Ophthalmology_OPD_Developer_A_Backend_Prompts__bb02c6fc6e.md
+      HMS_Ophthalmology_OPD_Developer_A_Backend_Prompts__ea9b98a682.md
+      HMS_Ophthalmology_OPD_Developer_A_Backend_Prompts__ecf55e7e2a.md
+      HMS_Ophthalmology_OPD_Developer_B_Frontend_Prompts__33faa31e72.md
+      HMS_Ophthalmology_OPD_Developer_B_Frontend_Prompts__69b8fbdd1c.md
+      HMS_Ophthalmology_OPD_Developer_B_Frontend_Prompts__80e55810e2.md
+      HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX__127243a4ac.md
+      HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX__45d86d521f.md
+      HMS_OPHTHALMOLOGY_PHASE0_FSD_ALIGNMENT_MATRIX__7966f800b8.md
+      HMS_OPHTHALMOLOGY_PHASE_0_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_10_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_11_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_1_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_2_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_3_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_4_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_5_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_6_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_7_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_8_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_PHASE_9_GAP_NOTE.md
+      HMS_OPHTHALMOLOGY_WORKFLOW_TRACEABILITY.md
+      OPD_CONSULTATION_DENTAL_OPHTHALMOLOGY_END_TO_END_ANALYSIS.md
+      OPHTHALMOLOGY_OPD_CODEBASE_BA_ASSESSMENT.md
+      OPHTHALMOLOGY_REMEDIATION_GAP_NOTE.md
+      QUALITY_REVIEW.md
+      README.md
+      README__e4c7f68fbf.md
+    Patient Documents/
+      HMS_GCS_DOCUMENT_STORAGE_GAP_NOTE.md
+    Patient Management/
+      M-010_PATIENT_PROFILE_LAYERING_GAP_NOTE.md
+      M-010_PATIENT_PROFILE_LAYERING_VERIFICATION.md
+      review.md
+    Patient Portal/
+      C1-follow-up-audit.md
+      review.md
+    Payments/
+      .gitkeep
+    Pharmacy Dispensing/
+      HMS_PHARMACY_DISPENSING_SOURCE_PRICE_GAP_NOTE.md
+      review.md
+    Pharmacy Inventory/
+      .gitkeep
+    Prescriptions/
+      .gitkeep
+    RBAC/
+      HMS_PERMISSION_USAGE_MAP.md
+      HMS_ROLE_BASED_DASHBOARD_GAP_NOTE.md
+      HMS_ROLE_PERMISSION_ARCHITECTURE_ANALYSIS.md
+      HMS_ROLE_PERMISSION_ASSIGNMENT.md
+      HMS_ROLE_PERMISSION_ASSIGNMENT_IMPLEMENTATION.md
+      HMS_ROLE_PERMISSION_ASSIGNMENT_MATRIX.md
+      HMS_ROLE_PERMISSION_RECTIFICATION_AUDIT_MATRIX.md
+      HMS_ROLE_PERMISSION_RECTIFICATION_GAP_NOTE.md
+      M-012_PERMISSION_EXPANSION_GAP_NOTE.md
+      review.md
+    Referral Management/
+      HMS_REFERRAL_CALENDAR_INTEGRATION_GAP_NOTE.md
+    Reporting/
+      .gitkeep
+    Service Catalog/
+      review.md
+    Settings/
+      HMS_SYSTEM_SETTINGS_QUICK_WINS_GAP_NOTE.md
+      INITIALIZATION.md
+      review.md
+    Surgery/
+      M-010_SURGERY_WORKSPACE_LAYERING_GAP_NOTE.md
+      review.md
+    UI Shell/
+      HMS_SIDEBAR_UTILITY_UX_VERIFICATION.md
+      HMS_UI_MODERNIZATION_PHASE1_GAP_NOTE.md
+      HMS_UI_MODERNIZATION_PHASE2_GAP_NOTE.md
+      HMS_UI_MODERNIZATION_PHASE3_GAP_NOTE.md
+      HMS_UI_MODERNIZATION_PHASE4_GAP_NOTE.md
+      HMS_UI_MODERNIZATION_PHASE5_GAP_NOTE.md
+      HMS_UI_Modernization_Plan.md
+      M-009_STAFF_ROUTE_CODE_SPLITTING_GAP_NOTE.md
+      UI_DESIGN_STANDARD.md
+    User Administration/
+      .gitkeep
+  Test Case Scenarios/
+    Advance Payments/
+      .gitkeep
+    Appointments/
+      .gitkeep
+    Authentication/
+      .gitkeep
+    Bed and Ward Management/
+      .gitkeep
+    Billing/
+      .gitkeep
+    Branch Management/
+      .gitkeep
+    Consent Management/
+      .gitkeep
+    Corporate Billing/
+      .gitkeep
+    Cross-Module HMS/
+      .gitkeep
+    Dashboard/
+      .gitkeep
+    Dental OPD/
+      .gitkeep
+    Department Management/
+      .gitkeep
+    Doctor Management/
+      .gitkeep
+    Emergency/
+      .gitkeep
+    EMR/
+      .gitkeep
+    General Inventory/
+      .gitkeep
+    Health and Readiness/
+      .gitkeep
+    Imaging/
+      .gitkeep
+    Infrastructure/
+      HOSTING_LATENCY_TEST_PLAN.md
+      README.md
+    Insurance/
+      .gitkeep
+    IPD/
+      .gitkeep
+    Laboratory/
+      .gitkeep
+    M-Pesa/
+      .gitkeep
+    Medical Devices/
+      .gitkeep
+    Medicine Catalog/
+      .gitkeep
+    Mobile Application/
+      .gitkeep
+    Notifications/
+      .gitkeep
+    Nursing and Triage/
+      .gitkeep
+    OPD Consultation/
+      .gitkeep
+    Ophthalmology OPD/
+      HMS_OPHTHALMOLOGY_STAGING_UAT_AND_DECISIONS.md
+    Patient Documents/
+      .gitkeep
+    Patient Management/
+      .gitkeep
+    Patient Portal/
+      .gitkeep
+    Payments/
+      .gitkeep
+    Pharmacy Dispensing/
+      .gitkeep
+    Pharmacy Inventory/
+      .gitkeep
+    Prescriptions/
+      .gitkeep
+    RBAC/
+      .gitkeep
+    Referral Management/
+      .gitkeep
+    Reporting/
+      .gitkeep
+    Service Catalog/
+      .gitkeep
+    Settings/
+      .gitkeep
+    Surgery/
+      .gitkeep
+    UI Shell/
+      .gitkeep
+    User Administration/
+      .gitkeep
+  Test Result/
+    Advance Payments/
+      .gitkeep
+    Appointments/
+      M-007_PATIENT_APPOINTMENT_PAGINATION_VERIFICATION.md
+    Authentication/
+      H-001_PATIENT_OTP_SECURITY_VERIFICATION.md
+      H-003_PATIENT_REFRESH_SESSION_VERIFICATION.md
+      M-006_OTP_LOGIN_RATE_LIMIT_VERIFICATION.md
+      otp-api-lint.log
+      otp-focused-tests.log
+      otp-frontend-tests.log
+      otp-shared-prod-tests.log
+      otp-static-sms-tests.log
+      otp-web-build.log
+      otp-web-typecheck.log
+    Bed and Ward Management/
+      HMS_SCOPE2_PHASE3_P1_VERIFICATION.md
+    Billing/
+      .gitkeep
+    Branch Management/
+      .gitkeep
+    Consent Management/
+      .gitkeep
+    Corporate Billing/
+      .gitkeep
+    Cross-Module HMS/
+      FINAL-H7-H13-VERIFICATION.md
+      H-005_CLINICAL_BROWSER_STORAGE_VERIFICATION.md
+      HMS_PHASE1_SECURITY_AUTHORIZATION_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_FINAL_INTEGRATION_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_P0_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_P5_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_RELEASE_VERIFICATION.md
+      M-013_HTTP_RESPONSE_CONTRACTS_VERIFICATION.md
+      NEXT_RELEASE_R0_VERIFICATION.md
+      typecheck-current.log
+      typecheck-out.log
+    Dashboard/
+      HMS_DASHBOARD_END_TO_END_IMPLEMENTATION_REPORT.md
+      HMS_DASHBOARD_FOCUSED_HARDENING_VERIFICATION.md
+      HMS_OVERVIEW_DASHBOARD_LIVE_DATA_VERIFICATION.md
+    Dental OPD/
+      dental-phase6-api-build.log
+      dental-phase6-api-tests.log
+      dental-phase6-api-typecheck.log
+      dental-phase6-final-focused.log
+      dental-phase6-final-web-focused.log
+      dental-phase6-new-tests.log
+      dental-phase6-web-tests.log
+      HMS_DENTAL_PHASE10_VERIFICATION.md
+      HMS_DENTAL_PHASE6_VERIFICATION.md
+      HMS_DENTAL_PHASE7_VERIFICATION.md
+      HMS_DENTAL_PHASE9_VERIFICATION.md
+      HMS_DENTAL_SURFACE_UI_VERIFICATION.md
+    Department Management/
+      HMS_DEPARTMENT_MODULE_VISIBILITY_VERIFICATION.md
+    Doctor Management/
+      .gitkeep
+    Emergency/
+      HMS_EMERGENCY_TRIAGE_CONSULTATION_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_P4_VERIFICATION.md
+      M-010_EMERGENCY_WORKSPACE_LAYERING_VERIFICATION.md
+    EMR/
+      .gitkeep
+    General Inventory/
+      .gitkeep
+    Health and Readiness/
+      .gitkeep
+    Imaging/
+      .gitkeep
+    Infrastructure/
+      RENDER_BACKEND_VERIFICATION_REPORT.md
+    Insurance/
+      HMS_INSURANCE_PHASE4_HOTFIX_VERIFICATION.md
+      HMS_INSURANCE_PHASE5_VERIFICATION.md
+      HMS_INSURANCE_PHASE6_VERIFICATION.md
+      HMS_INSURANCE_PHASE7_VERIFICATION.md
+      HMS_INSURANCE_PHASE8_VERIFICATION.md
+      PHASE_1A_SLICE_1_VERIFICATION.md
+      PHASE_1A_SLICE_2_VERIFICATION.md
+      PHASE_1A_SLICE_3_VERIFICATION.md
+    IPD/
+      HMS_SCOPE2_PHASE3_ADMISSION_REQUEST_REFACTOR_VERIFICATION.md
+      HMS_SCOPE2_PHASE3_P2_VERIFICATION.md
+      NEXT_RELEASE_R3_VERIFICATION.md
+    Laboratory/
+      .gitkeep
+    M-Pesa/
+      HMS_MPESA_ATTEMPTS_VERIFICATION.md
+      HMS_MPESA_STEP5_VERIFICATION.md
+    Medical Devices/
+      .gitkeep
+    Medicine Catalog/
+      .gitkeep
+    Mobile Application/
+      ANDROID_DEV_QR_CONNECTION_REPORT.md
+      APPOINTMENT_CALENDAR_WEEKDAY_REPORT.md
+      APPOINTMENT_DATE_FORMAT_FIX_REPORT.md
+      APPOINTMENT_DEPARTMENT_DOCTOR_REPORT.md
+      APPOINTMENT_MODAL_SCROLL_FIX_REPORT.md
+      APPOINTMENT_SLOT_AVAILABILITY_REPORT.md
+      CONSENT_MANAGEMENT_CORRECTION_REPORT.md
+      CONSENT_MANAGEMENT_SECURITY_VERIFICATION_REPORT.md
+      EAS_SECURESTORE_XCODE_BUILD_FIX_REPORT.md
+      EAS_VLQ_DEPENDENCY_FIX_REPORT.md
+      EXPO_AUTH_VERIFICATION_REPORT.md
+      FINAL_PRE_EAS_NATIVE_VALIDATION_REPORT.md
+      FINAL_TEST_MATRIX.md
+      OPTIONAL_CLINICAL_HISTORY_APPOINTMENT_REPORT.md
+      PATIENT_PRE_CONSULTATION_HISTORY_IMPLEMENTATION_REPORT.md
+      PATIENT_PROFILE_PHOTO_IMPLEMENTATION_REPORT.md
+      PHYSICAL_DEVICE_ISSUES_FIX_REPORT.md
+      PROFILE_PHOTO_UPLOAD_NETWORK_ERROR_REPORT.md
+      REPORT.md
+      REPORT__43c03d1261.md
+      REPORT__45be95dc0e.md
+      REPORT__ba31d7ab2e.md
+      REPORT__c913e29991.md
+      REPORT__d60383d533.md
+      REPORT__f2cee3fa9f.md
+      REPORT__fdccecda75.md
+      SESSION_RESTORE_COLD_START_FIX_REPORT.md
+      TYPOGRAPHY_AUDIT_AND_IMPLEMENTATION_REPORT.md
+    Notifications/
+      H-002_NOTIFICATION_AUTHORIZATION_VERIFICATION.md
+    Nursing and Triage/
+      .gitkeep
+    OPD Consultation/
+      M-010_OPD_VISIT_LAYERING_VERIFICATION.md
+    Ophthalmology OPD/
+      HMS_OPHTHALMOLOGY_C10_STRUCTURED_TREATMENT_FRONTEND_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_C9_STRUCTURED_TREATMENT_BACKEND_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_EXECUTION_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B0_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B1_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B2_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B3_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B4_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B5_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_B6_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C1_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C2_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C3_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FRONTEND_C4_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_FULL_IMPLEMENTATION_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_0_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_10_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_11_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_1_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_2_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_3_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_4_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_5_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_6_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_7_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_8_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_PHASE_9_VERIFICATION.md
+      HMS_OPHTHALMOLOGY_WORKFLOW_VERIFICATION.md
+    Patient Documents/
+      HMS_GCS_DOCUMENT_STORAGE_VERIFICATION.md
+      patient-document-tests.log
+    Patient Management/
+      clone-age-api-lint.log
+      clone-age-baseline-web.log
+      clone-age-web-tests.log
+      CLONE_MINOR_GUARDIAN_IMPLEMENTATION_REPORT.md
+      minor-removal-activation-tests.log
+      minor-removal-baseline-web.log
+      minor-removal-login-tests.log
+      minor-removal-patient-web-tests.log
+      MINOR_GUARDIAN_VALIDATION_REMOVAL_REPORT.md
+      NEXT_RELEASE_R1_VERIFICATION.md
+      PROFILE_PHOTO_FINAL_FIX_REPORT.md
+      RENDER_STORAGE_VERIFICATION_REPORT.md
+    Patient Portal/
+      .gitkeep
+    Payments/
+      .gitkeep
+    Pharmacy Dispensing/
+      .gitkeep
+    Pharmacy Inventory/
+      NEXT_RELEASE_R2_VERIFICATION.md
+    Prescriptions/
+      .gitkeep
+    RBAC/
+      HMS_ROLE_BASED_DASHBOARD_VERIFICATION.md
+      HMS_ROLE_PERMISSION_RECTIFICATION_VERIFICATION.md
+      M-012_PERMISSION_EXPANSION_VERIFICATION.md
+    Referral Management/
+      HMS_REFERRAL_CALENDAR_INTEGRATION_VERIFICATION.md
+    Reporting/
+      .gitkeep
+    Service Catalog/
+      .gitkeep
+    Settings/
+      HMS_SYSTEM_SETTINGS_QUICK_WINS_VERIFICATION.md
+    Surgery/
+      HMS_SCOPE2_PHASE3_P3_VERIFICATION.md
+      M-010_SURGERY_WORKSPACE_LAYERING_VERIFICATION.md
+    UI Shell/
+      HMS_UI_MODERNIZATION_PHASE1_VERIFICATION.md
+      HMS_UI_MODERNIZATION_PHASE2_VERIFICATION.md
+      HMS_UI_MODERNIZATION_PHASE3_VERIFICATION.md
+      HMS_UI_MODERNIZATION_PHASE4_VERIFICATION.md
+      HMS_UI_MODERNIZATION_PHASE5_VERIFICATION.md
+      M-009_STAFF_ROUTE_CODE_SPLITTING_VERIFICATION.md
+    User Administration/
+      .gitkeep

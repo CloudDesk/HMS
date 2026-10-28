@@ -1,0 +1,350 @@
+# PATIENT MOBILE DEVELOPMENT — PATIENT WEB PROTECTION RULES
+
+These rules are MANDATORY for every phase of the Patient Mobile Application implementation.
+
+## 1. Existing Patient Web Is the Protected Application
+
+The existing Patient Web application is already functional.
+
+The primary objective of the mobile project is to add a mobile client without breaking, changing, or degrading any existing Patient Web functionality.
+
+The existing Patient Web must be treated as a protected production application.
+
+---
+
+## 2. Do NOT Modify Working Web Functionality Unnecessarily
+
+Do not change existing Patient Web:
+
+* UI behavior
+* Navigation
+* Authentication behavior
+* Login flow
+* OTP flow
+* Session behavior
+* Appointment behavior
+* Profile behavior
+* Patient/guardian behavior
+* Medical records behavior
+* Billing behavior
+* Document behavior
+* Dental quotation behavior
+* Existing API response contracts
+
+unless a change is explicitly required and approved.
+
+If a mobile requirement can be implemented without modifying the Patient Web, prefer that approach.
+
+---
+
+## 3. Backend Changes Must Be Backward Compatible
+
+The Patient Web and Patient Mobile will use the same HMS backend.
+
+Therefore:
+
+```text
+Patient Web ───────┐
+                   ├── HMS Backend
+Patient Mobile ────┘
+```
+
+Any backend change must preserve the existing Patient Web contract.
+
+Prefer:
+
+```text
+Existing API
+    ↓
+Remain unchanged
+```
+
+and when mobile requires something different:
+
+```text
+New Mobile Requirement
+        ↓
+New Mobile-specific API/adapter
+```
+
+instead of modifying an existing working API unnecessarily.
+
+---
+
+## 4. Never Replace Web Authentication With Mobile Authentication
+
+The existing Patient Web authentication mechanism must remain functional.
+
+Patient Web:
+
+```text
+Patient Web
+    ↓
+Existing authentication
+    ↓
+Existing access token
+    ↓
+Existing HttpOnly refresh-cookie mechanism
+```
+
+Patient Mobile:
+
+```text
+Patient Mobile
+    ↓
+Mobile authentication adapter
+    ↓
+Mobile session/token handling
+```
+
+Both may reuse the same backend authentication services and identity rules, but the mobile transport must not break the browser authentication contract.
+
+Do NOT expose browser refresh-token cookies as a workaround for mobile.
+
+---
+
+## 5. OTP Requirement
+
+The project uses:
+
+```text
+OTP = 1234
+```
+
+Do NOT introduce:
+
+* SMS gateway
+* SMS provider
+* Twilio
+* AWS SNS
+* Firebase SMS
+* Any external OTP delivery service
+
+The existing Patient Web OTP behavior must continue working.
+
+Any mobile-specific OTP handling must not break the existing Patient Web login/registration flow.
+
+---
+
+## 6. Do Not Duplicate Business Logic
+
+The mobile application must not create its own versions of:
+
+* Appointment rules
+* Patient authorization
+* Guardian authorization
+* Billing calculations
+* Clinical business rules
+* Prescription rules
+* Laboratory rules
+* Imaging rules
+* Dental quotation rules
+
+The HMS backend remains the source of truth.
+
+The mobile application is primarily a presentation/client layer.
+
+---
+
+## 7. Do Not Create Parallel Patient Data
+
+Do NOT create a separate mobile:
+
+* Patient database
+* Appointment database
+* Billing database
+* Prescription database
+* Laboratory database
+* Imaging database
+* Clinical database
+
+Reuse the existing HMS MongoDB/domain models.
+
+Only create new persistence where the mobile capability genuinely requires it.
+
+Examples:
+
+* Device registration
+* Mobile session metadata
+* Push notification metadata
+
+These must be justified before implementation.
+
+---
+
+## 8. Before Modifying Existing Code
+
+Before changing an existing backend or Patient Web file:
+
+1. Identify why the change is required.
+2. Identify which existing functionality uses the file/API.
+3. Determine whether an additive implementation is possible.
+4. Check whether the change affects Patient Web.
+5. Define backward compatibility behavior.
+6. Implement the smallest safe change.
+7. Run relevant existing tests.
+8. Run Patient Web tests.
+9. Run relevant API tests.
+10. Verify existing functionality has not changed.
+
+---
+
+## 9. Never Silently Refactor Working Code
+
+Do NOT use mobile implementation as an opportunity to:
+
+* Rewrite existing services
+* Rename existing APIs
+* Restructure unrelated modules
+* Replace working authentication
+* Replace working database models
+* Replace existing Patient Web components
+* Upgrade unrelated dependencies
+* Change UI styling
+* Clean up unrelated code
+
+Keep the implementation scope tightly controlled.
+
+---
+
+## 10. Regression Protection
+
+After every phase that changes shared backend functionality:
+
+### Required
+
+```text
+Backend tests
+     ↓
+Patient Web tests
+     ↓
+Relevant integration tests
+     ↓
+Mobile tests
+```
+
+The implementation must not proceed to the next phase if an existing Patient Web regression is introduced.
+
+If a test fails:
+
+1. Determine whether it is an existing baseline failure.
+2. Determine whether the current change caused it.
+3. Do not simply modify the test to make it pass.
+4. Fix the implementation if the regression was introduced.
+5. Document pre-existing failures separately.
+
+---
+
+## 11. API Compatibility
+
+Before changing an existing API, verify:
+
+* Existing Patient Web request format
+* Existing Patient Web response format
+* Existing error format
+* Existing authentication behavior
+* Existing authorization behavior
+* Existing pagination behavior
+* Existing consumers
+
+Prefer adding a new endpoint when the mobile requirement fundamentally differs.
+
+Example:
+
+Instead of changing:
+
+```text
+GET /api/patient-portal/prescriptions
+```
+
+and potentially breaking the web,
+
+consider:
+
+```text
+GET /api/patient-portal/prescriptions
+```
+
+remaining backward-compatible while introducing a separate detail/history capability if genuinely required.
+
+---
+
+## 12. UI Protection
+
+Do not redesign the Patient Web UI as part of mobile development.
+
+The mobile application should have its own native UI.
+
+```text
+Patient Web
+    ↓
+Existing desktop/web UI
+
+Patient Mobile
+    ↓
+New mobile UI
+```
+
+Reuse business concepts and design language where appropriate, but do not replace working web components with mobile components.
+
+---
+
+## 13. Database Protection
+
+Before modifying any existing database schema:
+
+* Identify all consumers.
+* Check existing indexes.
+* Check existing queries.
+* Check existing tests.
+* Determine migration/backward compatibility requirements.
+* Verify that Patient Web behavior remains unchanged.
+
+Do not modify existing data models merely to make mobile development easier.
+
+---
+
+## 14. Feature Flags / Additive Rollout
+
+Where appropriate, use additive rollout or feature flags for new functionality.
+
+Mobile-specific functionality should not automatically become visible to Patient Web users.
+
+Example:
+
+```text
+Mobile Feature
+      ↓
+Mobile API
+      ↓
+Mobile Client
+
+Patient Web
+      ↓
+Existing API
+      ↓
+Existing behavior
+```
+
+---
+
+## 15. Final Rule
+
+The following principle applies to EVERY implementation prompt:
+
+> **DO NOT BREAK OR CHANGE EXISTING PATIENT WEB FUNCTIONALITY.**
+
+Any change that can affect the Patient Web must:
+
+* Be explicitly identified.
+* Have a technical reason.
+* Be backward compatible.
+* Be tested against the existing Patient Web.
+* Be documented.
+* Be approved before implementation when the impact is significant.
+
+If there is uncertainty about whether a change could affect the Patient Web:
+
+**STOP and analyze the impact before implementing it.**
+
+The existing Patient Web functionality has priority over convenience during mobile implementation.

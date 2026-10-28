@@ -2,7 +2,7 @@ export type BillingInvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIALLY_PAID' | 'PAI
 export type BillingServiceType = 'CONSULTATION' | 'LAB_TEST' | 'IMAGING_SERVICE' | 'PHARMACY';
 export type BillingSourceType = 'OPD' | 'EMERGENCY' | 'PROCEDURE' | 'IP_ADMISSION';
 export type ManualBillingServiceType = Exclude<BillingServiceType, 'PHARMACY'>;
-export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER';
+export type BillingPaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'MPESA';
 
 export type BillingInvoiceItem = {
   id: string;
@@ -63,6 +63,13 @@ export type BillingPayment = {
   payment_method: BillingPaymentMethod;
   payment_date: Date;
   reference_number: string | null;
+  provider?: string | null;
+  mpesa_attempt_id?: string | null;
+  merchant_request_id?: string | null;
+  checkout_request_id?: string | null;
+  mpesa_receipt_number?: string | null;
+  transaction_verification_timestamp?: Date | null;
+  financial_posting_timestamp?: Date | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: Date;
@@ -128,6 +135,13 @@ export type CollectBillingPaymentDTO = {
   payment_method: BillingPaymentMethod;
   payment_date?: string;
   reference_number?: string | null;
+  provider?: string | null;
+  mpesa_attempt_id?: string | null;
+  merchant_request_id?: string | null;
+  checkout_request_id?: string | null;
+  mpesa_receipt_number?: string | null;
+  transaction_verification_timestamp?: Date | null;
+  financial_posting_timestamp?: Date | null;
 };
 
 export type BillingRequestMetadata = {
@@ -154,4 +168,3 @@ export type ResolvedBillingItem = {
   unitPrice: number;
   lineTotal: number;
 };
-

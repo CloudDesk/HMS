@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal';
 import { MedicalLoader, MedicalSpinner } from '../components/ui/MedicalLoader';
 import { navigate, useAppLocation } from '../routing/navigation';
 import {
+  billingPaymentMethodLabel,
   billingServiceLabel,
   billingSourceLabel,
   billingStatusClass,
@@ -17,6 +18,9 @@ import {
   formatBillingDate,
   formatBillingDateTime,
 } from './billing-utils';
+import { MpesaPaymentModal } from '../components/billing/MpesaPaymentModal';
+import { MpesaExceptionsModal } from '../components/billing/MpesaExceptionsModal';
+import { normalizeMpesaPhone } from '../utils/mpesa-phone';
 import { useBillingWorkspaceFeature } from '../hooks/billing/useBillingWorkspaceFeature';
 import type { DraftItem } from '../hooks/billing/useBillingAutoPopulate';
 
@@ -39,11 +43,11 @@ const createPaymentSchema = (balanceAmount: number, formatMoney: (val: number) =
   amount: z.number({ message: 'Enter a valid payment amount.' })
     .positive('Payment amount must be greater than zero.')
     .refine((val) => val <= balanceAmount, `Payment amount cannot exceed the outstanding balance of ${formatMoney(balanceAmount)}.`),
-  payment_method: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']),
+  payment_method: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'MPESA']),
   payment_date: z.string().min(1, 'Payment date is required.'),
   reference_number: z.string().trim().max(100),
 }).superRefine((data, context) => {
-  if (data.payment_method !== 'CASH' && !data.reference_number) {
+  if (data.payment_method !== 'CASH' && data.payment_method !== 'MPESA' && !data.reference_number) {
     context.addIssue({ code: 'custom', message: 'Reference number is required.', path: ['reference_number'] });
   }
 });
@@ -64,6 +68,12 @@ export function BillingWorkspacePage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [receipt, setReceipt] = useState<BillingReceipt | null>(null);
+  const [mpesaModalOpen, setMpesaModalOpen] = useState(false);
+  const [exceptionsModalOpen, setExceptionsModalOpen] = useState(false);
+  const [mpesaInitialAmount, setMpesaInitialAmount] = useState<number | undefined>(undefined);
+  const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaPhoneTouched, setMpesaPhoneTouched] = useState(false);
+  const mpesaPhoneValidation = useMemo(() => normalizeMpesaPhone(mpesaPhone), [mpesaPhone]);
 
   const invoiceForm = useForm<InvoiceForm>({
     resolver: zodResolver(invoiceSchema),
@@ -191,7 +201,7 @@ export function BillingWorkspacePage() {
           <button className="btn-primary billing-full-button" disabled={!canCreate || createMutation.isPending} onClick={createInvoice} type="button">{createMutation.isPending ? <><MedicalSpinner size="sm" /><span>Creating...</span></> : 'Create Invoice Draft'}</button>
         </aside>
       </div>
-    </div>;
+  </div>;
   }
   if (invoiceQuery.isLoading) return <div style={{ padding: '4rem 1rem' }}><MedicalLoader size="large" text="Loading invoice workspace..." subtext="Retrieving patient billing invoice details" /></div>;
   if (invoiceQuery.isError || !invoice) return <div className="billing-state error"><i className="ph ph-warning-circle" /><strong>Invoice could not be loaded.</strong><button onClick={() => void invoiceQuery.refetch()} type="button">Retry</button></div>;
@@ -200,12 +210,12 @@ export function BillingWorkspacePage() {
   const cancellable = editable;
   const payable = (invoice.status === 'PENDING' || invoice.status === 'PARTIALLY_PAID') && invoice.balance_amount > 0;
   return <div className="billing-page">
-    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button> : null}</div></div>
+    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button><button className="btn-secondary" onClick={() => setExceptionsModalOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <><button className="btn-secondary" onClick={() => { setMpesaInitialAmount(Math.floor(invoice.balance_amount)); setMpesaModalOpen(true); }} type="button"><i className="ph ph-device-mobile" /> M-Pesa STK</button><button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button></> : null}</div></div>
     <section className="billing-detail-strip"><div><span>Patient</span><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></div><div><span>{billingSourceLabel[invoice.source_type]}</span><strong>{invoice.visit_number ?? invoice.encounter_id}</strong><small>{invoice.appointment_number ?? 'No linked appointment'}</small></div><div><span>Branch</span><strong>{invoice.branch_name ?? invoice.branch_id}</strong><small>{formatBillingDate(invoice.invoice_date)}</small></div><div><span>Balance</span><strong className={invoice.balance_amount ? 'billing-balance-due' : 'billing-balance-clear'}>{formatBillingMoney(invoice.balance_amount)}</strong><small>{formatBillingMoney(invoice.paid_amount)} collected</small></div></section>
     <div className="billing-workspace-grid">
       <main>
         <section className="billing-card"><div className="billing-card-head"><div><h3>Invoice Items</h3><p>Price snapshots and originating order links remain unchanged after invoice creation</p></div></div><div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Source</th><th>Service</th><th>Order / Request</th><th>Quantity</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>{invoice.items.map((item) => <tr key={item.id}><td>{billingServiceLabel[item.service_type]}</td><td><strong>{item.service_name}</strong></td><td>{item.originating_order_id ?? 'Encounter charge'}</td><td>{item.quantity}</td><td>{formatBillingMoney(item.unit_price)}</td><td>{formatBillingMoney(item.line_total)}</td></tr>)}</tbody></table></div></section>
-        <section className="billing-card"><div className="billing-card-head"><div><h3>Payments</h3><p>Collected payments and receipt access</p></div></div>{paymentsQuery.isError ? <div className="billing-inline-alert error">Payments could not be loaded.</div> : <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Payment</th><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>{paymentsQuery.isLoading ? <tr><td colSpan={6} style={{ padding: '2rem 1rem' }}><MedicalLoader text="Loading payments..." subtext="Retrieving collection records" /></td></tr> : null}{!paymentsQuery.isLoading && (paymentsQuery.data?.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={6}>No payments collected.</td></tr> : null}{paymentsQuery.data?.map((payment) => <tr key={payment.id}><td><strong>{payment.payment_number}</strong></td><td>{formatBillingDateTime(payment.payment_date)}</td><td>{payment.payment_method.replaceAll('_', ' ')}</td><td>{payment.reference_number ?? 'Cash'}</td><td>{formatBillingMoney(payment.amount)}</td><td><button className="btn-secondary" disabled={receiptMutation.isPending} onClick={() => receiptMutation.mutate(payment.id, { onSuccess: setReceipt })} type="button"><i className="ph ph-receipt" /> View</button></td></tr>)}</tbody></table></div>}</section>
+        <section className="billing-card"><div className="billing-card-head"><div><h3>Payments</h3><p>Collected payments and receipt access</p></div></div>{paymentsQuery.isError ? <div className="billing-inline-alert error">Payments could not be loaded.</div> : <div className="table-responsive"><table className="data-table billing-table"><thead><tr><th>Payment</th><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th><th>Receipt</th></tr></thead><tbody>{paymentsQuery.isLoading ? <tr><td colSpan={6} style={{ padding: '2rem 1rem' }}><MedicalLoader text="Loading payments..." subtext="Retrieving collection records" /></td></tr> : null}{!paymentsQuery.isLoading && (paymentsQuery.data?.length ?? 0) === 0 ? <tr><td className="um-state-cell" colSpan={6}>No payments collected.</td></tr> : null}{paymentsQuery.data?.map((payment) => <tr key={payment.id}><td><strong>{payment.payment_number}</strong></td><td>{formatBillingDateTime(payment.payment_date)}</td><td>{billingPaymentMethodLabel[payment.payment_method] ?? payment.payment_method.replaceAll('_', ' ')}</td><td>{payment.reference_number ?? 'Cash'}</td><td>{formatBillingMoney(payment.amount)}</td><td><button className="btn-secondary" disabled={receiptMutation.isPending} onClick={() => receiptMutation.mutate(payment.id, { onSuccess: setReceipt })} type="button"><i className="ph ph-receipt" /> View</button></td></tr>)}</tbody></table></div>}</section>
       </main>
       <aside className="billing-summary-card">
         <h3>Financial Summary</h3>
@@ -214,8 +224,171 @@ export function BillingWorkspacePage() {
         {editable && canEdit ? <><button className="btn-secondary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: false }))} type="button">Save Changes</button>{invoice.status === 'DRAFT' ? <button className="btn-primary billing-full-button" disabled={updateMutation.isPending} onClick={invoiceForm.handleSubmit((values) => updateMutation.mutate({ id: invoiceId, payload: { invoice_date: values.invoice_date, discount_amount: values.discount_amount, tax_amount: values.tax_amount }, finalize: true }))} type="button">Finalize Invoice</button> : null}</> : null}
       </aside>
     </div>
-    <Modal footer={<><button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">Cancel</button><button className="btn-primary" disabled={paymentMutation.isPending || isAmountInvalid || !paymentForm.formState.isValid} onClick={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))} type="button">{paymentMutation.isPending ? <><MedicalSpinner size="sm" /><span>Collecting...</span></> : 'Collect Payment'}</button></>} icon="ph-currency-circle-dollar" onClose={() => setPaymentOpen(false)} open={paymentOpen} title="Collect Payment">
-      <div className="billing-payment-summary"><span>Invoice balance</span><strong>{formatBillingMoney(invoice.balance_amount)}</strong></div><form className="billing-modal-form" onSubmit={paymentForm.handleSubmit((values) => paymentMutation.mutate({ id: invoiceId, payload: { amount: values.amount, payment_method: values.payment_method, payment_date: values.payment_date, reference_number: values.reference_number || undefined } }, { onSuccess: () => { setPaymentOpen(false); paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' }); } }))}><label><span>Amount *</span><input max={invoice.balance_amount} min="0.01" step="0.01" type="number" {...paymentForm.register('amount', { valueAsNumber: true })} />{paymentForm.formState.errors.amount?.message ? <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>{paymentForm.formState.errors.amount.message}</small> : isAmountExcessive ? <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>Payment amount cannot exceed the outstanding balance of {formatBillingMoney(invoice.balance_amount)}.</small> : null}</label><label><span>Payment Method *</span><select {...paymentForm.register('payment_method')}><option value="CASH">Cash</option><option value="CARD">Card</option><option value="UPI">UPI</option><option value="BANK_TRANSFER">Bank Transfer</option></select></label><label><span>Payment Date *</span><input type="date" {...paymentForm.register('payment_date')} /></label><label><span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span><input {...paymentForm.register('reference_number')} /><small>{paymentForm.formState.errors.reference_number?.message}</small></label></form>
+    <Modal
+      footer={
+        <>
+          <button className="btn-secondary" onClick={() => setPaymentOpen(false)} type="button">
+            Cancel
+          </button>
+          {paymentMethod === 'MPESA' ? (
+            <button
+              className="btn-primary"
+              disabled={isAmountInvalid || !mpesaPhoneValidation.valid}
+              onClick={() => {
+                setPaymentOpen(false);
+                setMpesaInitialAmount(Math.floor(enteredAmount));
+                setMpesaModalOpen(true);
+              }}
+              type="button"
+            >
+              <i className="ph ph-device-mobile" />
+              <span>Proceed to STK Push</span>
+            </button>
+          ) : (
+            <button
+              className="btn-primary"
+              disabled={paymentMutation.isPending || isAmountInvalid || !paymentForm.formState.isValid}
+              onClick={paymentForm.handleSubmit((values) =>
+                paymentMutation.mutate(
+                  {
+                    id: invoiceId,
+                    payload: {
+                      amount: values.amount,
+                      payment_method: values.payment_method,
+                      payment_date: values.payment_date,
+                      reference_number: values.reference_number || undefined,
+                    },
+                  },
+                  {
+                    onSuccess: () => {
+                      setPaymentOpen(false);
+                      paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' });
+                    },
+                  },
+                ),
+              )}
+              type="button"
+            >
+              {paymentMutation.isPending ? (
+                <>
+                  <MedicalSpinner size="sm" />
+                  <span>Collecting...</span>
+                </>
+              ) : (
+                'Collect Payment'
+              )}
+            </button>
+          )}
+        </>
+      }
+      icon="ph-currency-circle-dollar"
+      onClose={() => setPaymentOpen(false)}
+      open={paymentOpen}
+      title="Collect Payment"
+    >
+      <div className="billing-payment-summary">
+        <span>Invoice balance</span>
+        <strong>{formatBillingMoney(invoice.balance_amount)}</strong>
+      </div>
+      <form
+        className="billing-modal-form"
+        onSubmit={paymentForm.handleSubmit((values) => {
+          if (values.payment_method === 'MPESA') {
+            setPaymentOpen(false);
+            setMpesaInitialAmount(Math.floor(values.amount));
+            setMpesaModalOpen(true);
+            return;
+          }
+          paymentMutation.mutate(
+            {
+              id: invoiceId,
+              payload: {
+                amount: values.amount,
+                payment_method: values.payment_method,
+                payment_date: values.payment_date,
+                reference_number: values.reference_number || undefined,
+              },
+            },
+            {
+              onSuccess: () => {
+                setPaymentOpen(false);
+                paymentForm.reset({ amount: 0, payment_method: 'CASH', payment_date: today(), reference_number: '' });
+              },
+            },
+          );
+        })}
+      >
+        <label>
+          <span>Amount *</span>
+          <input
+            max={invoice.balance_amount}
+            min="0.01"
+            step="0.01"
+            type="number"
+            {...paymentForm.register('amount', { valueAsNumber: true })}
+          />
+          {paymentForm.formState.errors.amount?.message ? (
+            <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+              {paymentForm.formState.errors.amount.message}
+            </small>
+          ) : isAmountExcessive ? (
+            <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+              Payment amount cannot exceed the outstanding balance of {formatBillingMoney(invoice.balance_amount)}.
+            </small>
+          ) : null}
+        </label>
+        <label>
+          <span>Payment Method *</span>
+          <select {...paymentForm.register('payment_method')}>
+            <option value="CASH">Cash</option>
+            <option value="CARD">Card</option>
+            <option value="UPI">UPI</option>
+            <option value="BANK_TRANSFER">Bank Transfer</option>
+            <option value="MPESA">M-Pesa (STK Push)</option>
+          </select>
+        </label>
+        {paymentMethod === 'MPESA' ? (
+          <>
+            <div
+              className="billing-inline-alert"
+              style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', padding: '0.6rem 0.8rem', fontSize: '0.85rem' }}
+            >
+              <i className="ph-fill ph-info" /> M-Pesa STK Push will prompt the customer directly on their mobile phone for their PIN.
+            </div>
+            <label>
+              <span>Customer Mobile Number *</span>
+              <input
+                onBlur={() => setMpesaPhoneTouched(true)}
+                onChange={(e) => setMpesaPhone(e.target.value)}
+                placeholder="e.g. 0712 345 678"
+                type="tel"
+                value={mpesaPhone}
+              />
+              {mpesaPhoneValidation.valid && mpesaPhoneValidation.normalized ? (
+                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginTop: '0.25rem', display: 'block' }}>
+                  ✓ Standardized format: <strong>{mpesaPhoneValidation.normalized}</strong>
+                </span>
+              ) : mpesaPhoneTouched && mpesaPhoneValidation.error ? (
+                <small style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+                  {mpesaPhoneValidation.error}
+                </small>
+              ) : null}
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              <span>Payment Date *</span>
+              <input type="date" {...paymentForm.register('payment_date')} />
+            </label>
+            <label>
+              <span>Reference Number {paymentMethod === 'CASH' ? '(optional)' : '*'}</span>
+              <input {...paymentForm.register('reference_number')} />
+              <small>{paymentForm.formState.errors.reference_number?.message}</small>
+            </label>
+          </>
+        )}
+      </form>
     </Modal>
     <Modal footer={<><button className="btn-secondary" onClick={() => setCancelOpen(false)} type="button">Keep Invoice</button><button className="btn-danger" disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate(invoiceId, { onSuccess: () => setCancelOpen(false) })} type="button">Cancel Invoice</button></>} icon="ph-warning" onClose={() => setCancelOpen(false)} open={cancelOpen} title="Cancel Invoice">
       <p>This cancels the unpaid invoice and prevents future payments. This action is audit logged.</p>
@@ -223,6 +396,20 @@ export function BillingWorkspacePage() {
     <Modal footer={<><button className="btn-secondary" onClick={() => setReceipt(null)} type="button">Close</button><button className="btn-primary" onClick={() => window.print()} type="button"><i className="ph ph-printer" /> Print Receipt</button></>} icon="ph-receipt" onClose={() => setReceipt(null)} open={Boolean(receipt)} size="large" title="Payment Receipt">
       {receipt ? <ReceiptPaper receipt={receipt} /> : null}
     </Modal>
+    <MpesaPaymentModal
+      invoice={invoice}
+      initialAmount={mpesaInitialAmount}
+      onClose={() => setMpesaModalOpen(false)}
+      onReceiptReady={(r) => {
+        setMpesaModalOpen(false);
+        setReceipt(r);
+      }}
+      open={mpesaModalOpen}
+    />
+    <MpesaExceptionsModal
+      onClose={() => setExceptionsModalOpen(false)}
+      open={exceptionsModalOpen}
+    />
   </div>;
 }
 function ReceiptPaper({ receipt }: { receipt: BillingReceipt }) {
