@@ -1,4 +1,5 @@
 import mongoose, { Types } from 'mongoose';
+import { closeDatabase, connectDatabase } from './client.js';
 import { ServiceModel } from '../modules/services/service.model.js';
 import { MedicineModel } from '../modules/medicines/medicine.model.js';
 import {
@@ -6,14 +7,9 @@ import {
   PharmacyMedicineBatchModel,
 } from '../modules/pharmacy-inventory/pharmacy-inventory.model.js';
 
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGODB_DATABASE_URL ||
-  'mongodb+srv://cloudrte_db_user:0bmbhE0r8ccRd3sS@cluster0.tldvbve.mongodb.net/HMS_GENERAL?appName=Cluster0';
-
 async function seedOphthalmologyRecords() {
   console.log('Connecting to database...');
-  await mongoose.connect(MONGODB_URI);
+  await connectDatabase();
   const db = mongoose.connection.db;
   if (!db) {
     throw new Error('Database connection failed');
@@ -546,7 +542,7 @@ async function seedOphthalmologyRecords() {
   }
 
   console.log('\nAll 24 ophthalmology test records successfully seeded into MongoDB!');
-  await mongoose.disconnect();
+  await closeDatabase();
 }
 
 seedOphthalmologyRecords().catch((err) => {

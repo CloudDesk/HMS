@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { env } from '../config/env.js';
+import { connectDatabase } from '../database/client.js';
 import { SequenceModel } from '../shared/sequence/sequence.model.js';
 import { PatientModel } from '../modules/patients/patient.model.js';
 import { AppointmentModel } from '../modules/appointments/appointment.model.js';
@@ -10,7 +10,7 @@ import { EmergencyEncounterModel } from '../modules/emergency/emergency.model.js
 
 async function migrate() {
   console.log('Connecting to database...');
-  await mongoose.connect(env.database.url);
+  await connectDatabase();
   console.log('Connected.');
 
   console.log('Migrating Standard Sequences...');

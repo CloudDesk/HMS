@@ -1,0 +1,4106 @@
+{
+  "timestamp": "2026-10-27T10:49:28.525Z",
+  "database": "HMS_GENERAL",
+  "sourceHostRedacted": "cluster0.****.mongodb.net",
+  "dbStats": {
+    "collections": 91,
+    "views": 0,
+    "objects": 2382,
+    "avgObjSize": 342.24643157010917,
+    "dataSizeBytes": 815231,
+    "dataSizeMB": 0.78,
+    "storageSizeBytes": 1937408,
+    "storageSizeMB": 1.85,
+    "indexes": 443,
+    "indexSizeBytes": 7921664,
+    "indexSizeMB": 7.55,
+    "totalSizeBytes": 9859072,
+    "totalSizeMB": 9.4
+  },
+  "atlasFreeTierEvaluation": {
+    "limitMB": 512,
+    "safeThresholdMB": 400,
+    "currentStorageMB": 1.85,
+    "currentIndexMB": 7.55,
+    "combinedSizeMB": 9.4,
+    "isCompatible": true,
+    "remainingHeadroomMB": 502.6,
+    "verdict": "PASSED: Total size (9.4 MB) is well under Atlas Free Tier limit of 512 MB (502.6 MB headroom remaining)."
+  },
+  "collectionSummary": {
+    "total": 91,
+    "populatedCount": 38,
+    "emptyCount": 53,
+    "viewCount": 0,
+    "gridFsCount": 0
+  },
+  "collections": [
+    {
+      "name": "administrationdashboardsnapshots",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "key_1",
+          "key": {
+            "key": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "generatedAt_1",
+          "key": {
+            "generatedAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "admissionpolicies",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "admissionrequests",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "requestNumber_1",
+          "key": {
+            "requestNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_status_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "activeSourceKey_1",
+          "key": {
+            "activeSourceKey": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "advancepayments",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "source_type_1_source_id_1",
+          "key": {
+            "source_type": 1,
+            "source_id": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patient_id_1_created_at_-1",
+          "key": {
+            "patient_id": 1,
+            "created_at": -1
+          }
+        },
+        {
+          "name": "branch_id_1_payment_status_1",
+          "key": {
+            "branch_id": 1,
+            "payment_status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "appointments",
+      "type": "collection",
+      "documentCount": 5,
+      "indexCount": 12,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "appointmentNumber_1",
+          "key": {
+            "appointmentNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "doctorId_1_utcDateTime_1_appointmentDate_1_startTime_1",
+          "key": {
+            "doctorId": 1,
+            "utcDateTime": 1,
+            "appointmentDate": 1,
+            "startTime": 1
+          }
+        },
+        {
+          "name": "patientId_1_utcDateTime_-1_appointmentDate_-1",
+          "key": {
+            "patientId": 1,
+            "utcDateTime": -1,
+            "appointmentDate": -1
+          }
+        },
+        {
+          "name": "status_1_utcDateTime_1_appointmentDate_1",
+          "key": {
+            "status": 1,
+            "utcDateTime": 1,
+            "appointmentDate": 1
+          }
+        },
+        {
+          "name": "branchId_1_departmentId_1_utcDateTime_1_appointmentDate_1",
+          "key": {
+            "branchId": 1,
+            "departmentId": 1,
+            "utcDateTime": 1,
+            "appointmentDate": 1
+          }
+        },
+        {
+          "name": "patientNumber_1",
+          "key": {
+            "patientNumber": 1
+          }
+        },
+        {
+          "name": "patientName_1",
+          "key": {
+            "patientName": 1
+          }
+        },
+        {
+          "name": "doctorName_1",
+          "key": {
+            "doctorName": 1
+          }
+        },
+        {
+          "name": "activeSlotKey_1",
+          "key": {
+            "activeSlotKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "dentalContext.treatmentStageId_1",
+          "key": {
+            "dentalContext.treatmentStageId": 1
+          }
+        },
+        {
+          "name": "dentalContext.treatmentEpisodeId_1",
+          "key": {
+            "dentalContext.treatmentEpisodeId": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "auditlogs",
+      "type": "collection",
+      "documentCount": 1273,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "createdAt_-1",
+          "key": {
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "eventType_1_createdAt_-1",
+          "key": {
+            "eventType": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "metadataJson.roleId_1_createdAt_-1",
+          "key": {
+            "metadataJson.roleId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "authratelimits",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "expiresAt_1",
+          "key": {
+            "expiresAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "bedassignmenthistories",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "admissionId_1_occurredAt_-1",
+          "key": {
+            "admissionId": 1,
+            "occurredAt": -1
+          }
+        },
+        {
+          "name": "bedId_1_occurredAt_-1",
+          "key": {
+            "bedId": 1,
+            "occurredAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "bedholds",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "holdNumber_1",
+          "key": {
+            "holdNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "idempotencyKey_1",
+          "key": {
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "bedId_1_status_1",
+          "key": {
+            "bedId": 1,
+            "status": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "status_1_expiresAt_1_branchId_1",
+          "key": {
+            "status": 1,
+            "expiresAt": 1,
+            "branchId": 1
+          }
+        },
+        {
+          "name": "patientId_1_status_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "bedtransfers",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "admissionId_1_status_1_requestedAt_-1",
+          "key": {
+            "admissionId": 1,
+            "status": 1,
+            "requestedAt": -1
+          }
+        },
+        {
+          "name": "destinationBedId_1_status_1",
+          "key": {
+            "destinationBedId": 1,
+            "status": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "billing_invoice_items",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "invoiceId_1_deletedAt_1",
+          "key": {
+            "invoiceId": 1,
+            "deletedAt": 1
+          }
+        },
+        {
+          "name": "serviceId_1_createdAt_-1",
+          "key": {
+            "serviceId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "procedure_originating_order_unique",
+          "key": {
+            "serviceType": 1,
+            "originatingOrderId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "billing_invoices",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 11,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "invoiceNumber_1",
+          "key": {
+            "invoiceNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          }
+        },
+        {
+          "name": "sourceType_1_encounterId_1",
+          "key": {
+            "sourceType": 1,
+            "encounterId": 1
+          }
+        },
+        {
+          "name": "admissionId_1",
+          "key": {
+            "admissionId": 1
+          }
+        },
+        {
+          "name": "procedureId_1",
+          "key": {
+            "procedureId": 1
+          }
+        },
+        {
+          "name": "status_1_createdAt_-1",
+          "key": {
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_invoiceDate_-1_status_1",
+          "key": {
+            "branchId": 1,
+            "invoiceDate": -1,
+            "status": 1
+          }
+        },
+        {
+          "name": "contextType_contextId_unique_objectId",
+          "key": {
+            "contextType": 1,
+            "contextId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "invoices_branch_live_created",
+          "key": {
+            "branchId": 1,
+            "deletedAt": 1,
+            "createdAt": -1,
+            "_id": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "billing_payments",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "paymentNumber_1",
+          "key": {
+            "paymentNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "invoiceId_1",
+          "key": {
+            "invoiceId": 1
+          }
+        },
+        {
+          "name": "paymentDate_-1",
+          "key": {
+            "paymentDate": -1
+          }
+        },
+        {
+          "name": "branchId_1_paymentDate_-1",
+          "key": {
+            "branchId": 1,
+            "paymentDate": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "branches",
+      "type": "collection",
+      "documentCount": 3,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "name_1",
+          "key": {
+            "name": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "identifiers.value_1_identifiers.issuingAuthority_1",
+          "key": {
+            "identifiers.value": 1,
+            "identifiers.issuingAuthority": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "identifiers.identifierType_1_identifiers.status_1",
+          "key": {
+            "identifiers.identifierType": 1,
+            "identifiers.status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "consenttemplates",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_code_1_version_1",
+          "key": {
+            "branchId": 1,
+            "code": 1,
+            "version": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_contextType_1_status_1",
+          "key": {
+            "branchId": 1,
+            "contextType": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "branchId_1_code_1",
+          "key": {
+            "branchId": 1,
+            "code": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "departments",
+      "type": "collection",
+      "documentCount": 4,
+      "indexCount": 7,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "name_1",
+          "key": {
+            "name": 1
+          }
+        },
+        {
+          "name": "branchId_1",
+          "key": {
+            "branchId": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchIds_1",
+          "key": {
+            "branchIds": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_isClinical_1_branchIds_1_name_1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "isClinical": 1,
+            "branchIds": 1,
+            "name": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimadjudications",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalAdjudicationReference_1",
+          "key": {
+            "externalAdjudicationReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimappeals",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1_mockAdjudicationReference_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1,
+            "mockAdjudicationReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalAppealReference_1",
+          "key": {
+            "externalAppealReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_status_1",
+          "key": {
+            "claimId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimclosures",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_closureSnapshotFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "closureSnapshotFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalClosureReference_1",
+          "key": {
+            "externalClosureReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_idempotencyKey_1",
+          "key": {
+            "claimId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimdischarges",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalDischargeReference_1",
+          "key": {
+            "externalDischargeReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimpreviews",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "mockSubmissionReference_1",
+          "key": {
+            "mockSubmissionReference": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimqueries",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1_mockAdjudicationReference_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1,
+            "mockAdjudicationReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalQueryReference_1",
+          "key": {
+            "externalQueryReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_status_1",
+          "key": {
+            "claimId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockclaimsubmissions",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalReference_1",
+          "key": {
+            "externalReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockpaymentallocations",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_remittanceAdviceId_1_idempotencyKey_1",
+          "key": {
+            "claimId": 1,
+            "remittanceAdviceId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalAllocationReference_1",
+          "key": {
+            "externalAllocationReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "remittanceAdviceId_1_createdAt_1",
+          "key": {
+            "remittanceAdviceId": 1,
+            "createdAt": 1
+          }
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockpaymentreconciliations",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_remittanceAdviceId_1_snapshotFingerprint_1",
+          "key": {
+            "claimId": 1,
+            "remittanceAdviceId": 1,
+            "snapshotFingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalReconciliationReference_1",
+          "key": {
+            "externalReconciliationReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_remittanceAdviceId_1_idempotencyKey_1",
+          "key": {
+            "claimId": 1,
+            "remittanceAdviceId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "remittanceAdviceId_1_createdAt_-1",
+          "key": {
+            "remittanceAdviceId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "claimId_1_createdAt_-1",
+          "key": {
+            "claimId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "dhamockremittanceadvices",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "claimId_1_sourceFingerprint_1_mockAdjudicationReference_1_mockAppealReference_1",
+          "key": {
+            "claimId": 1,
+            "sourceFingerprint": 1,
+            "mockAdjudicationReference": 1,
+            "mockAppealReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "externalRemittanceReference_1",
+          "key": {
+            "externalRemittanceReference": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "claimId_1_status_1",
+          "key": {
+            "claimId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "doctoravailabilityexceptions",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "doctorId_1_date_1",
+          "key": {
+            "doctorId": 1,
+            "date": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "doctorleaves",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "doctorId_1_status_1_startDate_1_endDate_1",
+          "key": {
+            "doctorId": 1,
+            "status": 1,
+            "startDate": 1,
+            "endDate": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "doctors",
+      "type": "collection",
+      "documentCount": 5,
+      "indexCount": 9,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "doctorNumber_1",
+          "key": {
+            "doctorNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "userId_1",
+          "key": {
+            "userId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "displayName_1",
+          "key": {
+            "displayName": 1
+          }
+        },
+        {
+          "name": "branchId_1_departmentId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "departmentId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "specialization_1",
+          "key": {
+            "specialization": 1
+          }
+        },
+        {
+          "name": "registrationNumber_1",
+          "key": {
+            "registrationNumber": 1
+          }
+        },
+        {
+          "name": "email_1",
+          "key": {
+            "email": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_branchId_1_departmentId_1_displayName_1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "branchId": 1,
+            "departmentId": 1,
+            "displayName": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "doctorsequences",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 1,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "emergencyencounters",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 12,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "encounterNumber_1",
+          "key": {
+            "encounterNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "emergencyIdentifier_1",
+          "key": {
+            "emergencyIdentifier": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_status_1_arrivalAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "arrivalAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_status_1_triage.effectiveLevel_1_arrivalAt_1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "triage.effectiveLevel": 1,
+            "arrivalAt": 1
+          }
+        },
+        {
+          "name": "departmentId_1_status_1_arrivalAt_1",
+          "key": {
+            "departmentId": 1,
+            "status": 1,
+            "arrivalAt": 1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientName_1_encounterNumber_1",
+          "key": {
+            "patientName": 1,
+            "encounterNumber": 1
+          }
+        },
+        {
+          "name": "branchId_1_referral.status_1_referral.submittedAt_-1",
+          "key": {
+            "branchId": 1,
+            "referral.status": 1,
+            "referral.submittedAt": -1
+          }
+        },
+        {
+          "name": "referral.targetDoctorId_1_referral.status_1_referral.submittedAt_-1",
+          "key": {
+            "referral.targetDoctorId": 1,
+            "referral.status": 1,
+            "referral.submittedAt": -1
+          }
+        },
+        {
+          "name": "inpatientAdmissionId_1",
+          "key": {
+            "inpatientAdmissionId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "guardianprofiles",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "userId_1",
+          "key": {
+            "userId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "hmsbeds",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_wardId_1_bedNumber_1",
+          "key": {
+            "branchId": 1,
+            "wardId": 1,
+            "bedNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_wardId_1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "wardId": 1
+          }
+        },
+        {
+          "name": "branchId_1_bedCategory_1_roomNumber_1",
+          "key": {
+            "branchId": 1,
+            "bedCategory": 1,
+            "roomNumber": 1
+          }
+        },
+        {
+          "name": "currentHoldId_1",
+          "key": {
+            "currentHoldId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "currentAdmissionId_1",
+          "key": {
+            "currentAdmissionId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "hmswards",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_name_1",
+          "key": {
+            "branchId": 1,
+            "name": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_floor_1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "floor": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "imaging_reports",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "orderId_1",
+          "key": {
+            "orderId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "visitId_1_createdAt_-1",
+          "key": {
+            "visitId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "createdAt_-1",
+          "key": {
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "dentalContext.treatmentEpisodeId_1",
+          "key": {
+            "dentalContext.treatmentEpisodeId": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "inpatientadmissions",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 8,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "admissionNumber_1",
+          "key": {
+            "admissionNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_admissionDate_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "admissionDate": -1
+          }
+        },
+        {
+          "name": "patientId_1_status_1_admissionDate_-1",
+          "key": {
+            "patientId": 1,
+            "status": 1,
+            "admissionDate": -1
+          }
+        },
+        {
+          "name": "patientId_1",
+          "key": {
+            "patientId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "requestId_1",
+          "key": {
+            "requestId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "sourceType_1_sourceId_1",
+          "key": {
+            "sourceType": 1,
+            "sourceId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "bedId_1_status_1",
+          "key": {
+            "bedId": 1,
+            "status": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "inpatientroundnotes",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "admissionId_1_branchId_1_createdAt_-1",
+          "key": {
+            "admissionId": 1,
+            "branchId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "inpatientvitals",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "admissionId_1_branchId_1_createdAt_-1",
+          "key": {
+            "admissionId": 1,
+            "branchId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insuranceauthorizations",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "fingerprint_1",
+          "key": {
+            "fingerprint": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "correlationId_1",
+          "key": {
+            "correlationId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "memberId_1_status_1",
+          "key": {
+            "memberId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insurancebenefitconfigs",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "payerId_1_schemeId_1_serviceId_1_status_1",
+          "key": {
+            "payerId": 1,
+            "schemeId": 1,
+            "serviceId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "payerId_1_serviceCode_1_status_1",
+          "key": {
+            "payerId": 1,
+            "serviceCode": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "payerId_1_category_1_status_1",
+          "key": {
+            "payerId": 1,
+            "category": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "status_1_startDate_1_endDate_1",
+          "key": {
+            "status": 1,
+            "startDate": 1,
+            "endDate": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insuranceclaims",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "invoiceId_1_memberId_1",
+          "key": {
+            "invoiceId": 1,
+            "memberId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insuranceeligibilityverifications",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "correlationId_1",
+          "key": {
+            "correlationId": 1
+          }
+        },
+        {
+          "name": "memberId_1_requestedDate_-1",
+          "key": {
+            "memberId": 1,
+            "requestedDate": -1
+          }
+        },
+        {
+          "name": "patientId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "status_1_createdAt_-1",
+          "key": {
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insurancemembers",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "policyId_1_memberNumber_1",
+          "key": {
+            "policyId": 1,
+            "memberNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "policyId_1_patientId_1",
+          "key": {
+            "policyId": 1,
+            "patientId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "policyId_1_status_1",
+          "key": {
+            "policyId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insurancepolicies",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "payerId_1_policyNumber_1",
+          "key": {
+            "payerId": 1,
+            "policyNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "schemeId_1_status_1",
+          "key": {
+            "schemeId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "holderPatientId_1_status_1",
+          "key": {
+            "holderPatientId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "insuranceschemes",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "payerId_1_schemeCode_1",
+          "key": {
+            "payerId": 1,
+            "schemeCode": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "payerId_1_status_1",
+          "key": {
+            "payerId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "laboratory_results",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "orderId_1",
+          "key": {
+            "orderId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "visitId_1_createdAt_-1",
+          "key": {
+            "visitId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "createdAt_-1",
+          "key": {
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "medicines",
+      "type": "collection",
+      "documentCount": 6,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "name_1",
+          "key": {
+            "name": 1
+          }
+        },
+        {
+          "name": "genericName_1",
+          "key": {
+            "genericName": 1
+          }
+        },
+        {
+          "name": "dosageForm_1",
+          "key": {
+            "dosageForm": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "mpesa_callback_events",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "environment_1_checkoutRequestId_1_receivedAt_-1",
+          "key": {
+            "environment": 1,
+            "checkoutRequestId": 1,
+            "receivedAt": -1
+          }
+        },
+        {
+          "name": "environment_1_processingStatus_1_receivedAt_-1",
+          "key": {
+            "environment": 1,
+            "processingStatus": 1,
+            "receivedAt": -1
+          }
+        },
+        {
+          "name": "environment_1_mpesaReceiptNumber_1",
+          "key": {
+            "environment": 1,
+            "mpesaReceiptNumber": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "notifications",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 7,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "recipientRole_1_isRead_1",
+          "key": {
+            "recipientRole": 1,
+            "isRead": 1
+          }
+        },
+        {
+          "name": "recipientRole_1_recipientBranchId_1_isRead_1",
+          "key": {
+            "recipientRole": 1,
+            "recipientBranchId": 1,
+            "isRead": 1
+          }
+        },
+        {
+          "name": "recipientUserId_1_isRead_1_createdAt_-1",
+          "key": {
+            "recipientUserId": 1,
+            "isRead": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "createdAt_-1",
+          "key": {
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "recipientUserId_1_patientId_1_isRead_1_createdAt_-1",
+          "key": {
+            "recipientUserId": 1,
+            "patientId": 1,
+            "isRead": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "recipientUserId_1_relatedEntityId_1_type_1",
+          "key": {
+            "recipientUserId": 1,
+            "relatedEntityId": 1,
+            "type": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdclinicalorders",
+      "type": "collection",
+      "documentCount": 2,
+      "indexCount": 11,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_orderType_unique_objectId",
+          "key": {
+            "visitId": 1,
+            "orderType": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "sourceType_1_sourceId_1_orderType_1",
+          "key": {
+            "sourceType": 1,
+            "sourceId": 1,
+            "orderType": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_orderType_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "orderType": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "doctorId_1_orderType_1_createdAt_-1",
+          "key": {
+            "doctorId": 1,
+            "orderType": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "orderType_1_status_1_priority_1_submittedAt_-1",
+          "key": {
+            "orderType": 1,
+            "status": 1,
+            "priority": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_orderType_1_status_1_submittedAt_-1",
+          "key": {
+            "branchId": 1,
+            "orderType": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "admissionId_1_orderType_1_status_1_submittedAt_-1",
+          "key": {
+            "admissionId": 1,
+            "orderType": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "procedureId_1_orderType_1_status_1_submittedAt_-1",
+          "key": {
+            "procedureId": 1,
+            "orderType": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "dentalContext.treatmentEpisodeId_1",
+          "key": {
+            "dentalContext.treatmentEpisodeId": 1
+          }
+        },
+        {
+          "name": "dentalContext.treatmentStageId_1",
+          "key": {
+            "dentalContext.treatmentStageId": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdconsultations",
+      "type": "collection",
+      "documentCount": 5,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "doctorId_1_createdAt_-1",
+          "key": {
+            "doctorId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "status_1_createdAt_-1",
+          "key": {
+            "status": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdfollowups",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_nextVisitDate_-1",
+          "key": {
+            "patientId": 1,
+            "nextVisitDate": -1
+          }
+        },
+        {
+          "name": "assignedDoctorId_1_status_1_nextVisitDate_1",
+          "key": {
+            "assignedDoctorId": 1,
+            "status": 1,
+            "nextVisitDate": 1
+          }
+        },
+        {
+          "name": "status_1_nextVisitDate_1",
+          "key": {
+            "status": 1,
+            "nextVisitDate": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdprescriptions",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 9,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_unique_objectId",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "sourceType_1_sourceId_1",
+          "key": {
+            "sourceType": 1,
+            "sourceId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_submittedAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "admissionId_1_status_1_submittedAt_-1",
+          "key": {
+            "admissionId": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "procedureId_1_status_1_submittedAt_-1",
+          "key": {
+            "procedureId": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "doctorId_1_status_1_createdAt_-1",
+          "key": {
+            "doctorId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "status_1_submittedAt_-1",
+          "key": {
+            "status": 1,
+            "submittedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdreferrals",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_submittedAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "submittedAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "referredDoctorId_1_status_1_createdAt_-1",
+          "key": {
+            "referredDoctorId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "referralType_1_status_1_priority_1_submittedAt_-1",
+          "key": {
+            "referralType": 1,
+            "status": 1,
+            "priority": 1,
+            "submittedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdvisits",
+      "type": "collection",
+      "documentCount": 7,
+      "indexCount": 11,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitNumber_1",
+          "key": {
+            "visitNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "appointmentId_1",
+          "key": {
+            "appointmentId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_visitDate_-1",
+          "key": {
+            "patientId": 1,
+            "visitDate": -1
+          }
+        },
+        {
+          "name": "doctorId_1_visitDate_1_status_1",
+          "key": {
+            "doctorId": 1,
+            "visitDate": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "branchId_1_visitDate_1_queueTokenNumber_1",
+          "key": {
+            "branchId": 1,
+            "visitDate": 1,
+            "queueTokenNumber": 1
+          }
+        },
+        {
+          "name": "branchId_1_departmentId_1_visitDate_1",
+          "key": {
+            "branchId": 1,
+            "departmentId": 1,
+            "visitDate": 1
+          }
+        },
+        {
+          "name": "status_1_visitDate_1",
+          "key": {
+            "status": 1,
+            "visitDate": 1
+          }
+        },
+        {
+          "name": "patientNumber_1",
+          "key": {
+            "patientNumber": 1
+          }
+        },
+        {
+          "name": "patientName_1",
+          "key": {
+            "patientName": 1
+          }
+        },
+        {
+          "name": "inpatientAdmissionId_1",
+          "key": {
+            "inpatientAdmissionId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "opdvitals",
+      "type": "collection",
+      "documentCount": 3,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1_recordedAt_-1",
+          "key": {
+            "visitId": 1,
+            "recordedAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_recordedAt_-1",
+          "key": {
+            "patientId": 1,
+            "recordedAt": -1
+          }
+        },
+        {
+          "name": "patientNumber_1",
+          "key": {
+            "patientNumber": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyattachments",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 7,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "patientDocumentId_1_patientId_1",
+          "key": {
+            "patientDocumentId": 1,
+            "patientId": 1
+          }
+        },
+        {
+          "name": "taskId_1_patientDocumentId_1",
+          "key": {
+            "taskId": 1,
+            "patientDocumentId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_idempotencyKey_1",
+          "key": {
+            "branchId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_taskId_1_acquiredAt_-1",
+          "key": {
+            "branchId": 1,
+            "taskId": 1,
+            "acquiredAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_visitId_1_acquiredAt_-1",
+          "key": {
+            "patientId": 1,
+            "visitId": 1,
+            "acquiredAt": -1
+          }
+        },
+        {
+          "name": "resultId_1_reviewState_1_publicationState_1",
+          "key": {
+            "resultId": 1,
+            "reviewState": 1,
+            "publicationState": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyclinicalreviews",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_branchId_1_updatedAt_-1",
+          "key": {
+            "patientId": 1,
+            "branchId": 1,
+            "updatedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyconfigurations",
+      "type": "collection",
+      "documentCount": 22,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_type_1_status_1_revision_-1__id_-1",
+          "key": {
+            "branchId": 1,
+            "type": 1,
+            "status": 1,
+            "revision": -1,
+            "_id": -1
+          }
+        },
+        {
+          "name": "branchId_1_type_1_code_1_revision_1",
+          "key": {
+            "branchId": 1,
+            "type": 1,
+            "code": 1,
+            "revision": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_type_1_code_1_status_1_updatedAt_-1",
+          "key": {
+            "branchId": 1,
+            "type": 1,
+            "code": 1,
+            "status": 1,
+            "updatedAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_type_1_code_1",
+          "key": {
+            "branchId": 1,
+            "type": 1,
+            "code": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyconsultationfinalizations",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1_branchId_1_status_1_updatedAt_-1",
+          "key": {
+            "patientId": 1,
+            "branchId": 1,
+            "status": 1,
+            "updatedAt": -1
+          }
+        },
+        {
+          "name": "contextId_1_completions.idempotencyKey_1",
+          "key": {
+            "contextId": 1,
+            "completions.idempotencyKey": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologycontexts",
+      "type": "collection",
+      "documentCount": 5,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "visitId_1",
+          "key": {
+            "visitId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_workflowStatus_1_updatedAt_-1",
+          "key": {
+            "branchId": 1,
+            "workflowStatus": 1,
+            "updatedAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_updatedAt_-1",
+          "key": {
+            "patientId": 1,
+            "updatedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologydashboardsnapshots",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1",
+          "key": {
+            "branchId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "generatedAt_-1",
+          "key": {
+            "generatedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyopticalprescriptions",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 1,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologypublications",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 7,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "patientId_1_status_1_sourceType_1_portalPayload.report_document_ids_1",
+          "key": {
+            "patientId": 1,
+            "status": 1,
+            "sourceType": 1,
+            "portalPayload.report_document_ids": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1_publishedAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "publishedAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_status_1_publishedAt_-1",
+          "key": {
+            "patientId": 1,
+            "status": 1,
+            "publishedAt": -1
+          }
+        },
+        {
+          "name": "visitId_1_status_1_publishedAt_-1",
+          "key": {
+            "visitId": 1,
+            "status": 1,
+            "publishedAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_idempotencyKey_1",
+          "key": {
+            "branchId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "sourceType_1_sourceId_1_sourceVersion_1",
+          "key": {
+            "sourceType": 1,
+            "sourceId": 1,
+            "sourceVersion": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologystations",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_code_1",
+          "key": {
+            "branchId": 1,
+            "code": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_name_1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "name": 1
+          }
+        },
+        {
+          "name": "branchId_1_supportedTestTypes_1_status_1",
+          "key": {
+            "branchId": 1,
+            "supportedTestTypes": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "memberUserIds_1_status_1",
+          "key": {
+            "memberUserIds": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "ophthalmologyworkflowprofiles",
+      "type": "collection",
+      "documentCount": 21,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_visitSubtype_1_revision_1",
+          "key": {
+            "branchId": 1,
+            "visitSubtype": 1,
+            "revision": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_visitSubtype_1",
+          "key": {
+            "branchId": 1,
+            "visitSubtype": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_updatedAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "updatedAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "otpchallenges",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "phone_1",
+          "key": {
+            "phone": 1
+          }
+        },
+        {
+          "name": "expiresAt_1",
+          "key": {
+            "expiresAt": 1
+          }
+        },
+        {
+          "name": "phone_1_createdAt_-1",
+          "key": {
+            "phone": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "phone_1_verifiedAt_1_expiresAt_1",
+          "key": {
+            "phone": 1,
+            "verifiedAt": 1,
+            "expiresAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "passwordresettokens",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "tokenHash_1",
+          "key": {
+            "tokenHash": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "expiresAt_1",
+          "key": {
+            "expiresAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "patientaccessgrants",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "userId_1_patientId_1",
+          "key": {
+            "userId": 1,
+            "patientId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "userId_1_status_1_createdAt_-1",
+          "key": {
+            "userId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "patientdocuments",
+      "type": "collection",
+      "documentCount": 2,
+      "indexCount": 8,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "patientId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "patientId_1_visitId_1_status_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "visitId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_admissionId_1_status_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "admissionId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_consentTemplateId_1_contextType_1_contextId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "consentTemplateId": 1,
+            "contextType": 1,
+            "contextId": 1,
+            "status": 1
+          }
+        },
+        {
+          "name": "documentType_1",
+          "key": {
+            "documentType": 1
+          }
+        },
+        {
+          "name": "reviewStatus_1_source_1_createdAt_-1",
+          "key": {
+            "reviewStatus": 1,
+            "source": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_contextType_1_contextId_1_status_1",
+          "key": {
+            "patientId": 1,
+            "contextType": 1,
+            "contextId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "patientnumbersequences",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "key_1",
+          "key": {
+            "key": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "patients",
+      "type": "collection",
+      "documentCount": 6,
+      "indexCount": 10,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "patientNumber_1",
+          "key": {
+            "patientNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "firstName_1_lastName_1",
+          "key": {
+            "firstName": 1,
+            "lastName": 1
+          }
+        },
+        {
+          "name": "phone_1",
+          "key": {
+            "phone": 1
+          }
+        },
+        {
+          "name": "email_1",
+          "key": {
+            "email": 1
+          }
+        },
+        {
+          "name": "status_1",
+          "key": {
+            "status": 1
+          }
+        },
+        {
+          "name": "identifiers.value_1_identifiers.issuingAuthority_1",
+          "key": {
+            "identifiers.value": 1,
+            "identifiers.issuingAuthority": 1
+          }
+        },
+        {
+          "name": "identifiers.identifierType_1_identifiers.status_1",
+          "key": {
+            "identifiers.identifierType": 1,
+            "identifiers.status": 1
+          }
+        },
+        {
+          "name": "patients_branch_live_created",
+          "key": {
+            "registrationBranchId": 1,
+            "deletedAt": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patients_live_created",
+          "key": {
+            "deletedAt": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "patienttimelineevents",
+      "type": "collection",
+      "documentCount": 34,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "patientId_1_occurredAt_-1",
+          "key": {
+            "patientId": 1,
+            "occurredAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_eventType_1_occurredAt_-1",
+          "key": {
+            "patientId": 1,
+            "eventType": 1,
+            "occurredAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "payers",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "payerCode_1",
+          "key": {
+            "payerCode": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "status_1_type_1",
+          "key": {
+            "status": 1,
+            "type": 1
+          }
+        },
+        {
+          "name": "branchId_1_status_1",
+          "key": {
+            "branchId": 1,
+            "status": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "permissioncategories",
+      "type": "collection",
+      "documentCount": 3,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "permissiongroups",
+      "type": "collection",
+      "documentCount": 16,
+      "indexCount": 1,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "permissions",
+      "type": "collection",
+      "documentCount": 237,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "pharmacy_medicine_batches",
+      "type": "collection",
+      "documentCount": 6,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "medicineId_1_branchId_1_batchNumber_1",
+          "key": {
+            "medicineId": 1,
+            "branchId": 1,
+            "batchNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_expiryDate_1_quantityOnHand_1",
+          "key": {
+            "branchId": 1,
+            "expiryDate": 1,
+            "quantityOnHand": 1
+          }
+        },
+        {
+          "name": "branchId_1_medicineId_1_status_1_expiryDate_1",
+          "key": {
+            "branchId": 1,
+            "medicineId": 1,
+            "status": 1,
+            "expiryDate": 1
+          }
+        },
+        {
+          "name": "branchId_1_barcode_1",
+          "key": {
+            "branchId": 1,
+            "barcode": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "pharmacy_medicine_inventory",
+      "type": "collection",
+      "documentCount": 6,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "medicineId_1_branchId_1",
+          "key": {
+            "medicineId": 1,
+            "branchId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_stockState_1_updatedAt_-1",
+          "key": {
+            "branchId": 1,
+            "stockState": 1,
+            "updatedAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_nextExpiryDate_1",
+          "key": {
+            "branchId": 1,
+            "nextExpiryDate": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "pharmacy_medicine_stock_movements",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "branchId_1_medicineId_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "medicineId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_batchId_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "batchId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchId_1_idempotencyKey_1",
+          "key": {
+            "branchId": 1,
+            "idempotencyKey": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "pharmacydispensings",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 9,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "prescriptionId_1",
+          "key": {
+            "prescriptionId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_createdAt_-1",
+          "key": {
+            "patientId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "sourceType_1_encounterId_1",
+          "key": {
+            "sourceType": 1,
+            "encounterId": 1
+          }
+        },
+        {
+          "name": "admissionId_1_createdAt_-1",
+          "key": {
+            "admissionId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "procedureId_1_createdAt_-1",
+          "key": {
+            "procedureId": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "confirmIdempotencyKey_unique_string",
+          "key": {
+            "confirmIdempotencyKey": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "reverseIdempotencyKey_unique_string",
+          "key": {
+            "reverseIdempotencyKey": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "procedurebookings",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 6,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "bookingNumber_1",
+          "key": {
+            "bookingNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_scheduledStart_1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "scheduledStart": 1
+          }
+        },
+        {
+          "name": "doctorId_1_status_1_scheduledStart_1_scheduledEnd_1",
+          "key": {
+            "doctorId": 1,
+            "status": 1,
+            "scheduledStart": 1,
+            "scheduledEnd": 1
+          }
+        },
+        {
+          "name": "serviceId_1_status_1_scheduledStart_1_scheduledEnd_1",
+          "key": {
+            "serviceId": 1,
+            "status": 1,
+            "scheduledStart": 1,
+            "scheduledEnd": 1
+          }
+        },
+        {
+          "name": "recommendationId_1",
+          "key": {
+            "recommendationId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "procedurerecommendations",
+      "type": "collection",
+      "documentCount": 3,
+      "indexCount": 5,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "recommendationNumber_1",
+          "key": {
+            "recommendationNumber": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "branchId_1_status_1_createdAt_-1",
+          "key": {
+            "branchId": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "patientId_1_serviceId_1",
+          "key": {
+            "patientId": 1,
+            "serviceId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "encounterType_1_encounterId_1_serviceId_1",
+          "key": {
+            "encounterType": 1,
+            "encounterId": 1,
+            "serviceId": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "refreshtokens",
+      "type": "collection",
+      "documentCount": 628,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "token_1",
+          "key": {
+            "token": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "expiresAt_1",
+          "key": {
+            "expiresAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "registrationtokens",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 4,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "phone_1",
+          "key": {
+            "phone": 1
+          }
+        },
+        {
+          "name": "tokenHash_1",
+          "key": {
+            "tokenHash": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "expiresAt_1",
+          "key": {
+            "expiresAt": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "roles",
+      "type": "collection",
+      "documentCount": 33,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "name_1",
+          "key": {
+            "name": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "sequences",
+      "type": "collection",
+      "documentCount": 4,
+      "indexCount": 1,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "services",
+      "type": "collection",
+      "documentCount": 18,
+      "indexCount": 7,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "code_1",
+          "key": {
+            "code": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "name_1",
+          "key": {
+            "name": 1
+          }
+        },
+        {
+          "name": "departmentId_1",
+          "key": {
+            "departmentId": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_departmentId_1_name_1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "departmentId": 1,
+            "name": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_serviceType_1_status_1_departmentId_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "serviceType": 1,
+            "status": 1,
+            "departmentId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "shaservicemappings",
+      "type": "collection",
+      "documentCount": 0,
+      "indexCount": 3,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "serviceId_1",
+          "key": {
+            "serviceId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "serviceId_1_createdAt_-1",
+          "key": {
+            "serviceId": 1,
+            "createdAt": -1
+          }
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "systemsettings",
+      "type": "collection",
+      "documentCount": 1,
+      "indexCount": 2,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "key_1",
+          "key": {
+            "key": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    },
+    {
+      "name": "users",
+      "type": "collection",
+      "documentCount": 14,
+      "indexCount": 10,
+      "indexes": [
+        {
+          "name": "_id_",
+          "key": {
+            "_id": 1
+          }
+        },
+        {
+          "name": "deletedAt_1_status_1_createdAt_-1",
+          "key": {
+            "deletedAt": 1,
+            "status": 1,
+            "createdAt": -1
+          }
+        },
+        {
+          "name": "branchIds_1_deletedAt_1",
+          "key": {
+            "branchIds": 1,
+            "deletedAt": 1
+          }
+        },
+        {
+          "name": "departmentIds_1_deletedAt_1",
+          "key": {
+            "departmentIds": 1,
+            "deletedAt": 1
+          }
+        },
+        {
+          "name": "roleIds_1_deletedAt_1",
+          "key": {
+            "roleIds": 1,
+            "deletedAt": 1
+          }
+        },
+        {
+          "name": "employeeCode_1",
+          "key": {
+            "employeeCode": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "username_1",
+          "key": {
+            "username": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "email_1",
+          "key": {
+            "email": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "patientId_1",
+          "key": {
+            "patientId": 1
+          },
+          "unique": true
+        },
+        {
+          "name": "phoneNormalized_1",
+          "key": {
+            "phoneNormalized": 1
+          },
+          "unique": true
+        }
+      ],
+      "hasValidator": false,
+      "isGridFS": false
+    }
+  ]
+}

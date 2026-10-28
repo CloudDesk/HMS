@@ -145,13 +145,20 @@ export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
   const [escalateModalOpen, setEscalateModalOpen] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const { search } = useAppLocation();
+
+  const patientDetailsQuery = usePatientDetails(
+    (f.visit as { patient_id?: string | null } | undefined)?.patient_id ?? null,
+    Boolean((f.visit as { patient_id?: string | null } | undefined)?.patient_id),
+  );
+
   const activeAlert = f.emergencyAlerts.find((a) => a.status === 'ACTIVE');
   const unclearedAlert = f.emergencyAlerts.find(
     (a) => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED' || (a.status === 'CLEARED' && !a.clearance?.resumption_permitted),
   );
   const isEmergencyActive = Boolean(activeAlert);
   const isRoutineCareBlocked = Boolean(unclearedAlert);
-  const { search } = useAppLocation();
   const params = new URLSearchParams(search);
   const careTab = params.get('care_tab') || 'treatment';
   const isOrders = f.section === 'clinical' && (careTab === 'orders' || careTab === 'prescription' || careTab === 'lab-orders' || careTab === 'imaging-orders');
@@ -240,8 +247,6 @@ export function OphthalmologyWorkspacePage() {
     }
   };
 
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
-
   const handleSaveDraft = async () => {
     if (isSavingDraft || isRoutineCareBlocked) return;
     setIsSavingDraft(true);
@@ -260,10 +265,6 @@ export function OphthalmologyWorkspacePage() {
     }
   };
 
-  const patientDetailsQuery = usePatientDetails(
-    (f.visit as { patient_id?: string | null } | undefined)?.patient_id ?? null,
-    Boolean((f.visit as { patient_id?: string | null } | undefined)?.patient_id),
-  );
   const patient = patientDetailsQuery.data;
   const patientAge = getPatientAge(patient?.date_of_birth);
   const patientGender = formatGender(patient?.gender);

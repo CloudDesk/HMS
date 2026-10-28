@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-10-27T10:54:25.682Z",
+  "archiveFile": "backups/HMS_GENERAL/HMS_GENERAL_backup.archive.gz",
+  "fileSizeBytes": 131076,
+  "fileSizeKB": 128,
+  "sha256": "A2A2D45E72E547228014B841D4477C4DA7F96437B4C5275140964C632D28D278",
+  "sha256Verification": "MATCH",
+  "dryRunStatus": "PASSED",
+  "foreignDatabaseCheck": "PASSED (0 foreign namespaces)",
+  "ephemeralRestoreStatus": "PASSED",
+  "expectedCollections": 91,
+  "restoredCollections": 91,
+  "expectedDocumentCount": 2382,
+  "restoredDocumentCount": 2382,
+  "documentParity": "100% MATCH",
+  "emptyCollectionsPreserved": 53,
+  "populatedCollectionsRestored": 38,
+  "databaseTarget": "HMS_GENERAL",
+  "sourceClusterModified": "NO",
+  "verdict": "ARCHIVE VERIFIED COMPLETE AND RESTORABLE"
+}

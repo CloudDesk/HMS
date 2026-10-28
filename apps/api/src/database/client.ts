@@ -3,9 +3,13 @@ import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 
 let isConnected = false;
+let connectedUrl: string | undefined;
 
 export const connectDatabase = async () => {
   if (isConnected && mongoose.connection.readyState === 1) {
+    if (connectedUrl !== env.database.url) {
+      throw new Error('MongoDB connection settings changed; restart before using another database');
+    }
     return;
   }
 
@@ -23,7 +27,12 @@ export const connectDatabase = async () => {
     serverSelectionTimeoutMS: env.database.connectTimeoutSeconds * 1000,
   });
 
+  if (env.database.expectedDatabase && mongoose.connection.db?.databaseName !== env.database.expectedDatabase) {
+    await mongoose.connection.close();
+    throw new Error('Connected MongoDB database does not match MONGODB_EXPECTED_DATABASE');
+  }
   isConnected = mongoose.connection.readyState === 1;
+  connectedUrl = env.database.url;
 };
 
 export const closeDatabase = async () => {
@@ -33,4 +42,5 @@ export const closeDatabase = async () => {
 
   await mongoose.connection.close();
   isConnected = false;
+  connectedUrl = undefined;
 };

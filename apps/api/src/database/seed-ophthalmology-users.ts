@@ -1,5 +1,5 @@
-import mongoose, { Types } from 'mongoose';
-import { setServers } from 'node:dns';
+import { Types } from 'mongoose';
+import { closeDatabase, connectDatabase } from './client.js';
 import { BranchModel } from '../modules/branches/branch.model.js';
 import { DepartmentModel } from '../modules/departments/department.model.js';
 import { DoctorModel } from '../modules/doctors/doctor.model.js';
@@ -11,19 +11,7 @@ import { UserModel } from '../modules/users/user.model.js';
 import { hashPassword } from '../shared/security/hash.js';
 
 export const seedOphthalmologyActors = async () => {
-  const dnsServers = (process.env.MONGODB_DNS_SERVERS ?? '8.8.8.8,1.1.1.1')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (dnsServers.length > 0) setServers(dnsServers);
-
-  if (mongoose.connection.readyState === 0) {
-    const mongoUrl = process.env.MONGODB_DATABASE_URL || process.env.MONGODB_URI;
-    if (!mongoUrl) {
-      throw new Error('MONGODB_DATABASE_URL or MONGODB_URI environment variable is required');
-    }
-    await mongoose.connect(mongoUrl);
-  }
+  await connectDatabase();
 
   const branch = await BranchModel.findOne({ code: 'MB01', status: 'ACTIVE' }).orFail(
     () => new Error('Branch MB01 is required in the database'),
@@ -299,7 +287,10 @@ export const seedOphthalmologyActors = async () => {
 
 if (process.argv[1]?.includes('seed-ophthalmology-users')) {
   seedOphthalmologyActors()
-    .then(() => process.exit(0))
+    .then(async () => {
+      await closeDatabase();
+      process.exit(0);
+    })
     .catch((err) => {
       console.error(err);
       process.exit(1);

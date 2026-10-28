@@ -207,9 +207,40 @@ const parseCsv = (value: string | undefined, fallback: string[]) => {
   return values.length > 0 ? values : fallback;
 };
 
-const parseDatabaseUrl = (value: string | undefined) => {
+export const resolveDatabaseUrl = (options: {
+  uri?: string;
+  legacyUrl?: string;
+  expectedHost?: string;
+  expectedDatabase?: string;
+}) => {
+  const uri = options.uri?.trim();
+  const legacyUrl = options.legacyUrl?.trim();
+  if (uri && legacyUrl && uri !== legacyUrl) {
+    throw new Error('MONGODB_URI and MONGODB_DATABASE_URL conflict; configure only one database URL');
+  }
+  const value = uri || legacyUrl;
   if (!value) {
     throw new Error('MONGODB_URI or MONGODB_DATABASE_URL is required');
+  }
+
+  const match = /^mongodb(?:\+srv)?:\/\/([^/?#]+)(?:\/([^?#]*))?(?:\?[^#]*)?$/.exec(value);
+  if (!match) throw new Error('MongoDB connection URL is invalid');
+  const authority = match[1];
+  if (!authority) throw new Error('MongoDB connection URL must include a host');
+  const host = authority.slice(authority.lastIndexOf('@') + 1).toLowerCase();
+  const expectedHost = options.expectedHost?.trim().toLowerCase();
+  if (expectedHost && host !== expectedHost) {
+    throw new Error('MongoDB connection host does not match MONGODB_EXPECTED_HOST');
+  }
+  let database: string;
+  try {
+    database = decodeURIComponent(match[2] ?? '');
+  } catch {
+    throw new Error('MongoDB connection database name is invalid');
+  }
+  const expectedDatabase = options.expectedDatabase?.trim();
+  if (expectedDatabase && database !== expectedDatabase) {
+    throw new Error('MongoDB connection database does not match MONGODB_EXPECTED_DATABASE');
   }
 
   return value;
@@ -241,7 +272,14 @@ export const env = {
     trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   },
   database: {
-    url: parseDatabaseUrl(process.env.MONGODB_URI ?? process.env.MONGODB_DATABASE_URL),
+    url: resolveDatabaseUrl({
+      uri: process.env.MONGODB_URI,
+      legacyUrl: process.env.MONGODB_DATABASE_URL,
+      expectedHost: process.env.MONGODB_EXPECTED_HOST,
+      expectedDatabase: process.env.MONGODB_EXPECTED_DATABASE,
+    }),
+    expectedHost: process.env.MONGODB_EXPECTED_HOST?.trim() || undefined,
+    expectedDatabase: process.env.MONGODB_EXPECTED_DATABASE?.trim() || undefined,
     dnsServers: parseDnsServers(process.env.MONGODB_DNS_SERVERS),
     poolSize: parseInteger(process.env.DATABASE_POOL_SIZE, 10),
     connectTimeoutSeconds: parseInteger(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS, 15),

@@ -1,0 +1,189 @@
+{
+  "localConfigurationOnly": true,
+  "remoteIsolationVerified": false,
+  "rows": [
+    {
+      "file": "apps/api/.env.dev",
+      "present": true,
+      "appEnvironment": "dev",
+      "sourceFileFingerprint": "1002ce144884f059",
+      "databaseSettings": [
+        {
+          "key": "MONGODB_DATABASE_URL",
+          "hostFingerprint": "c18763fa51b87535",
+          "database": "HMS_GENERAL",
+          "credentialsPresent": true
+        }
+      ],
+      "expectedHostConfigured": false,
+      "expectedDatabase": null,
+      "apiBaseUrl": null
+    },
+    {
+      "file": "apps/api/.env.test",
+      "present": true,
+      "appEnvironment": null,
+      "sourceFileFingerprint": "7bba958f082ac877",
+      "databaseSettings": [
+        {
+          "key": "MONGODB_URI",
+          "hostFingerprint": "dc70c4885594f625",
+          "database": "dummy",
+          "credentialsPresent": false
+        }
+      ],
+      "expectedHostConfigured": false,
+      "expectedDatabase": null,
+      "apiBaseUrl": null
+    },
+    {
+      "file": "apps/api/.env.prod",
+      "present": false
+    },
+    {
+      "file": "apps/web/.env.prod",
+      "present": true,
+      "appEnvironment": "prod",
+      "sourceFileFingerprint": "0664a35ff3ff8fb5",
+      "databaseSettings": [],
+      "expectedHostConfigured": false,
+      "expectedDatabase": null,
+      "apiBaseUrl": "https://hms-india-0y8r.onrender.com/api"
+    },
+    {
+      "file": "apps/patient-web/.env.prod",
+      "present": false
+    }
+  ],
+  "writerEntrypointsAndSupport": [
+    {
+      "file": "apps/api/src/server.ts",
+      "indicators": [
+        "seedDatabase",
+        "refresh"
+      ]
+    },
+    {
+      "file": "apps/api/src/database/migrate-clinical-depts.ts",
+      "indicators": [
+        "updateOne"
+      ]
+    },
+    {
+      "file": "apps/api/src/database/seed-ophthalmology-users.ts",
+      "indicators": [
+        "create",
+        "findOneAndUpdate",
+        "seedOphthalmologyActors"
+      ]
+    },
+    {
+      "file": "apps/api/src/database/seed.ts",
+      "indicators": [
+        "updateMany",
+        "findOneAndUpdate",
+        "updateOne",
+        "create"
+      ]
+    },
+    {
+      "file": "apps/api/src/database/seed_ophthalmology_records.ts",
+      "indicators": [
+        "findOneAndUpdate"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-billing-context-index.ts",
+      "indicators": [
+        "updateMany",
+        "createIndex",
+        "dropIndex"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-clinical-context-visit-indexes.ts",
+      "indicators": [
+        "dropIndex",
+        "updateMany",
+        "createIndex"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-pharmacy-dispensing-idempotency.ts",
+      "indicators": [
+        "dropIndex",
+        "updateMany",
+        "createIndex"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-procedure-recommendation-index.ts",
+      "indicators": [
+        "dropIndex",
+        "createIndex"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-role-index.ts",
+      "indicators": [
+        "updateMany",
+        "dropIndex",
+        "createIndex"
+      ]
+    },
+    {
+      "file": "apps/api/src/scripts/migrate-sequences.ts",
+      "indicators": [
+        "findOneAndUpdate"
+      ]
+    },
+    {
+      "file": "apps/api/src/shared/sequence/sequence.service.ts",
+      "indicators": [
+        "findOneAndUpdate"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/create_kamesh_user.ts",
+      "indicators": [
+        "create"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/create_optometrist_user.ts",
+      "indicators": [
+        "create"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/drop-index.ts",
+      "indicators": [
+        "dropIndex"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/kamesh_mongoose.ts",
+      "indicators": [
+        "create"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/reset_kamesh_password.ts",
+      "indicators": [
+        "updateOne"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/undelete_kamesh.ts",
+      "indicators": [
+        "updateOne"
+      ]
+    },
+    {
+      "file": "apps/api/scratch/update_kamesh_branch.ts",
+      "indicators": [
+        "updateOne"
+      ]
+    }
+  ]
+}

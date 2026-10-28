@@ -1,0 +1,52 @@
+{
+  "sourceDatabase": "HMS_GENERAL",
+  "sourceClusterRedacted": "cluster0.****.mongodb.net",
+  "sourceClusterFingerprint": "c18763fa51b87535",
+  "backupTimestampUTC": "2026-10-27T10:50:27Z",
+  "backupTimestampLocal": "2026-10-27T16:20:27+05:30",
+  "backupTool": "MongoDB Database Tools mongodump",
+  "backupToolVersion": "100.10.0",
+  "backupFormat": "GZIP compressed BSON archive (--archive --gzip)",
+  "backupFilename": "HMS_GENERAL_backup.archive.gz",
+  "backupRelativePath": "backups/HMS_GENERAL/HMS_GENERAL_backup.archive.gz",
+  "fileSizeBytes": 131076,
+  "fileSizeFormatted": "128.00 KB (131,076 bytes)",
+  "sha256": "A2A2D45E72E547228014B841D4477C4DA7F96437B4C5275140964C632D28D278",
+  "databaseStatistics": {
+    "totalCollections": 91,
+    "populatedCollections": 38,
+    "emptyCollections": 53,
+    "views": 0,
+    "totalDocuments": 2382,
+    "dataSizeBytes": 815231,
+    "dataSizeMB": 0.78,
+    "storageSizeBytes": 1937408,
+    "storageSizeMB": 1.85,
+    "totalIndexes": 443,
+    "indexSizeBytes": 7921664,
+    "indexSizeMB": 7.55,
+    "combinedDatabaseSizeMB": 9.4
+  },
+  "atlasFreeTierEvaluation": {
+    "limitMB": 512,
+    "consumedMB": 9.4,
+    "remainingHeadroomMB": 502.6,
+    "percentageUsed": "1.84%",
+    "compatible": true,
+    "verdict": "PASSED: Readily compatible with 512 MB Free Tier limit."
+  },
+  "verificationResults": {
+    "checksumVerification": "PASSED (Matches SHA-256)",
+    "foreignDatabaseCheck": "PASSED (0 foreign namespaces; HMS_INDIA, hms, productiondb, rte-paperless-dev, test untouched)",
+    "ephemeralRestoreVerification": "PASSED (100% parity verified in isolated in-memory MongoMemoryServer)",
+    "restoredCollections": 91,
+    "restoredDocumentCount": 2382,
+    "documentDiscrepancies": 0
+  },
+  "consistencyLimitations": "Application API and Web servers were stopped locally prior to dump. No external write locks or oplog point-in-time window were captured since this is a single-database dump. If third-party external processes were writing concurrently to Atlas during the 8.5-second dump window, non-atomic changes across collections could exist; however, document counts and live inspection matched 100% at verification time.",
+  "sourceClusterProtected": {
+    "readOnlyAccess": true,
+    "writesAttempted": 0,
+    "modificationsMade": false
+  }
+}
