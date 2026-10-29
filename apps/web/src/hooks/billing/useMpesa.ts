@@ -3,11 +3,11 @@ import { toast } from 'sonner';
 import { ApiError } from '../../api/api-error';
 import {
   type CreateMpesaAttemptPayload,
-  type MpesaAttemptView,
   type SubmitMpesaAttemptPayload,
 } from '../../api/mpesa';
 import { mpesaService } from '../../services/mpesa.service';
 import { billingKeys } from './useBilling';
+import { mpesaRecovery } from '../../utils/mpesa-recovery';
 
 export const getMpesaErrorMessage = (error: unknown): string => {
   if (error instanceof ApiError) {
@@ -29,7 +29,9 @@ export const getMpesaErrorMessage = (error: unknown): string => {
 export const mpesaKeys = {
   all: ['mpesa'] as const,
   attempt: (id: string) => [...mpesaKeys.all, 'attempt', id] as const,
-  exceptions: (page?: number, limit?: number) => [...mpesaKeys.all, 'exceptions', page ?? 1, limit ?? 20] as const,
+  exceptions: (page?: number, limit?: number) => page === undefined
+    ? [...mpesaKeys.all, 'exceptions'] as const
+    : [...mpesaKeys.all, 'exceptions', page, limit ?? 20] as const,
   invoiceAttempts: (invoiceId: string) => [...mpesaKeys.all, 'invoice', invoiceId] as const,
 };
 
@@ -51,14 +53,21 @@ export function useMpesaAttempt(
 
   return useQuery({
     queryKey: attemptId ? mpesaKeys.attempt(attemptId) : mpesaKeys.all,
-    queryFn: () => mpesaService.getAttempt(attemptId!),
+    queryFn: () => {
+      if (!attemptId) throw new Error('Payment attempt is required');
+      return mpesaService.getAttempt(attemptId);
+    },
     enabled,
+    retry: false,
+    refetchOnWindowFocus: false,
     refetchInterval: (query) => {
-      const data = query.state.data as MpesaAttemptView | undefined;
+      if (query.state.dataUpdateCount + query.state.errorUpdateCount >= (options?.maxPollCount ?? 20)) return false;
+      if (query.state.error) return false;
+      const data = query.state.data;
       if (!data) return interval;
 
       // Stop polling if payment is committed
-      if (data.postingStatus === 'POSTED') return false;
+      if (mpesaRecovery(data).stopPolling) return false;
 
       // Stop polling if attempt has reached terminal failure or manual review
       if (
@@ -191,6 +200,7 @@ export function usePostMpesaPayment() {
         queryClient.invalidateQueries({ queryKey: billingKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: billingKeys.summaries() }),
         queryClient.invalidateQueries({ queryKey: mpesaKeys.exceptions() }),
+        queryClient.invalidateQueries({ queryKey: mpesaKeys.invoiceAttempts(result.attempt.invoiceId) }),
       ]);
     },
     onError: (error) => {
@@ -228,7 +238,10 @@ export function useMpesaExceptions(page = 1, limit = 20, enabled = true) {
 export function useMpesaInvoiceAttempts(invoiceId: string | null, enabled = true) {
   return useQuery({
     queryKey: invoiceId ? mpesaKeys.invoiceAttempts(invoiceId) : mpesaKeys.all,
-    queryFn: () => mpesaService.listAttempts({ invoiceId: invoiceId!, limit: 50 }),
+    queryFn: () => {
+      if (!invoiceId) throw new Error('Invoice is required');
+      return mpesaService.listAttempts({ invoiceId, limit: 1 });
+    },
     enabled: Boolean(invoiceId) && enabled,
   });
 }

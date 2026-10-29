@@ -141,13 +141,16 @@ export class MpesaDarajaClient {
 
       const body: unknown = await response.json().catch(() => null);
 
-      // Check if Safaricom indicates the transaction is still being processed
-      if (typeof body === 'object' && body !== null) {
-        const err = body as { errorCode?: unknown; errorMessage?: unknown; ResponseCode?: unknown; ResultCode?: unknown };
-        const errMsg = typeof err.errorMessage === 'string' ? err.errorMessage.toLowerCase() : '';
-        if (errMsg.includes('being processed') || err.errorCode === '500.001.1001') {
-          return { state: 'PENDING', resultDesc: 'The transaction is being processed' };
-        }
+      // This code is shared with credential and merchant errors. Only the
+      // explicit processing response is pending; query errors never prove failure.
+      const processing = z.object({
+        errorCode: z.literal('500.001.1001'),
+        errorMessage: z.string().max(1024),
+      }).safeParse(body);
+      if ((response.status === 200 || response.status === 500) && processing.success &&
+        !Object.prototype.hasOwnProperty.call(body, 'ResultCode') &&
+        /^the transaction is being processed\.?$/i.test(processing.data.errorMessage.trim())) {
+        return { state: 'PENDING', resultDesc: 'The transaction is being processed' };
       }
 
       if (response.status >= 500 || response.status === 408) {

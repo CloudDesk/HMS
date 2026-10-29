@@ -13,6 +13,7 @@ const mpesaMock = vi.hoisted(() => ({
   verifyAttempt: vi.fn(),
   postPayment: vi.fn(),
   getReceipt: vi.fn(),
+  listAttempts: vi.fn(),
 }));
 
 vi.mock('../../services/mpesa.service', () => ({
@@ -117,7 +118,9 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
         mutations: { retry: false },
       },
     });
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    mpesaMock.listAttempts.mockResolvedValue({ items: [], total: 0, page: 1, limit: 1 });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -128,13 +131,16 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     queryClient.clear();
     container.remove();
     document.body.innerHTML = '';
+    vi.unstubAllGlobals();
   });
 
-  async function renderModal(invoice = mockInvoice) {
+  async function renderModal(invoice = mockInvoice, canCollectPayment = true, initialAttemptId?: string) {
     await act(async () => {
       root.render(
         <Wrapper>
           <MpesaPaymentModal
+            canCollectPayment={canCollectPayment}
+            initialAttemptId={initialAttemptId}
             invoice={invoice}
             onClose={vi.fn()}
             open={true}
@@ -145,6 +151,9 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     // Allow portal to mount
     await act(async () => {
       await new Promise((r) => setTimeout(r, 10));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
     });
   }
 
@@ -211,11 +220,15 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
       ...mockAttempt,
       reportedOutcome: 'CANCELLED',
       submissionState: 'PENDING',
+      verificationStatus: 'FAILED', recoveryStatus: 'RESOLVED',
     };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [cancelledAttempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(cancelledAttempt);
 
     await renderModal();
-    expect(document.body.textContent).toBeDefined();
+    expect(document.body.textContent).toContain('Payment Cancelled by Customer');
+    expect(document.body.textContent).toContain('Try Again');
+    expect(mpesaMock.createAttempt).not.toHaveBeenCalled();
   });
 
   it('11. Presents Post Payment action when verified with Safaricom', async () => {
@@ -224,10 +237,93 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
       verificationStatus: 'VERIFIED',
       postingStatus: 'READY',
       receiptNumber: 'SAFARICOM99',
+      reportedOutcome: 'SUCCESS', queryOutcome: 'SUCCESS',
     };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [verifiedAttempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(verifiedAttempt);
 
     await renderModal();
-    expect(document.body).toBeDefined();
+    expect(document.body.textContent).toContain('Post Payment to Invoice');
+  });
+
+  it.each(['MANUAL_REVIEW_REQUIRED', 'ABANDONED'] as const)('shows %s ahead of verified success and blocks financial actions', async (recoveryStatus) => {
+    const attempt = { ...mockAttempt, recoveryStatus, verificationStatus: 'VERIFIED' as const,
+      reportedOutcome: 'SUCCESS' as const, queryOutcome: 'SUCCESS' as const, receiptNumber: 'TEST123' };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    await renderModal();
+    expect(document.body.textContent).toContain('Manual Review Required');
+    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
+    expect(document.body.textContent).not.toContain('Try Again');
+    expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an unverified callback timeout', async () => {
+    const attempt = { ...mockAttempt, reportedOutcome: 'TIMEOUT' as const };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    await renderModal();
+    expect(document.body.textContent).toContain('Transaction Status Uncertain');
+    expect(document.body.textContent).not.toContain('Try Again');
+  });
+
+  it('blocks new attempts when history fails to load', async () => {
+    mpesaMock.listAttempts.mockRejectedValue(new Error('offline'));
+    await renderModal();
+    expect(document.body.textContent).toContain('Could not load existing payment attempts');
+    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent?.includes('Send STK Push'));
+    expect(button?.disabled).toBe(true);
+  });
+
+  it('allows read-only recovery without collect permission', async () => {
+    const attempt = { ...mockAttempt, verificationStatus: 'VERIFIED' as const,
+      reportedOutcome: 'SUCCESS' as const, queryOutcome: 'SUCCESS' as const, receiptNumber: 'TEST123' };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    await renderModal(mockInvoice, false);
+    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
+    expect(document.body.textContent).toContain('You do not have permission');
+  });
+
+  it('resumes a saved CREATED attempt only on explicit submission with its version', async () => {
+    const attempt = { ...mockAttempt, submissionState: 'CREATED' as const, checkoutRequestId: null, merchantRequestId: null, version: 0 };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    mpesaMock.submitAttempt.mockResolvedValue(mockAttempt);
+    await renderModal();
+    expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
+    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent === 'Submit Saved Attempt');
+    expect(button).toBeDefined();
+    await act(async () => button?.click());
+    expect(mpesaMock.submitAttempt).toHaveBeenCalledExactlyOnceWith(attempt.id, { expectedVersion: 0 });
+    expect(mpesaMock.createAttempt).not.toHaveBeenCalled();
+  });
+
+  it('does not offer resubmission for an uncertain accepted request', async () => {
+    const attempt = { ...mockAttempt, submissionState: 'UNKNOWN' as const };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    await renderModal();
+    expect(document.body.textContent).toContain('Check Status');
+    expect(document.body.textContent).not.toContain('Submit Saved Attempt');
+    expect(document.body.textContent).not.toContain('Try Again');
+    expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
+  });
+
+  it('opens the requested historical attempt rather than the newest invoice attempt', async () => {
+    mpesaMock.listAttempts.mockResolvedValue({ items: [mockAttempt], total: 2, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue({ ...mockAttempt, id: 'historical-attempt', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' });
+    await renderModal(mockInvoice, false, 'historical-attempt');
+    expect(mpesaMock.getAttempt).toHaveBeenCalledWith('historical-attempt');
+    expect(document.body.textContent).toContain('Manual Review Required');
+  });
+
+  it('blocks all payment actions when the requested attempt belongs to another invoice', async () => {
+    mpesaMock.getAttempt.mockResolvedValue({ ...mockAttempt, invoiceId: 'another-invoice', verificationStatus: 'VERIFIED',
+      reportedOutcome: 'SUCCESS', queryOutcome: 'SUCCESS', receiptNumber: 'TEST123' });
+    await renderModal(mockInvoice, true, mockAttempt.id);
+    expect(document.body.textContent).toContain('does not belong to the displayed invoice');
+    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
+    expect(document.body.textContent).not.toContain('Try Again');
   });
 });

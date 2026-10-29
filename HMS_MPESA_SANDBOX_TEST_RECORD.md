@@ -1,5 +1,76 @@
 # M-PESA sandbox test fixture
 
+## Fresh fixture for corrected merchant — 29 October 2026
+
+Created at the user's request after aligning the local M-PESA Express sandbox
+BusinessShortCode and PartyB to 174379. Render's effective settings still need
+confirmation through its deployed payment-attempt flow.
+
+| Record | ID / value |
+| --- | --- |
+| Database | HMS_GENERAL |
+| Invoice | 6ae32ac14dc4f4a686134a77 |
+| Invoice number | INV-20261029-EA16982E |
+| Branch | Main Branch, 6a7c495d94e1a711fb3d7b23 |
+| Status / total / paid / balance | PENDING / KES 1 / 0 / 1 |
+| Reused synthetic QA patient | 6ad1af80a97174b029387934 |
+| Reused QA encounter | 6ad7404bce8cc80cea0dd9d3 |
+| Reused test-only service | 6ae3201bd324948d50765caa |
+| Suggested new attempt UUID | 1ab6ed6a-65a3-4001-a70c-7e095694da70 |
+
+Validated Main Branch scope, maintenance actor billing permissions, known UAT
+database anchor and existing synthetic patient/encounter/catalogue references.
+Invoice/items plus explicitly synthetic creation audit use a real transaction
+through BillingRepository. The ordinary BillingService.update transition sets
+PENDING and validates the positive total. This is a payment fixture, not completed
+clinical care; no consultation, diagnosis, vitals or treatment was modified.
+
+Verified zero payments and zero attempts for this new invoice. Existing invoices
+and pending attempts were not updated. No provider payment request was sent.
+Create the new attempt through authenticated Render POST to exercise the deployed
+configuration. No application source code changed for this fixture operation.
+
+## Replacement fixture — 29 October 2026
+
+Created at the user's explicit request for a separate test record after the UAT
+invoice was found to have an existing submitted/uncertain M-PESA attempt.
+
+| Record | ID / value |
+| --- | --- |
+| Database | HMS_GENERAL, local backend configured connection |
+| Invoice | 6ae3201bd324948d50765cac |
+| Invoice number | INV-20261029-287DA6DE |
+| Branch | Main Branch, 6a7c495d94e1a711fb3d7b23 |
+| Status / total / paid / balance | PENDING / KES 1 / 0 / 1 |
+| Existing synthetic QA patient | PhaseOneQA Beta, 6ad1af80a97174b029387934 |
+| Existing QA encounter | 6ad7404bce8cc80cea0dd9d3 |
+| New test-only catalogue service | MPESA-SANDBOX-TEST-1, 6ae3201bd324948d50765caa |
+| Suggested new attempt UUID | a5efd8ff-9684-42a8-985b-e935516d8130 |
+
+The connection was anchored to the existing INV-UAT-MPESA-001 record, matching
+the user's Render response. The Main Branch scope and maintenance actor's billing
+View/Create/Edit/CollectPayment and catalogue Create permissions were checked.
+The new catalogue item explicitly says payment testing only/no clinical service.
+
+This is a direct synthetic billing fixture, not a completed clinical workflow.
+The existing QA consultations remain DRAFT. The invoice/items and test-labelled
+creation audit were created through BillingRepository in a real MongoDB
+transaction, then the normal BillingService.update pending transition validated
+its positive item total. No consultation status, vitals, diagnosis or treatment
+was fabricated or modified. No application source changes were needed.
+
+Verified after creation: zero billing payments, zero M-PESA attempts for the new
+invoice, outstanding balance KES 1. The existing attempt
+b704bf9417fc3c40cd1ceab85e65753eed82889ab016db79b1a62ba676fece40
+retained its version; neither its invoice nor the attempt was modified. No STK
+submission/provider request or financial posting was initiated.
+
+Use GET /api/billing/invoices/6ae3201bd324948d50765cac on Render to confirm
+visibility with the user's own staff token. A separate authenticated Render GET
+was not performed by the agent. Keep test fixtures out of real-care/revenue use.
+
+## Original fixture history
+
 Created for the user's requested Main Branch test on 28 October 2026 (client timezone Asia/Calcutta).
 Database: HMS_GENERAL, using the local backend's configured connection. Render's database connection has not been independently verified.
 

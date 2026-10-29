@@ -443,6 +443,18 @@ change the Developer 1 phase boundaries below.
 
 ## Release Completion Criteria
 
+M-PESA query classification and frontend recovery correction (29 October 2026)
+is tracked in `HMS_MPESA_QUERY_FRONTEND_GAP_NOTE.md` and
+`HMS_MPESA_QUERY_FRONTEND_VERIFICATION.md`. This implements the two explicitly
+authorized corrections in order, preserving financial and clinical contracts.
+Automated verification is recorded separately from live provider/browser acceptance.
+
+M-PESA index diagnostic refinement (29 October 2026) is tracked in
+`HMS_MPESA_INDEX_DIAGNOSTICS_GAP_NOTE.md` and
+`HMS_MPESA_INDEX_DIAGNOSTICS_VERIFICATION.md`. Local readiness checks pass on
+Node 22 and 26 with writes blocked; Render's failure remains unclassified until
+the refined server-only diagnostic is deployed. No feature phase is advanced.
+
 M-PESA index readiness correction (29 October 2026) is tracked in
 `HMS_MPESA_INDEX_READINESS_GAP_NOTE.md` and
 `HMS_MPESA_INDEX_READINESS_VERIFICATION.md`. This checks live uniqueness

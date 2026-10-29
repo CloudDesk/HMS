@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import mongoose from 'mongoose';
 import { MpesaAttemptCreationError } from './mpesa-attempt-error.js';
 
 describe('M-PESA creation diagnostic redaction', () => {
@@ -20,9 +21,32 @@ describe('M-PESA creation diagnostic redaction', () => {
   it.each([
     ['ValidationError', 'MODEL_VALIDATION'], ['CastError', 'MODEL_CAST'],
     ['MongoServerSelectionError', 'DATABASE_SELECTION'],
+    ['MongoServerError', 'DATABASE_COMMAND'], ['MongoNetworkError', 'DATABASE_NETWORK'],
+    ['MongoNetworkTimeoutError', 'DATABASE_NETWORK_TIMEOUT'], ['MongoParseError', 'DATABASE_URI_OPTIONS'],
+    ['MongoCompatibilityError', 'DATABASE_COMPATIBILITY'], ['MongoAPIError', 'DATABASE_DRIVER_API'],
+    ['MongoUnexpectedServerResponseError', 'DATABASE_RESPONSE'], ['MongooseError', 'MONGOOSE_ERROR'],
+    ['TypeError', 'JAVASCRIPT_TYPE_ERROR'], ['ReferenceError', 'JAVASCRIPT_REFERENCE_ERROR'],
   ])('maps recognized error names to fixed categories: %s', (name, category) => {
     const error = new MpesaAttemptCreationError('ATTEMPT_WRITE', Object.assign(new Error('PRIVATE'), { name }));
     expect(error.diagnostic).toEqual({ stage: 'ATTEMPT_WRITE', category });
+  });
+
+  it.each([197, 303, 8000])('preserves bounded public driver code %s without its private payload', (code) => {
+    const failure = new mongoose.mongo.MongoServerError({ message: 'PRIVATE_URI_DOCUMENT_AND_KEYS', code,
+      keyValue: { phone: 'PRIVATE_PHONE' } });
+    const error = new MpesaAttemptCreationError('INDEX_INSPECTION', failure);
+    expect(error.diagnostic).toEqual({ stage: 'INDEX_INSPECTION', category: 'DATABASE_COMMAND', databaseCode: code });
+    expect(JSON.stringify(error)).not.toContain('PRIVATE');
+  });
+
+  it.each([-1, 8000.5, 254700000001])('omits invalid or data-like driver code %s', (code) => {
+    const error = new MpesaAttemptCreationError('INDEX_BUILD', new mongoose.mongo.MongoServerError({ message: 'PRIVATE', code }));
+    expect(error.diagnostic).toEqual({ stage: 'INDEX_BUILD', category: 'DATABASE_COMMAND' });
+  });
+
+  it('does not copy an unknown numeric code from a generic error', () => {
+    const error = new MpesaAttemptCreationError('INDEX_BUILD', Object.assign(new Error('PRIVATE'), { code: 8000 }));
+    expect(error.diagnostic).toEqual({ stage: 'INDEX_BUILD', category: 'UNCLASSIFIED' });
   });
 
   it.each([undefined, 'PRIVATE', { code: 'PRIVATE' }, { code: 254700000001 },

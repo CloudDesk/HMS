@@ -24,7 +24,7 @@ export const registerMpesaAttemptRoutes = async (app: FastifyInstance, services:
       const status = known ? error.statusCode : httpStatus >= 400 && httpStatus < 500 ? httpStatus : 503;
       const code = known ? error.code : status < 500 ? 'MPESA_REQUEST_INVALID' : 'MPESA_ATTEMPT_UNAVAILABLE';
       if (status >= 500) request.log.error({ code,
-        ...(error instanceof MpesaAttemptCreationError ? { diagnostic: error.diagnostic } : {}),
+        ...(error instanceof MpesaAttemptCreationError ? { diagnosticVersion: 2, diagnostic: error.diagnostic } : {}),
       }, 'M-PESA attempt operation failed');
       return reply.status(status).send({
         error: {

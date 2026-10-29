@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { MpesaAttemptView } from '../../api/mpesa';
 import { useCurrencyFormatter } from '../../api/useSettings';
 import { useMpesaExceptions } from '../../hooks/billing/useMpesa';
@@ -6,7 +5,7 @@ import { maskMpesaPhone } from '../../utils/mpesa-phone';
 import { formatBillingDateTime } from '../../pages/billing-utils';
 import { MedicalLoader } from '../ui/MedicalLoader';
 import { Modal } from '../ui/Modal';
-import { navigate } from '../../routing/navigation';
+import { navigate, useAppLocation } from '../../routing/navigation';
 
 type MpesaExceptionsModalProps = {
   open: boolean;
@@ -14,17 +13,25 @@ type MpesaExceptionsModalProps = {
 };
 
 export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProps) {
-  const [page, setPage] = useState(1);
+  const location = useAppLocation();
+  const requestedPage = Number(new URLSearchParams(location.search).get('mpesaExceptionsPage') ?? 1);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const setPage = (nextPage: number) => {
+    const params = new URLSearchParams(location.search);
+    params.set('mpesaExceptionsPage', String(nextPage));
+    navigate(`${location.pathname}?${params}`, { replace: true });
+  };
   const limit = 10;
   const formatMoney = useCurrencyFormatter();
 
   const exceptionsQuery = useMpesaExceptions(page, limit, open);
-  const data = exceptionsQuery.data?.data ?? [];
-  const pagination = exceptionsQuery.data?.pagination;
+  const data = exceptionsQuery.data?.items ?? [];
+  const result = exceptionsQuery.data;
+  const totalPages = result ? Math.max(1, Math.ceil(result.total / result.limit)) : 1;
 
-  const handleOpenInvoice = (invoiceId: string) => {
+  const handleOpenInvoice = (invoiceId: string, attemptId: string) => {
     onClose();
-    navigate(`/billing/workspace?id=${invoiceId}`);
+    navigate(`/billing/workspace?id=${encodeURIComponent(invoiceId)}&mpesaAttemptId=${encodeURIComponent(attemptId)}`);
   };
 
   return (
@@ -32,9 +39,9 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
           <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            {pagination ? (
+            {result ? (
               <span>
-                Showing page {pagination.page} of {Math.max(1, pagination.totalPages)} ({pagination.total} exceptions)
+                Showing page {result.page} of {totalPages} ({result.total} exceptions)
               </span>
             ) : null}
           </div>
@@ -42,15 +49,15 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
             <button
               className="btn-secondary"
               disabled={page <= 1 || exceptionsQuery.isLoading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => setPage(Math.max(1, page - 1))}
               type="button"
             >
               Previous
             </button>
             <button
               className="btn-secondary"
-              disabled={!pagination || page >= pagination.totalPages || exceptionsQuery.isLoading}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={!result || page >= totalPages || exceptionsQuery.isFetching}
+              onClick={() => setPage(page + 1)}
               type="button"
             >
               Next
@@ -69,7 +76,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
-          Payment attempts where verified funds could not be automatically applied to an invoice (e.g. invoice cancelled, already paid, or amount mismatch). Staff intervention is required for audit and reconciliation.
+          Attempts with unresolved provider evidence, exhausted recovery, conflicts, or posting failures. An exception does not establish that payment succeeded. Review the attempt before taking action.
         </p>
 
         {exceptionsQuery.isLoading ? (
@@ -88,7 +95,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
             <i className="ph ph-check-circle" style={{ fontSize: '2rem', color: '#16a34a', display: 'block', marginBottom: '0.5rem' }} />
             <strong style={{ color: '#0f172a' }}>No Unresolved M-Pesa Exceptions</strong>
             <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.85rem' }}>
-              All verified transactions have either posted successfully or resolved through audit workflows.
+              No attempts currently match the exception queue. This does not confirm that all payments succeeded.
             </p>
           </div>
         ) : (
@@ -140,11 +147,11 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
                     <td>
                       <button
                         className="btn-secondary"
-                        onClick={() => handleOpenInvoice(item.invoiceId)}
+                        onClick={() => handleOpenInvoice(item.invoiceId, item.id)}
                         style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem' }}
                         type="button"
                       >
-                        <i className="ph ph-arrow-square-out" /> View Invoice
+                        <i className="ph ph-arrow-square-out" /> Review Attempt
                       </button>
                     </td>
                   </tr>

@@ -62,6 +62,16 @@ export function BillingWorkspacePage() {
   const location = useAppLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const invoiceId = params.get('id') ?? '';
+  const requestedAttempt = params.get('mpesaAttemptId');
+  const mpesaAttemptId = requestedAttempt && /^[a-f0-9]{64}$/.test(requestedAttempt) ? requestedAttempt : undefined;
+  const closeMpesa = () => {
+    setMpesaModalOpen(false);
+    if (requestedAttempt) {
+      const next = new URLSearchParams(location.search);
+      next.delete('mpesaAttemptId');
+      navigate(`${location.pathname}?${next}`, { replace: true });
+    }
+  };
   const createMode = params.get('mode') === 'create' || !invoiceId;
 
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
@@ -397,14 +407,17 @@ export function BillingWorkspacePage() {
       {receipt ? <ReceiptPaper receipt={receipt} /> : null}
     </Modal>
     <MpesaPaymentModal
+      key={`${invoice.id}:${mpesaAttemptId ?? ''}`}
+      canCollectPayment={canCollectPayment}
+      initialAttemptId={mpesaAttemptId}
       invoice={invoice}
       initialAmount={mpesaInitialAmount}
-      onClose={() => setMpesaModalOpen(false)}
+      onClose={closeMpesa}
       onReceiptReady={(r) => {
-        setMpesaModalOpen(false);
+        closeMpesa();
         setReceipt(r);
       }}
-      open={mpesaModalOpen}
+      open={mpesaModalOpen || Boolean(mpesaAttemptId)}
     />
     <MpesaExceptionsModal
       onClose={() => setExceptionsModalOpen(false)}

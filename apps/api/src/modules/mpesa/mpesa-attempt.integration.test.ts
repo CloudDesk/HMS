@@ -149,7 +149,7 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
       const original = (await MpesaAttemptModel.listIndexes()).find((index) => index.name === checkoutName);
       try {
         await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE', statusCode: 503,
-          diagnostic: { stage: 'INDEX_INITIALIZATION' } });
+          diagnostic: { stage: 'INDEX_BUILD' } });
         expect(await MpesaAttemptModel.countDocuments()).toBe(0);
         expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ __v: 0, paidAmount: 0, balanceAmount: 100 });
         expect(await BillingPaymentModel.countDocuments()).toBe(0);
@@ -177,9 +177,17 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
       vi.spyOn(MpesaAttemptModel, 'listIndexes').mockRejectedValueOnce(Object.assign(new Error('PRIVATE_PERMISSION_DETAIL'), { code: 13 }));
       const build = vi.spyOn(MpesaAttemptModel, 'createIndexes');
       await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE',
-        diagnostic: { stage: 'INDEX_INITIALIZATION', category: 'DATABASE_PERMISSION' } });
+        diagnostic: { stage: 'INDEX_INSPECTION', category: 'DATABASE_PERMISSION' } });
       expect(build).not.toHaveBeenCalled();
       expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+    });
+
+    it('identifies JavaScript failures during index inspection without leaking their messages', async () => {
+      vi.spyOn(MpesaAttemptModel, 'listIndexes').mockRejectedValueOnce(new TypeError('PRIVATE_METHOD_DETAIL'));
+      await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE',
+        diagnostic: { stage: 'INDEX_INSPECTION', category: 'JAVASCRIPT_TYPE_ERROR' } });
+      expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+      expect(client.submit).not.toHaveBeenCalled();
     });
   });
 
@@ -217,7 +225,7 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
     vi.spyOn(services.auth, 'authenticateAccessToken').mockResolvedValue({ id: actor, username: 'test-user',
       fullName: 'Synthetic user', email: null, status: 'active', patientId: null });
     vi.spyOn(services.permissions, 'userHasPermission').mockResolvedValue(true);
-    vi.spyOn(repository, 'ensureIndexes').mockRejectedValueOnce(Object.assign(new Error('PRIVATE_URI_AND_INDEX_KEYS'), { code: 85 }));
+    vi.spyOn(MpesaAttemptModel, 'listIndexes').mockRejectedValueOnce(new mongoose.mongo.MongoServerError({ message: 'PRIVATE_URI_AND_INDEX_KEYS', code: 8000 }));
     const lines: string[] = [];
     const app = Fastify({ logger: { level: 'info', stream: { write: (line: string) => { lines.push(line); } } } });
     await registerMpesaAttemptRoutes(app, services);
@@ -226,10 +234,10 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
         headers: { authorization: 'Bearer PRIVATE_TOKEN' }, payload: input() });
       expect(response.statusCode).toBe(503);
       expect(response.json().error.code).toBe('MPESA_ATTEMPT_UNAVAILABLE');
-      expect(response.body).not.toMatch(/diagnostic|INDEX_INITIALIZATION|INDEX_OPTIONS_CONFLICT|PRIVATE/);
+      expect(response.body).not.toMatch(/diagnostic|INDEX_|DATABASE_COMMAND|PRIVATE/);
       const error = lines.map((line) => JSON.parse(line)).find((line) => line.level === 50);
-      expect(error).toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE', diagnostic: {
-        stage: 'INDEX_INITIALIZATION', category: 'INDEX_OPTIONS_CONFLICT', databaseCode: 85,
+      expect(error).toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE', diagnosticVersion: 2, diagnostic: {
+        stage: 'INDEX_INSPECTION', category: 'DATABASE_COMMAND', databaseCode: 8000,
       } });
       expect(lines.join('')).not.toContain('PRIVATE');
       expect(lines.join('')).not.toContain('254700000001');

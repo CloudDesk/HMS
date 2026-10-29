@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { z } from 'zod';
 import type { BillingInvoice, BillingPayment, BillingReceipt } from './billing';
 
 export type MpesaSubmissionState = 'CREATED' | 'SUBMITTING' | 'PENDING' | 'UNKNOWN' | 'REJECTED';
@@ -60,15 +61,37 @@ export type PostMpesaPaymentResult = {
   idempotent: boolean;
 };
 
-export type MpesaExceptionsResponse = {
-  data: MpesaAttemptView[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+export type MpesaAttemptsResponse = {
+  items: MpesaAttemptView[];
+  total: number;
+  page: number;
+  limit: number;
 };
+export type MpesaExceptionsResponse = MpesaAttemptsResponse;
+
+const nullableText = z.string().nullable();
+const attemptSchema: z.ZodType<MpesaAttemptView> = z.object({
+  id: z.string().min(1), invoiceId: z.string().min(1), patientId: z.string().min(1), branchId: z.string().min(1),
+  amount: z.number().int().positive(), currency: z.literal('KES'), payerPhoneMasked: z.string(),
+  environment: z.enum(['sandbox', 'production']),
+  submissionState: z.enum(['CREATED', 'SUBMITTING', 'PENDING', 'UNKNOWN', 'REJECTED']),
+  reportedOutcome: z.enum(['PENDING', 'SUCCESS', 'FAILED', 'CANCELLED', 'TIMEOUT']),
+  verificationStatus: z.enum(['UNVERIFIED', 'VERIFIED', 'FAILED', 'CONFLICT', 'UNRESOLVED']),
+  postingStatus: z.enum(['DISABLED', 'READY', 'POSTING', 'POSTED', 'POSTING_FAILED', 'MANUAL_REVIEW_REQUIRED']),
+  version: z.number().int().nonnegative(), checkoutRequestId: nullableText, merchantRequestId: nullableText,
+  receiptNumber: nullableText, submissionError: nullableText, verificationSource: nullableText,
+  verificationAttempts: z.number().int().nonnegative(), lastVerifiedAt: nullableText, lastQueryResult: z.unknown(),
+  queryOutcome: z.enum(['NONE', 'PENDING', 'SUCCESS', 'FAILED', 'CANCELLED', 'TIMEOUT', 'UNKNOWN']),
+  conflictingEvidence: nullableText,
+  recoveryStatus: z.enum(['NONE', 'IN_RECOVERY', 'RESOLVED', 'MANUAL_REVIEW_REQUIRED', 'ABANDONED']),
+  nextReconciliationAt: nullableText, reconciliationRetries: z.number().int().nonnegative(),
+  billingPaymentId: nullableText, billingPaymentNumber: nullableText, postedAt: nullableText, postingError: nullableText,
+  createdAt: z.string(), updatedAt: z.string(),
+});
+const attemptsSchema = z.object({
+  items: z.array(attemptSchema), total: z.number().int().nonnegative(),
+  page: z.number().int().positive(), limit: z.number().int().min(1).max(100),
+});
 
 export type ListMpesaAttemptsParams = Partial<{
   page: number;
@@ -127,7 +150,7 @@ export const mpesaApi = {
   },
 
   getPayment(attemptId: string) {
-    return apiClient.request<BillingPayment>(
+    return apiClient.request<{ payment: BillingPayment; invoice: BillingInvoice }>(
       `/payments/mpesa/attempts/${encodeURIComponent(attemptId)}/payment`,
     );
   },
@@ -138,15 +161,15 @@ export const mpesaApi = {
     );
   },
 
-  listExceptions(params: { page?: number; limit?: number } = {}) {
-    return apiClient.request<MpesaExceptionsResponse>(
+  async listExceptions(params: { page?: number; limit?: number } = {}): Promise<MpesaExceptionsResponse> {
+    return attemptsSchema.parse(await apiClient.request<unknown>(
       `/payments/mpesa/exceptions${queryString(params)}`,
-    );
+    ));
   },
 
-  listAttempts(params: ListMpesaAttemptsParams = {}) {
-    return apiClient.request<{ data: MpesaAttemptView[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(
+  async listAttempts(params: ListMpesaAttemptsParams = {}): Promise<MpesaAttemptsResponse> {
+    return attemptsSchema.parse(await apiClient.request<unknown>(
       `/payments/mpesa/attempts${queryString(params)}`,
-    );
+    ));
   },
 };

@@ -29,6 +29,7 @@ import {
   useSubmitMpesaAttempt,
   useVerifyMpesaAttempt,
 } from './useMpesa';
+import { mpesaRecovery } from '../../utils/mpesa-recovery';
 
 const baseAttempt: MpesaAttemptView = {
   id: 'attempt-test-123',
@@ -82,6 +83,7 @@ describe('useMpesa hooks and polling lifecycle', () => {
       },
     });
     vi.clearAllMocks();
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -91,6 +93,7 @@ describe('useMpesa hooks and polling lifecycle', () => {
     await act(async () => root.unmount());
     queryClient.clear();
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   it('5. Creates attempt and populates query cache', async () => {
@@ -195,8 +198,8 @@ describe('useMpesa hooks and polling lifecycle', () => {
 
   it('14. Queries exceptions and returns paginated list', async () => {
     const exceptionData = {
-      data: [{ ...baseAttempt, postingStatus: 'MANUAL_REVIEW_REQUIRED' as const, conflictingEvidence: 'INVOICE_ALREADY_PAID' }],
-      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      items: [{ ...baseAttempt, postingStatus: 'MANUAL_REVIEW_REQUIRED' as const, conflictingEvidence: 'INVOICE_ALREADY_PAID' }],
+      page: 1, limit: 10, total: 1,
     };
     mpesaMock.listExceptions.mockResolvedValueOnce(exceptionData);
 
@@ -214,5 +217,52 @@ describe('useMpesa hooks and polling lifecycle', () => {
     });
 
     expect(capturedData).toEqual(exceptionData);
+  });
+
+  it('invalidates all exception pages after posting', async () => {
+    const pageTwo = mpesaKeys.exceptions(2, 10);
+    queryClient.setQueryData(pageTwo, { items: [baseAttempt], total: 11, page: 2, limit: 10 });
+    mpesaMock.postPayment.mockResolvedValue({ attempt: baseAttempt, invoice: { id: baseAttempt.invoiceId }, payment: {}, idempotent: false });
+    let post: ReturnType<typeof usePostMpesaPayment> | undefined;
+    function Harness() { post = usePostMpesaPayment(); return null; }
+    await act(async () => root.render(<Wrapper><Harness /></Wrapper>));
+    await act(async () => { await post?.mutateAsync(baseAttempt.id); });
+    expect(queryClient.getQueryState(pageTwo)?.isInvalidated).toBe(true);
+  });
+
+  it('bounds polling and permits explicit refresh after exhaustion', async () => {
+    vi.useFakeTimers();
+    try {
+      mpesaMock.getAttempt.mockResolvedValue({ ...baseAttempt, submissionState: 'PENDING' });
+      let query: ReturnType<typeof useMpesaAttempt> | undefined;
+      function Harness() { query = useMpesaAttempt(baseAttempt.id, { pollingInterval: 100, maxPollCount: 2 }); return null; }
+      await act(async () => root.render(<Wrapper><Harness /></Wrapper>));
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(mpesaMock.getAttempt).toHaveBeenCalledTimes(2);
+      await act(async () => { await query?.refetch(); });
+      expect(mpesaMock.getAttempt).toHaveBeenCalledTimes(3);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not poll manual review even when submission still says pending', async () => {
+    vi.useFakeTimers();
+    try {
+      mpesaMock.getAttempt.mockResolvedValue({ ...baseAttempt, submissionState: 'PENDING', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' });
+      function Harness() { useMpesaAttempt(baseAttempt.id, { pollingInterval: 100 }); return null; }
+      await act(async () => root.render(<Wrapper><Harness /></Wrapper>));
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(mpesaMock.getAttempt).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('keeps callback-only cancellation locked until trusted verification', () => {
+    expect(mpesaRecovery({ ...baseAttempt, reportedOutcome: 'CANCELLED' }).canRetry).toBe(false);
+    expect(mpesaRecovery({ ...baseAttempt, reportedOutcome: 'TIMEOUT', verificationStatus: 'FAILED', recoveryStatus: 'RESOLVED' }).canRetry).toBe(true);
+  });
+
+  it.each(['MANUAL_REVIEW_REQUIRED', 'ABANDONED'] as const)('blocks retry and posting for %s', (recoveryStatus) => {
+    const state = mpesaRecovery({ ...baseAttempt, recoveryStatus, verificationStatus: 'VERIFIED',
+      queryOutcome: 'SUCCESS', reportedOutcome: 'SUCCESS', receiptNumber: 'TEST123' });
+    expect(state).toMatchObject({ review: true, canRetry: false, canPost: false, stopPolling: true });
   });
 });

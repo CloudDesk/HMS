@@ -202,6 +202,31 @@ describe('Daraja client transport boundary', () => {
       });
     });
 
+    it.each(['Wrong credentials', 'Merchant does not exist', 'The subscriber is locked', '',
+      'Wrong credentials; transaction is being processed'])('does not infer pending from shared code: %s', async (message) => {
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+        errorCode: '500.001.1001', errorMessage: message,
+      }, { status: 500 }));
+      expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'token'))
+        .toEqual({ state: 'UNKNOWN', error: 'PROVIDER_UNCERTAIN' });
+      expect(http).toHaveBeenCalledOnce();
+    });
+
+    it.each([401, 403, 408, 429, 502])('does not mask HTTP %s as processing', async (status) => {
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+        errorCode: '500.001.1001', errorMessage: 'The transaction is being processed',
+      }, { status }));
+      expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'token')).toMatchObject({ state: 'UNKNOWN' });
+    });
+
+    it('does not let processing text override a terminal result', async () => {
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+        ...responseBody(1037), errorCode: '500.001.1001', errorMessage: 'The transaction is being processed',
+      }));
+      expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'token'))
+        .toMatchObject({ state: 'TIMEOUT', resultCode: 1037 });
+    });
+
     it('returns UNKNOWN for 500 or 408 server errors', async () => {
       const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error: 'server error' }, { status: 500 }));
       const client = new MpesaDarajaClient(http);
