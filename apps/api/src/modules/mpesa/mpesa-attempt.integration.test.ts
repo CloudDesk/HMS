@@ -88,6 +88,101 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
     expect(client.submit).not.toHaveBeenCalled();
   });
 
+  describe('live index readiness', () => {
+    const checkoutName = 'environment_1_checkoutRequestId_1';
+    const checkoutKey = { environment: 1, checkoutRequestId: 1 } as const;
+    const checkoutPartial = { checkoutRequestId: { $type: 'string' } };
+
+    it('creates an attempt with valid live indexes despite a rejected cached init', async () => {
+      const init = vi.spyOn(MpesaAttemptModel, 'init').mockRejectedValue(new Error('Synthetic cached initialization failure'));
+      const build = vi.spyOn(MpesaAttemptModel, 'createIndexes');
+      expect((await service.create(invoiceId, input(), actor)).submissionState).toBe('CREATED');
+      expect(init).not.toHaveBeenCalled();
+      expect(build).not.toHaveBeenCalled();
+    });
+
+    it('rebuilds a missing unique index even when autoIndex is disabled and initialization is cached', async () => {
+      const automatic = MpesaAttemptModel.schema.options.autoIndex;
+      MpesaAttemptModel.schema.set('autoIndex', false);
+      await MpesaAttemptModel.collection.dropIndex(checkoutName);
+      try {
+        const build = vi.spyOn(MpesaAttemptModel, 'createIndexes');
+        await repository.ensureIndexes();
+        expect(build).toHaveBeenCalledOnce();
+        expect((await MpesaAttemptModel.listIndexes()).find((index) => index.name === checkoutName))
+          .toMatchObject({ unique: true, key: checkoutKey, partialFilterExpression: checkoutPartial });
+      } finally {
+        MpesaAttemptModel.schema.set('autoIndex', automatic);
+        await MpesaAttemptModel.createIndexes();
+      }
+    });
+
+    it('initializes indexes for a genuinely missing collection before starting the transaction', async () => {
+      await MpesaAttemptModel.collection.drop();
+      try {
+        expect((await service.create(invoiceId, input(), actor)).submissionState).toBe('CREATED');
+        expect((await MpesaAttemptModel.listIndexes()).find((index) => index.name === checkoutName))
+          .toMatchObject({ unique: true, key: checkoutKey, partialFilterExpression: checkoutPartial });
+      } finally { await MpesaAttemptModel.createIndexes(); }
+    });
+
+    it('accepts an equivalent correctly constrained index with a different name', async () => {
+      await MpesaAttemptModel.collection.dropIndex(checkoutName);
+      await MpesaAttemptModel.collection.createIndex(checkoutKey, { name: 'equivalent_checkout', unique: true, partialFilterExpression: checkoutPartial });
+      try {
+        const build = vi.spyOn(MpesaAttemptModel, 'createIndexes');
+        await repository.ensureIndexes();
+        expect(build).not.toHaveBeenCalled();
+      } finally {
+        await MpesaAttemptModel.collection.dropIndex('equivalent_checkout');
+        await MpesaAttemptModel.createIndexes();
+      }
+    });
+
+    it.each([
+      { unique: false, partialFilterExpression: checkoutPartial },
+      { unique: true, partialFilterExpression: { checkoutRequestId: { $type: 'number' } } },
+      { unique: true, sparse: true },
+    ])('fails closed on an incompatible existing index: %j', async (options) => {
+      await MpesaAttemptModel.collection.dropIndex(checkoutName);
+      await MpesaAttemptModel.collection.createIndex(checkoutKey, { ...options, name: checkoutName });
+      const original = (await MpesaAttemptModel.listIndexes()).find((index) => index.name === checkoutName);
+      try {
+        await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE', statusCode: 503,
+          diagnostic: { stage: 'INDEX_INITIALIZATION' } });
+        expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+        expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ __v: 0, paidAmount: 0, balanceAmount: 100 });
+        expect(await BillingPaymentModel.countDocuments()).toBe(0);
+        expect(client.submit).not.toHaveBeenCalled();
+        expect((await MpesaAttemptModel.listIndexes()).find((index) => index.name === checkoutName)).toEqual(original);
+      } finally {
+        await MpesaAttemptModel.collection.dropIndex(checkoutName);
+        await MpesaAttemptModel.createIndexes();
+      }
+    });
+
+    it('does not trust an index build that finishes without establishing the constraints', async () => {
+      await MpesaAttemptModel.collection.dropIndex(checkoutName);
+      const build = vi.spyOn(MpesaAttemptModel, 'createIndexes').mockResolvedValue([]);
+      try {
+        await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_INDEXES_NOT_READY', statusCode: 503 });
+        expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+      } finally {
+        build.mockRestore();
+        await MpesaAttemptModel.createIndexes();
+      }
+    });
+
+    it('propagates live index read failures without falling back to an unsafe write', async () => {
+      vi.spyOn(MpesaAttemptModel, 'listIndexes').mockRejectedValueOnce(Object.assign(new Error('PRIVATE_PERMISSION_DETAIL'), { code: 13 }));
+      const build = vi.spyOn(MpesaAttemptModel, 'createIndexes');
+      await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE',
+        diagnostic: { stage: 'INDEX_INITIALIZATION', category: 'DATABASE_PERMISSION' } });
+      expect(build).not.toHaveBeenCalled();
+      expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+    });
+  });
+
   it.each(['INDEX_INITIALIZATION', 'ATTEMPT_WRITE', 'AUDIT_WRITE'] as const)(
     'diagnoses %s without exposing raw errors or leaving partial writes', async (stage) => {
       const failure = Object.assign(new Error('PRIVATE_DATABASE_URI PRIVATE_DOCUMENT'), { code: stage === 'INDEX_INITIALIZATION' ? 85 : 121 });

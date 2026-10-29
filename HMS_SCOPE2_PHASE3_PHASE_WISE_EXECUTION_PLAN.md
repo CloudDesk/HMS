@@ -443,6 +443,12 @@ change the Developer 1 phase boundaries below.
 
 ## Release Completion Criteria
 
+M-PESA index readiness correction (29 October 2026) is tracked in
+`HMS_MPESA_INDEX_READINESS_GAP_NOTE.md` and
+`HMS_MPESA_INDEX_READINESS_VERIFICATION.md`. This checks live uniqueness
+constraints and avoids cached initialization failures; it makes no clinical or
+frontend changes. Deployment and sandbox acceptance remain outstanding.
+
 M-PESA attempt creation diagnostics correction (29 October 2026) is tracked in
 `HMS_MPESA_ATTEMPT_DIAGNOSTICS_GAP_NOTE.md` and
 `HMS_MPESA_ATTEMPT_DIAGNOSTICS_VERIFICATION.md`. This adds sanitized server-only

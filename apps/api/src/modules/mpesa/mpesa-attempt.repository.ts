@@ -1,5 +1,6 @@
 import mongoose, { type ClientSession, type QueryFilter } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
+import { AppError } from '../../shared/errors/app-error.js';
 import { MpesaAttemptModel, type MpesaAttempt, type MpesaSubmissionState } from './mpesa-attempt.model.js';
 import { MPESA_RECONCILIATION_LEASE_MS, MPESA_RECONCILIATION_MAX_RETRIES, MPESA_SUBMISSION_STALE_MS } from './mpesa-reconciliation.policy.js';
 
@@ -41,7 +42,28 @@ export class MpesaAttemptRepository {
   }
 
   async ensureIndexes() {
-    await MpesaAttemptModel.init();
+    // Model.init() caches rejected initialization promises and may skip index
+    // builds when autoIndex is disabled. Verify the actual unique constraints.
+    if (await this.hasRequiredIndexes()) return;
+    // Public, additive API: never drop or replace an incompatible existing index.
+    await MpesaAttemptModel.createIndexes();
+    if (!await this.hasRequiredIndexes()) {
+      throw new AppError('Required M-PESA indexes are unavailable', 503, 'MPESA_INDEXES_NOT_READY');
+    }
+  }
+
+  private async hasRequiredIndexes() {
+    try {
+      const indexes = await MpesaAttemptModel.listIndexes();
+      return MpesaAttemptModel.schema.indexes().filter(([, options]) => options.unique === true)
+        .every(([key, options]) => indexes.some((index) => index.unique === true &&
+          index.sparse !== true && index.expireAfterSeconds === undefined && index.collation === undefined &&
+          JSON.stringify(index.key) === JSON.stringify(key) &&
+          JSON.stringify(index.partialFilterExpression ?? null) === JSON.stringify(options.partialFilterExpression ?? null)));
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 26) return false;
+      throw error;
+    }
   }
 
   get(id: string, session?: ClientSession) {
