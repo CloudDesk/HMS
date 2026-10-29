@@ -191,6 +191,7 @@ describe('M-PESA Phase 2: Verified Financial Posting & Billing Integration', () 
   // Helper to establish a verified attempt with receipt
   async function createVerifiedAttempt(amount = 10, checkoutId = 'checkout-test', receipt = 'TESTRECEIPT1') {
     const created = await attemptService.create(invoiceId, input(amount), actor);
+    vi.mocked(client.submit).mockResolvedValueOnce({ state: 'PENDING', merchantRequestId: 'merchant-test', checkoutRequestId: checkoutId });
     await attemptService.submit(created.id, 0, actor);
     await callbacks.receive(callbackPayload(0, amount, checkoutId, receipt));
 
@@ -580,6 +581,198 @@ describe('M-PESA Phase 2: Verified Financial Posting & Billing Integration', () 
 
     const receipt = await freshPostingService.getReceiptForAttempt(attemptId, actor);
     expect(receipt.receipt_number).toBe(firstResult.payment.payment_number.replace(/^PAY-/, 'RCT-'));
+  });
+
+  describe('billing-posting safety regressions', () => {
+    const expectNoPayment = async () => {
+      expect(await BillingPaymentModel.countDocuments()).toBe(0);
+      expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ paidAmount: 0, balanceAmount: 100 });
+    };
+    const beforeTransaction = (mutation: () => Promise<unknown>) => {
+      const original = repository.session.bind(repository);
+      vi.spyOn(repository, 'session').mockImplementationOnce(async () => {
+        await mutation();
+        return original();
+      });
+    };
+
+    it.each([
+      { name: 'verification status', update: { $set: { verificationStatus: 'UNVERIFIED' } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'conflicting evidence', update: { $set: { conflictingEvidence: 'LATE_EVIDENCE_CONFLICT' } }, code: 'MPESA_POSTING_CONFLICT' },
+      { name: 'manual review', update: { $set: { recoveryStatus: 'MANUAL_REVIEW_REQUIRED' } }, code: 'MPESA_POSTING_CONFLICT' },
+      { name: 'receipt removal', update: { $unset: { receiptNumber: 1 } }, code: 'MPESA_POSTING_MISSING_RECEIPT' },
+      { name: 'invalid receipt', update: { $set: { receiptNumber: 'NOT A RECEIPT' } }, code: 'MPESA_POSTING_MISSING_RECEIPT' },
+      { name: 'changed receipt', update: { $set: { receiptNumber: 'DIFFERENTRECEIPT' } }, code: 'MPESA_POSTING_CONFLICT' },
+      { name: 'query outcome', update: { $set: { queryOutcome: 'UNKNOWN' } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'query result', update: { $set: { 'lastQueryResult.resultCode': 1 } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'verification provenance', update: { $set: { verificationSource: 'CALLBACK' } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'verification timestamp', update: { $unset: { lastVerifiedAt: 1 } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'callback outcome', update: { $set: { reportedOutcome: 'CANCELLED' } }, code: 'MPESA_POSTING_NOT_VERIFIED' },
+      { name: 'checkout identifier', update: { $unset: { checkoutRequestId: 1 } }, code: 'MPESA_POSTING_INVALID_STATE' },
+      { name: 'merchant identifier', update: { $unset: { merchantRequestId: 1 } }, code: 'MPESA_POSTING_INVALID_STATE' },
+      { name: 'changed checkout identifier', update: { $set: { checkoutRequestId: 'different-checkout' } }, code: 'MPESA_POSTING_CONFLICT' },
+      { name: 'submission state', update: { $set: { submissionState: 'REJECTED' } }, code: 'MPESA_POSTING_INVALID_STATE' },
+      { name: 'invalid amount', update: { $set: { amount: 0 } }, code: 'MPESA_POSTING_INVALID_STATE' },
+      { name: 'changed amount', update: { $set: { amount: 25 } }, code: 'MPESA_POSTING_CONFLICT' },
+      { name: 'stale version', update: { $inc: { version: 1 } }, code: 'MPESA_POSTING_CONFLICT' },
+    ])('rechecks $name after preflight and before posting', async ({ update, code }) => {
+      const id = await createVerifiedAttempt(50);
+      beforeTransaction(() => MpesaAttemptModel.updateOne({ _id: id }, update));
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ code });
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ postingStatus: 'DISABLED', active: true });
+      await expectNoPayment();
+    });
+
+    it('rechecks patient and branch identity inside the transaction', async () => {
+      const id = await createVerifiedAttempt(50);
+      beforeTransaction(() => BillingInvoiceModel.updateOne({ _id: invoiceId }, { $set: { patientId: new Types.ObjectId() } }));
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ code: 'MPESA_ATTEMPT_CONFLICT' });
+      await expectNoPayment();
+    });
+
+    it('rechecks staff branch access inside the transaction', async () => {
+      const id = await createVerifiedAttempt(50);
+      beforeTransaction(() => UserModel.updateOne({ _id: actor }, { $set: { branchIds: [] } }));
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ statusCode: 404 });
+      await expectNoPayment();
+    });
+
+    it('rejects a verification change after the transaction snapshot and preserves the conflict on retry', async () => {
+      const id = await createVerifiedAttempt(50);
+      const update = repository.updatePosting.bind(repository);
+      vi.spyOn(repository, 'updatePosting').mockImplementationOnce(async (...args) => {
+        await MpesaAttemptModel.updateOne({ _id: id }, { $set: { verificationStatus: 'CONFLICT',
+          conflictingEvidence: 'CONCURRENT_VERIFICATION_CONFLICT', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' }, $inc: { version: 1 } });
+        return update(...args);
+      });
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ code: 'MPESA_POSTING_CONFLICT' });
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ verificationStatus: 'CONFLICT',
+        conflictingEvidence: 'CONCURRENT_VERIFICATION_CONFLICT', postingStatus: 'DISABLED', active: true });
+      await expectNoPayment();
+    });
+
+    it('decides cancelled-invoice exceptions from the current transactional invoice', async () => {
+      const id = await createVerifiedAttempt(50);
+      beforeTransaction(() => BillingInvoiceModel.updateOne({ _id: invoiceId }, { $set: { status: 'CANCELLED' } }));
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ code: 'MPESA_POSTING_INVOICE_CANCELLED' });
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ postingStatus: 'MANUAL_REVIEW_REQUIRED', active: true });
+      expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.posting.exception' })).toBe(1);
+      await expectNoPayment();
+    });
+
+    it('posts two separately verified partial attempts without leaving the invoice locked', async () => {
+      const firstId = await createVerifiedAttempt(40, 'checkout-first', 'TESTFIRST1');
+      const first = await postingService.postPayment(firstId, actor);
+      expect(first.invoice).toMatchObject({ status: 'PARTIALLY_PAID', balance_amount: 60 });
+      expect(await MpesaAttemptModel.findById(firstId).lean()).toMatchObject({ active: false });
+      const secondId = await createVerifiedAttempt(60, 'checkout-second', 'TESTSECOND2');
+      const second = await postingService.postPayment(secondId, actor);
+      expect(second.invoice).toMatchObject({ status: 'PAID', paid_amount: 100, balance_amount: 0 });
+      expect(await MpesaAttemptModel.countDocuments({ active: true })).toBe(0);
+      expect(await BillingPaymentModel.countDocuments()).toBe(2);
+      const retry = await postingService.postPayment(firstId, actor);
+      expect(retry.idempotent).toBe(true);
+      expect(retry.payment.id).toBe(first.payment.id);
+      expect(await BillingPaymentModel.countDocuments()).toBe(2);
+    });
+
+    it('allows only one new unresolved attempt after a partial posting', async () => {
+      const id = await createVerifiedAttempt(40);
+      await postingService.postPayment(id, actor);
+      const results = await Promise.allSettled([attemptService.create(invoiceId, input(10), actor), attemptService.create(invoiceId, input(10), actor)]);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(await MpesaAttemptModel.countDocuments({ active: true })).toBe(1);
+    });
+
+    it('safely releases a legacy posted lock only after validating its existing ledger payment', async () => {
+      const id = await createVerifiedAttempt(40);
+      const posted = await postingService.postPayment(id, actor);
+      await MpesaAttemptModel.updateOne({ _id: id }, { $set: { active: true } });
+      const recovered = await postingService.postPayment(id, actor);
+      expect(recovered.idempotent).toBe(true);
+      expect(recovered.payment.id).toBe(posted.payment.id);
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ active: false });
+      expect(await BillingPaymentModel.countDocuments()).toBe(1);
+      expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.attempt.lock_released' })).toBe(1);
+      await postingService.postPayment(id, actor);
+      expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.attempt.lock_released' })).toBe(1);
+      expect(await attemptService.create(invoiceId, input(60), actor)).toMatchObject({ amount: 60 });
+    });
+
+    it.each(['POSTED', 'MANUAL_REVIEW_REQUIRED'] as const)('failure annotation preserves concurrent %s state', async (state) => {
+      const id = await createVerifiedAttempt(50);
+      let afterRollback = false;
+      const get = repository.get.bind(repository);
+      vi.spyOn(repository, 'get').mockImplementation(async (...args) => {
+        if (!args[1] && afterRollback) {
+          afterRollback = false;
+          if (state === 'POSTED') {
+            const otherWorker = new MpesaPostingService(new MpesaAttemptRepository(), new BillingRepository(), advancePaymentService, billingService);
+            await otherWorker.postPayment(id, actor);
+          } else {
+            await MpesaAttemptModel.updateOne({ _id: id }, { $set: { postingStatus: 'MANUAL_REVIEW_REQUIRED',
+              recoveryStatus: 'MANUAL_REVIEW_REQUIRED', conflictingEvidence: 'CONCURRENT_REVIEW' }, $inc: { version: 1 } });
+          }
+        }
+        return get(...args);
+      });
+      vi.spyOn(billingRepository, 'audit').mockImplementationOnce(async () => {
+        afterRollback = true;
+        throw new Error('Synthetic audit failure');
+      });
+      await expect(postingService.postPayment(id, actor)).rejects.toThrow('Synthetic audit failure');
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ postingStatus: state });
+      if (state === 'POSTED') {
+        expect(await BillingPaymentModel.countDocuments()).toBe(1);
+        expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ paidAmount: 50, balanceAmount: 50 });
+      } else {
+        expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ conflictingEvidence: 'CONCURRENT_REVIEW', active: true });
+        await expectNoPayment();
+      }
+    });
+
+    it('rolls back lock release and permits an idempotent retry after audit storage recovers', async () => {
+      const id = await createVerifiedAttempt(50);
+      vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('Synthetic secret-like storage failure'));
+      await expect(postingService.postPayment(id, actor)).rejects.toThrow();
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ active: true, postingStatus: 'POSTING_FAILED' });
+      expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.posting.failed' })).toBe(1);
+      expect((await attemptService.get(id, actor)).postingError).not.toContain('secret-like');
+      await expect(attemptService.create(invoiceId, input(10), actor)).rejects.toMatchObject({ code: 'MPESA_ACTIVE_ATTEMPT_EXISTS' });
+      await expectNoPayment();
+      const retry = await postingService.postPayment(id, actor);
+      expect(retry.attempt.postingStatus).toBe('POSTED');
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ active: false });
+      expect(await BillingPaymentModel.countDocuments()).toBe(1);
+      expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.attempt.posted' })).toBe(1);
+    });
+
+    it('rolls back invoice, ledger, procedure advance, audit and lock together', async () => {
+      const bookingId = new Types.ObjectId().toString();
+      await BillingInvoiceModel.updateOne({ _id: invoiceId }, { $set: { contextType: 'PROCEDURE_BOOKING', contextId: new Types.ObjectId(bookingId) } });
+      await advancePaymentService.syncRequirement({ source_type: 'PROCEDURE_BOOKING', source_id: bookingId,
+        patient_id: patientId, branch_id: branchId, required_amount: 50, requirement_status: 'REQUIRED' }, actor);
+      const id = await createVerifiedAttempt(50);
+      vi.spyOn(repository, 'audit').mockRejectedValueOnce(new Error('Synthetic final audit failure'));
+      await expect(postingService.postPayment(id, actor)).rejects.toThrow();
+      expect((await advancePaymentService.getBySource('PROCEDURE_BOOKING', bookingId))?.paid_amount).toBe(0);
+      expect(await AuditLogModel.countDocuments({ eventType: 'billing.payment.collected' })).toBe(0);
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ active: true });
+      await expectNoPayment();
+      await postingService.postPayment(id, actor);
+      expect((await advancePaymentService.getBySource('PROCEDURE_BOOKING', bookingId))?.paid_amount).toBe(50);
+      expect(await BillingPaymentModel.countDocuments()).toBe(1);
+    });
+
+    it.each(['missing', 'inconsistent'] as const)('does not claim idempotent success for %s posted ledger linkage', async (state) => {
+      const id = await createVerifiedAttempt(50);
+      const posted = await postingService.postPayment(id, actor);
+      if (state === 'missing') await BillingPaymentModel.deleteOne({ _id: posted.payment.id });
+      else await BillingPaymentModel.updateOne({ _id: posted.payment.id }, { $set: { mpesaReceiptNumber: 'WRONGRECEIPT' } });
+      await expect(postingService.postPayment(id, actor)).rejects.toMatchObject({ code: 'MPESA_POSTING_CONFLICT' });
+      expect(await MpesaAttemptModel.findById(id).lean()).toMatchObject({ postingStatus: 'POSTED', active: false });
+      expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ paidAmount: 50, balanceAmount: 50 });
+    });
   });
 
   it('21. Staff endpoints verify permissions and return sanitized output', async () => {

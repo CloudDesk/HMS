@@ -4,6 +4,11 @@ import type { MpesaMerchant } from '../../config/mpesa-outbound.js';
 import type { MpesaAttempt } from './mpesa-attempt.model.js';
 
 const identifier = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
+const resultCode = z.union([
+  z.number().int().nonnegative().max(2147483647),
+  z.string().max(10).regex(/^(0|[1-9]\d*)$/).transform(Number)
+    .pipe(z.number().int().nonnegative().max(2147483647)),
+]);
 const acceptedSchema = z.object({
   ResponseCode: z.union([z.literal('0'), z.literal(0)]),
   MerchantRequestID: identifier,
@@ -18,19 +23,11 @@ export type StkQueryState = 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'TIMEOUT' | 'PE
 
 export type StkQueryResult =
   | {
-      state: 'SUCCESS';
+      state: 'SUCCESS' | 'CANCELLED' | 'TIMEOUT' | 'FAILED';
       resultCode: number;
       resultDesc: string;
       merchantRequestId: string;
       checkoutRequestId: string;
-    }
-  | {
-      state: 'CANCELLED' | 'TIMEOUT' | 'FAILED';
-      resultCode?: number;
-      resultDesc?: string;
-      merchantRequestId?: string;
-      checkoutRequestId?: string;
-      error?: string;
     }
   | {
       state: 'PENDING';
@@ -161,8 +158,8 @@ export class MpesaDarajaClient {
         ResponseCode: z.union([z.literal('0'), z.literal(0)]),
         MerchantRequestID: identifier,
         CheckoutRequestID: identifier,
-        ResultCode: z.coerce.number().int(),
-        ResultDesc: z.string(),
+        ResultCode: resultCode,
+        ResultDesc: z.string().min(1).max(1024),
       });
 
       const parsed = querySchema.safeParse(body);
@@ -206,7 +203,8 @@ export class MpesaDarajaClient {
 
       const rejected = z.object({ errorCode: z.string().min(1), errorMessage: z.string() }).safeParse(body);
       if (response.status >= 400 && response.status < 500 && rejected.success) {
-        return { state: 'FAILED', error: 'PROVIDER_REJECTED' };
+        // Rejection of a status query says nothing about payment settlement.
+        return { state: 'UNKNOWN', error: 'PROVIDER_QUERY_REJECTED' };
       }
 
       return { state: 'UNKNOWN', error: 'PROVIDER_UNCERTAIN' };

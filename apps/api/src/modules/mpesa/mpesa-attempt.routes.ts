@@ -3,6 +3,7 @@ import { requirePermission } from '../../middleware/require-permission.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { ok } from '../../shared/http/response.js';
 import type { ServiceRegistry } from '../../shared/types/service-registry.js';
+import { MpesaAttemptCreationError } from './mpesa-attempt-error.js';
 import {
   attemptIdSchema,
   attemptVersionSchema,
@@ -22,7 +23,9 @@ export const registerMpesaAttemptRoutes = async (app: FastifyInstance, services:
         ? error.statusCode : 503;
       const status = known ? error.statusCode : httpStatus >= 400 && httpStatus < 500 ? httpStatus : 503;
       const code = known ? error.code : status < 500 ? 'MPESA_REQUEST_INVALID' : 'MPESA_ATTEMPT_UNAVAILABLE';
-      if (status >= 500) request.log.error({ code }, 'M-PESA attempt operation failed');
+      if (status >= 500) request.log.error({ code,
+        ...(error instanceof MpesaAttemptCreationError ? { diagnostic: error.diagnostic } : {}),
+      }, 'M-PESA attempt operation failed');
       return reply.status(status).send({
         error: {
           code,

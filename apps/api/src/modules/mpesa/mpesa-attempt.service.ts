@@ -3,6 +3,7 @@ import type { ClientSession } from 'mongoose';
 import type { MpesaMerchant } from '../../config/mpesa-outbound.js';
 import { executeTransaction } from '../../shared/database/transaction.js';
 import { AppError } from '../../shared/errors/app-error.js';
+import { MpesaAttemptCreationError, type MpesaCreationStage } from './mpesa-attempt-error.js';
 import type { BillingRepository } from '../billing/billing.repository.js';
 import type { BillingInvoice } from '../billing/billing.types.js';
 import type {
@@ -19,9 +20,11 @@ import type { MpesaAttemptRepository } from './mpesa-attempt.repository.js';
 import type { MpesaCallbackRepository } from './mpesa-callback.repository.js';
 import type { MpesaCallbackEvent } from './mpesa-callback.model.js';
 import type { MpesaDarajaClient, StkQueryResult, StkSubmission } from './mpesa-daraja.client.js';
+import { MPESA_RECONCILIATION_LEASE_MS, MPESA_RECONCILIATION_MAX_RETRIES, reconciliationDelay } from './mpesa-reconciliation.policy.js';
 import {
   createAttemptSchema,
   parseAttemptInput,
+  reconcileOptionsSchema,
   type CreateMpesaAttempt,
   type ListAttemptsQuery,
   type ReconcileOptions,
@@ -127,69 +130,85 @@ export class MpesaAttemptService {
     const merchant = this.configured();
     const id = hash(`${this.environment}:${invoiceId.toLowerCase()}:${data.idempotencyKey}`);
     const fingerprint = hash(JSON.stringify([data.amount, data.payerPhone]));
-
-    // Authorization always precedes returning an idempotent response.
-    const invoice = await this.invoice(invoiceId, actor);
-    if (!merchant.branchIds.includes(invoice.branch_id)) {
-      throw new AppError('M-PESA is not configured for this branch', 409, 'MPESA_BRANCH_NOT_CONFIGURED');
-    }
-    await this.repository.ensureIndexes();
+    let stage: MpesaCreationStage = 'INVOICE_READ';
 
     try {
-      await this.transaction(async (session) => {
-        const existing = await this.repository.get(id, session);
-        if (existing) {
-          if (existing.fingerprint !== fingerprint) {
-            throw new AppError('Idempotency key was used with different input', 409, 'MPESA_IDEMPOTENCY_CONFLICT');
-          }
-          return;
-        }
-        const current = await this.invoice(invoiceId, actor, session);
-        this.payable(current, data.amount);
-        if (!await this.billing.lockForMpesaAttempt(current, session)) throw conflict();
-        await this.repository.create({
-          _id: id,
-          invoiceId: current.id,
-          patientId: current.patient_id,
-          branchId: current.branch_id,
-          createdBy: actor,
-          environment: this.environment,
-          provider: 'MPESA',
-          currency: 'KES',
-          businessShortCode: merchant.businessShortCode,
-          partyB: merchant.partyB,
-          transactionType: merchant.transactionType,
-          amount: data.amount,
-          payerPhone: data.payerPhone,
-          fingerprint,
-          active: true,
-          version: 0,
-          submissionState: 'CREATED',
-          reportedOutcome: 'PENDING',
-          verificationStatus: 'UNVERIFIED',
-          postingStatus: 'DISABLED',
-          verificationAttempts: 0,
-          queryOutcome: 'NONE',
-          recoveryStatus: 'NONE',
-          reconciliationRetries: 0,
-        }, session);
-        const created = await this.repository.get(id, session);
-        if (!created) throw unavailable();
-        await this.repository.audit('mpesa.attempt.created', created, actor, { from: null, to: 'CREATED' }, session);
-      });
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) {
-        const existing = await this.repository.get(id);
-        if (!existing || existing.fingerprint !== fingerprint) {
-          throw new AppError('An unresolved attempt already exists or the key conflicts', 409, 'MPESA_ACTIVE_ATTEMPT_EXISTS');
-        }
-      } else if (error instanceof AppError) {
-        throw error;
-      } else {
-        throw unavailable();
+      // Authorization always precedes returning an idempotent response.
+      const invoice = await this.invoice(invoiceId, actor);
+      if (!merchant.branchIds.includes(invoice.branch_id)) {
+        throw new AppError('M-PESA is not configured for this branch', 409, 'MPESA_BRANCH_NOT_CONFIGURED');
       }
+      stage = 'INDEX_INITIALIZATION';
+      await this.repository.ensureIndexes();
+
+      try {
+        stage = 'TRANSACTION_START';
+        await this.transaction(async (session) => {
+          stage = 'ATTEMPT_LOOKUP';
+          const existing = await this.repository.get(id, session);
+          if (existing) {
+            if (existing.fingerprint !== fingerprint) {
+              throw new AppError('Idempotency key was used with different input', 409, 'MPESA_IDEMPOTENCY_CONFLICT');
+            }
+            stage = 'TRANSACTION_COMMIT';
+            return;
+          }
+          stage = 'INVOICE_REVALIDATION';
+          const current = await this.invoice(invoiceId, actor, session);
+          this.payable(current, data.amount);
+          stage = 'INVOICE_LOCK';
+          if (!await this.billing.lockForMpesaAttempt(current, session)) throw conflict();
+          stage = 'ATTEMPT_WRITE';
+          await this.repository.create({
+            _id: id,
+            invoiceId: current.id,
+            patientId: current.patient_id,
+            branchId: current.branch_id,
+            createdBy: actor,
+            environment: this.environment,
+            provider: 'MPESA',
+            currency: 'KES',
+            businessShortCode: merchant.businessShortCode,
+            partyB: merchant.partyB,
+            transactionType: merchant.transactionType,
+            amount: data.amount,
+            payerPhone: data.payerPhone,
+            fingerprint,
+            active: true,
+            version: 0,
+            submissionState: 'CREATED',
+            reportedOutcome: 'PENDING',
+            verificationStatus: 'UNVERIFIED',
+            postingStatus: 'DISABLED',
+            verificationAttempts: 0,
+            queryOutcome: 'NONE',
+            recoveryStatus: 'NONE',
+            reconciliationRetries: 0,
+          }, session);
+          stage = 'ATTEMPT_READBACK';
+          const created = await this.repository.get(id, session);
+          if (!created) throw unavailable();
+          stage = 'AUDIT_WRITE';
+          await this.repository.audit('mpesa.attempt.created', created, actor, { from: null, to: 'CREATED' }, session);
+          stage = 'TRANSACTION_COMMIT';
+        });
+      } catch (error) {
+        if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) {
+          stage = 'DUPLICATE_LOOKUP';
+          const existing = await this.repository.get(id);
+          if (!existing || existing.fingerprint !== fingerprint) {
+            throw new AppError('An unresolved attempt already exists or the key conflicts', 409, 'MPESA_ACTIVE_ATTEMPT_EXISTS');
+          }
+        } else {
+          throw error;
+        }
+      }
+      stage = 'RESULT_READ';
+      return await this.get(id, actor);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new MpesaAttemptCreationError(stage, error);
     }
-    return this.get(id, actor);
   }
 
   private async transition(
@@ -328,7 +347,8 @@ export class MpesaAttemptService {
     auditDetails: Record<string, unknown>;
   } {
     const now = new Date();
-    const retries = (attempt.reconciliationRetries || 0) + (source === 'RECONCILIATION' ? 1 : 0);
+    // A reconciliation retry is reserved atomically when acquiring its lease.
+    const retries = attempt.reconciliationRetries || 0;
     const verificationAttempts = (attempt.verificationAttempts || 0) + 1;
 
     let verificationStatus: MpesaVerificationStatus;
@@ -346,13 +366,38 @@ export class MpesaAttemptService {
       queriedAt: now,
     };
 
-    if (queryResult.state === 'SUCCESS') {
+    const terminal = queryResult.state !== 'PENDING' && queryResult.state !== 'UNKNOWN';
+    const establishedOutcome = attempt.verificationStatus === 'VERIFIED' || attempt.postingStatus === 'POSTED'
+      ? 'SUCCESS'
+      : attempt.verificationStatus === 'FAILED' && ['FAILED', 'CANCELLED', 'TIMEOUT'].includes(attempt.queryOutcome)
+        ? attempt.queryOutcome : undefined;
+    const identifierConflict = terminal
+      ? !attempt.checkoutRequestId || queryResult.checkoutRequestId !== attempt.checkoutRequestId
+        ? 'CHECKOUT_REQUEST_MISMATCH'
+        : !attempt.merchantRequestId || queryResult.merchantRequestId !== attempt.merchantRequestId
+          ? 'MERCHANT_REQUEST_MISMATCH' : undefined
+      : undefined;
+    const outcomeConflict = terminal && establishedOutcome && queryResult.state !== establishedOutcome;
+    const callbackConflict = establishedOutcome === 'SUCCESS' && ['FAILED', 'CANCELLED', 'TIMEOUT'].includes(attempt.reportedOutcome)
+      ? 'CALLBACK_FAILED_BUT_QUERY_SUCCESS'
+      : establishedOutcome && establishedOutcome !== 'SUCCESS' && attempt.reportedOutcome === 'SUCCESS'
+        ? 'CALLBACK_SUCCESS_BUT_QUERY_FAILED' : undefined;
+    const preserveEvidence = Boolean(establishedOutcome || attempt.conflictingEvidence || attempt.verificationStatus === 'CONFLICT');
+
+    if (identifierConflict || attempt.conflictingEvidence || attempt.verificationStatus === 'CONFLICT' || callbackConflict || outcomeConflict) {
+      conflictingEvidence = attempt.conflictingEvidence ?? identifierConflict ?? callbackConflict ?? 'QUERY_OUTCOME_CONFLICT';
+      verificationStatus = 'CONFLICT';
+      recoveryStatus = 'MANUAL_REVIEW_REQUIRED';
+      queryOutcome = establishedOutcome ? attempt.queryOutcome : queryResult.state;
+    } else if (establishedOutcome && (!terminal || establishedOutcome !== 'SUCCESS' || attempt.postingStatus === 'POSTED')) {
+      // Later transport uncertainty cannot erase trusted evidence or release its lock.
+      // Matching repeated results after posting must not fail invoice-payability checks.
+      verificationStatus = attempt.verificationStatus;
+      recoveryStatus = attempt.recoveryStatus;
+      queryOutcome = attempt.queryOutcome;
+    } else if (queryResult.state === 'SUCCESS') {
       queryOutcome = 'SUCCESS';
-      if (queryResult.checkoutRequestId && attempt.checkoutRequestId && queryResult.checkoutRequestId !== attempt.checkoutRequestId) {
-        conflictingEvidence = 'CHECKOUT_REQUEST_MISMATCH';
-        verificationStatus = 'CONFLICT';
-        recoveryStatus = 'MANUAL_REVIEW_REQUIRED';
-      } else if (attempt.reportedOutcome === 'FAILED' || attempt.reportedOutcome === 'CANCELLED' || attempt.reportedOutcome === 'TIMEOUT') {
+      if (attempt.reportedOutcome === 'FAILED' || attempt.reportedOutcome === 'CANCELLED' || attempt.reportedOutcome === 'TIMEOUT') {
         conflictingEvidence = 'CALLBACK_FAILED_BUT_QUERY_SUCCESS';
         verificationStatus = 'CONFLICT';
         recoveryStatus = 'MANUAL_REVIEW_REQUIRED';
@@ -381,12 +426,12 @@ export class MpesaAttemptService {
       queryOutcome = 'PENDING';
       verificationStatus = 'UNVERIFIED';
       if (source === 'RECONCILIATION') {
-        if (retries >= 5) {
+        if (retries >= MPESA_RECONCILIATION_MAX_RETRIES) {
           recoveryStatus = 'MANUAL_REVIEW_REQUIRED';
           verificationStatus = 'UNRESOLVED';
         } else {
           recoveryStatus = 'IN_RECOVERY';
-          const delayMs = Math.min(300_000, 15_000 * Math.pow(2, retries));
+          const delayMs = reconciliationDelay(retries);
           nextReconciliationAt = new Date(now.getTime() + delayMs);
         }
       } else {
@@ -396,11 +441,11 @@ export class MpesaAttemptService {
       queryOutcome = 'UNKNOWN';
       verificationStatus = 'UNRESOLVED';
       if (source === 'RECONCILIATION') {
-        if (retries >= 5) {
+        if (retries >= MPESA_RECONCILIATION_MAX_RETRIES) {
           recoveryStatus = 'MANUAL_REVIEW_REQUIRED';
         } else {
           recoveryStatus = 'IN_RECOVERY';
-          const delayMs = Math.min(300_000, 15_000 * Math.pow(2, retries));
+          const delayMs = reconciliationDelay(retries);
           nextReconciliationAt = new Date(now.getTime() + delayMs);
         }
       } else {
@@ -413,16 +458,16 @@ export class MpesaAttemptService {
       recoveryStatus,
       queryOutcome,
       active,
-      verificationSource: source,
+      verificationSource: preserveEvidence ? attempt.verificationSource : source,
       verificationAttempts,
-      lastVerifiedAt: now,
-      lastQueryResult: baseResultRecord,
+      lastVerifiedAt: preserveEvidence ? attempt.lastVerifiedAt : now,
+      lastQueryResult: preserveEvidence ? attempt.lastQueryResult : baseResultRecord,
       conflictingEvidence,
       postingStatus,
       reconciliationRetries: retries,
-      nextReconciliationAt: nextReconciliationAt ?? (null as unknown as Date),
-      reconciliationClaimedAt: null as unknown as Date,
-      reconciliationClaimedBy: null as unknown as string,
+      nextReconciliationAt: nextReconciliationAt ?? null,
+      reconciliationClaimedAt: null,
+      reconciliationClaimedBy: null,
     };
 
     return {
@@ -433,8 +478,19 @@ export class MpesaAttemptService {
         previousRecoveryStatus: attempt.recoveryStatus,
         newRecoveryStatus: recoveryStatus,
         resultCode: baseResultRecord.resultCode,
+        observedQueryState: queryResult.state,
+        establishedQueryOutcome: attempt.queryOutcome,
+        evidencePreserved: preserveEvidence,
       },
     };
+  }
+
+  private assertVerificationMerchant(attempt: MpesaAttempt, merchant: MpesaMerchant) {
+    if (attempt.environment !== this.environment || !merchant.branchIds.includes(attempt.branchId) ||
+      attempt.businessShortCode !== merchant.businessShortCode || attempt.partyB !== merchant.partyB ||
+      attempt.transactionType !== merchant.transactionType) {
+      throw new AppError('Merchant configuration changed', 409, 'MPESA_MERCHANT_CONFLICT');
+    }
   }
 
   async verify(id: string, actor: string) {
@@ -464,6 +520,7 @@ export class MpesaAttemptService {
     }
 
     const merchant = this.configured();
+    this.assertVerificationMerchant(attempt, merchant);
     const token = await this.daraja.token(merchant, attempt.environment);
     if (!token) {
       throw new AppError('Daraja authentication failed', 503, 'MPESA_PROVIDER_AUTH_FAILED');
@@ -496,118 +553,127 @@ export class MpesaAttemptService {
     return this.get(id, actor);
   }
 
-  async reconcileSingle(
-    attempt: MpesaAttempt,
-    workerId: string,
-    actor?: string,
-  ): Promise<{ id: string; status: string }> {
+  private async reconciliationBranches(actor?: string) {
+    const merchant = this.configured();
+    const scope = actor ? await this.billing.resolveBranchScope(actor) : undefined;
+    return merchant.branchIds.filter((id) => !scope || scope.includes(id));
+  }
+
+  private ownsReconciliation(current: MpesaAttempt, claim: MpesaAttempt, workerId: string) {
+    return current.active && current.reconciliationClaimedBy === workerId && claim.reconciliationClaimedBy === workerId &&
+      current.reconciliationClaimedAt?.getTime() === claim.reconciliationClaimedAt?.getTime() &&
+      Boolean(current.reconciliationClaimedAt && current.reconciliationClaimedAt.getTime() > Date.now() - MPESA_RECONCILIATION_LEASE_MS) &&
+      current.environment === claim.environment && current.invoiceId === claim.invoiceId && current.branchId === claim.branchId &&
+      current.patientId === claim.patientId && current.amount === claim.amount && current.payerPhone === claim.payerPhone && current.checkoutRequestId === claim.checkoutRequestId &&
+      current.merchantRequestId === claim.merchantRequestId && current.businessShortCode === claim.businessShortCode &&
+      current.partyB === claim.partyB && current.transactionType === claim.transactionType && !current.conflictingEvidence &&
+      ['UNVERIFIED', 'UNRESOLVED'].includes(current.verificationStatus) &&
+      !['POSTED', 'POSTING', 'MANUAL_REVIEW_REQUIRED'].includes(current.postingStatus) &&
+      !['RESOLVED', 'MANUAL_REVIEW_REQUIRED', 'ABANDONED'].includes(current.recoveryStatus);
+  }
+
+  private async reconciliationContext(claim: MpesaAttempt, workerId: string, actor?: string, session?: ClientSession) {
+    const current = await this.repository.get(claim._id, session);
+    if (!current || !this.ownsReconciliation(current, claim, workerId)) return undefined;
+    const branches = await this.reconciliationBranches(actor);
+    if (!branches.includes(current.branchId)) throw new AppError('Reconciliation branch access denied', 403, 'BRANCH_SCOPE_DENIED');
+    const invoice = await this.billing.getById(current.invoiceId, branches, session);
+    return { current, invoice };
+  }
+
+  private async recordReconciliation(
+    claim: MpesaAttempt, workerId: string, actor: string | undefined,
+    queryResult: StkQueryResult, reviewReason?: string,
+  ) {
+    return this.transaction(async (session) => {
+      const context = await this.reconciliationContext(claim, workerId, actor, session);
+      if (!context) return { id: claim._id, status: 'STALE' };
+      const { current, invoice } = context;
+      const evaluated = this.evaluateVerification(current, invoice, queryResult, 'RECONCILIATION');
+      if (reviewReason) {
+        evaluated.updates = { ...evaluated.updates, verificationStatus: 'UNRESOLVED',
+          recoveryStatus: 'MANUAL_REVIEW_REQUIRED', conflictingEvidence: reviewReason, nextReconciliationAt: null,
+          ...(reviewReason === 'MISSING_CHECKOUT_REQUEST_ID' ? {
+            submissionState: 'UNKNOWN', submissionError: current.submissionError ?? 'STUCK_WITHOUT_CHECKOUT_ID',
+          } : {}),
+        };
+      }
+      const updated = await this.repository.updateReconciliation(claim, current.version, evaluated.updates, session);
+      if (!updated) return { id: claim._id, status: 'STALE' };
+      await this.repository.audit(reviewReason ? 'mpesa.reconciliation.manual_review_needed' : 'mpesa.attempt.reconciled', updated, actor, {
+        ...evaluated.auditDetails, workerId, source: actor ? 'STAFF' : 'RECONCILIATION_WORKER',
+        reason: reviewReason ?? ('error' in queryResult ? queryResult.error : 'PROVIDER_QUERY'),
+        queryState: queryResult.state, verificationStatus: updated.verificationStatus,
+        recoveryStatus: updated.recoveryStatus, conflictingEvidence: updated.conflictingEvidence ?? null,
+        newVerificationStatus: updated.verificationStatus, newRecoveryStatus: updated.recoveryStatus,
+        reconciliationRetries: updated.reconciliationRetries,
+      }, session);
+      return { id: claim._id, status: updated.verificationStatus === 'CONFLICT' ? 'CONFLICT' : updated.recoveryStatus };
+    });
+  }
+
+  async reconcileSingle(claim: MpesaAttempt, workerId: string, actor?: string, exhausted = false): Promise<{ id: string; status: string }> {
     try {
-      if (!attempt.checkoutRequestId) {
-        await this.transaction(async (session) => {
-          const current = await this.repository.get(attempt._id, session);
-          if (!current) return;
-          const updated = await this.repository.updateVerification(attempt._id, current.version, {
-            submissionState: 'UNKNOWN',
-            submissionError: current.submissionError ?? 'STUCK_WITHOUT_CHECKOUT_ID',
-            verificationStatus: 'UNRESOLVED',
-            recoveryStatus: 'MANUAL_REVIEW_REQUIRED',
-            conflictingEvidence: 'MISSING_CHECKOUT_REQUEST_ID',
-            reconciliationClaimedAt: null as unknown as Date,
-            reconciliationClaimedBy: null as unknown as string,
-            nextReconciliationAt: null as unknown as Date,
-          }, session);
-          if (updated) {
-            await this.repository.audit('mpesa.reconciliation.manual_review_needed', updated, actor, {
-              reason: 'MISSING_CHECKOUT_REQUEST_ID',
-              submissionState: updated.submissionState,
-            }, session);
-          }
-        });
-        return { id: attempt._id, status: 'MANUAL_REVIEW_REQUIRED' };
+      const context = await this.reconciliationContext(claim, workerId, actor);
+      if (!context) return { id: claim._id, status: 'STALE' };
+      if (exhausted || !context.current.checkoutRequestId) {
+        const reason = exhausted ? 'RECONCILIATION_RETRIES_EXHAUSTED' : 'MISSING_CHECKOUT_REQUEST_ID';
+        return await this.recordReconciliation(claim, workerId, actor, { state: 'UNKNOWN', error: reason }, reason);
       }
-
-      const merchant = this.configured();
-      const token = await this.daraja.token(merchant, attempt.environment);
-      if (!token) {
-        const retries = (attempt.reconciliationRetries || 0) + 1;
-        const delayMs = Math.min(300_000, 15_000 * Math.pow(2, retries));
-        await this.transaction(async (session) => {
-          const current = await this.repository.get(attempt._id, session);
-          if (!current) return;
-          await this.repository.updateVerification(attempt._id, current.version, {
-            reconciliationRetries: retries,
-            recoveryStatus: retries >= 5 ? 'MANUAL_REVIEW_REQUIRED' : 'IN_RECOVERY',
-            verificationStatus: retries >= 5 ? 'UNRESOLVED' : current.verificationStatus,
-            nextReconciliationAt: retries >= 5 ? (null as unknown as Date) : new Date(Date.now() + delayMs),
-            reconciliationClaimedAt: null as unknown as Date,
-            reconciliationClaimedBy: null as unknown as string,
-          }, session);
-        });
-        return { id: attempt._id, status: retries >= 5 ? 'MANUAL_REVIEW_REQUIRED' : 'UNRESOLVED' };
-      }
-
-      const queryResult = await this.daraja.query(merchant, attempt, token);
-      const outcome = await this.transaction(async (session) => {
-        const current = await this.repository.get(attempt._id, session);
-        if (!current) return { id: attempt._id, status: 'UNRESOLVED' };
-        const invoice = await this.billing.getById(current.invoiceId, [current.branchId], session);
-        const evaluated = this.evaluateVerification(current, invoice, queryResult, 'RECONCILIATION');
-        const updated = await this.repository.updateVerification(attempt._id, current.version, evaluated.updates, session);
-        if (!updated) throw conflict();
-
-        await this.repository.audit('mpesa.attempt.reconciled', updated, actor, {
-          queryState: queryResult.state,
-          verificationStatus: evaluated.updates.verificationStatus,
-          recoveryStatus: evaluated.updates.recoveryStatus,
-          conflictingEvidence: evaluated.updates.conflictingEvidence ?? null,
-          reconciliationRetries: evaluated.updates.reconciliationRetries,
-          ...evaluated.auditDetails,
-        }, session);
-
-        return { id: attempt._id, status: evaluated.updates.recoveryStatus ?? 'UNRESOLVED' };
-      });
-      return outcome;
-    } catch (err) {
       try {
-        await this.transaction(async (session) => {
-          const current = await this.repository.get(attempt._id, session);
-          if (current && current.reconciliationClaimedBy === workerId) {
-            await this.repository.updateVerification(attempt._id, current.version, {
-              reconciliationClaimedAt: null as unknown as Date,
-              reconciliationClaimedBy: null as unknown as string,
-            }, session);
-          }
-        });
-      } catch {
-        // ignore lease release error during exception unwind
+        this.assertVerificationMerchant(context.current, this.configured());
+      } catch (error) {
+        if (!(error instanceof AppError) || error.code !== 'MPESA_MERCHANT_CONFLICT') throw error;
+        return await this.recordReconciliation(claim, workerId, actor,
+          { state: 'UNKNOWN', error: 'MERCHANT_CONFIGURATION_CHANGED' }, 'MERCHANT_CONFIGURATION_CHANGED');
       }
-      throw err;
+      await this.replay(context.current);
+      let owned = await this.reconciliationContext(claim, workerId, actor);
+      if (!owned) return { id: claim._id, status: 'STALE' };
+      const merchant = this.configured();
+      const token = await this.daraja.token(merchant, owned.current.environment);
+      if (!token) return await this.recordReconciliation(claim, workerId, actor, { state: 'UNKNOWN', error: 'PROVIDER_AUTH_FAILED' });
+      owned = await this.reconciliationContext(claim, workerId, actor);
+      if (!owned) return { id: claim._id, status: 'STALE' };
+      const result = await this.daraja.query(merchant, owned.current, token);
+      return await this.recordReconciliation(claim, workerId, actor, result);
+    } finally {
+      // Also release leases on stale/failed processing, but never another owner's
+      // claim. A future due time avoids a hot loop after storage/audit errors.
+      await this.repository.releaseReconciliation(claim, new Date(Date.now() + reconciliationDelay(claim.reconciliationRetries)))
+        .catch(() => undefined);
     }
   }
 
-  async reconcileEligible(options?: ReconcileOptions, actor?: string) {
-    const limit = options?.limit ?? 10;
-    const workerId = actor ? `staff:${actor}` : `worker:${randomUUID()}`;
-    let processed = 0;
-    let resolved = 0;
-    let unresolved = 0;
-    let conflicts = 0;
-
-    for (let i = 0; i < limit; i++) {
-      const claimed = await this.repository.claimForReconciliation(this.environment, workerId);
-      if (!claimed) break;
-      processed++;
+  async reconcileEligible(options?: ReconcileOptions, actor?: string, signal?: AbortSignal) {
+    const { limit } = parseAttemptInput(reconcileOptionsSchema, options ?? {});
+    const workerId = `${actor ? `staff:${actor}` : 'worker'}:${randomUUID()}`;
+    const report = { processed: 0, resolved: 0, unresolved: 0, conflicts: 0 };
+    for (let i = 0; i < limit && !signal?.aborted; i++) {
+      const owned = await this.transaction(async (session) => {
+        const branches = await this.reconciliationBranches(actor);
+        if (!branches.length) return undefined;
+        const exhausted = await this.repository.claimExhaustedReconciliation(this.environment, workerId, branches, session);
+        const claim = exhausted ?? await this.repository.claimForReconciliation(this.environment, workerId, MPESA_RECONCILIATION_LEASE_MS, branches, session);
+        if (!claim) return undefined;
+        await this.repository.audit('mpesa.reconciliation.claimed', claim, actor, {
+          workerId, source: actor ? 'STAFF' : 'RECONCILIATION_WORKER',
+          retry: claim.reconciliationRetries, exhausted: Boolean(exhausted), claimedAt: claim.reconciliationClaimedAt,
+        }, session);
+        return { claim, exhausted: Boolean(exhausted) };
+      });
+      if (!owned) break;
+      report.processed++;
       try {
-        const outcome = await this.reconcileSingle(claimed, workerId, actor);
-        if (outcome.status === 'RESOLVED') resolved++;
-        else if (outcome.status === 'CONFLICT') conflicts++;
-        else unresolved++;
+        const outcome = await this.reconcileSingle(owned.claim, workerId, actor, owned.exhausted);
+        if (outcome.status === 'RESOLVED') report.resolved++;
+        else if (outcome.status === 'CONFLICT') report.conflicts++;
+        else report.unresolved++;
       } catch {
-        unresolved++;
+        report.unresolved++;
       }
     }
-
-    return { processed, resolved, unresolved, conflicts };
+    return report;
   }
 
   async list(query: ListAttemptsQuery, actor: string) {

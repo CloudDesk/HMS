@@ -1,6 +1,27 @@
-import mongoose, { type ClientSession } from 'mongoose';
+import mongoose, { type ClientSession, type QueryFilter } from 'mongoose';
 import { AuditLogModel } from '../auth/auth.model.js';
 import { MpesaAttemptModel, type MpesaAttempt, type MpesaSubmissionState } from './mpesa-attempt.model.js';
+import { MPESA_RECONCILIATION_LEASE_MS, MPESA_RECONCILIATION_MAX_RETRIES, MPESA_SUBMISSION_STALE_MS } from './mpesa-reconciliation.policy.js';
+
+const reconciliationFilter = (environment: MpesaAttempt['environment'], branchIds: string[] | undefined, leaseDurationMs: number): QueryFilter<MpesaAttempt> => {
+  const now = new Date();
+  return {
+    environment, active: true,
+    ...(branchIds ? { branchId: { $in: branchIds } } : {}),
+    recoveryStatus: { $nin: ['MANUAL_REVIEW_REQUIRED', 'RESOLVED', 'ABANDONED'] },
+    verificationStatus: { $in: ['UNVERIFIED', 'UNRESOLVED'] },
+    postingStatus: { $nin: ['POSTED', 'POSTING', 'MANUAL_REVIEW_REQUIRED'] },
+    conflictingEvidence: { $in: [null, ''] },
+    $and: [
+      { $or: [
+        { submissionState: 'SUBMITTING', submittedAt: { $lt: new Date(now.getTime() - MPESA_SUBMISSION_STALE_MS) } },
+        { submissionState: { $in: ['UNKNOWN', 'PENDING'] } },
+      ] },
+      { $or: [{ nextReconciliationAt: null }, { nextReconciliationAt: { $lte: now } }] },
+      { $or: [{ reconciliationClaimedAt: null }, { reconciliationClaimedAt: { $lt: new Date(now.getTime() - leaseDurationMs) } }] },
+    ],
+  };
+};
 
 export type ListMpesaAttemptsFilter = {
   branchIds?: string[];
@@ -88,52 +109,42 @@ export class MpesaAttemptRepository {
   }
 
   async claimForReconciliation(
-    environment: MpesaAttempt['environment'],
-    workerId: string,
-    leaseDurationMs = 60_000,
+    environment: MpesaAttempt['environment'], workerId: string,
+    leaseDurationMs = MPESA_RECONCILIATION_LEASE_MS, branchIds?: string[], session?: ClientSession,
   ): Promise<MpesaAttempt | null> {
-    const now = new Date();
-    const leaseExpired = new Date(now.getTime() - leaseDurationMs);
-    const stuckSubmittingThreshold = new Date(now.getTime() - 30_000);
+    const filter = reconciliationFilter(environment, branchIds, leaseDurationMs);
+    return MpesaAttemptModel.findOneAndUpdate({ ...filter, $and: [...(filter.$and ?? []),
+      { $or: [{ reconciliationRetries: { $lt: MPESA_RECONCILIATION_MAX_RETRIES } }, { reconciliationRetries: { $exists: false } }] },
+    ] }, {
+      $set: { reconciliationClaimedAt: new Date(), reconciliationClaimedBy: workerId, recoveryStatus: 'IN_RECOVERY' },
+      $inc: { version: 1, reconciliationRetries: 1 },
+    }, { returnDocument: 'after', session, sort: { nextReconciliationAt: 1, createdAt: 1, _id: 1 } })
+      .select('+payerPhone').lean();
+  }
 
-    return MpesaAttemptModel.findOneAndUpdate(
-      {
-        environment,
-        active: true,
-        recoveryStatus: { $nin: ['MANUAL_REVIEW_REQUIRED', 'RESOLVED', 'ABANDONED'] },
-        reconciliationRetries: { $lt: 5 },
-        $or: [
-          { submissionState: 'SUBMITTING', submittedAt: { $lt: stuckSubmittingThreshold } },
-          { submissionState: 'UNKNOWN' },
-          {
-            submissionState: 'PENDING',
-            verificationStatus: 'UNVERIFIED',
-            $or: [
-              { nextReconciliationAt: { $exists: false } },
-              { nextReconciliationAt: null },
-              { nextReconciliationAt: { $lte: now } },
-            ],
-          },
-        ],
-        $and: [
-          {
-            $or: [
-              { reconciliationClaimedAt: { $exists: false } },
-              { reconciliationClaimedAt: null },
-              { reconciliationClaimedAt: { $lt: leaseExpired } },
-            ],
-          },
-        ],
-      },
-      {
-        $set: {
-          reconciliationClaimedAt: now,
-          reconciliationClaimedBy: workerId,
-          recoveryStatus: 'IN_RECOVERY',
-        },
-      },
-      { returnDocument: 'after' },
-    ).select('+payerPhone').lean();
+  claimExhaustedReconciliation(environment: MpesaAttempt['environment'], workerId: string, branchIds: string[], session: ClientSession) {
+    return MpesaAttemptModel.findOneAndUpdate({
+      ...reconciliationFilter(environment, branchIds, MPESA_RECONCILIATION_LEASE_MS),
+      reconciliationRetries: { $gte: MPESA_RECONCILIATION_MAX_RETRIES },
+    }, {
+      $set: { reconciliationClaimedAt: new Date(), reconciliationClaimedBy: workerId, recoveryStatus: 'IN_RECOVERY' },
+      $inc: { version: 1 },
+    }, { returnDocument: 'after', session, sort: { createdAt: 1, _id: 1 } }).select('+payerPhone').lean();
+  }
+
+  updateReconciliation(claim: MpesaAttempt, version: number, fields: Partial<MpesaAttempt>, session: ClientSession) {
+    return MpesaAttemptModel.findOneAndUpdate({
+      _id: claim._id, version, reconciliationClaimedBy: claim.reconciliationClaimedBy,
+      reconciliationClaimedAt: { $eq: claim.reconciliationClaimedAt,
+        $gt: new Date(Date.now() - MPESA_RECONCILIATION_LEASE_MS) },
+    }, { $set: fields, $inc: { version: 1 } }, { returnDocument: 'after', session }).select('+payerPhone').lean();
+  }
+
+  releaseReconciliation(claim: MpesaAttempt, nextReconciliationAt: Date) {
+    return MpesaAttemptModel.updateOne({
+      _id: claim._id, reconciliationClaimedBy: claim.reconciliationClaimedBy,
+      reconciliationClaimedAt: claim.reconciliationClaimedAt,
+    }, { $set: { reconciliationClaimedAt: null, reconciliationClaimedBy: null, nextReconciliationAt }, $inc: { version: 1 } });
   }
 
   async list(filter: ListMpesaAttemptsFilter): Promise<{

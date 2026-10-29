@@ -1,7 +1,7 @@
 import { isIP } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { parseMpesaConfiguration } from './mpesa.js';
+import { parseMpesaConfiguration, parseMpesaReconciliationConfiguration } from './mpesa.js';
 import { parseMpesaOutboundConfiguration } from './mpesa-outbound.js';
 
 type AppEnv = 'dev' | 'test' | 'prod';
@@ -220,6 +220,7 @@ const parseDatabaseUrl = (value: string | undefined) => {
 export const env = {
   mpesa: parseMpesaConfiguration(process.env),
   mpesaOutbound: parseMpesaOutboundConfiguration(process.env),
+  mpesaReconciliation: parseMpesaReconciliationConfiguration(process.env),
   app: {
     name: process.env.APP_NAME ?? 'hms-api',
     environment: appEnvironment as AppEnv,

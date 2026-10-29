@@ -443,6 +443,20 @@ change the Developer 1 phase boundaries below.
 
 ## Release Completion Criteria
 
+M-PESA attempt creation diagnostics correction (29 October 2026) is tracked in
+`HMS_MPESA_ATTEMPT_DIAGNOSTICS_GAP_NOTE.md` and
+`HMS_MPESA_ATTEMPT_DIAGNOSTICS_VERIFICATION.md`. This adds sanitized server-only
+failure classification to diagnose the reported Render 503; the deployed cause
+is not established. No clinical phase, frontend workflow or payment rule changes.
+
+M-PESA reconciliation safety correction (29 October 2026) is tracked separately
+in `HMS_MPESA_RECONCILIATION_SAFETY_GAP_NOTE.md` and
+`HMS_MPESA_RECONCILIATION_SAFETY_REPORT.md`. This backend correction covers scoped
+recovery, retry/lease fencing and an opt-in worker. It does not start frontend
+recovery work or change the clinical release phase contracts above. Automated
+verification and remaining baseline lint exceptions are recorded in the report;
+live sandbox/production acceptance remains outstanding.
+
 - All source gaps and lifecycle decisions are approved and documented.
 - One authoritative bed lifecycle serves admission, procedures, transfer, release, and Emergency conversion.
 - Duplicate active occupancy and admission are prevented under concurrency.

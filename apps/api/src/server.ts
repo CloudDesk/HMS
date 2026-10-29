@@ -2,16 +2,25 @@ import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase, closeDatabase } from './database/client.js';
 import { seedDatabase } from './database/seed.js';
+import { MpesaReconciliationWorker } from './modules/mpesa/mpesa-reconciliation.worker.js';
 
 const { app, services } = await buildApp();
 let dashboardRefreshTimer: NodeJS.Timeout | undefined;
+let shuttingDown = false;
+const mpesaReconciliation = new MpesaReconciliationWorker(services.mpesaAttempts, env.mpesaReconciliation, () => {
+  app.log.error({ code: 'MPESA_RECONCILIATION_FAILED' }, 'M-PESA reconciliation sweep failed');
+});
 
 const closeGracefully = async (signal: NodeJS.Signals) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   app.log.info({ signal }, 'Shutting down API');
   if (dashboardRefreshTimer) {
     clearInterval(dashboardRefreshTimer);
   }
-  await Promise.all([app.close(), closeDatabase()]);
+  await mpesaReconciliation.stop();
+  await app.close();
+  await closeDatabase();
   process.exit(0);
 };
 
@@ -37,8 +46,10 @@ try {
   );
 
   await app.listen({ host: env.app.host, port: env.app.port });
+  mpesaReconciliation.start();
 } catch (error) {
   app.log.error(error);
+  await mpesaReconciliation.stop();
   await closeDatabase().catch(() => undefined);
   process.exit(1);
 }

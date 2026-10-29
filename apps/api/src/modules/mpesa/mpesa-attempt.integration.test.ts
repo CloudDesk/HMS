@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import Fastify from 'fastify';
 import mongoose, { Types } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../app.js';
+import { createServiceRegistry } from '../../shared/services/service-registry.js';
 import type { MpesaMerchant } from '../../config/mpesa-outbound.js';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingInvoiceModel, BillingPaymentModel } from '../billing/billing.model.js';
@@ -17,6 +19,7 @@ import { MpesaCallbackRepository } from './mpesa-callback.repository.js';
 import { MpesaCallbackEventModel } from './mpesa-callback.model.js';
 import { MpesaCallbackService } from './mpesa-callback.service.js';
 import { MpesaDarajaClient } from './mpesa-daraja.client.js';
+import { registerMpesaAttemptRoutes } from './mpesa-attempt.routes.js';
 
 const branchId = new Types.ObjectId().toString();
 const actor = new Types.ObjectId().toString();
@@ -83,6 +86,59 @@ describe('M-PESA attempts: real replica-set transactions, no provider calls', ()
     await expect(service.create(invoiceId, input(), outsider)).rejects.toMatchObject({ statusCode: 404 });
     await expect(service.submit(result.id, result.version, outsider)).rejects.toMatchObject({ statusCode: 404 });
     expect(client.submit).not.toHaveBeenCalled();
+  });
+
+  it.each(['INDEX_INITIALIZATION', 'ATTEMPT_WRITE', 'AUDIT_WRITE'] as const)(
+    'diagnoses %s without exposing raw errors or leaving partial writes', async (stage) => {
+      const failure = Object.assign(new Error('PRIVATE_DATABASE_URI PRIVATE_DOCUMENT'), { code: stage === 'INDEX_INITIALIZATION' ? 85 : 121 });
+      if (stage === 'INDEX_INITIALIZATION') vi.spyOn(repository, 'ensureIndexes').mockRejectedValueOnce(failure);
+      else if (stage === 'ATTEMPT_WRITE') vi.spyOn(repository, 'create').mockRejectedValueOnce(failure);
+      else vi.spyOn(repository, 'audit').mockRejectedValueOnce(failure);
+      await expect(service.create(invoiceId, input(), actor)).rejects.toMatchObject({
+        code: 'MPESA_ATTEMPT_UNAVAILABLE', statusCode: 503, diagnostic: { stage,
+          category: stage === 'INDEX_INITIALIZATION' ? 'INDEX_OPTIONS_CONFLICT' : 'DOCUMENT_VALIDATION' },
+      });
+      expect(await MpesaAttemptModel.countDocuments()).toBe(0);
+      expect(await BillingInvoiceModel.findById(invoiceId).lean()).toMatchObject({ __v: 0, paidAmount: 0, balanceAmount: 100 });
+      expect(await BillingPaymentModel.countDocuments()).toBe(0);
+      expect(client.submit).not.toHaveBeenCalled();
+    });
+
+  it('retains MongoDB transient transaction retries before classifying the error', async () => {
+    const create = repository.create.bind(repository);
+    const failure = new mongoose.mongo.MongoServerError({ message: 'PRIVATE_WRITE_CONFLICT', code: 112 });
+    failure.addErrorLabel('TransientTransactionError');
+    const writes = vi.spyOn(repository, 'create').mockRejectedValueOnce(failure).mockImplementation(create);
+    const result = await service.create(invoiceId, input(), actor);
+    expect(result.submissionState).toBe('CREATED');
+    expect(writes).toHaveBeenCalledTimes(2);
+    expect(await MpesaAttemptModel.countDocuments()).toBe(1);
+    expect(await AuditLogModel.countDocuments({ eventType: 'mpesa.attempt.created' })).toBe(1);
+  });
+
+  it('logs fixed diagnostics on the server while keeping the HTTP response and logs private', async () => {
+    const services = createServiceRegistry();
+    services.mpesaAttempts = service;
+    vi.spyOn(services.auth, 'authenticateAccessToken').mockResolvedValue({ id: actor, username: 'test-user',
+      fullName: 'Synthetic user', email: null, status: 'active', patientId: null });
+    vi.spyOn(services.permissions, 'userHasPermission').mockResolvedValue(true);
+    vi.spyOn(repository, 'ensureIndexes').mockRejectedValueOnce(Object.assign(new Error('PRIVATE_URI_AND_INDEX_KEYS'), { code: 85 }));
+    const lines: string[] = [];
+    const app = Fastify({ logger: { level: 'info', stream: { write: (line: string) => { lines.push(line); } } } });
+    await registerMpesaAttemptRoutes(app, services);
+    try {
+      const response = await app.inject({ method: 'POST', url: `/api/billing/invoices/${invoiceId}/mpesa-attempts`,
+        headers: { authorization: 'Bearer PRIVATE_TOKEN' }, payload: input() });
+      expect(response.statusCode).toBe(503);
+      expect(response.json().error.code).toBe('MPESA_ATTEMPT_UNAVAILABLE');
+      expect(response.body).not.toMatch(/diagnostic|INDEX_INITIALIZATION|INDEX_OPTIONS_CONFLICT|PRIVATE/);
+      const error = lines.map((line) => JSON.parse(line)).find((line) => line.level === 50);
+      expect(error).toMatchObject({ code: 'MPESA_ATTEMPT_UNAVAILABLE', diagnostic: {
+        stage: 'INDEX_INITIALIZATION', category: 'INDEX_OPTIONS_CONFLICT', databaseCode: 85,
+      } });
+      expect(lines.join('')).not.toContain('PRIVATE');
+      expect(lines.join('')).not.toContain('254700000001');
+    } finally { await app.close(); }
   });
   it.each(['DRAFT', 'CANCELLED', 'PAID'])('rejects invoice status %s', async (status) => {
     await BillingInvoiceModel.updateOne({ _id: invoiceId }, { $set: { status } });

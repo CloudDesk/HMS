@@ -7,7 +7,7 @@ import type { AdvancePaymentService } from '../advance-payment/advance-payment.s
 import { createBillingNumber } from '../billing/billing-number.js';
 import type { MpesaAttempt } from './mpesa-attempt.model.js';
 import type { MpesaAttemptRepository } from './mpesa-attempt.repository.js';
-import type { BillingRequestMetadata } from '../billing/billing.types.js';
+import type { BillingInvoice, BillingPayment, BillingRequestMetadata } from '../billing/billing.types.js';
 
 export class MpesaPostingService {
   constructor(
@@ -63,6 +63,65 @@ export class MpesaPostingService {
     };
   }
 
+  private assertContext(attempt: MpesaAttempt, invoice: BillingInvoice) {
+    if (invoice.id !== attempt.invoiceId || invoice.branch_id !== attempt.branchId || invoice.patient_id !== attempt.patientId) {
+      throw new AppError('Payment attempt changed or belongs to different context', 409, 'MPESA_ATTEMPT_CONFLICT');
+    }
+  }
+
+  private assertSettlement(attempt: MpesaAttempt) {
+    if (attempt.conflictingEvidence || attempt.recoveryStatus === 'MANUAL_REVIEW_REQUIRED' || attempt.postingStatus === 'MANUAL_REVIEW_REQUIRED') {
+      throw new AppError('Payment attempt has conflicting evidence and requires manual review', 409, 'MPESA_POSTING_CONFLICT');
+    }
+    if (attempt.verificationStatus !== 'VERIFIED') {
+      throw new AppError('Payment attempt is not verified with M-PESA provider', 409, 'MPESA_POSTING_NOT_VERIFIED');
+    }
+    if (!attempt.receiptNumber || !/^[A-Za-z0-9]{1,32}$/.test(attempt.receiptNumber)) {
+      throw new AppError('Verified M-PESA receipt reference is missing or invalid', 409, 'MPESA_POSTING_MISSING_RECEIPT');
+    }
+    if (attempt.queryOutcome !== 'SUCCESS' || attempt.lastQueryResult?.state !== 'SUCCESS' || attempt.lastQueryResult.resultCode !== 0 ||
+      !['QUERY', 'RECONCILIATION'].includes(attempt.verificationSource ?? '') || !attempt.lastVerifiedAt ||
+      !Number.isFinite(attempt.lastVerifiedAt.getTime()) || attempt.reportedOutcome !== 'SUCCESS') {
+      throw new AppError('Trusted verification and correlated receipt evidence are required', 409, 'MPESA_POSTING_NOT_VERIFIED');
+    }
+    const identifier = /^[A-Za-z0-9_-]{1,128}$/;
+    if (!identifier.test(attempt.checkoutRequestId ?? '') || !identifier.test(attempt.merchantRequestId ?? '') ||
+      !attempt.active || !['PENDING', 'UNKNOWN'].includes(attempt.submissionState) ||
+      !['DISABLED', 'READY', 'POSTING_FAILED'].includes(attempt.postingStatus) ||
+      attempt.provider !== 'MPESA' || attempt.currency !== 'KES' || !Number.isSafeInteger(attempt.amount) || attempt.amount <= 0) {
+      throw new AppError('Payment attempt state or provider context is invalid for posting', 409, 'MPESA_POSTING_INVALID_STATE');
+    }
+  }
+
+  private assertSnapshot(initial: MpesaAttempt, current: MpesaAttempt) {
+    const fields = ['invoiceId', 'patientId', 'branchId', 'environment', 'amount', 'currency', 'provider',
+      'merchantRequestId', 'checkoutRequestId', 'receiptNumber', 'fingerprint'] as const;
+    if (initial.version !== current.version || fields.some((field) => initial[field] !== current[field])) {
+      throw new AppError('Payment evidence changed; check status before retrying', 409, 'MPESA_POSTING_CONFLICT');
+    }
+  }
+
+  private assertPostedPayment(attempt: MpesaAttempt, payment: BillingPayment | null): asserts payment is BillingPayment {
+    if (!payment || (attempt.billingPaymentId && payment.id !== attempt.billingPaymentId) ||
+      payment.invoice_id !== attempt.invoiceId || payment.patient_id !== attempt.patientId || payment.branch_id !== attempt.branchId ||
+      payment.amount !== attempt.amount || payment.provider !== 'MPESA' || payment.payment_method !== 'MPESA' ||
+      payment.mpesa_attempt_id !== attempt._id || payment.checkout_request_id !== attempt.checkoutRequestId ||
+      payment.merchant_request_id !== attempt.merchantRequestId || payment.mpesa_receipt_number !== attempt.receiptNumber) {
+      throw new AppError('Posted payment linkage is missing or inconsistent; manual review is required', 409, 'MPESA_POSTING_CONFLICT');
+    }
+  }
+
+  private invoiceException(attempt: MpesaAttempt, invoice: BillingInvoice) {
+    if (invoice.status === 'CANCELLED') return { reason: 'INVOICE_CANCELLED_WHILE_PAYMENT_VERIFIED',
+      error: new AppError('Invoice was cancelled; verified payment requires manual review or refund', 409, 'MPESA_POSTING_INVOICE_CANCELLED') };
+    if (invoice.status === 'PAID' || invoice.balance_amount === 0) return { reason: 'INVOICE_ALREADY_PAID',
+      error: new AppError('Invoice is already paid; verified payment requires manual review or refund', 409, 'MPESA_POSTING_INVOICE_ALREADY_PAID') };
+    if (attempt.amount > invoice.balance_amount) return { reason: 'PAYMENT_EXCEEDS_BALANCE',
+      error: new AppError(`Payment amount of KES ${attempt.amount} exceeds invoice balance of KES ${invoice.balance_amount}`,
+        400, 'PAYMENT_EXCEEDS_BALANCE', { balance_amount: invoice.balance_amount }) };
+    return undefined;
+  }
+
   async postPayment(
     attemptId: string,
     actorUserId: string,
@@ -82,124 +141,63 @@ export class MpesaPostingService {
       throw new AppError('Payment attempt changed or belongs to different context', 409, 'MPESA_ATTEMPT_CONFLICT');
     }
 
-    // 1. Idempotent return if already posted
-    if (initialAttempt.postingStatus === 'POSTED') {
-      const payment = initialAttempt.billingPaymentId
-        ? await this.billingRepository.getPaymentById(initialAttempt.billingPaymentId, scope)
-        : await this.billingRepository.getPaymentByMpesaAttemptId(initialAttempt._id);
-      return {
-        attempt: this.view(initialAttempt),
-        payment,
-        invoice: initialInvoice,
-        idempotent: true,
-      };
-    }
-
-    // 2. Concurrency check
-    if (initialAttempt.postingStatus === 'POSTING') {
-      throw new AppError('Payment posting is already in progress', 409, 'MPESA_POSTING_IN_PROGRESS');
-    }
-
-    // 3. Settlement evidence validation
-    if (initialAttempt.conflictingEvidence) {
-      throw new AppError('Payment attempt has conflicting evidence and requires manual review', 409, 'MPESA_POSTING_CONFLICT');
-    }
-    if (initialAttempt.verificationStatus !== 'VERIFIED') {
-      throw new AppError('Payment attempt is not verified with M-PESA provider', 409, 'MPESA_POSTING_NOT_VERIFIED');
-    }
-    if (!initialAttempt.receiptNumber) {
-      throw new AppError('Verified M-PESA receipt reference is missing', 409, 'MPESA_POSTING_MISSING_RECEIPT');
-    }
-    if (initialAttempt.submissionState !== 'PENDING' && initialAttempt.submissionState !== 'UNKNOWN') {
-      throw new AppError('Payment attempt state is invalid for posting', 409, 'MPESA_POSTING_INVALID_STATE');
-    }
-
-    // 4. Invoice exception checks
-    if (initialInvoice.status === 'CANCELLED') {
-      await this.transaction(async (session) => {
-        const cur = await this.repository.get(attemptId, session);
-        if (!cur) return;
-        await this.repository.updatePosting(attemptId, cur.version, {
-          postingStatus: 'MANUAL_REVIEW_REQUIRED',
-          recoveryStatus: 'MANUAL_REVIEW_REQUIRED',
-          conflictingEvidence: 'INVOICE_CANCELLED_WHILE_PAYMENT_VERIFIED',
-        }, session);
-        await this.repository.audit('mpesa.posting.exception', cur, actorUserId, {
-          reason: 'INVOICE_CANCELLED_WHILE_PAYMENT_VERIFIED',
-          invoiceId: initialInvoice.id,
-        }, session);
-      });
-      throw new AppError('Invoice was cancelled; verified payment requires manual review or refund', 409, 'MPESA_POSTING_INVOICE_CANCELLED');
-    }
-
-    if (initialInvoice.status === 'PAID' || initialInvoice.balance_amount === 0) {
-      await this.transaction(async (session) => {
-        const cur = await this.repository.get(attemptId, session);
-        if (!cur) return;
-        await this.repository.updatePosting(attemptId, cur.version, {
-          postingStatus: 'MANUAL_REVIEW_REQUIRED',
-          recoveryStatus: 'MANUAL_REVIEW_REQUIRED',
-          conflictingEvidence: 'INVOICE_ALREADY_PAID',
-        }, session);
-        await this.repository.audit('mpesa.posting.exception', cur, actorUserId, {
-          reason: 'INVOICE_ALREADY_PAID',
-          invoiceId: initialInvoice.id,
-        }, session);
-      });
-      throw new AppError('Invoice is already paid; verified payment requires manual review or refund', 409, 'MPESA_POSTING_INVOICE_ALREADY_PAID');
-    }
-
-    if (initialAttempt.amount > initialInvoice.balance_amount) {
-      await this.transaction(async (session) => {
-        const cur = await this.repository.get(attemptId, session);
-        if (!cur) return;
-        await this.repository.updatePosting(attemptId, cur.version, {
-          postingStatus: 'MANUAL_REVIEW_REQUIRED',
-          recoveryStatus: 'MANUAL_REVIEW_REQUIRED',
-          conflictingEvidence: 'PAYMENT_EXCEEDS_BALANCE',
-        }, session);
-        await this.repository.audit('mpesa.posting.exception', cur, actorUserId, {
-          reason: 'PAYMENT_EXCEEDS_BALANCE',
-          attemptAmount: initialAttempt.amount,
-          balanceAmount: initialInvoice.balance_amount,
-        }, session);
-      });
-      throw new AppError(
-        `Payment amount of KES ${initialAttempt.amount} exceeds invoice balance of KES ${initialInvoice.balance_amount}`,
-        400,
-        'PAYMENT_EXCEEDS_BALANCE',
-        { balance_amount: initialInvoice.balance_amount },
-      );
-    }
-
-    // 5. Execute transactional posting
-    let enteredTransaction = false;
+    let postingVersion: number | undefined;
     try {
       const result = await this.transaction(async (session) => {
-        enteredTransaction = true;
+        // These checks run again on every MongoDB transaction retry.
+        const currentScope = await this.billingRepository.resolveBranchScope(actorUserId);
         const attempt = await this.repository.get(attemptId, session);
         if (!attempt) throw new AppError('Payment attempt not found', 404, 'MPESA_ATTEMPT_NOT_FOUND');
-
+        const invoice = await this.billingRepository.getById(attempt.invoiceId, currentScope, session);
+        if (!invoice) throw new AppError('Invoice not found', 404, 'BILLING_INVOICE_NOT_FOUND');
+        this.assertContext(attempt, invoice);
+        if (attempt.invoiceId !== initialAttempt.invoiceId) {
+          throw new AppError('Payment attempt context changed', 409, 'MPESA_ATTEMPT_CONFLICT');
+        }
         if (attempt.postingStatus === 'POSTED') {
           const payment = await this.billingRepository.getPaymentByMpesaAttemptId(attempt._id, session);
-          const invoice = await this.billingRepository.getById(attempt.invoiceId, scope, session);
+          this.assertPostedPayment(attempt, payment);
+          if (attempt.active) {
+            const released = await this.repository.updatePosting(attempt._id, attempt.version, { active: false }, session);
+            if (!released) throw new AppError('Concurrent posting conflict', 409, 'MPESA_POSTING_CONFLICT');
+            await this.repository.audit('mpesa.attempt.lock_released', released, actorUserId, {
+              reason: 'POSTED_LEDGER_CONFIRMED', invoiceId: invoice.id, paymentId: payment.id,
+              activeBefore: true, activeAfter: false,
+            }, session);
+            return { attempt: released, payment, invoice, idempotent: true };
+          }
           return { attempt, payment, invoice, idempotent: true };
         }
         if (attempt.postingStatus === 'POSTING') {
           throw new AppError('Payment posting is already in progress', 409, 'MPESA_POSTING_IN_PROGRESS');
         }
+        this.assertSettlement(attempt);
+        this.assertSnapshot(initialAttempt, attempt);
 
+        const exception = this.invoiceException(attempt, invoice);
+        if (exception) {
+          const reviewed = await this.repository.updatePosting(attempt._id, attempt.version, {
+            postingStatus: 'MANUAL_REVIEW_REQUIRED', recoveryStatus: 'MANUAL_REVIEW_REQUIRED',
+            conflictingEvidence: exception.reason,
+          }, session);
+          if (!reviewed) throw new AppError('Concurrent posting conflict', 409, 'MPESA_POSTING_CONFLICT');
+          await this.repository.audit('mpesa.posting.exception', reviewed, actorUserId, {
+            reason: exception.reason, invoiceId: invoice.id, attemptAmount: attempt.amount, balanceAmount: invoice.balance_amount,
+            from: attempt.postingStatus, to: 'MANUAL_REVIEW_REQUIRED',
+          }, session);
+          return { error: exception.error };
+        }
+        if (!['PENDING', 'PARTIALLY_PAID'].includes(invoice.status)) {
+          throw new AppError('Invoice balance or status changed during posting', 409, 'PAYMENT_CONFLICT');
+        }
+
+        postingVersion = attempt.version;
         // Optimistic transition to POSTING
         const claimed = await this.repository.updatePosting(attempt._id, attempt.version, {
           postingStatus: 'POSTING',
         }, session);
         if (!claimed) {
           throw new AppError('Concurrent posting conflict', 409, 'MPESA_POSTING_CONFLICT');
-        }
-
-        const invoice = await this.billingRepository.getById(attempt.invoiceId, scope, session);
-        if (!invoice || !['PENDING', 'PARTIALLY_PAID'].includes(invoice.status) || invoice.balance_amount < attempt.amount) {
-          throw new AppError('Invoice balance or status changed during posting', 409, 'PAYMENT_CONFLICT');
         }
 
         // Check duplicate payment record by attempt ID or checkout ID
@@ -219,7 +217,7 @@ export class MpesaPostingService {
           merchant_request_id: attempt.merchantRequestId ?? null,
           checkout_request_id: attempt.checkoutRequestId ?? null,
           mpesa_receipt_number: attempt.receiptNumber,
-          transaction_verification_timestamp: attempt.lastVerifiedAt ?? new Date(),
+          transaction_verification_timestamp: attempt.lastVerifiedAt,
           financial_posting_timestamp: new Date(),
         }, actorUserId, session);
 
@@ -243,6 +241,7 @@ export class MpesaPostingService {
 
         const postedAttempt = await this.repository.updatePosting(attempt._id, claimed.version, {
           postingStatus: 'POSTED',
+          active: false,
           billingPaymentId: payment.id,
           billingPaymentNumber: payment.payment_number,
           postedAt: new Date(),
@@ -270,11 +269,13 @@ export class MpesaPostingService {
           invoiceId: invoice.id,
           amount: attempt.amount,
           receiptNumber: attempt.receiptNumber,
+          from: attempt.postingStatus, to: 'POSTED', activeBefore: attempt.active, activeAfter: false,
         }, session);
 
         return { attempt: postedAttempt, payment, invoice: updatedInvoice, idempotent: false };
       });
 
+      if ('error' in result) throw result.error;
       return {
         attempt: this.view(result.attempt),
         payment: result.payment,
@@ -282,17 +283,23 @@ export class MpesaPostingService {
         idempotent: result.idempotent,
       };
     } catch (error) {
-      if (enteredTransaction) {
+      if (postingVersion !== undefined) {
         try {
           const cur = await this.repository.get(attemptId);
-          if (cur && cur.postingStatus !== 'POSTED') {
-            await this.repository.updatePosting(attemptId, cur.version, {
-              postingStatus: 'POSTING_FAILED',
-              postingError: error instanceof Error ? error.message : 'Financial posting failed',
+          if (cur && cur.version === postingVersion && ['DISABLED', 'READY', 'POSTING_FAILED'].includes(cur.postingStatus) &&
+            cur.verificationStatus === 'VERIFIED' && !cur.conflictingEvidence && cur.recoveryStatus !== 'MANUAL_REVIEW_REQUIRED') {
+            await this.transaction(async (session) => {
+              const failed = await this.repository.updatePosting(attemptId, cur.version, {
+                postingStatus: 'POSTING_FAILED',
+                postingError: 'Financial posting failed; check status before retrying',
+              }, session);
+              if (failed) await this.repository.audit('mpesa.posting.failed', failed, actorUserId, {
+                from: cur.postingStatus, to: 'POSTING_FAILED', reason: 'POSTING_TRANSACTION_FAILED', invoiceId: cur.invoiceId,
+              }, session);
             });
           }
         } catch {
-          // ignore fallback update error
+          // Preserve the original posting error if failure annotation cannot commit.
         }
       }
       throw error;

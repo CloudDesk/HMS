@@ -78,6 +78,38 @@ describe('Daraja client transport boundary', () => {
   });
 
   describe('STK Push Query (/mpesa/stkpushquery/v1/query)', () => {
+    const responseBody = (code: unknown) => ({ ResponseCode: '0', MerchantRequestID: 'merchant-query-1',
+      CheckoutRequestID: queryAttempt.checkoutRequestId, ResultCode: code, ResultDesc: 'Synthetic result' });
+
+    it.each([null, false, true, '', ' ', '0.0', '0e0', ' 0', '00', [], {}, -1, 0.5, 2147483648, '2147483648'])(
+      'keeps malformed ResultCode %j uncertain', async (code) => {
+        const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json(responseBody(code)));
+        expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'test-token'))
+          .toEqual({ state: 'UNKNOWN', error: 'PROVIDER_UNCERTAIN' });
+        expect(http).toHaveBeenCalledOnce();
+      });
+
+    it.each([0, '0', 1032, '1032', 1037, '1037', 1, '1'])('accepts canonical result code %j', async (code) => {
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json(responseBody(code)));
+      const result = await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'test-token');
+      expect(result).toMatchObject({ resultCode: Number(code), merchantRequestId: 'merchant-query-1',
+        checkoutRequestId: queryAttempt.checkoutRequestId });
+    });
+
+    it.each([400, 401, 403, 404, 429])('query HTTP %s is not payment failure', async (status) => {
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ errorCode: 'synthetic', errorMessage: 'Synthetic query rejection' }, { status }));
+      expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'test-token'))
+        .toEqual({ state: 'UNKNOWN', error: 'PROVIDER_QUERY_REJECTED' });
+      expect(http).toHaveBeenCalledOnce();
+    });
+
+    it.each(['MerchantRequestID', 'CheckoutRequestID', 'ResultCode'])('requires %s on terminal responses', async (field) => {
+      const body: Record<string, unknown> = responseBody(0);
+      delete body[field];
+      const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json(body));
+      expect(await new MpesaDarajaClient(http).query(merchant, queryAttempt, 'test-token')).toMatchObject({ state: 'UNKNOWN' });
+    });
+
     it('queries Daraja status and parses ResultCode 0 as SUCCESS', async () => {
       const http = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
         ResponseCode: '0',

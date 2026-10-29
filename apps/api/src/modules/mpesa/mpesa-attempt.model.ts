@@ -51,9 +51,9 @@ export type MpesaAttempt = {
   queryOutcome: MpesaQueryOutcome;
   conflictingEvidence?: string;
   recoveryStatus: MpesaRecoveryStatus;
-  nextReconciliationAt?: Date;
-  reconciliationClaimedAt?: Date;
-  reconciliationClaimedBy?: string;
+  nextReconciliationAt?: Date | null;
+  reconciliationClaimedAt?: Date | null;
+  reconciliationClaimedBy?: string | null;
   reconciliationRetries: number;
 
   // Financial Posting linkage (Phase 2):
