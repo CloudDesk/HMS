@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +15,7 @@ export function EditorErrors({ errors }: { errors: Record<string, unknown> }) {
 }
 export function useEditorLeaveGuard(dirty: boolean) {
   useOphthalmologyDraftGuard(dirty, ['branch_id', 'tab', 'visit_id', 'section', 'task_id']);
-  return () => !dirty || window.confirm('Discard unsaved changes?');
+  return async () => !dirty || await confirmAction('Discard unsaved changes?');
 }
 export const localDateTime = (value: string | null | undefined) => value ? format(new Date(value), "yyyy-MM-dd'T'HH:mm") : '';
 export const inputInstant = (value: string) => value ? new Date(value).toISOString() : null;
@@ -29,7 +30,7 @@ export function OphthalmologyConfigurationEditor({ feature: f, record: initialRe
   const ranges = useFieldArray({ control, name: 'numeric_ranges' });
   const choices = useFieldArray({ control, name: 'allowed_values' });
   const leave = useEditorLeaveGuard(isDirty);
-  const close = () => { if (!f.busy && !isSubmitting && leave()) f.setQuery({ edit_id: null }); };
+  const close = async () => { if (!f.busy && !isSubmitting && await leave()) f.setQuery({ edit_id: null }); };
   const readOnly = f.list.isError || (record ? record.status !== 'DRAFT' || !f.canEdit : !f.canCreate);
   return <Modal size="large" className="oph-workspace" open title={record ? `Edit ${record.name} · revision ${record.revision}` : 'New ophthalmology master version'} onClose={close} footer={<><button type="button" className="doc-btn" disabled={f.busy || isSubmitting} onClick={close}>Cancel</button><button type="submit" form="oph-master-form" className="doc-btn primary" disabled={f.busy || isSubmitting || readOnly}>Save draft version</button></>}>
     <form id="oph-master-form" onSubmit={handleSubmit(async (form) => {

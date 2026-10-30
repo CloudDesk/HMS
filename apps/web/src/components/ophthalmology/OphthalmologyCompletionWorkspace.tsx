@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { OphthalmologyConsultationSummaryCard, OphthalmologySummaryHeader } from './OphthalmologyConsultationSummaryCard';
+import { OphthalmologyConsultationSummaryCard } from './OphthalmologyConsultationSummaryCard';
 import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
 import { OphthalmologyFinalizationTools } from './OphthalmologyFinalizationTools';
 import { useOphthalmologyCompletionFeature, type CompletionWorkspace } from '../../hooks/ophthalmology/useOphthalmologyCompletionFeature';
@@ -18,7 +18,6 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
 
   return (
     <section className="oph-completion-workspace">
-      <OphthalmologySummaryHeader printDisabled={f.summaryQuery.isLoading || f.summaryQuery.isError || !f.summaryQuery.data} />
       {/* 1. Primary Consolidated Clinical Summary (8-card sequential structure) */}
       <OphthalmologyConsultationSummaryCard feature={f} workspace={workspace} />
 

@@ -1,3 +1,5 @@
+import { confirmAction } from '../ui/confirm-action';
+import { OphthalmologyEscalateModal } from './OphthalmologyEscalateModal';
 import { useEffect, useState } from 'react';
 import { useFieldArray, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -62,6 +64,7 @@ export function OphthalmologyClinicalReviewEditor({
   feature: OphthalmologyCareFeature;
   onOpenProcedureModal?: (options?: OpenProcedureModalOptions) => void;
 }) {
+  const [escalationOpen, setEscalationOpen] = useState(false);
   const visitId = f.workspace?.visitId ?? '';
   const cachedDraft = typeof getEncounterDraft === 'function' ? getEncounterDraft<Editor>(visitId, 'clinical-review') : undefined;
   const [baseline, setBaseline] = useState(f.clinical);
@@ -255,8 +258,8 @@ export function OphthalmologyClinicalReviewEditor({
             type="button"
             className="doc-btn"
             disabled={f.busy || f.clinicalQuery.isError}
-            onClick={() => {
-              if (!isDirty || window.confirm('Discard entered values and reload the latest saved review?')) {
+            onClick={async () => {
+              if (!isDirty || await confirmAction('Discard entered values and reload the latest saved review?')) {
                 setBaseline(f.clinical);
                 reset(initial(f.clinical));
               }
@@ -271,19 +274,7 @@ export function OphthalmologyClinicalReviewEditor({
               className="doc-btn"
               style={{ background: '#ffffff', color: '#dc2626', borderColor: '#fecaca', fontWeight: 600 }}
               disabled={f.busy}
-              onClick={async () => {
-                const reason = window.prompt(
-                  'Emergency escalation clinical reason discovered during examination/review:'
-                );
-
-                if (reason?.trim() && f.workspace?.escalate) {
-                  await f.workspace.escalate(
-                    reason.trim(),
-                    ['EXAMINATION_FINDING'],
-                    'EMERGENCY'
-                  );
-                }
-              }}
+              onClick={() => setEscalationOpen(true)}
             >
               <i className="ph ph-warning-bold" style={{ marginRight: '4px', color: '#dc2626' }} />
               Escalate Emergency
@@ -380,8 +371,8 @@ export function OphthalmologyClinicalReviewEditor({
                   <button
                     type="button"
                     className="oph-remove-diag-btn"
-                    onClick={() => {
-                      if (window.confirm('Remove this treatment row from the draft?')) {
+                    onClick={async () => {
+                      if (await confirmAction('Remove this treatment row from the draft?')) {
                         rows.remove(index);
                       }
                     }}
@@ -768,6 +759,10 @@ export function OphthalmologyClinicalReviewEditor({
           </div>
         </details>
       )}
+      <OphthalmologyEscalateModal emergencyOnly open={escalationOpen} onClose={() => setEscalationOpen(false)}
+        onEscalate={(reason, findings, urgency) => f.workspace?.escalate?.(
+          reason, ['EXAMINATION_FINDING', ...(findings ?? [])], urgency ?? 'EMERGENCY'
+        ) ?? Promise.resolve(undefined)} />
     </form>
   );
 }

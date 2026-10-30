@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useUnsavedNavigation } from '../../routing/navigation';
 import { clearEncounterDraft, hasEncounterDirtyDrafts } from './encounter-draft-cache';
+import { confirmAction } from '../../components/ui/confirm-action';
+
+const confirmDiscard = () => confirmAction('Discard unsaved changes?');
 
 export * from './encounter-draft-cache';
 export const INTERNAL_TAB_KEYS = new Set(['care_tab', 'section', 'area']);
@@ -41,7 +44,7 @@ export function useOphthalmologyDraftGuard(dirty: boolean, identityKeys: string[
 
   const effectiveDirty = dirty || (Boolean(currentVisitId) && hasEncounterDirtyDrafts(currentVisitId));
 
-  useUnsavedNavigation(effectiveDirty, leavesDraft);
+  useUnsavedNavigation(effectiveDirty, leavesDraft, confirmDiscard);
 
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => {

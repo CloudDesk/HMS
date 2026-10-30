@@ -42,8 +42,8 @@ export function OphthalmologyResultAttachments({ feature: f, workspace, selected
   useOphthalmologyDraftGuard(uploadOpen && (isDirty || Boolean(file)), ['fundus_task_id', 'task_page']);
   const camera = useFundusCameraCapture(allowCamera && uploadOpen && f.canAttach && !f.busy && !isSubmitting);
   const busy = f.busy || isSubmitting || capturing;
-  const close = () => {
-    if (!busy && leave()) {
+  const close = async () => {
+    if (!busy && await leave()) {
       camera.stop(); setUploadOpen(false); setFile(null); attempt.current = null; reset();
     }
   };

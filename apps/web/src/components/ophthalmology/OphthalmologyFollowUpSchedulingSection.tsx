@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { formatInTimeZone } from 'date-fns-tz';
+import { isFutureFollowUpStart } from '../../utils/follow-up-time';
 import type { OpdVisitResponse } from '../../api/opd';
 
 export type OphthalmologyFollowUpSchedulingProps = {
@@ -24,6 +26,7 @@ export type OphthalmologyFollowUpSchedulingProps = {
   completeConsultation: () => void;
   completionBlocked?: boolean;
   visit?: OpdVisitResponse | null;
+  timezone?: string;
 };
 
 const STANDARD_TIME_SLOTS = [
@@ -86,15 +89,24 @@ export function OphthalmologyFollowUpSchedulingSection({
   scheduleFollowUp,
   completeConsultation,
   completionBlocked = false,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 }: OphthalmologyFollowUpSchedulingProps) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const refresh = () => setNow(Date.now());
+    const timer = window.setInterval(refresh, 1000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, []);
+  const today = formatInTimeZone(now, timezone, 'yyyy-MM-dd');
   // Calendar month state
   const initialDate = useMemo(() => {
     if (followUpDate) {
       const parsed = new Date(followUpDate + 'T00:00:00');
       if (!isNaN(parsed.getTime())) return parsed;
     }
-    return new Date();
-  }, [followUpDate]);
+    return new Date(`${today}T00:00:00`);
+  }, [followUpDate, today]);
 
   const [viewDate, setViewDate] = useState<Date>(initialDate);
 
@@ -144,7 +156,7 @@ export function OphthalmologyFollowUpSchedulingSection({
         dateString,
         isCurrentMonth: true,
         isSelected: followUpDate === dateString,
-        isAvailable: true,
+        isAvailable: dateString >= today,
       });
     }
 
@@ -167,7 +179,7 @@ export function OphthalmologyFollowUpSchedulingSection({
     }
 
     return days;
-  }, [viewYear, viewMonth, followUpDate]);
+  }, [viewYear, viewMonth, followUpDate, today]);
 
   const handlePrevMonth = () => {
     setViewDate(new Date(viewYear, viewMonth - 1, 1));
@@ -178,8 +190,9 @@ export function OphthalmologyFollowUpSchedulingSection({
   };
 
   const handleSelectDay = (day: { dateString: string; isCurrentMonth: boolean }) => {
-    if (followUp?.status === 'SCHEDULED' || isVisitCompleted) return;
+    if (followUp?.status === 'SCHEDULED' || isVisitCompleted || day.dateString < formatInTimeZone(Date.now(), timezone, 'yyyy-MM-dd')) return;
     setFollowUpDate(day.dateString);
+    if (!isFutureFollowUpStart(day.dateString, followUpStartTime, timezone)) setFollowUpStartTime('');
     if (!day.isCurrentMonth) {
       const parts = day.dateString.split('-').map(Number);
       const y = parts[0] ?? 2026;
@@ -273,7 +286,8 @@ export function OphthalmologyFollowUpSchedulingSection({
                   key={`${d.dateString}-${index}`}
                   type="button"
                   className={cellClasses}
-                  disabled={isScheduled || isVisitCompleted}
+                  disabled={isScheduled || isVisitCompleted || d.dateString < today}
+                  aria-label={d.dateString}
                   onClick={() => handleSelectDay(d)}
                 >
                   {d.dayNumber}
@@ -309,7 +323,7 @@ export function OphthalmologyFollowUpSchedulingSection({
                 <circle cx="12" cy="7" r="4" />
               </svg>
               <span>Doctor</span>
-              <span className="oph-required-star">*</span>
+              <span className="oph-required">*</span>
             </label>
 
             <div className="oph-doctor-select-wrapper">
@@ -357,19 +371,20 @@ export function OphthalmologyFollowUpSchedulingSection({
                 <polyline points="12 6 12 12 16 14" />
               </svg>
               <span>Start Time</span>
-              <span className="oph-required-star">*</span>
+              <span className="oph-required">*</span>
             </label>
 
             <div className="oph-time-slots-grid">
               {STANDARD_TIME_SLOTS.map((slot) => {
+                const isPastSlot = !isFutureFollowUpStart(followUpDate, slot, timezone, now);
                 const isSelected = followUpStartTime === slot;
                 return (
                   <button
                     key={slot}
                     type="button"
                     className={`oph-time-slot-btn ${isSelected ? 'selected' : ''}`}
-                    disabled={isScheduled || isVisitCompleted}
-                    onClick={() => setFollowUpStartTime(slot)}
+                    disabled={isScheduled || isVisitCompleted || isPastSlot}
+                    onClick={() => { if (isFutureFollowUpStart(followUpDate, slot, timezone)) setFollowUpStartTime(slot); }}
                   >
                     {slot}
                   </button>
@@ -386,7 +401,7 @@ export function OphthalmologyFollowUpSchedulingSection({
                 <polyline points="12 6 12 12 16 14" />
               </svg>
               <span>Duration</span>
-              <span className="oph-required-star">*</span>
+              <span className="oph-required">*</span>
             </label>
 
             <div className="oph-duration-row">
@@ -564,7 +579,7 @@ export function OphthalmologyFollowUpSchedulingSection({
             <button
               type="button"
               className="oph-btn-complete-consultation"
-              disabled={(!isVisitCompleted && completionBlocked) || isBusy || !followUpDate || !followUpDoctorId}
+              disabled={(!isVisitCompleted && completionBlocked) || isBusy || !followUpDoctorId || !isFutureFollowUpStart(followUpDate, followUpStartTime, timezone, now)}
               onClick={isVisitCompleted ? scheduleFollowUp : completeConsultation}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

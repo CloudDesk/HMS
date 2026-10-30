@@ -23,13 +23,14 @@ describe('OPD stock availability display', () => {
     expect(container.querySelector('option[value="Unknown stock medicine"]')?.textContent).toContain('Stock unavailable');
     expect(container.querySelector('option[value="Zero stock medicine"]')?.textContent).toContain('0 tablets');
     expect(container.textContent).not.toContain('Auto-save enabled');
+    expect(container.querySelector('#rx-follow-up-date')).not.toBeNull();
   });
   it('removes medication, omits the duplicate reference-layout draft button and keeps pharmacy submission connected', async () => {
     const item = { ...medication, local_id: 'first', medicine_name: 'Test medication', dosage: '1 drop', frequency: 'BD', duration: '5 Days' };
     const setPrescriptionForm = vi.fn();
     const saveConsultationDraft = vi.fn();
     const handleSendToPharmacy = vi.fn().mockResolvedValue(undefined);
-    const prescriptionForm = { ...props.prescriptionForm, items: [item] };
+    const prescriptionForm = { ...props.prescriptionForm, items: [item], follow_up_date: '2026-11-01', doctor_instructions: 'Saved pharmacy advice', patient_instructions: 'Saved patient advice' };
     await act(async () => root.render(<OpdPrescriptionSection {...props} referenceLayout statusLabel="DRAFT" prescriptionForm={prescriptionForm} setPrescriptionForm={setPrescriptionForm} saveConsultationDraft={saveConsultationDraft} handleSendToPharmacy={handleSendToPharmacy} />));
     const remove = container.querySelector<HTMLButtonElement>('[aria-label="Remove Test medication"]');
     expect(remove).not.toBeNull();
@@ -37,9 +38,12 @@ describe('OPD stock availability display', () => {
     const removeUpdate = setPrescriptionForm.mock.calls[0]?.[0];
     if (!removeUpdate) throw new Error('Medication removal did not update the draft');
     expect(removeUpdate(prescriptionForm).items).toEqual([]);
+    expect(removeUpdate(prescriptionForm)).toMatchObject({ follow_up_date: '2026-11-01', doctor_instructions: 'Saved pharmacy advice', patient_instructions: 'Saved patient advice' });
     const buttons = Array.from(container.querySelectorAll('button'));
     expect(buttons.find((button) => button.textContent?.includes('Next: Lab Orders'))?.hidden).toBe(true);
-    expect(container.querySelector('.oph-rx-followup-heading')?.textContent).toContain('Complete before sending.');
+    expect(container.querySelector('#rx-follow-up-date')).toBeNull();
+    expect(container.querySelector('#rx-doctor-instructions')).toBeNull();
+    expect(container.querySelector('#rx-patient-instructions')).toBeNull();
     expect(buttons.some((button) => button.textContent?.includes('Save Draft'))).toBe(false);
     await act(async () => buttons.find((button) => button.textContent?.includes('Send To Pharmacy'))?.click());
     expect(handleSendToPharmacy).toHaveBeenCalledOnce();

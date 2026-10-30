@@ -24,7 +24,7 @@ describe('clinical summary source statuses', () => {
     expect(html).not.toContain('Clinical intake');
     expect(html).not.toContain('Save draft');
     expect(html).not.toContain('Patient &amp; encounter summary');
-    expect(html).not.toContain('Print summary');
+    expect(html).toContain('Print summary');
   });
 
   it('keeps edit and result navigation and prints the displayed summary', async () => {
@@ -37,7 +37,7 @@ describe('clinical summary source statuses', () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {});
     const container = document.createElement('div'); const root = createRoot(container);
     try {
-      await act(async () => root.render(<><OphthalmologySummaryHeader /><OphthalmologyConsultationSummaryCard feature={f} /></>));
+      await act(async () => root.render(<OphthalmologyConsultationSummaryCard feature={f} />));
       expect(container.textContent).toContain('QA Patient');
       const edit = container.querySelector<HTMLButtonElement>('[title="Edit diagnosis: Recorded diagnosis"]');
       await act(async () => edit?.click());
@@ -46,7 +46,8 @@ describe('clinical summary source statuses', () => {
       expect(f.setQuery).toHaveBeenCalledWith({ section: 'clinical', care_tab: 'results' });
       await act(async () => container.querySelector<HTMLButtonElement>('.oph-summary-print')?.click());
       expect(print).toHaveBeenCalledOnce();
-      expect(container.querySelector('.oph-summary-page-heading .oph-summary-print')).not.toBeNull();
+      expect(container.querySelector('.oph-summary-demographics .oph-summary-page-heading .oph-summary-print')).not.toBeNull();
+      expect(container.querySelectorAll('.oph-summary-print')).toHaveLength(1);
     } finally { await act(async () => root.unmount()); print.mockRestore(); }
   });
 
@@ -54,6 +55,7 @@ describe('clinical summary source statuses', () => {
     const html = renderToStaticMarkup(<OphthalmologySummaryHeader printDisabled />);
     expect(html).toContain('disabled=""');
     expect(html).toContain('Print summary');
+    expect(html).toContain('class="oph-section-header-title" style="margin:0">Patient summary</h3>');
     expect(html).not.toContain('Consultation summary');
     expect(html).not.toContain('Review the encounter before finalizing care.');
     expect(html).not.toContain('Clinical intake');

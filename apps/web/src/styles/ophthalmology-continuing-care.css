@@ -79,8 +79,7 @@
 .oph-reference-consultation .oph-doctor-info { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px; }
 .oph-reference-consultation .oph-doctor-role { margin: 0; font-size: 12px; }
 .oph-reference-consultation .oph-doctor-role:not(:empty)::before { content: '· '; }
-.oph-reference-consultation .oph-referral-page-wrapper .oph-input-label .oph-required { display: block; margin-top: 8px; }
-.oph-reference-consultation .oph-referral-page-wrapper select:has(option[value='']:checked) { color: #ef4444; font-weight: 600; }
+.oph-reference-consultation .oph-referral-page-wrapper .oph-input-label .oph-required { display: inline; margin: 0; }
 .oph-reference-consultation .oph-followup-main-card .oph-char-counter { display: none; }
 .oph-reference-consultation .oph-followup-main-card :is(.oph-purpose-textarea, .oph-instruction-textarea) { padding-bottom: 10px; }
 .oph-reference-consultation .oph-details-title { font-size: 14px; color: #2563eb; font-weight: 400; }

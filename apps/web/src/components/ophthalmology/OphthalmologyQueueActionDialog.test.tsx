@@ -1,3 +1,5 @@
+import { confirmAction } from '../ui/confirm-action';
+vi.mock('../ui/confirm-action', () => ({ confirmAction: vi.fn().mockResolvedValue(true) }));
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +15,7 @@ describe('queue action dialog preserves editing intent', () => {
   const actionSubmit = vi.fn(); const setQuery = vi.fn();
   const query = { isError: false, data: undefined, refetch: vi.fn() };
   const feature = (error: string | null = null) => ({ busy: false, writable: true, routeNext: false, canView: true, canConfigure: true, canUsers: true, actionSubmit, setQuery, positive: () => 1, stations: [], members: [], userId: id, station: undefined, stationQuery: query, stationsQuery: query, usersQuery: query, nextTaskQuery: query, nextTasksQuery: query, error }) as unknown as OphthalmologyQueueFeature;
-  beforeEach(() => { actionSubmit.mockReset(); setQuery.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { actionSubmit.mockReset(); setQuery.mockReset(); vi.mocked(confirmAction).mockReset().mockResolvedValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
   const reason = () => { const input = document.querySelector('textarea'); if (!input) throw new Error('Missing reason'); return input; };
   async function typeReason(value: string) { await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(reason(), value); reason().dispatchEvent(new Event('input', { bubbles: true })); }); }
@@ -31,7 +33,7 @@ describe('queue action dialog preserves editing intent', () => {
   it('rejects a blank reason and respects declined confirmation without submitting', async () => {
     await act(async () => root.render(<OphthalmologyQueueActionDialog feature={feature()} task={task} action="cancel" />));
     await submit(); expect(actionSubmit).not.toHaveBeenCalled();
-    await typeReason('Patient requested cancellation'); vi.mocked(window.confirm).mockReturnValue(false); await submit(); expect(actionSubmit).not.toHaveBeenCalled();
+    await typeReason('Patient requested cancellation'); vi.mocked(confirmAction).mockResolvedValue(false); await submit(); expect(actionSubmit).not.toHaveBeenCalled();
   });
   it('allows station selection with task permissions and no Configuration View grant', async () => { const f = { ...feature(), canConfigure: false }; await act(async () => root.render(<OphthalmologyQueueActionDialog feature={f} task={{ ...task, status: 'ORDERED' }} action="assign" />)); const station = document.querySelector<HTMLSelectElement>('select[name="station_id"]'); expect(station?.disabled).toBe(false); const confirm = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Confirm assign'); expect(confirm?.disabled).not.toBe(true); expect(document.body.textContent).not.toContain('Configuration View permission is required'); });
   it('uses the same repeat key after an ambiguous response and closes only after saved success', async () => {

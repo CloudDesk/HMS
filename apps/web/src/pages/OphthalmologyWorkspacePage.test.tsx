@@ -1,16 +1,18 @@
+import { confirmAction } from '../components/ui/confirm-action';
+vi.mock('../components/ui/confirm-action', () => ({ confirmAction: vi.fn().mockResolvedValue(true) }));
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resultSchema, taskSchema } from '../api/ophthalmology';
 
-const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, canEscalate: true, escalate: vi.fn(), contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn() }));
+const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, canEscalate: true, escalate: vi.fn(), contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn(), alert: vi.fn() }));
 vi.mock('../routing/navigation', async (importOriginal) => ({ ...await importOriginal<typeof import('../routing/navigation')>(), useAppLocation: () => ({ pathname: '/opd/ophthalmology', search: '?section=tests' }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyWorkspaceFeature', () => ({ useOphthalmologyWorkspaceFeature: () => ({
   canView: true, canConfigure: true, canEscalate: state.canEscalate, escalate: state.escalate, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
   canViewExamination: true, canViewDiagnosis: true, canViewClinical: true, canSignEncounter: true,
   intakeView: state.alertStatus ? { shared_history: {}, alerts: [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] } : undefined,
   emergencyAlerts: state.alertStatus ? [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] : [],
-  visit: { patient_name: 'QA Patient', patient_number: 'QA', visit_number: 'QA-OPD' }, contextQuery: {}, intakeQuery: {}, visitQuery: {}, setQuery: state.setQuery,
+  visit: { patient_name: 'QA Patient', patient_number: 'QA', visit_number: 'QA-OPD' }, contextQuery: {}, intakeQuery: {}, visitQuery: {}, setQuery: state.setQuery, alert: state.alert,
 }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyResultFeature', () => ({ useOphthalmologyResultFeature: () => ({
   task: state.task, result: state.result, taskId: '333333333333333333333333', canView: true, canEdit: state.canEdit, canComplete: state.canEdit,
@@ -48,9 +50,12 @@ describe('ophthalmology structured form interaction', () => {
   it.each(['ACTIVE', 'ACKNOWLEDGED'] as const)('does not present %s as clinical clearance or a confirmed Emergency link', async (status) => {
     state.alertStatus = status;
     await act(async () => root.render(<OphthalmologyWorkspacePage />));
-    expect(container.textContent).toContain('Acknowledgement records receipt only.');
-    expect(container.textContent).toContain('Clinical disposition and clearance to resume routine OPD are not recorded by this alert.');
-    expect(container.textContent).toContain('No linked Emergency encounter is confirmed here.');
+    expect(container.textContent).not.toContain('Acknowledgement records receipt only.');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Emergency review required: show alert details"]')?.click());
+    const dialog = document.querySelector('.modal-overlay.open [role="dialog"]');
+    expect(dialog?.textContent).toContain('Acknowledgement records receipt only.');
+    expect(dialog?.textContent).toContain('Clinical disposition and clearance to resume routine OPD are not recorded by this alert.');
+    expect(dialog?.textContent).toContain('No linked Emergency encounter is confirmed here.');
   });
   it('preserves a dirty editing base and sends its original versions after background refresh', async () => {
     await act(async () => root.render(<OphthalmologyWorkspacePage />)); await changeSphere('0');
@@ -66,7 +71,7 @@ describe('ophthalmology structured form interaction', () => {
     expect(container.textContent).toContain('QA API failure'); expect(sphereInput().value).toBe('-1');
   });
   it('keeps the original context version when a background refresh arrives during an edit', async () => {
-    state.contextEditOpen = true; vi.spyOn(window, 'confirm').mockReturnValue(true);
+    state.contextEditOpen = true; vi.mocked(confirmAction).mockReset().mockResolvedValue(true);
     await act(async () => root.render(<OphthalmologyWorkspacePage />));
     const eye = document.querySelector<HTMLSelectElement>('#oph-context-form select[name="affected_eye"]'); if (!eye) throw new Error('Context eye input missing');
     await act(async () => { eye.value = 'OS'; eye.dispatchEvent(new Event('change', { bubbles: true })); });
@@ -141,13 +146,22 @@ describe('ophthalmology structured form interaction', () => {
     expect(state.escalate).toHaveBeenCalledWith('Severe chemical burn OD', ['CLINICAL_ESCALATION'], 'EMERGENCY');
   });
 
-  it('renders fail-closed active emergency banner and blocks routine consultation actions when emergency is active', async () => {
+  it.each(['ACTIVE', 'ACKNOWLEDGED'] as const)('opens %s emergency details from the alert icon without changing routine-care restrictions', async (status) => {
     state.canEscalate = true;
-    state.alertStatus = 'ACTIVE';
+    state.alertStatus = status;
     await act(async () => root.render(<OphthalmologyWorkspacePage />));
 
-    expect(container.textContent).toContain('Emergency Review Required');
-    expect(container.textContent).toContain('Routine consultation activities, routine testing, and sign-off are blocked');
+    expect(document.querySelector('.modal-overlay.open .oph-emergency-lock-banner')).toBeNull();
+    expect(container.textContent).not.toContain('Emergency disposition');
+    const alertButton = container.querySelector<HTMLButtonElement>('[aria-label="Emergency review required: show alert details"]');
+    expect(alertButton).not.toBeNull();
+    expect(alertButton?.querySelector('svg[viewBox="0 0 24 24"]')).not.toBeNull();
+    await act(async () => alertButton?.click());
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Emergency Review Required');
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Routine consultation activities, routine testing, and sign-off are blocked');
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('Emergency disposition ·');
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(document.querySelector('.modal-overlay.open .oph-emergency-lock-banner')).toBeNull();
 
     // Routine buttons should be disabled
     const saveDraftBtn = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save Draft');
@@ -155,5 +169,31 @@ describe('ophthalmology structured form interaction', () => {
 
     const signEncounterBtn = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Finalize & Sign Encounter') || b.textContent?.includes('Save & Next'));
     expect(signEncounterBtn?.disabled).toBe(true);
+  });
+  it('does not show an emergency details icon when there is no blocking alert', async () => {
+    await act(async () => root.render(<OphthalmologyWorkspacePage />));
+    expect(container.querySelector('[aria-label="Emergency review required: show alert details"]')).toBeNull();
+  });
+  it('keeps acknowledgement notes when reopening details and preserves emergency actions', async () => {
+    state.alertStatus = 'ACTIVE';
+    state.alert.mockClear();
+    await act(async () => root.render(<OphthalmologyWorkspacePage />));
+    const open = () => container.querySelector<HTMLButtonElement>('[aria-label="Emergency review required: show alert details"]')?.click();
+    await act(async () => open());
+    const dialog = document.querySelector('.modal-overlay.open [role="dialog"]');
+    const note = dialog?.querySelector('textarea');
+    expect(note).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(note, 'Review in progress');
+      note?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    await act(async () => open());
+    expect(note?.value).toBe('Review in progress');
+    const retry = [...(dialog?.querySelectorAll('button') ?? [])].find((button) => button.textContent === 'Retry clinician routing');
+    await act(async () => retry?.click());
+    expect(state.alert).toHaveBeenCalledWith(expect.objectContaining({ id: 'alert-1' }), 'route', null);
+    await act(async () => dialog?.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(state.alert).toHaveBeenCalledWith(expect.objectContaining({ id: 'alert-1' }), 'acknowledge', 'Review in progress');
   });
 });

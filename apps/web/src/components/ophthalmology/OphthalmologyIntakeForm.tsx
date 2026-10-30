@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useEffect, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -161,28 +162,7 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
             {view.intake ? ` · v${view.intake.version}` : ''}
           </span>
         </div>
-        {/* <div className="oph-intake-header-right">
-          <button type="button" className="doc-btn" disabled={f.busy} onClick={() => { f.setQuery('section', 'tests'); }}>
-            Open test forms
-          </button>
-          <button
-            type="button"
-            className="doc-btn"
-            disabled={f.busy}
-            onClick={() => {
-              if (!isDirty || window.confirm('Discard unsaved intake changes and reload the saved record?')) {
-                reset(initialIntake(context, view.intake));
-                void f.intakeQuery.refetch();
-                void f.contextQuery.refetch();
-              }
-            }}
-          >
-            Reload saved record
-          </button>
-          <button type="button" className="doc-btn" disabled={f.busy} onClick={() => { f.back(); }}>
-            Return to consultation
-          </button>
-        </div> */}
+
       </div>
 
       {f.actionError && (
@@ -347,14 +327,14 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
           {/* No Significant History Toggle Card */}
           <div
             className={`oph-history-toggle-card ${values.no_significant_ophthalmic_history ? 'active' : ''}`}
-            onClick={() => {
+            onClick={async () => {
               if (values.no_significant_ophthalmic_history) {
                 setValue('no_significant_ophthalmic_history', false, { shouldDirty: true });
                 return;
               }
               const current = getValues();
               if (hasPositiveEyeHistory(current)) {
-                if (!window.confirm('Clear the positive ophthalmic history entries and confirm no significant ophthalmic history? Shared medical history, allergies and report references are preserved.')) return;
+                if (!await confirmAction('Clear the positive ophthalmic history entries and confirm no significant ophthalmic history? Shared medical history, allergies and report references are preserved.')) return;
                 reset(clearPositiveEyeHistory(current), { keepDefaultValues: true });
               } else {
                 setValue('no_significant_ophthalmic_history', true, { shouldDirty: true });
@@ -832,8 +812,8 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
                     className="doc-btn danger"
                     style={{ padding: '4px 10px', fontSize: '0.82rem' }}
                     disabled={f.busy}
-                    onClick={() => {
-                      if (window.confirm('Immediately escalate this emergency alert to on-duty ophthalmologists and block routine testing?')) {
+                    onClick={async () => {
+                      if (await confirmAction('Immediately escalate this emergency alert to on-duty ophthalmologists and block routine testing?')) {
                         void f.escalate(
                           values.other_urgent_condition_detail || `Emergency red flags identified: ${(values.emergency_criterion_codes ?? []).join(', ')}`,
                           values.emergency_criterion_codes,
@@ -861,8 +841,8 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
                     className="doc-btn danger"
                     style={{ padding: '4px 10px', fontSize: '0.8rem' }}
                     disabled={f.busy}
-                    onClick={() => {
-                      if (window.confirm(`Escalate emergency alert from registration triage findings?`)) {
+                    onClick={async () => {
+                      if (await confirmAction(`Escalate emergency alert from registration triage findings?`)) {
                         void f.escalate(
                           f.visit?.reason || 'Patient flagged with urgent/emergency warning signs during reception registration.',
                           ['REGISTRATION_WARNING_SIGNS'],
@@ -924,8 +904,8 @@ export function OphthalmologyIntakeForm({ feature: f, context, view }: Props) {
               type="button"
               className="oph-submit-btn success"
               disabled={!view.intake || isDirty || completionIssues.length > 0 || view.intake?.status === 'COMPLETED'}
-              onClick={() => {
-                if (window.confirm('Complete the saved intake and route any emergency screening alerts?')) {
+              onClick={async () => {
+                if (await confirmAction('Complete the saved intake and route any emergency screening alerts?')) {
                   void f.complete();
                 }
               }}

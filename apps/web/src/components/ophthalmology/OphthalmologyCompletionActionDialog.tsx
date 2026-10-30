@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,7 +28,7 @@ export function OphthalmologyCompletionActionDialog({ feature: f, action }: { fe
     <form id="oph-completion-action" onSubmit={handleSubmit(async (form) => {
       if (disabled || !selectable || baseline.version === undefined) return;
       try {
-        if (!window.confirm(action === 'defer' ? 'Record this result deferral, plan and responsible clinician? A deferral is not a review.' : 'Record this authorized override for every listed unmet requirement? The server rechecks configuration and permissions.')) return;
+        if (!await confirmAction(action === 'defer' ? 'Record this result deferral, plan and responsible clinician? A deferral is not a review.' : 'Record this authorized override for every listed unmet requirement? The server rechecks configuration and permissions.')) return;
         let saved;
         if (action === 'defer') {
           const [type, sourceId] = form.source.split(':');

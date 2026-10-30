@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import type { Icd10Diagnosis } from '../../data/icd10-diagnoses';
 import { MedicalSpinner } from '../ui/MedicalLoader';
 import { OphthalmologyOrderIcon } from '../ophthalmology/OphthalmologyOrderIcon';
@@ -667,9 +668,9 @@ export function OpdPrescriptionSection({
                     color: '#dc2626',
                     cursor: 'pointer',
                   }}
-                  onClick={() => {
+                  onClick={async () => {
                     if (prescriptionForm.items.length === 0) return;
-                    if (window.confirm('Clear all prescribed medications from this draft?')) {
+                    if (await confirmAction('Clear all prescribed medications from this draft?')) {
                       setPrescriptionForm((prev) => ({ ...prev, items: [] }));
                       showToast('Prescription items cleared.');
                     }
@@ -749,7 +750,7 @@ export function OpdPrescriptionSection({
           </section>
 
           {/* 2. Follow-up & Instructions Card */}
-          <section
+          {!referenceLayout && <section
             className="doc-card opd-rx-card"
             style={{
               background: '#ffffff',
@@ -938,7 +939,7 @@ export function OpdPrescriptionSection({
                 </div>
               </div>
             </div>
-          </section>
+          </section>}
         </div>
       </div>
 

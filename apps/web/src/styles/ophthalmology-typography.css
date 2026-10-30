@@ -1,5 +1,35 @@
 /* One Examination-based text scale for all six consultation tabs. Print layouts retain their own rules. */
 @media screen {
+  /* Portalled emergency details share the consultation's text scale. */
+  .modal-box.oph-emergency-review-dialog {
+    --oph-type-section: 18px;
+    --oph-type-body: 13px;
+    --oph-type-action: 14px;
+    font-family: var(--font-family-base, Inter, ui-sans-serif, system-ui, sans-serif);
+  }
+  .oph-emergency-review-dialog :is(.modal-title, .doc-card h3) {
+    font-family: inherit;
+    font-size: var(--oph-type-section) !important;
+    font-weight: 500 !important;
+    line-height: 1.4;
+  }
+  .oph-emergency-review-dialog :is(.modal-body, p, label, input, textarea, .oph-banner-alert) {
+    font-family: inherit;
+    font-size: var(--oph-type-body) !important;
+    font-weight: 400 !important;
+    line-height: 1.5;
+  }
+  .oph-emergency-review-dialog strong {
+    font-family: inherit;
+    font-size: var(--oph-type-body);
+    font-weight: 500;
+  }
+  .oph-emergency-review-dialog .doc-btn {
+    font-family: inherit;
+    font-size: var(--oph-type-action) !important;
+    font-weight: 600;
+    line-height: 1.4;
+  }
   .oph-reference-consultation {
     --oph-type-page: clamp(24px, 2.1vw, 34px);
     --oph-type-section: 18px;
@@ -54,7 +84,8 @@
   .oph-reference-consultation :is(
     .oph-exam-card, .oph-diag-card-wrapper, .oph-treatment-card-wrapper,
     .oph-optical-reference, .opd-rx-card, .oph-order-builder, .oph-order-summary-panel,
-    .oph-referral-page-wrapper, .oph-followup-main-card, .oph-summary-card-section
+    .oph-referral-page-wrapper, .oph-followup-main-card, .oph-summary-card-section,
+    .oph-bio-content
   ) {
     font-family: inherit;
     font-size: var(--oph-type-body);
@@ -76,6 +107,8 @@
     line-height: 1.5 !important;
   }
   .oph-reference-consultation p { font-family: inherit !important; font-size: var(--oph-type-body) !important; line-height: 1.5 !important; }
+  .oph-reference-consultation .oph-bio-content strong { font-family: inherit; font-size: inherit; font-weight: 500; }
+  .oph-reference-consultation .oph-summary-continuing-care :is(strong, .oph-summary-procedure-name) { font-family: inherit; font-size: inherit; font-weight: 500; }
   .oph-reference-consultation :is(p, td, li, input, select, textarea) { font-weight: 400 !important; }
 
   .oph-reference-consultation :is(

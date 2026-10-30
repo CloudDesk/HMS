@@ -7,6 +7,7 @@ type ConfirmDialogProps = {
   message: string;
   confirmLabel?: string;
   loading?: boolean;
+  layer?: 'default' | 'top';
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -17,11 +18,13 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   loading = false,
+  layer = 'default',
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
     <Modal
+      layer={layer}
       footer={
         <>
           <button className="btn-secondary" disabled={loading} onClick={onCancel} type="button">

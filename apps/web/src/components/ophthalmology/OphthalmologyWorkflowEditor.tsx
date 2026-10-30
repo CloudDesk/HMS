@@ -16,7 +16,7 @@ export function OphthalmologyWorkflowEditor({ feature: f, record: initialRecord 
   const { register, control, setValue, handleSubmit, setError, formState: { errors, isDirty, isSubmitting } } = useForm<Editor>({ resolver: zodResolver(schema), defaultValues: { name: record?.name ?? '', visit_subtype: record?.visit_subtype, effective_from: record?.effective_from ?? null, stages: record?.stages.map((stage) => ({ ...stage, test_codes: stage.test_codes.join('\n') })) ?? [] } });
   const stages = useFieldArray({ control, name: 'stages' }); const values = useWatch({ control });
   const leave = useEditorLeaveGuard(isDirty); const readOnly = f.list.isError || (record ? record.status !== 'DRAFT' || !f.canEdit : !f.canCreate);
-  const close = () => { if (!f.busy && !isSubmitting && leave()) f.setQuery({ edit_id: null }); };
+  const close = async () => { if (!f.busy && !isSubmitting && await leave()) f.setQuery({ edit_id: null }); };
   return <Modal size="large" className="oph-workspace" open title={record ? `Edit workflow · revision ${record.revision}` : 'New ophthalmology workflow'} onClose={close} footer={<><button type="button" className="doc-btn" disabled={f.busy || isSubmitting} onClick={close}>Cancel</button><button type="submit" form="oph-workflow-form" className="doc-btn primary" disabled={f.busy || isSubmitting || readOnly}>Save draft workflow</button></>}>
     <form id="oph-workflow-form" onSubmit={handleSubmit(async (form) => {
       const body = workflowWriteSchema.safeParse({ name: form.name, effective_from: form.effective_from, stages: form.stages.map((stage) => ({ ...stage, test_codes: lines(stage.test_codes).map((code) => code.toUpperCase()) })) });

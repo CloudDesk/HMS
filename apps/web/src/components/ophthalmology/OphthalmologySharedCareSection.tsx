@@ -8,6 +8,7 @@ import { useOpdWorkspace } from '../../hooks/opd/useOpdWorkspace';
 import { useBranchesList } from '../../hooks/branches/useBranches';
 import { useDepartmentsList } from '../../hooks/departments/useDepartments';
 import { registerDraftSaveHandler } from '../../hooks/ophthalmology/useOphthalmologyDraftGuard';
+import { isFutureFollowUpStart } from '../../utils/follow-up-time';
 import type {
   ApiClinicalOrderPriority,
   ApiOpdReferralPriority,
@@ -370,7 +371,7 @@ export function OphthalmologySharedCareSection({
   }, [opd.doctors, referralSpecialty]);
 
   // 5. FOLLOW-UP STATE
-  const [followUpDate, setFollowUpDate] = useState('2026-10-12');
+  const [followUpDate, setFollowUpDate] = useState('');
   const [followUpDoctorId, setFollowUpDoctorId] = useState('');
   const [followUpStartTime, setFollowUpStartTime] = useState('09:00');
   const [followUpDurationMinutes, setFollowUpDurationMinutes] = useState('30');
@@ -379,7 +380,7 @@ export function OphthalmologySharedCareSection({
 
   useEffect(() => {
     if (opd.followUp) {
-      setFollowUpDate(opd.followUp.next_visit_date?.slice(0, 10) ?? '2026-10-12');
+      setFollowUpDate(opd.followUp.next_visit_date?.slice(0, 10) ?? '');
       setFollowUpDoctorId(opd.followUp.assigned_doctor_id ?? '');
       setFollowUpStartTime(opd.followUp.start_time ?? '09:00');
       setFollowUpDurationMinutes(String(opd.followUp.duration_minutes ?? 30));
@@ -673,6 +674,10 @@ export function OphthalmologySharedCareSection({
       toast.error('Please select a follow-up date and doctor.');
       return;
     }
+    if (!isFutureFollowUpStart(followUpDate, followUpStartTime, timezone)) {
+      toast.error('Select a future follow-up date and time.');
+      return;
+    }
     setUpdating('follow-up-schedule');
     try {
       const payload: SaveOpdFollowUpPayload = {
@@ -701,9 +706,9 @@ export function OphthalmologySharedCareSection({
     try {
       const payload: SaveOpdFollowUpPayload = {
         follow_up_type: 'CLINICAL_REVIEW',
-        next_visit_date: followUpDate || new Date().toISOString().slice(0, 10),
+        next_visit_date: followUpDate || undefined,
         start_time: followUpStartTime,
-        utc_datetime: followUpUtcDateTime(),
+        utc_datetime: followUpDate && followUpStartTime ? followUpUtcDateTime() : undefined,
         duration_minutes: Number(followUpDurationMinutes),
         assigned_doctor_id: followUpDoctorId || undefined,
         reason: followUpReason || 'Ophthalmic clinical follow-up review',
@@ -1048,6 +1053,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'follow-up' && (
         <OphthalmologyFollowUpSchedulingSection
+          timezone={timezone}
           showDraftAction={false}
           completionBlocked={false}
           completeConsultation={() => {

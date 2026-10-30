@@ -86,7 +86,7 @@
 .oph-orders-care .opd-rx-card .doc-form-grid.three { grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)); gap: var(--orders-gap) !important; }
 .oph-orders-care .opd-rx-card .doc-field { min-width: 0; gap: 8px !important; }
 .oph-orders-care .opd-rx-card .doc-field > span { font-size: var(--orders-font) !important; color: #5c7393; }
-.oph-orders-care .opd-rx-card .doc-field > span > span { display: block; margin-top: 8px; }
+.oph-orders-care .opd-rx-card .doc-field > span > span { display: inline; margin: 0; }
 .oph-orders-care .opd-rx-card :is(input, select, textarea) { min-height: var(--orders-control) !important; height: var(--orders-control) !important; font-size: var(--orders-font) !important; padding: 8px 11px !important; border: 1px solid #c6d7f1 !important; border-radius: 7px !important; }
 .oph-orders-care .opd-rx-card textarea { min-height: var(--orders-note) !important; height: auto !important; }
 .oph-orders-care .opd-rx-card .doc-field > div > span { display: none; }

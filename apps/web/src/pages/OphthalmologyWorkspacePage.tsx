@@ -1,6 +1,8 @@
+import { Modal } from '../components/ui/Modal';
+import { confirmAction } from '../components/ui/confirm-action';
 import { OphthalmologyEmergencyClearance } from '../components/ophthalmology/OphthalmologyEmergencyClearance';
 import { OphthalmologyEscalateModal } from '../components/ophthalmology/OphthalmologyEscalateModal';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -142,13 +144,15 @@ function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feat
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof acknowledgementSchema>>({ resolver: zodResolver(acknowledgementSchema), defaultValues: { note: '' } });
   return <section className={`doc-card ${alert.status === 'ACTIVE' ? 'oph-emergency' : ''}`}><h3>Emergency review · {alert.status}</h3><p>{alert.reason}</p><p>Triggered {new Date(alert.triggered_at).toLocaleString()} · actor {alert.triggered_by}</p>
     <p className="oph-allergy-alert">Acknowledgement records receipt only. Clinical disposition and clearance to resume routine OPD are not recorded by this alert. No linked Emergency encounter is confirmed here.</p>
-    {alert.status === 'ACKNOWLEDGED' ? <p>Acknowledged {alert.acknowledged_at ? new Date(alert.acknowledged_at).toLocaleString() : ''} · actor {alert.acknowledged_by} · {alert.acknowledgement_note || 'No note'}</p> : f.canEscalate && <form onSubmit={handleSubmit(async ({ note }) => { if (window.confirm('Acknowledge this emergency alert? The server requires an eligible ophthalmologist.')) await f.alert(alert, 'acknowledge', note || null); })}><fieldset disabled={f.busy || f.intakeQuery.isError} className="oph-fieldset"><label className="doc-field">Acknowledgement note<textarea {...register('note')} maxLength={1000} /></label>{errors.note && <p role="alert">{errors.note.message}</p>}<div className="oph-toolbar"><button type="button" className="doc-btn" onClick={() => void f.alert(alert, 'route', null)}>Retry clinician routing</button><button type="submit" className="doc-btn">Acknowledge alert</button></div></fieldset></form>}
+    {alert.status === 'ACKNOWLEDGED' ? <p>Acknowledged {alert.acknowledged_at ? new Date(alert.acknowledged_at).toLocaleString() : ''} · actor {alert.acknowledged_by} · {alert.acknowledgement_note || 'No note'}</p> : f.canEscalate && <form onSubmit={handleSubmit(async ({ note }) => { if (await confirmAction('Acknowledge this emergency alert? The server requires an eligible ophthalmologist.')) await f.alert(alert, 'acknowledge', note || null); })}><fieldset disabled={f.busy || f.intakeQuery.isError} className="oph-fieldset"><label className="doc-field">Acknowledgement note<textarea {...register('note')} maxLength={1000} /></label>{errors.note && <p role="alert">{errors.note.message}</p>}<div className="oph-toolbar"><button type="button" className="doc-btn" onClick={() => void f.alert(alert, 'route', null)}>Retry clinician routing</button><button type="submit" className="doc-btn">Acknowledge alert</button></div></fieldset></form>}
   </section>;
 }
 
 export function OphthalmologyWorkspacePage() {
   const f = useOphthalmologyWorkspaceFeature();
   const [escalateModalOpen, setEscalateModalOpen] = useState(false);
+  const [emergencyDetailsAlertId, setEmergencyDetailsAlertId] = useState<string | null>(null);
+  const emergencyDetailsContentRef = useRef<HTMLDivElement>(null);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const { search } = useAppLocation();
@@ -164,6 +168,27 @@ export function OphthalmologyWorkspacePage() {
   );
   const isEmergencyActive = Boolean(activeAlert);
   const isRoutineCareBlocked = Boolean(unclearedAlert);
+  const headerAlert = unclearedAlert ?? f.emergencyAlerts[0];
+  useLayoutEffect(() => {
+    if (!emergencyDetailsAlertId) return;
+    const workspace = document.querySelector('.oph-reference-consultation');
+    const source = workspace?.firstElementChild;
+    const dialog = emergencyDetailsContentRef.current?.closest<HTMLElement>('.oph-emergency-review-dialog');
+    if (!workspace || !source || !dialog) return;
+    const syncTypography = () => {
+      const styles = getComputedStyle(source);
+      for (const token of ['section', 'body', 'small', 'action']) {
+        const value = styles.getPropertyValue('--oph-type-' + token).trim();
+        if (value) dialog.style.setProperty('--oph-type-' + token, value);
+      }
+      dialog.style.fontFamily = styles.fontFamily;
+    };
+    syncTypography();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(syncTypography);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [emergencyDetailsAlertId, isRoutineCareBlocked]);
   const params = new URLSearchParams(search);
   const careTab = params.get('care_tab') || 'treatment';
   const isOrders = f.section === 'clinical' && (careTab === 'orders' || careTab === 'prescription' || careTab === 'lab-orders' || careTab === 'imaging-orders');
@@ -320,6 +345,19 @@ export function OphthalmologyWorkspacePage() {
           </div>
           {/* Right: action buttons */}
           <div className="oph-header-actions">
+            {headerAlert && (
+              <button type="button" className="oph-btn-escalate oph-emergency-details-trigger"
+                aria-label={isRoutineCareBlocked ? "Emergency review required: show alert details" : "Emergency history: show alert details"}
+                title={isRoutineCareBlocked ? "Emergency review required — view details" : "Emergency history — view details"}
+                aria-haspopup="dialog"
+                onClick={() => setEmergencyDetailsAlertId(headerAlert.id)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 2h10l5 5v10l-5 5H7l-5-5V7z" />
+                  <path d="M12 7v6" />
+                  <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+            )}
             {f.canEscalate && !isEmergencyActive && (
               <button
                 type="button"
@@ -350,44 +388,54 @@ export function OphthalmologyWorkspacePage() {
         </p>
 
         {/* Real-time Emergency Screening Alert Banner */}
-        {isRoutineCareBlocked && (
-          <div
-            className="oph-emergency-lock-banner oph-banner-alert emergency"
-            role="alert"
-            style={{
-              marginTop: '12px',
-              padding: '12px 16px',
-              background: '#fef2f2',
-              border: '2px solid #ef4444',
-              borderRadius: '8px',
-              color: '#991b1b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <i className="ph ph-warning-octagon-fill" style={{ fontSize: '1.25rem', color: '#dc2626' }} />
-              <div>
-                <strong>Emergency Review Required: {unclearedAlert?.reason || 'Clinical alert in progress'}</strong>
-                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#7f1d1d' }}>
-                  Routine consultation activities, routine testing, and sign-off are blocked under fail-closed safety safeguards until an authorized clinician records emergency clearance permitting routine care resumption.
-                </p>
+        {headerAlert && (
+          <Modal className="oph-emergency-review-dialog" open={emergencyDetailsAlertId === headerAlert.id} size="large" title={isRoutineCareBlocked ? "Emergency review required" : "Emergency history"} onClose={() => setEmergencyDetailsAlertId(null)}>
+            <div ref={emergencyDetailsContentRef}>
+            {isRoutineCareBlocked && <div
+              className="oph-emergency-lock-banner oph-banner-alert emergency"
+              role="alert"
+              style={{
+                marginTop: '12px',
+                padding: '12px 16px',
+                background: '#fef2f2',
+                border: '2px solid #ef4444',
+                borderRadius: '8px',
+                color: '#991b1b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <path d="M7 2h10l5 5v10l-5 5H7l-5-5V7z" />
+                  <path d="M12 7v6" />
+                  <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+                </svg>
+                <div>
+                  <strong>Emergency Review Required: {unclearedAlert?.reason || 'Clinical alert in progress'}</strong>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#7f1d1d' }}>
+                    Routine consultation activities, routine testing, and sign-off are blocked under fail-closed safety safeguards until an authorized clinician records emergency clearance permitting routine care resumption.
+                  </p>
+                </div>
               </div>
+              {f.canClearEmergency && unclearedAlert && (
+                <button
+                  type="button"
+                  className="doc-btn doc-btn-danger"
+                  style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c', fontSize: '0.82rem', padding: '5px 12px' }}
+                  onClick={() => { setEmergencyDetailsAlertId(null); f.setQuery('clear_alert_id', unclearedAlert.id); }}
+                >
+                  Clear Emergency
+                </button>
+              )}
+            </div>}
+            {f.intakeView?.alerts.filter((alert) => alert.status !== 'CLEARED').map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
+            {emergencyDetailsAlertId === headerAlert.id && <OphthalmologyEmergencyClearance feature={f} view="history" />}
             </div>
-            {f.canClearEmergency && unclearedAlert && (
-              <button
-                type="button"
-                className="doc-btn doc-btn-danger"
-                style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c', fontSize: '0.82rem', padding: '5px 12px' }}
-                onClick={() => f.setQuery('clear_alert_id', unclearedAlert.id)}
-              >
-                Clear Emergency
-              </button>
-            )}
-          </div>
+          </Modal>
         )}
       </section>
 
@@ -521,8 +569,8 @@ export function OphthalmologyWorkspacePage() {
 
 
       {/* Emergency Alerts */}
-      <OphthalmologyEmergencyClearance feature={f} />
-      {f.intakeView?.alerts.filter((alert) => alert.status !== 'CLEARED').map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
+      <OphthalmologyEmergencyClearance feature={f} view="dialog" />
+
 
       {/* Persistent Bottom Action Bar */}
       {f.context && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Modal } from '../ui/Modal';
 
 export interface OphthalmologyEscalateModalProps {
@@ -6,6 +6,7 @@ export interface OphthalmologyEscalateModalProps {
   onClose: () => void;
   onEscalate: (reason: string, triggerFindings?: string[], urgency?: 'ROUTINE' | 'URGENT' | 'EMERGENCY') => Promise<unknown>;
   busy?: boolean;
+  emergencyOnly?: boolean;
 }
 
 interface TriggerOption {
@@ -30,6 +31,7 @@ export function OphthalmologyEscalateModal({
   onClose,
   onEscalate,
   busy = false,
+  emergencyOnly = false,
 }: OphthalmologyEscalateModalProps) {
   const [reason, setReason] = useState('');
   const [urgency, setUrgency] = useState<'EMERGENCY' | 'URGENT'>('EMERGENCY');
@@ -39,7 +41,30 @@ export function OphthalmologyEscalateModal({
   const [otherTrigger, setOtherTrigger] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [titleElement, setTitleElement] = useState<HTMLDivElement | null>(null);
   const submittingRef = useRef(false);
+
+  // The modal is portalled to body, so copy the consultation's responsive text scale.
+  useLayoutEffect(() => {
+    if (!open || !titleElement) return;
+    const workspace = document.querySelector('.oph-reference-consultation');
+    const source = workspace?.firstElementChild;
+    const dialog = titleElement.closest<HTMLElement>('.oph-escalate-modal-dialog');
+    if (!workspace || !source || !dialog) return;
+    const syncTypography = () => {
+      const styles = getComputedStyle(source);
+      for (const [target, original] of [['heading', 'section'], ['body', 'body'], ['small', 'small'], ['action', 'action']]) {
+        const value = styles.getPropertyValue(`--oph-type-${original}`).trim();
+        if (value) dialog.style.setProperty(`--oph-esc-${target}`, value);
+      }
+      dialog.style.setProperty('--oph-esc-font-family', styles.fontFamily);
+    };
+    syncTypography();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(syncTypography);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [open, titleElement]);
 
   const urgencyRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -118,7 +143,7 @@ export function OphthalmologyEscalateModal({
         findings = clinicalFinding ? [clinicalFinding] : ['CLINICAL_ESCALATION'];
       }
 
-      const result = await onEscalate(trimmed, findings, urgency);
+      const result = await onEscalate(trimmed, findings, emergencyOnly ? 'EMERGENCY' : urgency);
       if (result) {
         setReason('');
         setOtherTrigger('');
@@ -141,7 +166,7 @@ export function OphthalmologyEscalateModal({
     <Modal
       open={open}
       title={
-        <div className="oph-esc-header-content">
+        <div className="oph-esc-header-content" ref={setTitleElement}>
           <div className="oph-esc-icon-box" aria-hidden="true">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 12h1m14 0h1M5.6 5.6l.7.7m11.4 0l.7-.7M12 4V3M7 12a5 5 0 0 1 10 0v5H7v-5zM5 17h14v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-2zM9 12h6" />
@@ -235,6 +260,7 @@ export function OphthalmologyEscalateModal({
               {/* Hidden select for full programmatic test and form compatibility */}
               <select
                 id="emergency-escalation-urgency"
+                disabled={emergencyOnly}
                 value={urgency}
                 onChange={(e) => setUrgency(e.target.value as 'EMERGENCY' | 'URGENT')}
                 tabIndex={-1}
@@ -250,6 +276,7 @@ export function OphthalmologyEscalateModal({
                 <button
                   type="button"
                   className={`oph-esc-dropdown-btn oph-esc-urgency-btn ${urgency.toLowerCase()}${urgencyOpen ? ' active' : ''}`}
+                  disabled={emergencyOnly}
                   onClick={() => {
                     setUrgencyOpen(!urgencyOpen);
                     setTriggerOpen(false);

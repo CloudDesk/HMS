@@ -41,7 +41,8 @@ export interface OphthalmologyConsultationSummaryFeatureProps {
 
 export function OphthalmologySummaryHeader({ printDisabled = false }: { printDisabled?: boolean }) {
   return (
-    <div className="oph-summary-page-heading">
+    <div className="oph-summary-page-heading oph-section-header-row">
+      <h3 className="oph-section-header-title" style={{ margin: 0 }}>Patient summary</h3>
       <button type="button" className="oph-btn-outline-sm oph-summary-print" disabled={printDisabled} onClick={() => window.print()}>
         <i className="ph ph-printer" aria-hidden="true" />Print summary
       </button>
@@ -139,6 +140,7 @@ export function OphthalmologyConsultationSummaryCard({
       )}
 
       <section className="oph-summary-card-section oph-summary-demographics" aria-label="Patient and encounter details">
+        <OphthalmologySummaryHeader printDisabled={!data} />
         <div className="oph-summary-two-col">
           {/* Left: Patient Details */}
           <div className="oph-summary-inner-card">
@@ -473,7 +475,7 @@ export function OphthalmologyConsultationSummaryCard({
       </section>
 
       {/* 6. 5. Continuing Care & Recommendations */}
-      <section className="oph-summary-card-section">
+      <section className="oph-summary-card-section oph-summary-continuing-care">
         <div className="oph-section-header-row">
           <div className="oph-section-header-left">
             <div className="oph-section-icon-box">
@@ -500,17 +502,17 @@ export function OphthalmologyConsultationSummaryCard({
 
         {/* Source Records Badges (Clinical safety trace) */}
         {s.procedure_recommendations?.map((p) => (
-          <div key={p.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', fontSize: '0.82rem', color: '#475569' }}>
+          <div key={p.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', color: '#475569' }}>
             <strong>Surgery/Procedure Recommended:</strong> {p.procedure_name || 'Procedure'} · Source status: {p.status ?? 'Not recorded'} · Booking: {p.booking_id ?? 'Not linked'} · Booking status: {p.booking_status ?? 'Not available'} · Reason: {p.reason || 'Not recorded'}
           </div>
         ))}
         {s.referrals?.map((r) => (
-          <div key={r.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', fontSize: '0.82rem', color: '#475569' }}>
+          <div key={r.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', color: '#475569' }}>
             <strong>Referral:</strong> To {r.target_department_name || 'Specialty'} · Source status: {r.status ?? 'Not recorded'}
           </div>
         ))}
         {s.follow_ups?.map((fu) => (
-          <div key={fu.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', fontSize: '0.82rem', color: '#475569' }}>
+          <div key={fu.id} style={{ padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', marginBottom: '8px', color: '#475569' }}>
             <strong>Follow-up:</strong> Source status: {fu.status ?? 'Not recorded'} · {fu.appointment_id ? 'Follow-up appointment linked' : 'No follow-up appointment booked'} · Date: {fu.follow_up_date ? new Date(fu.follow_up_date).toLocaleDateString() : 'Not recorded'} · not proof of care delivered
           </div>
         ))}
@@ -518,7 +520,7 @@ export function OphthalmologyConsultationSummaryCard({
         <div className="oph-summary-two-col">
           {/* Left: Next Steps */}
           <div>
-            <h5 style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Next Steps</h5>
+            <h5 className="oph-summary-plan-label" style={{ margin: '0 0 8px', color: '#0f172a' }}>Next Steps</h5>
             <ul className="oph-next-steps-list">
               <li>{s.clinical_review?.current?.patient_instructions || 'No patient instructions recorded.'}</li>
               <li>{s.clinical_review?.current?.follow_up_decision || 'No follow-up decision recorded.'}</li>
@@ -527,7 +529,7 @@ export function OphthalmologyConsultationSummaryCard({
 
           {/* Right: Surgery / Procedure Recommendation */}
           <div>
-            <h5 style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Surgery / Procedure Recommendation</h5>
+            <h5 className="oph-summary-plan-label" style={{ margin: '0 0 8px', color: '#0f172a' }}>Surgery / Procedure Recommendation</h5>
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 14px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}>
                 <circle cx="12" cy="12" r="10" />
@@ -535,10 +537,10 @@ export function OphthalmologyConsultationSummaryCard({
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               <div>
-                <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.84rem' }}>
+                <div className="oph-summary-procedure-name" style={{ color: '#1e40af' }}>
                   {s.procedure_recommendations?.[0]?.procedure_name || 'No procedure recommendation recorded.'}
                 </div>
-                <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '3px' }}>
+                <div style={{ color: '#475569', marginTop: '3px' }}>
                   Source status: {s.procedure_recommendations?.[0]?.status || 'Not recorded'} · Booking:{' '}
                   {s.procedure_recommendations?.[0]?.booking_id || 'Not linked'} · Booking status:{' '}
                   {s.procedure_recommendations?.[0]?.booking_status || 'Not recorded'} · Reason:{' '}

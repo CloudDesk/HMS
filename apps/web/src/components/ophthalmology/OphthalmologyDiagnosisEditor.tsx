@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useEffect, useState } from 'react';
 import { useFieldArray, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -95,10 +96,10 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: {
     });
   };
 
-  const handleRemoveDiagnosis = (index: number) => {
+  const handleRemoveDiagnosis = async (index: number) => {
     const current = getValues('diagnoses') || [];
     const item = current[index];
-    if (window.confirm(`Remove diagnosis "${item?.display || `#${index + 1}`}" from draft?`)) {
+    if (await confirmAction(`Remove diagnosis "${item?.display || `#${index + 1}`}" from draft?`)) {
       rows.remove(index);
       if (item?.type === 'PRIMARY') {
         const remaining = current.filter((_, i) => i !== index);

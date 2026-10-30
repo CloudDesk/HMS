@@ -56,11 +56,11 @@ export function OphthalmologyTreatmentLinks({
     {f.query.isLoading && <p role="status">Loading encounter care references…</p>}
     {(f.query.isError || f.invalid) && <p role="alert">Care references could not be verified for this encounter. Refresh to retry; saved selections are retained.</p>}
     <fieldset className="oph-fieldset" disabled={!f.ready}>
-      {config && <label className="doc-field">{config.label} <span className="oph-required">*</span><select value={values[config.key] ?? ''} onChange={(event) => onSelect(config.key, event.target.value || null)}>
+      {config && <label className="doc-field"><span>{config.label} <span className="oph-required">*</span></span><select value={values[config.key] ?? ''} onChange={(event) => onSelect(config.key, event.target.value || null)}>
         <option value="">Select saved record</option>{values[config.key] && !records.some((record) => record.id === values[config.key]) && <option value={values[config.key] ?? ''}>Saved reference {values[config.key]} — unavailable</option>}
         {records.map((record) => <option key={record.id} value={record.id}>{record.id} · {record.status ?? 'Unknown'}</option>)}
       </select>{!f.query.isLoading && f.ready && records.length === 0 && <span>{config.empty}</span>}</label>}
-      {actionType === 'INVESTIGATION' && <label className="doc-field">Laboratory / imaging orders <span className="oph-required">*</span><select multiple value={values.clinical_order_ids ?? []} onChange={(event) => onOrders(Array.from(event.target.selectedOptions, (option) => option.value))}>
+      {actionType === 'INVESTIGATION' && <label className="doc-field"><span>Laboratory / imaging orders <span className="oph-required">*</span></span><select multiple value={values.clinical_order_ids ?? []} onChange={(event) => onOrders(Array.from(event.target.selectedOptions, (option) => option.value))}>
         {(values.clinical_order_ids ?? []).filter((value) => !f.data?.clinical_orders.some((record) => record.id === value)).map((value) => <option key={value} value={value}>Saved reference {value} — unavailable</option>)}
         {f.data?.clinical_orders.map((record) => <option key={record.id} value={record.id}>{record.order_type} · {record.status ?? 'Unknown'} · {record.id}</option>)}
       </select>{!f.query.isLoading && f.ready && !f.data?.clinical_orders.length && <span>No laboratory or imaging order is available for this encounter.</span>}</label>}

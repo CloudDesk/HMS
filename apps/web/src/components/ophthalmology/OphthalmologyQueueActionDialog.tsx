@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -30,7 +31,7 @@ export function OphthalmologyQueueActionDialog({ feature: f, task: latest, actio
         const signature = JSON.stringify([task.id, task.version, action, values]);
         if (attempt.current?.signature !== signature) attempt.current = { signature, key: crypto.randomUUID() };
         const command = buildQueueCommand(task, action, values, attempt.current.key);
-        if (!window.confirm(`Confirm ${title.toLowerCase()} for ${task.test_name} (${task.laterality})?`)) return;
+        if (!await confirmAction(`Confirm ${title.toLowerCase()} for ${task.test_name} (${task.laterality})?`)) return;
         const saved = await f.actionSubmit(command);
         if (saved) { reset(values); committed(); f.setQuery({ action: null, action_station_id: null, route_task_id: null, route_target: null, task_id: saved.id }); }
       } catch (cause) { setError('root', { message: cause instanceof z.ZodError ? cause.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(' · ') : cause instanceof Error ? cause.message : 'Check the action fields.' }); }

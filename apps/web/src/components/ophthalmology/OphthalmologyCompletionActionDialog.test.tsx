@@ -1,3 +1,5 @@
+import { confirmAction } from '../ui/confirm-action';
+vi.mock('../ui/confirm-action', () => ({ confirmAction: vi.fn().mockResolvedValue(true) }));
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +9,7 @@ import { OphthalmologyCompletionActionDialog } from './OphthalmologyCompletionAc
 describe('B5 original readiness snapshot and preserved exception reasons', () => {
   let root: Root; let container: HTMLDivElement; const override = vi.fn(); const setQuery = vi.fn();
   const feature = (version = 4, details = 'Review result') => ({ finalizationVersion: version, readiness: { consultation_version: version }, unmet: [{ code: 'ALL_RESULTS_RESOLVED', details, resource_ids: [] }], tasks: [], orders: [], doctors: [], writable: true, busy: false, error: null, override, setQuery }) as unknown as OphthalmologyCompletionFeature;
-  beforeEach(() => { override.mockReset(); setQuery.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { override.mockReset(); setQuery.mockReset(); vi.mocked(confirmAction).mockReset().mockResolvedValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
   async function reason(value: string) { const input = document.querySelector('textarea'); if (!input) throw new Error('Missing reason'); await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }); return input; }
   async function submit() { await act(async () => { document.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }); }
@@ -30,6 +32,6 @@ describe('B5 original readiness snapshot and preserved exception reasons', () =>
   });
   it('requires a reason and respects declined confirmation', async () => {
     await act(async () => root.render(<OphthalmologyCompletionActionDialog feature={feature()} action="override" />)); await submit(); expect(override).not.toHaveBeenCalled();
-    await reason('QA reason'); vi.mocked(window.confirm).mockReturnValue(false); await submit(); expect(override).not.toHaveBeenCalled();
+    await reason('QA reason'); vi.mocked(confirmAction).mockResolvedValue(false); await submit(); expect(override).not.toHaveBeenCalled();
   });
 });

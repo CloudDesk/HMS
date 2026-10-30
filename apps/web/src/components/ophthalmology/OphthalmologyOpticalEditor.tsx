@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useEffect, useState } from 'react';
 import { Controller, useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -205,8 +206,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
       {changed && (
         <p role="alert" className="form-error-banner">
           The saved prescription changed on the server. Your entries remain here; reload the saved version before continuing.
-          <button type="button" className="oph-btn-outline" disabled={f.busy || f.opticalQuery.isError} onClick={() => {
-            if (!isDirty || window.confirm('Discard entered values and load the latest saved optical prescription?')) {
+          <button type="button" className="oph-btn-outline" disabled={f.busy || f.opticalQuery.isError} onClick={async () => {
+            if (!isDirty || await confirmAction('Discard entered values and load the latest saved optical prescription?')) {
               setBaseline(f.optical);
               reset(initial(f.optical));
             }
@@ -224,6 +225,9 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
               1. Prescription classification (optional)
             </h3>
             <p className="oph-card-subtitle">Select the intended focal range and use.</p>
+            {f.optical?.current.approved_at && (
+              <span className="oph-badge oph-badge-green">Locked for Dispensing</span>
+            )}
           </div>
 
           <div className="oph-class-grid">
@@ -295,10 +299,10 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                           <input
                             type="checkbox"
                             checked={isPrescribed}
-                            onChange={(event) => {
+                            onChange={async (event) => {
                               if (event.target.checked) {
                                 setValue(`power.${eye}`, { sphere: null }, { shouldDirty: true });
-                              } else if (window.confirm(`Remove ${eye} power from this prescription draft?`)) {
+                              } else if (await confirmAction(`Remove ${eye} power from this prescription draft?`)) {
                                 setValue(`power.${eye}`, null, { shouldDirty: true });
                                 setValue(`segment_height.${eye}`, null, { shouldDirty: true });
                               }
@@ -633,7 +637,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
               className="oph-btn-approve"
               disabled={!f.canApproveOptical || f.busy || isDirty || changed || !baseline || baseline.status !== 'DRAFT' || !authorizationComplete}
               onClick={async () => {
-                if (baseline && window.confirm(`Approve saved optical prescription version ${baseline.version}? Approval locks its contents.`)) {
+                if (baseline && await confirmAction(`Approve saved optical prescription version ${baseline.version}? Approval locks its contents.`)) {
                   const saved = await f.approveOptical(baseline.version);
                   if (saved) apply(saved);
                 }
@@ -647,19 +651,6 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </div>
         </div>
       </fieldset>
-
-      {f.optical?.current.approved_at && (
-        <div className="oph-history-toggle-card active" style={{ marginTop: '18px' }}>
-          <div className="oph-history-toggle-left">
-            <span style={{ fontSize: '1.2rem' }}>✓</span>
-            <div className="oph-history-toggle-text">
-              <h4>Doctor Authentication & Clinical Approval Confirmed</h4>
-              <p>Approved by Doctor: <strong>{f.optical.current.approver_doctor_id}</strong> on {new Date(f.optical.current.approved_at).toLocaleString()}</p>
-            </div>
-          </div>
-          <span className="oph-badge oph-badge-green">Locked for Dispensing</span>
-        </div>
-      )}
 
       {/* Official Spectacle Dispensing Slip Modal / Printable Card */}
       {showSlip && baseline && (

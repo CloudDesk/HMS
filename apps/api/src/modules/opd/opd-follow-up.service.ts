@@ -110,6 +110,10 @@ export class OpdFollowUpService {
     if (!data.reason?.trim()) {
       throw new AppError('Follow-up reason is required', 400, 'VALIDATION_ERROR');
     }
+    const start = new Date(data.utc_datetime).getTime();
+    if (!Number.isFinite(start) || start <= Date.now()) {
+      throw new AppError('Follow-up date and time must be in the future', 400, 'PAST_APPOINTMENT_TIME');
+    }
   }
 
   private async getVisit(visitId: string, userId: string) {

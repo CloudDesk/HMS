@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useState, useContext } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,7 +25,7 @@ function ClearanceDialog({ alert, feature: f }: { alert: OphthalmologyAlert; fea
     <button type="submit" form="oph-emergency-clearance" className="doc-btn primary" disabled={disabled}>Record clearance</button>
   </>}>
     <form id="oph-emergency-clearance" onSubmit={handleSubmit(async (body) => {
-      if (disabled || !window.confirm('Record this emergency disposition? Admission disposition creates an inpatient admission request; bed allocation remains a separate step.')) return;
+      if (disabled || !await confirmAction('Record this emergency disposition? Admission disposition creates an inpatient admission request; bed allocation remains a separate step.')) return;
       const result = await f.clearEmergency(original, body);
       if (result) close();
     })}>
@@ -33,7 +34,7 @@ function ClearanceDialog({ alert, feature: f }: { alert: OphthalmologyAlert; fea
       {f.clearanceQuery.isError && <p role="alert">Unable to verify the alert. <button type="button" className="doc-btn" onClick={() => void f.clearanceQuery.refetch()}>Retry</button></p>}
       {f.actionError && <p role="alert" className="form-error-banner">{f.actionError}</p>}
       <fieldset disabled={disabled} className="oph-fieldset">
-        <label className="doc-field">Disposition <span className="required-asterisk">*</span>
+        <label className="doc-field"><span>Disposition <span className="required-asterisk">*</span></span>
           <select {...register('disposition')} onChange={(event) => {
             const disposition = clearAlertSchema.shape.disposition.parse(event.target.value);
             setValue('disposition', disposition, { shouldDirty: true });
@@ -44,7 +45,7 @@ function ClearanceDialog({ alert, feature: f }: { alert: OphthalmologyAlert; fea
             <option value="TRANSFER_EXTERNAL">Transfer externally</option>
           </select>
         </label>
-        <label className="doc-field">Clearance rationale <span className="required-asterisk">*</span><textarea maxLength={5000} {...register('clearance_rationale')} /></label>
+        <label className="doc-field"><span>Clearance rationale <span className="required-asterisk">*</span></span><textarea maxLength={5000} {...register('clearance_rationale')} /></label>
         {errors.clearance_rationale && <p role="alert">{errors.clearance_rationale.message}</p>}
         <label><input type="checkbox" {...register('resumption_permitted')} disabled={watch('disposition') !== 'RESUME_ROUTINE_OPD'} /> Routine OPD resumption permitted</label>
         {errors.resumption_permitted && <p role="alert">{errors.resumption_permitted.message}</p>}
@@ -197,13 +198,13 @@ export function EmergencyAdmissionRequestCard({
   );
 }
 
-export function OphthalmologyEmergencyClearance({ feature: f }: { feature: OphthalmologyWorkspaceFeature }) {
+export function OphthalmologyEmergencyClearance({ feature: f, view = 'all' }: { feature: OphthalmologyWorkspaceFeature; view?: 'all' | 'dialog' | 'history' }) {
   const { search } = useAppLocation();
   const selectedId = new URLSearchParams(search).get('clear_alert_id');
   const alerts = f.emergencyAlerts ?? [];
   const selected = alerts.find((alert) => alert.id === selectedId && alert.status !== 'CLEARED');
   return <>
-    {alerts.map((alert) => <section className="doc-card" key={alert.id}>
+    {view !== 'dialog' && alerts.filter((alert) => view !== 'history' || alert.status === 'CLEARED').map((alert) => <section className="doc-card" key={alert.id}>
       <h3>Emergency disposition · {alert.status}</h3><p>{alert.reason}</p>
       {alert.clearance && <><p>{alert.clearance.disposition} · {alert.clearance.clearance_rationale}</p>
         <p>Cleared {new Date(alert.clearance.cleared_at).toLocaleString()} · clinician {alert.clearance.cleared_by} · Routine resumption {alert.clearance.resumption_permitted ? 'permitted' : 'not permitted'}</p>
@@ -219,6 +220,6 @@ export function OphthalmologyEmergencyClearance({ feature: f }: { feature: Ophth
         ) : null}</>}
       {f.canClearEmergency && alert.status !== 'CLEARED' && <button type="button" className="doc-btn" onClick={() => f.setQuery('clear_alert_id', alert.id)}>Clear Emergency</button>}
     </section>)}
-    {selected && <ClearanceDialog key={`${f.visitId}-${selected.id}`} alert={selected} feature={f} />}
+    {view !== 'history' && selected && <ClearanceDialog key={`${f.visitId}-${selected.id}`} alert={selected} feature={f} />}
   </>;
 }

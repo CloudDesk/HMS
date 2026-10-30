@@ -1,3 +1,4 @@
+import { confirmAction } from '../ui/confirm-action';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,13 +13,13 @@ export function OphthalmologyContextEditor({ feature: f, context: initial }: { f
   const [context] = useState(initial);
   const { register, handleSubmit, setValue, reset, formState: { errors, isDirty, isSubmitting } } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { visit_subtype: context.visit_subtype, affected_eye: context.affected_eye, workflow_profile_version_id: context.workflow_profile_version_id } });
   const leave = useEditorLeaveGuard(isDirty);
-  const close = () => { if (!f.busy && !isSubmitting && leave()) f.setQuery('edit_context', 'closed'); };
+  const close = async () => { if (!f.busy && !isSubmitting && await leave()) f.setQuery('edit_context', 'closed'); };
   const disabled = !f.canEdit || f.busy || isSubmitting || f.contextQuery.isError || f.visitQuery.isError;
   return <Modal open className="oph-workspace" title="Edit ophthalmology context" onClose={close} footer={<><button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={close}>Cancel</button><button className="doc-btn primary" type="submit" form="oph-context-form" disabled={disabled || !isDirty || f.workflowsQuery.isError}>Save context changes</button></>}>
     <p>Context version {context.version}. The server rechecks visit mapping and workflow compatibility.</p>
     {initial.version !== context.version && <p role="alert">The saved context has changed. Close and reopen this editor to reload; saving the original version will report a conflict.</p>}
     <form id="oph-context-form" onSubmit={handleSubmit(async (body) => {
-      if (!window.confirm('Save the affected eye, subtype and workflow changes for this encounter?')) return;
+      if (!await confirmAction('Save the affected eye, subtype and workflow changes for this encounter?')) return;
       const saved = await f.updateContext({ expected_version: context.version, ...body });
       if (saved) { reset(body); f.setQuery('edit_context', 'closed'); }
     })}><EditorErrors errors={errors} /><fieldset className="oph-fieldset" disabled={disabled}>

@@ -1,3 +1,5 @@
+import { confirmAction } from '../ui/confirm-action';
+vi.mock('../ui/confirm-action', () => ({ confirmAction: vi.fn().mockResolvedValue(true) }));
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +15,7 @@ describe('optical saved draft, conflict and approval interaction', () => {
   const saveOptical = vi.fn(); const approveOptical = vi.fn();
   const feature = (version = 4) => ({ optical: record(version), canSaveOptical: true, canApproveOptical: true, busy: false, opticalQuery: {}, configuration: { name: 'QA' }, configurationQuery: {}, canConfigure: false, lensTypes: ['QA_LENS'], materials: ['QA_MATERIAL'], coatings: [], error: null, saveOptical, approveOptical }) as unknown as OphthalmologyCareFeature;
   const workspace: CareWorkspace = { visitId: id, canView: true, scopeError: false, visitQuery: { isError: false }, contextQuery: { isError: false }, configurationPage: 1, setQuery: vi.fn() };
-  beforeEach(() => { clearEncounterDraft(id); saveOptical.mockReset(); approveOptical.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { clearEncounterDraft(id); saveOptical.mockReset(); approveOptical.mockReset(); vi.mocked(confirmAction).mockReset().mockResolvedValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
   function instructions() { const textarea = [...container.querySelectorAll('label')].find((label) => label.textContent?.toLowerCase().includes('instructions for optician'))?.querySelector('textarea'); if (!textarea) throw new Error('Missing instructions'); return textarea; }
   function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.toLowerCase().includes('authorize prescription')); if (!button) throw new Error('Missing approval'); return button; }
@@ -47,7 +49,7 @@ describe('optical saved draft, conflict and approval interaction', () => {
   });
   it('confirms approval of the exact clean saved version', async () => {
     await act(async () => root.render(<OphthalmologyOpticalEditor feature={feature()} workspace={workspace} />));
-    expect(approve().disabled).toBe(false); await act(async () => approve().click()); expect(approveOptical).toHaveBeenCalledWith(4); expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(approve().disabled).toBe(false); await act(async () => approve().click()); expect(approveOptical).toHaveBeenCalledWith(4); expect(confirmAction).toHaveBeenCalledTimes(1);
   });
   it('shows readable coating labels while saving the configured coating code', async () => {
     await act(async () => root.render(<OphthalmologyOpticalEditor feature={{ ...feature(), coatings: ['ANTI_REFLECTIVE'] }} workspace={workspace} />));
@@ -57,5 +59,17 @@ describe('optical saved draft, conflict and approval interaction', () => {
     expect(approve().disabled).toBe(true);
     await submit();
     expect(saveOptical).toHaveBeenCalledWith(expect.objectContaining({ coating_codes: ['ANTI_REFLECTIVE'] }));
+  });
+  it('shows the dispensing lock only in the first section header without the approval card', async () => {
+    const approved = record();
+    approved.status = 'APPROVED';
+    approved.current.status = 'APPROVED';
+    approved.current.approved_at = '2026-10-26T19:03:13Z';
+    await act(async () => root.render(<OphthalmologyOpticalEditor feature={{ ...feature(), optical: approved, canSaveOptical: false, canApproveOptical: false }} workspace={workspace} />));
+    expect(container.querySelector('.oph-card-header')?.textContent).toContain('Locked for Dispensing');
+    expect(container.textContent?.split('Locked for Dispensing')).toHaveLength(2);
+    expect(container.textContent).not.toContain('Doctor Authentication & Clinical Approval Confirmed');
+    expect(container.querySelector('fieldset')?.disabled).toBe(true);
+    expect(approve().disabled).toBe(true);
   });
 });

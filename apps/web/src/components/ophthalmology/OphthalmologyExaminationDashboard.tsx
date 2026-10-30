@@ -1294,21 +1294,21 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             )}
 
             {fundusTab === 'indirect' && (
-              <div>
-                <div style={{ padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '8px', fontSize: '0.8rem' }}>
+              <div className="oph-bio-content">
+                <div style={{ padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '8px' }}>
                   <strong>Volk 20D Dilated BIO Examination</strong>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ padding: '8px', background: '#eff6ff', borderRadius: '6px', fontSize: '0.78rem' }}>
+                  <div style={{ padding: '8px', background: '#eff6ff', borderRadius: '6px' }}>
                     <strong style={{ color: '#1e3a8a', display: 'block', marginBottom: '4px' }}>OD 360° Quadrants</strong>
                     <div>Periphery assessment pending examination</div>
                   </div>
-                  <div style={{ padding: '8px', background: '#ecfdf5', borderRadius: '6px', fontSize: '0.78rem' }}>
+                  <div style={{ padding: '8px', background: '#ecfdf5', borderRadius: '6px' }}>
                     <strong style={{ color: '#064e3b', display: 'block', marginBottom: '4px' }}>OS 360° Quadrants</strong>
                     <div>Periphery assessment pending examination</div>
                   </div>
                 </div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Periphery Notes</label>
+                <label style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>Periphery Notes</label>
                 <textarea rows={2} className="oph-exam-textarea" value={fundusIndirectNotes} onChange={(e) => setFundusIndirectNotes(e.target.value)} placeholder="Periphery notes..." />
               </div>
             )}

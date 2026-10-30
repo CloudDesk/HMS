@@ -1,3 +1,5 @@
+import { confirmAction } from '../ui/confirm-action';
+import { OphthalmologyEscalateModal } from './OphthalmologyEscalateModal';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,8 +18,6 @@ import { useDoctorsList } from '../../hooks/doctors/useDoctors';
 import { useServicesList } from '../../hooks/services/useServices';
 import { NewProcedureRecommendationModal } from '../surgery/NewProcedureRecommendationModal';
 import { OphthalmologySharedCareSection, type SharedCareTab } from './OphthalmologySharedCareSection';
-import { OphthalmologyEmergencyClearance } from './OphthalmologyEmergencyClearance';
-import type { OphthalmologyWorkspaceFeature } from '../../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 
 export function Reading({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value == null) return <span>Not recorded</span>;
@@ -32,6 +32,7 @@ export function Reading({ value, depth = 0 }: { value: unknown; depth?: number }
 const reviewForm = z.object({ comment: z.string().max(2000) });
 
 function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
+  const [escalationOpen, setEscalationOpen] = useState(false);
   const [baseline, setBaseline] = useState({ task: f.task, result: f.result });
   const { register, handleSubmit, reset, formState: { errors, isDirty, isSubmitting } } = useForm<z.infer<typeof reviewForm>>({ resolver: zodResolver(reviewForm), defaultValues: { comment: '' } });
   useOphthalmologyDraftGuard(isDirty, ['visit_id', 'section', 'care_tab', 'review_task_id', 'area']);
@@ -40,7 +41,7 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
   const changed = task.version !== f.task?.version || result.version !== f.result?.version || result.current_clinical_version !== f.result?.current_clinical_version;
   return (
     <form className="doc-card" onSubmit={handleSubmit(async (values) => {
-      if (!f.canReview || changed || f.busy || isSubmitting || !window.confirm(`Review ${task.test_name}, ${task.laterality}, clinical version ${result.current_clinical_version}? This records your authenticated review.`)) return;
+      if (!f.canReview || changed || f.busy || isSubmitting || !await confirmAction(`Review ${task.test_name}, ${task.laterality}, clinical version ${result.current_clinical_version}? This records your authenticated review.`)) return;
       const saved = await f.reviewResult({ expected_task_version: task.version, expected_result_version: result.version, expected_clinical_version: result.current_clinical_version, comment: values.comment || null });
       if (saved) { setBaseline({ task: saved, result }); reset(values); }
     })}>
@@ -49,7 +50,7 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
       <p>{result.current.reliability_reason ?? 'No reliability reason recorded'}</p>
       <p>{result.current.comments ?? 'No technician impression recorded'}</p>
       {changed && <p role="alert">The task or clinical result changed. The displayed review version is retained. Load the latest version before reviewing.</p>}
-      <button type="button" className="doc-btn" disabled={f.busy || f.taskQuery.isError || f.resultQuery.isError} onClick={() => { if (!isDirty || window.confirm('Discard your comment and load the latest saved clinical version?')) { setBaseline({ task: f.task, result: f.result }); reset({ comment: '' }); } }}>Load latest review version</button>
+      <button type="button" className="doc-btn" disabled={f.busy || f.taskQuery.isError || f.resultQuery.isError} onClick={async () => { if (!isDirty || await confirmAction('Discard your comment and load the latest saved clinical version?')) { setBaseline({ task: f.task, result: f.result }); reset({ comment: '' }); } }}>Load latest review version</button>
       <Reading value={result.current.payload} />
       <p>Source documents: {result.current.document_ids.join(', ') || 'None'}. Open the source result for authorised attachment access.</p>
       <button type="button" className="doc-btn" onClick={f.openSourceResult}>Open source result and attachments</button>
@@ -58,12 +59,7 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
           type="button"
           className="doc-btn doc-btn-danger"
           disabled={changed || f.busy || isSubmitting}
-          onClick={async () => {
-            const reason = window.prompt(`Emergency escalation reason for diagnostic finding (${task.test_name}):`);
-            if (reason && reason.trim() && f.workspace?.escalate) {
-              await f.workspace.escalate(reason.trim(), ['DIAGNOSTIC_REVIEW_FINDING'], 'EMERGENCY');
-            }
-          }}
+          onClick={() => setEscalationOpen(true)}
         >
           <i className="ph ph-warning-bold" style={{ marginRight: '4px' }} />
           Escalate Emergency from Result
@@ -71,7 +67,7 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
       )}
       {f.canRequestRepeat && (
         <>
-          <button type="button" className="doc-btn" disabled={changed || f.busy || isSubmitting} onClick={() => { if (!isDirty || window.confirm('Leave the unsaved review comment and open the repeat-test request?')) f.requestRepeat(); }}>Request repeat test</button>
+          <button type="button" className="doc-btn" disabled={changed || f.busy || isSubmitting} onClick={async () => { if (!isDirty || await confirmAction('Leave the unsaved review comment and open the repeat-test request?')) f.requestRepeat(); }}>Request repeat test</button>
           <p>The repeat request requires a reason and station assignment. The original result remains preserved.</p>
         </>
       )}
@@ -80,6 +76,8 @@ function ResultReview({ feature: f }: { feature: OphthalmologyCareFeature }) {
       <label className="doc-field">Review comment<textarea maxLength={2000} disabled={!f.canReview || changed || f.busy} {...register('comment')} /></label>
       <button type="submit" className="doc-btn primary" disabled={!f.canReview || changed || f.busy || isSubmitting}>Record review of this saved clinical version</button>
       {f.error && <p role="alert" className="form-error-banner">{f.error} Your comment is retained.</p>}
+      <OphthalmologyEscalateModal emergencyOnly open={escalationOpen} onClose={() => setEscalationOpen(false)}
+        onEscalate={(reason, findings, urgency) => f.workspace?.escalate?.(reason, ['DIAGNOSTIC_REVIEW_FINDING', ...(findings ?? [])], urgency ?? 'EMERGENCY') ?? Promise.resolve(undefined)} />
     </form>
   );
 }
@@ -208,9 +206,7 @@ export function OphthalmologyCareWorkspace({
         </div>
       )}
 
-      {workspace.emergencyAlerts && workspace.emergencyAlerts.length > 0 && (
-        <OphthalmologyEmergencyClearance feature={workspace as unknown as OphthalmologyWorkspaceFeature} />
-      )}
+
 
       {f.tab === 'treatment' && !f.canClinical && <p role="alert">Ophthalmology Consultation View permission is required.</p>}
 
