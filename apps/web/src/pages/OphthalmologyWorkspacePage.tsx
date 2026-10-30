@@ -145,6 +145,7 @@ function EmergencyAlert({ alert, feature: f }: { alert: OphthalmologyAlert; feat
   return <section className={`doc-card ${alert.status === 'ACTIVE' ? 'oph-emergency' : ''}`}><h3>Emergency review · {alert.status}</h3><p>{alert.reason}</p><p>Triggered {new Date(alert.triggered_at).toLocaleString()} · actor {alert.triggered_by}</p>
     <p className="oph-allergy-alert">Acknowledgement records receipt only. Clinical disposition and clearance to resume routine OPD are not recorded by this alert. No linked Emergency encounter is confirmed here.</p>
     {alert.status === 'ACKNOWLEDGED' ? <p>Acknowledged {alert.acknowledged_at ? new Date(alert.acknowledged_at).toLocaleString() : ''} · actor {alert.acknowledged_by} · {alert.acknowledgement_note || 'No note'}</p> : f.canEscalate && <form onSubmit={handleSubmit(async ({ note }) => { if (await confirmAction('Acknowledge this emergency alert? The server requires an eligible ophthalmologist.')) await f.alert(alert, 'acknowledge', note || null); })}><fieldset disabled={f.busy || f.intakeQuery.isError} className="oph-fieldset"><label className="doc-field">Acknowledgement note<textarea {...register('note')} maxLength={1000} /></label>{errors.note && <p role="alert">{errors.note.message}</p>}<div className="oph-toolbar"><button type="button" className="doc-btn" onClick={() => void f.alert(alert, 'route', null)}>Retry clinician routing</button><button type="submit" className="doc-btn">Acknowledge alert</button></div></fieldset></form>}
+    {f.canClearEmergency && alert.status !== 'CLEARED' && <button type="button" className="doc-btn doc-btn-danger" onClick={() => f.setQuery('clear_alert_id', alert.id)}>Clear Emergency</button>}
   </section>;
 }
 
@@ -421,18 +422,9 @@ export function OphthalmologyWorkspacePage() {
                   </p>
                 </div>
               </div>
-              {f.canClearEmergency && unclearedAlert && (
-                <button
-                  type="button"
-                  className="doc-btn doc-btn-danger"
-                  style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c', fontSize: '0.82rem', padding: '5px 12px' }}
-                  onClick={() => { setEmergencyDetailsAlertId(null); f.setQuery('clear_alert_id', unclearedAlert.id); }}
-                >
-                  Clear Emergency
-                </button>
-              )}
+
             </div>}
-            {f.intakeView?.alerts.filter((alert) => alert.status !== 'CLEARED').map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
+            {f.emergencyAlerts.filter((alert) => alert.status !== 'CLEARED').map((alert) => <EmergencyAlert key={alert.id} alert={alert} feature={f} />)}
             {emergencyDetailsAlertId === headerAlert.id && <OphthalmologyEmergencyClearance feature={f} view="history" />}
             </div>
           </Modal>

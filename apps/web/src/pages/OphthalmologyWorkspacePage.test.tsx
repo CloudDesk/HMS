@@ -5,10 +5,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resultSchema, taskSchema } from '../api/ophthalmology';
 
-const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, canEscalate: true, escalate: vi.fn(), contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn(), alert: vi.fn() }));
+const state = vi.hoisted(() => ({ alertStatus: null as null | 'ACTIVE' | 'ACKNOWLEDGED', task: undefined as unknown, result: undefined as unknown, canEdit: true, canEscalate: true, canClearEmergency: false, escalate: vi.fn(), contextEditOpen: false, contextVersion: 0, updateContext: vi.fn(), amending: false, canAttach: false, refreshError: false, save: vi.fn(), amend: vi.fn(), upload: vi.fn(), reload: vi.fn(), setQuery: vi.fn(), alert: vi.fn() }));
 vi.mock('../routing/navigation', async (importOriginal) => ({ ...await importOriginal<typeof import('../routing/navigation')>(), useAppLocation: () => ({ pathname: '/opd/ophthalmology', search: '?section=tests' }) }));
 vi.mock('../hooks/ophthalmology/useOphthalmologyWorkspaceFeature', () => ({ useOphthalmologyWorkspaceFeature: () => ({
-  canView: true, canConfigure: true, canEscalate: state.canEscalate, escalate: state.escalate, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
+  canView: true, canConfigure: true, canEscalate: state.canEscalate, canClearEmergency: state.canClearEmergency, escalate: state.escalate, visitId: '111111111111111111111111', section: 'tests', context: { id: '222222222222222222222222', version: state.contextVersion, visit_subtype: 'NEW_CONSULTATION', affected_eye: 'OD', workflow_profile_version_id: '111111111111111111111111' }, contextEditOpen: state.contextEditOpen, canEdit: state.canEdit, availableSubtypes: ['NEW_CONSULTATION'], workflows: [], workflowsQuery: {}, updateContext: state.updateContext,
   canViewExamination: true, canViewDiagnosis: true, canViewClinical: true, canSignEncounter: true,
   intakeView: state.alertStatus ? { shared_history: {}, alerts: [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] } : undefined,
   emergencyAlerts: state.alertStatus ? [{ id: 'alert-1', status: state.alertStatus, reason: 'Emergency screening', triggered_at: '2026-10-21T00:00:00Z', triggered_by: 'clinician-1' }] : [],
@@ -35,7 +35,7 @@ const result = () => resultSchema.parse({ ...scope, id, task_id: '33333333333333
 describe('ophthalmology structured form interaction', () => {
   let root: Root;
   let container: HTMLDivElement;
-  beforeEach(() => { state.alertStatus = null; state.task = task(); state.result = result(); state.canEdit = true; state.contextEditOpen = false; state.contextVersion = 0; state.updateContext.mockReset(); state.amending = false; state.canAttach = false; state.refreshError = false; state.save.mockReset(); state.amend.mockReset(); state.upload.mockReset(); state.reload.mockReset(); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { state.alertStatus = null; state.canClearEmergency = false; state.task = task(); state.result = result(); state.canEdit = true; state.contextEditOpen = false; state.contextVersion = 0; state.updateContext.mockReset(); state.amending = false; state.canAttach = false; state.refreshError = false; state.save.mockReset(); state.amend.mockReset(); state.upload.mockReset(); state.reload.mockReset(); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
   function sphereInput() {
     const input = [...container.querySelectorAll('label')].find((label) => label.textContent?.startsWith('OD optical power sphere'))?.querySelector('input');
@@ -173,6 +173,18 @@ describe('ophthalmology structured form interaction', () => {
   it('does not show an emergency details icon when there is no blocking alert', async () => {
     await act(async () => root.render(<OphthalmologyWorkspacePage />));
     expect(container.querySelector('[aria-label="Emergency review required: show alert details"]')).toBeNull();
+  });
+  it('keeps one authorized clearance action inside alert details', async () => {
+    state.alertStatus = 'ACTIVE';
+    state.canClearEmergency = true;
+    state.setQuery.mockClear();
+    await act(async () => root.render(<OphthalmologyWorkspacePage />));
+    expect(container.textContent).not.toContain('Emergency disposition');
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Emergency review required: show alert details"]')?.click());
+    const buttons = [...document.querySelectorAll('.modal-overlay.open button')].filter((button) => button.textContent === 'Clear Emergency') as HTMLButtonElement[];
+    expect(buttons).toHaveLength(1);
+    await act(async () => buttons[0]?.click());
+    expect(state.setQuery).toHaveBeenCalledWith('clear_alert_id', 'alert-1');
   });
   it('keeps acknowledgement notes when reopening details and preserves emergency actions', async () => {
     state.alertStatus = 'ACTIVE';
