@@ -1,0 +1,1037 @@
+/* Consultation presentation only. Clinical controls and workflow bindings stay in place. */
+.oph-reference-consultation .oph-summary-page-heading {
+  margin: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.oph-reference-consultation .oph-summary-stack { gap: 18px; }
+.oph-reference-consultation .oph-summary-card-section {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 21px;
+  border: 1px solid #d6e2f4;
+  border-top: 4px solid #3070e5;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgb(28 57 98 / 3%);
+}
+.oph-reference-consultation .oph-summary-stack .oph-section-header-row {
+  margin: 0 0 16px;
+  gap: 12px;
+}
+.oph-reference-consultation .oph-summary-stack .oph-section-header-title,
+.oph-reference-consultation .oph-finalization-tools > h4 {
+  color: #173453;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.oph-reference-consultation .oph-finalization-tools > h4 { margin: 0 0 10px; font-family: inherit; }
+.oph-reference-consultation .oph-finalization-tools > p { margin: 0 0 16px; color: #6e84a3; font-family: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; }
+.oph-reference-consultation .oph-summary-stack > section:not(:last-child) .oph-section-icon-box { display: none; }
+.oph-reference-consultation .oph-summary-two-col { gap: 18px; }
+.oph-reference-consultation .oph-summary-inner-card { padding: 20px 17px; border: 1px solid #dce6f6; background: #f8fafd; border-radius: 10px; }
+.oph-reference-consultation .oph-summary-inner-title { margin: 0 0 14px; padding: 0; border: 0; color: #24486f; font-size: 13px; font-weight: 400; }
+.oph-reference-consultation .oph-summary-kv-row { padding: 10px 0; border-bottom: 1px dashed #dce6f5; font-size: 13px; gap: 12px; }
+.oph-reference-consultation .oph-summary-kv-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.oph-reference-consultation .oph-summary-kv-label { color: #6e84a3; }
+.oph-reference-consultation .oph-summary-kv-val { color: #244565; overflow-wrap: anywhere; }
+.oph-reference-consultation .oph-summary-demographics .oph-summary-kv-val .oph-badge { background: transparent; padding: 0; color: inherit; font: inherit; }
+.oph-reference-consultation .oph-summary-signoff-notice { border: 1px solid #dce6f5; border-radius: 8px !important; font-size: 13px !important; color: #6e84a3 !important; }
+.oph-reference-consultation .oph-summary-signoff-notice strong { font-weight: 400; }
+.oph-reference-consultation :is(.oph-summary-stack .oph-btn-outline-sm, .oph-summary-page-heading .oph-summary-print) { min-height: 40px; padding: 10px 14px; border-color: #b9d0fc; background: #f4f7ff; color: #2563eb; font-size: 13px; font-weight: 400; border-radius: 7px; }
+.oph-reference-consultation .oph-summary-page-heading .oph-summary-print { min-height: 48px; gap: 10px; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.oph-reference-consultation .oph-summary-print i { font-size: 20px; }
+.oph-reference-consultation .oph-summary-stack .oph-table-scroll { border: 1px solid #dbe5f5; border-radius: 9px; }
+.oph-reference-consultation .oph-summary-stack .oph-table-clean { font-size: 13px; }
+.oph-reference-consultation .oph-summary-stack .oph-table-clean th { padding: 14px; color: #6e84a3; background: #f6f8fc; font-size: 13px; font-weight: 400; border-bottom-color: #e8eef8; }
+.oph-reference-consultation .oph-summary-stack .oph-table-clean td { padding: 12px 14px; color: #426086; border-bottom-color: #e8eef8; }
+.oph-reference-consultation .oph-summary-stack .oph-table-clean tr:last-child td { border-bottom: 0; }
+.oph-reference-consultation .oph-summary-treatment-table th:nth-child(2) { width: 55%; }
+.oph-reference-consultation .oph-summary-stack code { background: transparent; padding: 0; color: inherit; font: inherit; }
+.oph-reference-consultation .oph-summary-stack .oph-badge { padding: 6px 8px; font-size: 12px; font-weight: 500; border: 0; border-radius: 5px; letter-spacing: 0.03em; }
+.oph-reference-consultation .oph-summary-stack .oph-eye-pill { padding: 6px 8px; font-size: 12px; font-weight: 400; }
+.oph-reference-consultation .oph-summary-stack .oph-eye-pill.ou { background: #f0eaff; color: #7541db; }
+.oph-reference-consultation .oph-summary-stack .oph-badge-green { background: #def8ef; color: #00876a; }
+.oph-reference-consultation .oph-summary-stack .oph-badge-blue { background: #e7efff; color: #1558df; }
+.oph-reference-consultation .oph-summary-stack .oph-badge-amber { background: #fff4ce; color: #9f6a00; }
+.oph-reference-consultation .oph-summary-inline-action { border: 0; padding: 0; background: transparent; color: #173453; text-align: left; font: inherit; font-weight: 600; cursor: pointer; }
+.oph-reference-consultation .oph-summary-result-action { color: #426086; font-weight: 400; }
+.oph-reference-consultation .oph-summary-inline-action:hover { text-decoration: underline; }
+.oph-reference-consultation .oph-summary-empty-row { text-align: center; color: #6e84a3; }
+.oph-reference-consultation .oph-summary-card-section h5 { font-size: 13px !important; color: #426086 !important; font-weight: 600 !important; }
+.oph-reference-consultation .oph-summary-card-section .oph-summary-plan-label { font-weight: 400 !important; }
+.oph-reference-consultation .oph-summary-card-section > div > p { color: #6e84a3 !important; font-size: 13px !important; }
+
+@container oph-consultation (max-width: 1100px) {
+  .oph-reference-consultation .oph-summary-page-heading { margin-bottom: 20px; }
+  .oph-reference-consultation .oph-summary-stack { gap: 12px; }
+  .oph-reference-consultation .oph-summary-card-section { padding: 14px; border-top-width: 3px; border-radius: 11px; font-size: 10px; }
+  .oph-reference-consultation .oph-summary-stack .oph-section-header-row { margin-bottom: 11px; }
+  .oph-reference-consultation .oph-summary-stack .oph-section-header-title,
+  .oph-reference-consultation .oph-finalization-tools > h4 { font-size: 14px; }
+  .oph-reference-consultation .oph-finalization-tools > p { font-size: 10px; }
+  .oph-reference-consultation .oph-summary-inner-card { padding: 14px 12px; }
+  .oph-reference-consultation .oph-summary-inner-title { font-size: 10px; margin-bottom: 9px; }
+  .oph-reference-consultation .oph-summary-kv-row { padding: 7px 0; font-size: 10px; }
+  .oph-reference-consultation .oph-summary-signoff-notice { font-size: 10px !important; }
+  .oph-reference-consultation .oph-summary-stack .oph-btn-outline-sm { min-height: 27px; font-size: 10px; padding: 7px 10px; }
+  .oph-reference-consultation .oph-summary-page-heading .oph-summary-print { min-height: 34px; font-size: 11px; padding: 7px 11px; }
+  .oph-reference-consultation .oph-summary-print i { font-size: 14px; }
+  .oph-reference-consultation .oph-summary-stack .oph-table-clean { font-size: 10px; }
+  .oph-reference-consultation .oph-summary-stack .oph-table-clean th { padding: 10px; font-size: 10px; }
+  .oph-reference-consultation .oph-summary-stack .oph-table-clean td { padding: 8px 10px; }
+  .oph-reference-consultation .oph-summary-stack :is(.oph-badge, .oph-eye-pill) { padding: 4px 6px; font-size: 10px; }
+  .oph-reference-consultation .oph-summary-card-section h5 { font-size: 10px !important; }
+  .oph-reference-consultation .oph-summary-card-section > div > p { font-size: 10px !important; }
+}
+@media print {
+  body:has(.oph-summary-stack) * { visibility: hidden; }
+  body:has(.oph-summary-stack) .oph-summary-stack,
+  body:has(.oph-summary-stack) .oph-summary-stack * { visibility: visible; }
+  body:has(.oph-summary-stack) .oph-summary-stack { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  body:has(.oph-summary-stack) .oph-summary-stack::before { content: 'Consultation summary'; display: block; visibility: visible; font-size: 20px; font-weight: 600; }
+  body:has(.oph-summary-stack) .oph-summary-stack .oph-btn-outline-sm,
+  body:has(.oph-summary-stack) .oph-summary-stack .oph-btn-finalize { display: none; }
+  body:has(.oph-summary-stack) .oph-summary-card-section { break-inside: avoid; box-shadow: none; }
+}
+@media (max-width: 480px) {
+  .oph-reference-consultation .oph-summary-inner-title,
+  .oph-reference-consultation .oph-summary-kv-row,
+  .oph-reference-consultation .oph-summary-stack .oph-btn-outline-sm { font-size: 12px; }
+  .oph-reference-consultation .oph-summary-stack .oph-section-header-title { font-size: 14px; }
+  .oph-reference-consultation .oph-summary-signoff-notice { font-size: 11px !important; }
+  .oph-reference-consultation .oph-summary-stack .oph-table-clean { min-width: 600px; font-size: 12px; }
+  .oph-reference-consultation .oph-summary-stack .oph-table-clean th { font-size: 11px; }
+  .oph-reference-consultation .oph-summary-stack :is(.oph-badge, .oph-eye-pill) { font-size: 10px; }
+  .oph-reference-consultation .oph-summary-card-section h5,
+  .oph-reference-consultation .oph-summary-card-section > div > p { font-size: 12px !important; }
+}
+.oph-reference-consultation {
+  --oph-reference-border: #dce5f3;
+  --oph-reference-muted: #5c7393;
+  --oph-reference-ink: #173453;
+  color: var(--oph-reference-ink);
+  background: #f4f7fc;
+  min-width: 0;
+  container: oph-consultation / inline-size;
+}
+
+.oph-reference-consultation .oph-revamped-header {
+  position: static;
+  padding: 22px 26px;
+  margin-bottom: 6px;
+  border: 1px solid var(--oph-reference-border);
+  border-radius: 16px;
+  box-shadow: 0 3px 9px rgb(26 53 93 / 3%);
+}
+
+.oph-reference-consultation .oph-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 24px;
+}
+.oph-reference-consultation .oph-header-left {
+  gap: 18px;
+}
+.oph-reference-consultation .oph-header-identity {
+  gap: 8px;
+}
+.oph-reference-consultation .oph-patient-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+  border: 0;
+  background: #e6efff;
+  color: #2563eb;
+}
+.oph-reference-consultation .oph-patient-name {
+  font-size: 20px;
+  white-space: normal;
+}
+.oph-reference-consultation .oph-header-id,
+.oph-reference-consultation .oph-header-meta-row {
+  font-size: 13px;
+  color: var(--oph-reference-muted);
+}
+.oph-reference-consultation .oph-header-name-row {
+  gap: 12px;
+}
+.oph-reference-consultation .oph-header-meta-row {
+  gap: 8px 12px;
+  line-height: 1.4;
+}
+.oph-reference-consultation .oph-header-meta-row span::before {
+  content: '\2022';
+  margin-right: 4px;
+  color: #b4c3da;
+}
+.oph-reference-consultation .oph-header-statuses {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.oph-reference-consultation .oph-header-statuses .oph-badge {
+  padding: 6px 8px;
+  border: 0;
+  font-size: 11px;
+  letter-spacing: 0.035em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.oph-reference-consultation .oph-header-actions {
+  margin-left: 0;
+  gap: 12px;
+  width: auto;
+}
+.oph-reference-consultation .oph-header-actions .oph-btn-secondary {
+  order: -1;
+}
+.oph-reference-consultation .oph-btn-secondary,
+.oph-reference-consultation .oph-btn-escalate {
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  gap: 8px;
+}
+.oph-reference-consultation .oph-btn-secondary {
+  border-color: #cedbf0;
+}
+.oph-reference-consultation .oph-btn-escalate {
+  color: #dc2626;
+  background: #fff8f8;
+  border-color: #fecaca;
+}
+.oph-reference-consultation .oph-btn-escalate:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.oph-reference-consultation .oph-stepper-nav {
+  padding: 18px 28px;
+  gap: 16px;
+  margin-bottom: 8px;
+  min-height: 74px;
+  border-color: var(--oph-reference-border);
+  border-radius: 15px;
+  box-shadow: none;
+}
+.oph-reference-consultation .oph-step-tab,
+.oph-reference-consultation .oph-step-tab.active {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 400;
+}
+.oph-reference-consultation .oph-step-tab:not(:last-child)::after {
+  content: '';
+  width: 32px;
+  height: 1px;
+  background: #d6e2f5;
+  margin-left: 6px;
+  flex: 1 1 12px;
+}
+.oph-reference-consultation .oph-step-label-text {
+  font-size: 13px;
+}
+.oph-reference-consultation .oph-step-tab.active {
+  font-weight: 600;
+}
+.oph-reference-consultation .oph-step-number {
+  width: 27px;
+  height: 27px;
+  background: #fff;
+  border-color: #d3def1;
+  color: var(--oph-reference-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.oph-reference-consultation .oph-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.oph-reference-consultation .oph-exam-dashboard {
+  gap: 18px;
+}
+.oph-reference-consultation .oph-exam-section-container {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  margin-bottom: 0;
+}
+.oph-reference-consultation .oph-exam-section-header {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-bottom: 24px;
+  gap: 20px;
+}
+.oph-reference-consultation .oph-exam-heading {
+  flex: 1 1 360px;
+}
+.oph-reference-consultation .oph-exam-eyebrow {
+  margin: 0 0 12px;
+  color: #52729e;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.oph-reference-consultation .oph-exam-heading h2,
+.oph-reference-consultation .oph-summary-page-heading h2 {
+  margin: 0;
+  color: #15334f;
+  font-size: clamp(24px, 2.1vw, 34px);
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.oph-reference-consultation .oph-exam-description,
+.oph-reference-consultation .oph-summary-page-heading > div > p:last-child {
+  margin: 14px 0 0;
+  color: var(--oph-reference-muted);
+  font-size: 14px;
+}
+.oph-reference-consultation .oph-exam-status-badge {
+  font-weight: 400;
+}
+.oph-reference-consultation .oph-exam-section-header > div:last-child {
+  justify-content: flex-end;
+  flex: 1 1 260px;
+}
+.oph-reference-consultation .oph-exam-section-header .doc-btn,
+.oph-reference-consultation .oph-btn-clinical-intake {
+  height: auto;
+  min-height: 44px;
+  padding: 10px 16px !important;
+  font-size: 14px !important;
+  border-radius: 10px;
+  border: 1px solid #cfddf1;
+}
+.oph-reference-consultation .oph-exam-section-header .doc-btn.primary {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 3px 6px rgb(37 99 235 / 15%);
+}
+.oph-reference-consultation .oph-exam-section-body {
+  padding: 0;
+  background: transparent;
+  gap: 18px;
+}
+.oph-reference-consultation .oph-exam-grid-3,
+.oph-reference-consultation .oph-exam-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+.oph-reference-consultation .oph-pressure-card,
+.oph-reference-consultation .oph-slit-card {
+  grid-column: 1 / -1;
+}
+.oph-reference-consultation .oph-exam-card {
+  padding: 21px;
+  border: 1px solid var(--oph-reference-border);
+  border-radius: 16px;
+  box-shadow: 0 3px 8px rgb(26 53 93 / 3%);
+  justify-content: flex-start;
+  gap: 16px;
+  height: auto;
+}
+.oph-reference-consultation .oph-card-header {
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-color: #e8eef8;
+}
+.oph-reference-consultation :is(.oph-acuity-card, .oph-refraction-card) .oph-card-header {
+  flex-wrap: nowrap;
+}
+.oph-reference-consultation .oph-card-title {
+  font-size: 18px;
+  font-weight: 500;
+  gap: 10px;
+  color: #173453;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.4;
+  margin: 0;
+}
+.oph-reference-consultation .oph-card-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.oph-reference-consultation .oph-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #f0f4fa;
+  color: #5c7393;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.oph-reference-consultation .oph-card-status.complete {
+  background: #e7f8f3;
+  color: #00876a;
+}
+.oph-reference-consultation .oph-reference-range {
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: #00876a;
+  background: #e7f8f3;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.oph-reference-consultation .oph-unavailable-reading {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c6d7f1;
+  border-radius: 7px;
+  color: #8194af;
+}
+.oph-reference-consultation .oph-all-normal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid #d5e0f2;
+  border-radius: 6px;
+  background: #fff;
+  color: #5c7393;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.oph-reference-consultation .oph-fundus-card .oph-card-title > span:last-child {
+  max-width: 90px;
+  white-space: normal;
+}
+.oph-reference-consultation .oph-fundus-card .oph-card-controls {
+  gap: 8px;
+}
+.oph-reference-consultation .oph-fundus-card .oph-subtab-btn {
+  padding: 8px;
+  font-size: 11px;
+}
+.oph-reference-consultation .oph-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.oph-reference-consultation .oph-card-task-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #8299ba;
+  font-size: 21px;
+  cursor: pointer;
+}
+.oph-reference-consultation .oph-pinhole-details {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--oph-reference-muted);
+}
+.oph-reference-consultation .oph-pinhole-details > summary {
+  width: fit-content;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.oph-reference-consultation .oph-pinhole-details > .oph-acuity-panel {
+  margin-top: 8px;
+}
+.oph-reference-consultation .oph-card-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #edf3ff;
+  color: #477bff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.oph-reference-consultation .oph-card-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 22px;
+  background: transparent;
+  color: #173b6a;
+}
+.oph-reference-consultation .oph-subtabs {
+  padding: 0;
+  gap: 0;
+  background: #fff;
+  border-color: #d5e0f2;
+  overflow: hidden;
+}
+.oph-reference-consultation .oph-subtab-btn {
+  padding: 8px 10px;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.oph-reference-consultation .oph-subtab-btn + .oph-subtab-btn {
+  border-left: 1px solid #d5e0f2;
+}
+.oph-reference-consultation .oph-subtab-btn.active {
+  background: #edf3ff;
+  box-shadow: none;
+  color: #1558df;
+  font-weight: 600;
+}
+.oph-reference-consultation .oph-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #dce6f5;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.oph-reference-consultation .oph-table th {
+  background: #f5f8fc;
+  color: var(--oph-reference-muted);
+  font-weight: 400;
+  border: 0;
+  padding: 10px;
+}
+.oph-reference-consultation .oph-table td {
+  border: 0;
+  border-top: 1px solid #e1eaf7;
+  padding: 8px 10px;
+  color: #244565;
+}
+.oph-reference-consultation .oph-table td strong {
+  font-weight: 500;
+}
+.oph-reference-consultation .oph-table th .oph-eye-pill {
+  display: block;
+  padding: 8px 10px;
+  border: 0;
+}
+.oph-reference-consultation .oph-eye-pill {
+  border: 0;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.oph-reference-consultation .oph-eye-pill.od {
+  background: #eaf1ff;
+  color: #1558df;
+}
+.oph-reference-consultation .oph-eye-pill.os {
+  background: #e8faf2;
+  color: #00876a;
+}
+.oph-reference-consultation .oph-exam-card input:not([type='checkbox']):not([type='radio']),
+.oph-reference-consultation .oph-exam-card select,
+.oph-reference-consultation .oph-exam-card textarea {
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #21456b;
+  border-color: #c6d7f1;
+  border-radius: 7px;
+}
+.oph-reference-consultation .oph-exam-card textarea {
+  min-height: 66px;
+}
+.oph-reference-consultation .oph-exam-card :is(input, select, textarea) {
+  font-weight: 400 !important;
+}
+.oph-reference-consultation .oph-exam-card label {
+  color: var(--oph-reference-muted) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  margin-bottom: 8px !important;
+}
+.oph-reference-consultation .oph-acuity-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.oph-reference-consultation .oph-acuity-panel {
+  padding: 14px;
+  background: #f7f9fd;
+  border: 1px solid #e1eaf8;
+  border-radius: 10px;
+  min-width: 0;
+}
+.oph-reference-consultation .oph-acuity-panel h4 {
+  margin: 0 0 16px;
+  color: var(--oph-reference-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.oph-reference-consultation .oph-acuity-eyes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.oph-reference-consultation .oph-acuity-eyes label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 !important;
+}
+.oph-reference-consultation .oph-exam-card input::placeholder,
+.oph-reference-consultation .oph-exam-card textarea::placeholder {
+  color: #8194af;
+  opacity: 1;
+}
+.oph-reference-consultation .oph-camera-box {
+  padding: 14px;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: #090f1e !important;
+}
+.oph-reference-consultation .oph-camera-toolbar {
+  min-height: 66px;
+  padding: 12px 16px !important;
+  border-radius: 10px !important;
+  margin-bottom: 12px !important;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.oph-reference-consultation .oph-camera-toolbar > div {
+  flex-wrap: wrap;
+}
+.oph-reference-consultation .oph-camera-toolbar .doc-btn {
+  min-height: 42px;
+  padding: 10px 14px !important;
+  border-radius: 9px;
+  font-size: 12px !important;
+}
+.oph-reference-consultation .oph-camera-preview {
+  min-height: 150px;
+}
+.oph-reference-consultation .oph-camera-empty {
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 24px;
+  color: #577299;
+  font-size: 12px;
+}
+.oph-reference-consultation .oph-camera-empty > i {
+  font-size: 32px;
+}
+.oph-reference-consultation .oph-camera-eye {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.oph-reference-consultation .oph-camera-box .doc-btn {
+  min-height: 40px;
+  padding: 9px 12px !important;
+  font-size: 13px !important;
+  border-radius: 8px;
+}
+.oph-reference-consultation .oph-attachment-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+.oph-reference-consultation .oph-attachment-upload {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 144px;
+  width: 100%;
+  padding: 24px;
+  background: #fbfdff;
+  border: 1px dashed #acc8f5;
+  border-radius: 10px;
+  color: #31557f;
+  font: inherit;
+  cursor: pointer;
+}
+.oph-reference-consultation .oph-attachment-upload:hover {
+  background: #eff5ff;
+  border-color: #2563eb;
+}
+.oph-reference-consultation .oph-attachment-upload i {
+  font-size: 26px;
+  color: #567bac;
+}
+.oph-reference-consultation .oph-attachment-upload span {
+  font-size: 15px;
+  font-weight: 600;
+}
+.oph-reference-consultation .oph-attachment-upload small {
+  color: var(--oph-reference-muted);
+  font-size: 12px;
+}
+.oph-reference-consultation .oph-attachment-empty {
+  grid-column: 1 / -1;
+  padding: 12px;
+  text-align: center;
+  color: var(--oph-reference-muted);
+  font-size: 13px;
+}
+.oph-reference-consultation button:focus-visible {
+  outline: 3px solid #93b8ff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1100px) {
+  .oph-reference-consultation .oph-card-header {
+    align-items: flex-start;
+  }
+  .oph-reference-consultation .oph-card-title {
+    font-size: 17px;
+  }
+  .oph-reference-consultation .oph-stepper-nav {
+    padding: 14px 16px;
+  }
+}
+@media (max-width: 800px) {
+  .oph-reference-consultation .oph-exam-grid-3,
+  .oph-reference-consultation .oph-exam-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .oph-reference-consultation .oph-exam-section-header > div:last-child {
+    justify-content: flex-start;
+  }
+}
+
+/* Size the header to its actual content area, including a visible sidebar or browser zoom. */
+@container oph-consultation (max-width: 1100px) {
+  .oph-reference-consultation .oph-exam-section-header {
+    margin-bottom: 20px;
+    gap: 14px;
+  }
+  .oph-reference-consultation .oph-exam-heading {
+    flex-basis: 300px;
+  }
+  .oph-reference-consultation .oph-exam-eyebrow {
+    font-size: 10px;
+    margin-bottom: 10px;
+  }
+  .oph-reference-consultation .oph-exam-heading h2,
+  .oph-reference-consultation .oph-summary-page-heading h2 {
+    font-size: 22px;
+  }
+  .oph-reference-consultation .oph-exam-description,
+  .oph-reference-consultation .oph-summary-page-heading > div > p:last-child {
+    font-size: 11px;
+    margin-top: 10px;
+  }
+  .oph-reference-consultation .oph-exam-section-header > div:last-child {
+    flex-basis: auto;
+  }
+  .oph-reference-consultation .oph-exam-section-header .doc-btn,
+  .oph-reference-consultation .oph-btn-clinical-intake {
+    min-height: 34px;
+    padding: 7px 11px !important;
+    font-size: 11px !important;
+    border-radius: 8px;
+  }
+  .oph-reference-consultation .oph-exam-card {
+    padding: 14px;
+    border-radius: 12px;
+    gap: 10px;
+  }
+  .oph-reference-consultation .oph-exam-grid-3,
+  .oph-reference-consultation .oph-exam-grid-2,
+  .oph-reference-consultation .oph-exam-section-body {
+    gap: 12px;
+  }
+  .oph-reference-consultation .oph-card-header {
+    gap: 8px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .oph-reference-consultation .oph-card-title {
+    font-size: 14px;
+    gap: 6px;
+  }
+  .oph-reference-consultation .oph-card-number {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+  .oph-reference-consultation .oph-card-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 17px;
+  }
+  .oph-reference-consultation .oph-card-controls {
+    gap: 7px;
+  }
+  .oph-reference-consultation .oph-subtab-btn {
+    font-size: 9px;
+    padding: 5px 7px;
+  }
+  .oph-reference-consultation .oph-card-status {
+    min-height: 24px;
+    font-size: 9px;
+    padding: 4px 6px;
+    gap: 4px;
+  }
+  .oph-reference-consultation .oph-reference-range,
+  .oph-reference-consultation .oph-all-normal {
+    font-size: 9px;
+    padding: 5px 7px;
+    min-height: 24px;
+  }
+  .oph-reference-consultation .oph-unavailable-reading {
+    min-height: 28px;
+  }
+  .oph-reference-consultation .oph-fundus-card .oph-card-title > span:last-child {
+    max-width: 86px;
+  }
+  .oph-reference-consultation .oph-status-dot {
+    width: 5px;
+    height: 5px;
+  }
+  .oph-reference-consultation .oph-card-task-action {
+    width: 24px;
+    height: 28px;
+    font-size: 17px;
+  }
+  .oph-reference-consultation .oph-exam-card input:not([type='checkbox']):not([type='radio']),
+  .oph-reference-consultation .oph-exam-card select,
+  .oph-reference-consultation .oph-exam-card textarea {
+    min-height: 28px;
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+  .oph-reference-consultation .oph-exam-card textarea {
+    min-height: 44px;
+  }
+  .oph-reference-consultation .oph-exam-card label {
+    font-size: 10px !important;
+    margin-bottom: 6px !important;
+  }
+  .oph-reference-consultation .oph-acuity-panel {
+    padding: 10px;
+    border-radius: 8px;
+  }
+  .oph-reference-consultation .oph-acuity-panel h4 {
+    font-size: 10px;
+    margin-bottom: 12px;
+  }
+  .oph-reference-consultation .oph-acuity-panels {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .oph-reference-consultation .oph-acuity-eyes {
+    gap: 8px;
+  }
+  .oph-reference-consultation .oph-acuity-eyes label {
+    gap: 6px;
+  }
+  .oph-reference-consultation .oph-pinhole-details {
+    font-size: 10px;
+    margin-top: 4px;
+  }
+  .oph-reference-consultation .oph-table {
+    font-size: 10px;
+    margin-bottom: 12px;
+  }
+  .oph-reference-consultation .oph-table th {
+    padding: 7px;
+  }
+  .oph-reference-consultation .oph-table td {
+    padding: 5px 7px;
+  }
+  .oph-reference-consultation .oph-eye-pill {
+    font-size: 10px;
+    padding: 5px 6px;
+  }
+  .oph-reference-consultation .oph-revamped-header {
+    padding: 18px;
+  }
+  .oph-reference-consultation .oph-header-row {
+    gap: 14px;
+  }
+  .oph-reference-consultation .oph-header-left {
+    gap: 12px;
+  }
+  .oph-reference-consultation .oph-header-identity {
+    gap: 6px;
+  }
+  .oph-reference-consultation .oph-patient-avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 17px;
+  }
+  .oph-reference-consultation .oph-patient-name {
+    font-size: 16px;
+  }
+  .oph-reference-consultation .oph-header-id,
+  .oph-reference-consultation .oph-header-meta-row {
+    font-size: 11px;
+  }
+  .oph-reference-consultation .oph-header-name-row {
+    gap: 8px;
+  }
+  .oph-reference-consultation .oph-header-meta-row {
+    gap: 5px 8px;
+  }
+  .oph-reference-consultation .oph-header-statuses {
+    gap: 6px;
+  }
+  .oph-reference-consultation .oph-header-statuses .oph-badge {
+    font-size: 9px;
+    padding: 5px 6px;
+  }
+  .oph-reference-consultation .oph-header-actions {
+    gap: 8px;
+  }
+  .oph-reference-consultation .oph-btn-secondary,
+  .oph-reference-consultation .oph-btn-escalate {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 11px;
+    gap: 6px;
+  }
+  .oph-reference-consultation .oph-stepper-nav {
+    min-height: 62px;
+    padding: 14px 18px;
+    gap: 12px;
+  }
+  .oph-reference-consultation .oph-step-label-text {
+    font-size: 11px;
+  }
+  .oph-reference-consultation .oph-step-number {
+    width: 23px;
+    height: 23px;
+    font-size: 10px;
+  }
+  .oph-reference-consultation .oph-step-tab {
+    gap: 7px;
+  }
+  .oph-reference-consultation .oph-step-tab:not(:last-child)::after {
+    width: 18px;
+    margin-left: 2px;
+    flex-basis: 8px;
+  }
+}
+@container oph-consultation (max-width: 800px) {
+  .oph-reference-consultation .oph-header-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+  }
+  .oph-reference-consultation .oph-header-left {
+    grid-column: 1 / -1;
+  }
+  .oph-reference-consultation .oph-header-actions {
+    justify-self: end;
+  }
+  .oph-reference-consultation .oph-step-tab,
+  .oph-reference-consultation .oph-step-tab.active {
+    flex: 0 0 auto;
+    min-width: max-content;
+  }
+}
+@container oph-consultation (max-width: 440px) {
+  .oph-reference-consultation :is(.oph-acuity-card, .oph-refraction-card) .oph-card-header {
+    flex-wrap: wrap;
+  }
+  .oph-reference-consultation .oph-card-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .oph-reference-consultation .oph-header-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .oph-reference-consultation .oph-header-statuses {
+    flex-wrap: wrap;
+  }
+  .oph-reference-consultation .oph-header-actions {
+    justify-self: start;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 480px) {
+  .oph-reference-consultation .oph-exam-card div[style*='grid-template-columns'][style*='1fr 2fr'] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .oph-reference-consultation .oph-acuity-panels,
+  .oph-reference-consultation .oph-exam-card > div > div[style*='grid-template-columns'],
+  .oph-reference-consultation .oph-fundus-card div[style*='grid-template-columns'] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .oph-reference-consultation .oph-revamped-header,
+  .oph-reference-consultation .oph-exam-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .oph-reference-consultation .oph-header-left {
+    gap: 12px;
+  }
+  .oph-reference-consultation .oph-patient-name {
+    font-size: 17px;
+  }
+  .oph-reference-consultation .oph-header-meta-row {
+    gap: 8px;
+  }
+  .oph-reference-consultation .oph-card-header > div {
+    flex-wrap: wrap;
+  }
+  .oph-reference-consultation .oph-subtabs {
+    flex-wrap: wrap;
+  }
+  .oph-reference-consultation .oph-table {
+    font-size: 11px;
+  }
+  .oph-reference-consultation .oph-table th,
+  .oph-reference-consultation .oph-table td {
+    padding: 6px 4px;
+  }
+  .oph-reference-consultation .oph-exam-card .oph-table input,
+  .oph-reference-consultation .oph-exam-card .oph-table select {
+    padding: 9px 4px;
+    font-size: 12px;
+  }
+}

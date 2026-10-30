@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { OphthalmologyConsultationSummaryCard } from './OphthalmologyConsultationSummaryCard';
+import { OphthalmologyConsultationSummaryCard, OphthalmologySummaryHeader } from './OphthalmologyConsultationSummaryCard';
 import { OphthalmologyPublicationTools } from './OphthalmologyPublicationTools';
 import { OphthalmologyFinalizationTools } from './OphthalmologyFinalizationTools';
 import { useOphthalmologyCompletionFeature, type CompletionWorkspace } from '../../hooks/ophthalmology/useOphthalmologyCompletionFeature';
 import { OphthalmologyCompletionActionDialog } from './OphthalmologyCompletionActionDialog';
 import { CloseOpdJourneyModal } from '../opd/CloseOpdJourneyModal';
-import { Reading } from './OphthalmologyCareWorkspace';
-import { queueTime } from '../../hooks/ophthalmology/queue-actions';
 import type { OpdVisitResponse } from '../../api/opd';
 
 export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: CompletionWorkspace }) {
@@ -20,6 +18,7 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
 
   return (
     <section className="oph-completion-workspace">
+      <OphthalmologySummaryHeader printDisabled={f.summaryQuery.isLoading || f.summaryQuery.isError || !f.summaryQuery.data} />
       {/* 1. Primary Consolidated Clinical Summary (8-card sequential structure) */}
       <OphthalmologyConsultationSummaryCard feature={f} workspace={workspace} />
 
@@ -89,92 +88,6 @@ export function OphthalmologyCompletionWorkspace({ workspace }: { workspace: Com
           sourceApproved={f.history.status === 'COMPLETED' && !f.historyQuery.isError && !f.historyQuery.isFetching && !f.staleContext}
         />
       )}
-
-      {/* 3. Collapsible Regulatory Audit & History */}
-      <details className="doc-card oph-audit-accordion" style={{ marginTop: '20px' }}>
-        <summary className="oph-audit-summary">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.1rem' }}>🛡️</span>
-            <div>
-              <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>Encounter Regulatory Audit & Governance History</strong>
-              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                Immutable approval history, recorded deferrals, authorized overrides, and amendment episodes
-              </div>
-            </div>
-          </div>
-          <span className="oph-badge oph-badge-blue">
-            Finalization: {f.history?.status ?? (f.historyQuery.data === null ? 'Not started' : 'Unavailable')} · v{f.finalizationVersion ?? 0}
-          </span>
-        </summary>
-
-        <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-          <h4>Recorded deferrals</h4>
-          {f.historyQuery.data === null && <p style={{ color: '#64748b' }}>No finalization history has been recorded.</p>}
-          {f.history && !f.history.deferrals.length && <p style={{ color: '#64748b' }}>No recorded deferrals.</p>}
-          {f.history?.deferrals.map((entry) => (
-            <details key={entry.id} style={{ marginBottom: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.84rem' }}>{entry.source_type} · {entry.source_id} · {queueTime(entry.recorded_at)}</summary>
-              <p>Reason: {entry.reason}</p>
-              <p>Review plan: {entry.review_plan || 'Not recorded'} · due {queueTime(entry.due_at)}</p>
-              <p>Responsible doctor {entry.responsible_doctor_id} · recorded by {entry.recorded_by}</p>
-              <p style={{ color: '#64748b', fontSize: '0.8rem' }}>This deferral does not mark the result reviewed.</p>
-            </details>
-          ))}
-
-          <h4 style={{ marginTop: '16px' }}>Recorded overrides</h4>
-          {f.history && !f.history.overrides.length && <p style={{ color: '#64748b' }}>No recorded overrides.</p>}
-          {f.history?.overrides.map((entry) => (
-            <details key={entry.id} style={{ marginBottom: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.84rem' }}>{queueTime(entry.created_at)} · doctor {entry.doctor_id} · actor {entry.actor_user_id}</summary>
-              <p>Reason: {entry.reason}</p>
-              <ul>
-                {entry.unmet_snapshot.map((row, index) => (
-                  <li key={index}>{row.code} · {row.details} · {row.resource_ids.join(', ') || 'No linked resource'}</li>
-                ))}
-              </ul>
-            </details>
-          ))}
-
-          <h4 style={{ marginTop: '16px' }}>Immutable approval history</h4>
-          {f.history && !f.history.completions.length && <p style={{ color: '#64748b' }}>No consultation approvals recorded.</p>}
-          {f.history?.completions.map((entry) => (
-            <details key={entry.clinical_version} style={{ marginBottom: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.84rem' }}>Clinical version {entry.clinical_version} · approved {queueTime(entry.approved_at)}</summary>
-              <p>Doctor {entry.approver_doctor_id} · authenticated actor {entry.approver_user_id}</p>
-              <p>Supersedes {entry.supersedes_clinical_version ?? 'None'} · configuration revision {entry.configuration_revision} · consultation version {entry.consultation_version} · clinical-review version {entry.clinical_review_version} · optical version {entry.optical_prescription_version ?? 'None'}</p>
-              <ul>
-                {entry.requirement_snapshot.map((row) => (
-                  <li key={row.code}>{row.code} · {row.satisfied ? 'Satisfied' : 'Unmet in approved snapshot'} · {row.details}</li>
-                ))}
-              </ul>
-            </details>
-          ))}
-
-          <h4 style={{ marginTop: '16px' }}>Amendment journal</h4>
-          {f.history && !f.history.amendment_episodes.length && <p style={{ color: '#64748b' }}>No amendment episodes recorded.</p>}
-          {f.history?.amendment_episodes.map((episode) => (
-            <details key={episode.id} style={{ marginBottom: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px' }}>
-              <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.84rem' }}>{episode.status} · source clinical version {episode.source_clinical_version} · opened {queueTime(episode.opened_at)}</summary>
-              <p>{episode.reason} · actor {episode.opened_by}</p>
-              {episode.changes.map((change, index) => (
-                <section className="doc-card" key={index}>
-                  <h4>{change.section}</h4>
-                  <p>{change.reason} · {change.changed_by} · {queueTime(change.changed_at)}</p>
-                  <h4>Before</h4>
-                  <Reading value={change.before_value} />
-                  <h4>After</h4>
-                  <Reading value={change.after_value} />
-                </section>
-              ))}
-              <p style={{ color: '#64748b', fontSize: '0.8rem' }}>Supported text amendments update a new clinical source version and require reapproval. Earlier journal-only entries should be checked against their source record.</p>
-            </details>
-          ))}
-
-          <p style={{ marginTop: '16px', fontSize: '0.8rem', color: '#64748b' }}>
-            Original approved versions remain read-only. Supported text corrections use a separate amendment episode and source version; other sections require their typed correction workflow.
-          </p>
-        </div>
-      </details>
 
       {(f.action === 'defer' || f.action === 'override') && f.finalizationVersion !== undefined && (
         <OphthalmologyCompletionActionDialog key={`${workspace.visitId}:${f.action}`} feature={f} action={f.action} />

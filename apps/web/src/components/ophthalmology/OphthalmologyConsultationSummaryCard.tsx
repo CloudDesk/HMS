@@ -5,16 +5,16 @@ import type { OpdVisitResponse } from '../../api/opd';
 import { getOpdErrorMessage } from '../../pages/opd-utils';
 
 function getPatientAge(dobString?: string | null): string {
-  if (!dobString) return '26 years';
+  if (!dobString) return 'Not recorded';
   const dob = new Date(dobString);
-  if (isNaN(dob.getTime())) return '26 years';
+  if (isNaN(dob.getTime())) return 'Not recorded';
   const diff = Date.now() - dob.getTime();
   const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
   return `${age} years`;
 }
 
 function formatGender(gender?: string | null): string {
-  if (!gender) return 'Male';
+  if (!gender) return 'Not recorded';
   const g = gender.toUpperCase();
   if (g.startsWith('M')) return 'Male';
   if (g.startsWith('F')) return 'Female';
@@ -37,6 +37,20 @@ export interface OphthalmologyConsultationSummaryFeatureProps {
   staleContext?: boolean;
   readinessQuery?: { isError?: boolean; isFetching?: boolean };
   historyQuery?: { isError?: boolean; isFetching?: boolean };
+}
+
+export function OphthalmologySummaryHeader({ printDisabled = false }: { printDisabled?: boolean }) {
+  return (
+    <div className="oph-summary-page-heading">
+      <div>
+        <h2>Consultation summary</h2>
+        <p>Review the encounter before finalizing care.</p>
+      </div>
+      <button type="button" className="oph-btn-outline-sm oph-summary-print" disabled={printDisabled} onClick={() => window.print()}>
+        <i className="ph ph-printer" aria-hidden="true" />Print summary
+      </button>
+    </div>
+  );
 }
 
 export function OphthalmologyConsultationSummaryCard({
@@ -92,55 +106,27 @@ export function OphthalmologyConsultationSummaryCard({
 
   const visit = workspace?.visit as OpdVisitResponse | undefined;
 
-  const patientName = [s.patient?.firstName, s.patient?.lastName].filter(Boolean).join(' ') || visit?.patient_name || 'Arjun Kumar Rajendran';
-  const patientNumber = s.patient?.patientNumber || visit?.patient_number || 'HMS-2026-000004';
-  const visitNumber = visit?.visit_number || 'OPD-2026-000005';
+  const patientName = [s.patient?.firstName, s.patient?.lastName].filter(Boolean).join(' ') || visit?.patient_name || 'Not recorded';
+  const patientNumber = s.patient?.patientNumber || visit?.patient_number || 'Not recorded';
+  const visitNumber = visit?.visit_number || 'Not recorded';
   const patientAge = getPatientAge(s.patient?.dateOfBirth);
   const patientGender = formatGender(s.patient?.gender);
   const patientDob = s.patient?.dateOfBirth
     ? new Date(s.patient.dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '25 Jun 1998';
-  const patientBloodGroup = s.patient?.bloodGroup || 'O+';
+    : 'Not recorded';
+  const patientBloodGroup = s.patient?.bloodGroup || 'Not recorded';
 
   const visitDateTime = visit?.visit_date
-    ? new Date(visit.visit_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ', 10:30 AM'
-    : '12 Oct 2026, 10:30 AM';
+    ? new Date(visit.check_in_time || visit.visit_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+    : 'Not recorded';
   const departmentName = (visit as unknown as { department_name?: string })?.department_name || 'Ophthalmology';
-  const consultantName = visit?.doctor_name || 'Dr. Aravind';
-  const visitStatus = visit?.status || 'IN_PROGRESS';
+  const consultantName = visit?.doctor_name || 'Not recorded';
+  const visitStatus = visit?.status || 'Not recorded';
 
-  // Diagnoses list (from consultation or fallback)
-  const diagnosesList = s.consultation?.diagnoses?.length
-    ? s.consultation.diagnoses
-    : [
-        { code: 'H52.1', display: 'Myopia', laterality: 'OU', status: 'SUSPECTED', type: 'Primary' },
-        { code: 'H51.1', display: 'Senile Cataract', laterality: 'OU', status: 'CONFIRMED', type: 'Secondary' },
-      ];
-
-  // Treatment plans (from clinical review or fallback)
-  const treatmentPlans = s.clinical_review?.current?.treatment_plans?.length
-    ? s.clinical_review.current.treatment_plans
-    : [
-        { diagnosis_code: 'H52.1', diagnosis_laterality: 'OU', treatment: 'Spectacle Prescription', action_type: 'OPTICAL', legacy_category: null, priority: 'ROUTINE', status: 'PLANNED' },
-        { diagnosis_code: 'H52.1', diagnosis_laterality: 'OU', treatment: 'Lubricating Eye Drops', action_type: 'MEDICATION', legacy_category: null, priority: 'ROUTINE', status: 'PRESCRIBED' },
-      ];
-
-  // Diagnostic tests (from tasks or fallback)
-  const diagnosticTests = s.tasks?.length
-    ? s.tasks
-    : [
-        { id: 't1', test_name: 'Refraction (Auto)', laterality: 'OU', status: 'COMPLETED', completed_at: '2026-10-12T10:00:00Z' },
-        { id: 't2', test_name: 'IOP (Goldmann)', laterality: 'OU', status: 'COMPLETED', completed_at: '2026-10-12T10:15:00Z' },
-        { id: 't3', test_name: 'Fundus Photography', laterality: 'OU', status: 'PENDING', completed_at: undefined },
-      ];
-
-  // Medications list
-  const medicationsList = s.medication_prescriptions?.flatMap((p) => p.medications ?? [])?.length
-    ? (s.medication_prescriptions?.flatMap((p) => p.medications ?? []) ?? [])
-    : [
-        { medicine_name: 'Carboxymethylcellulose 0.5%', dosage: '1 drop', route: 'Ophthalmic', frequency: 'TID', duration: '1 month', status: 'PRESCRIBED' },
-        { medicine_name: 'Ketorolac 0.5%', dosage: '1 drop', route: 'Ophthalmic', frequency: 'BD', duration: '2 weeks', status: 'PRESCRIBED' },
-      ];
+  const diagnosesList = s.consultation?.diagnoses ?? [];
+  const treatmentPlans = s.clinical_review?.current?.treatment_plans ?? [];
+  const diagnosticTests = s.tasks ?? [];
+  const medicationsList = s.medication_prescriptions?.flatMap((p) => p.medications ?? []) ?? [];
 
   // Readiness status
   const isCompleted = f.history?.status === 'COMPLETED';
@@ -159,27 +145,11 @@ export function OphthalmologyConsultationSummaryCard({
         </div>
       )}
 
-      {/* 1. Patient & Encounter Summary Card */}
-      <section className="oph-summary-card-section">
-        <div className="oph-section-header-row">
-          <div className="oph-section-header-left">
-            <div className="oph-section-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="16" rx="2" />
-                <circle cx="9" cy="10" r="2" />
-                <line x1="15" y1="8" x2="17" y2="8" />
-                <line x1="15" y1="12" x2="17" y2="12" />
-                <line x1="7" y1="16" x2="17" y2="16" />
-              </svg>
-            </div>
-            <h3 className="oph-section-header-title">Patient &amp; Encounter Summary</h3>
-          </div>
-        </div>
-
+      <section className="oph-summary-card-section oph-summary-demographics" aria-label="Patient and encounter details">
         <div className="oph-summary-two-col">
           {/* Left: Patient Details */}
           <div className="oph-summary-inner-card">
-            <h4 className="oph-summary-inner-title">Patient Details</h4>
+            <h4 className="oph-summary-inner-title">Patient details</h4>
             <div className="oph-summary-kv-row">
               <span className="oph-summary-kv-label">Name</span>
               <span className="oph-summary-kv-val">{patientName}</span>
@@ -204,7 +174,7 @@ export function OphthalmologyConsultationSummaryCard({
 
           {/* Right: Encounter Details */}
           <div className="oph-summary-inner-card">
-            <h4 className="oph-summary-inner-title">Encounter Details</h4>
+            <h4 className="oph-summary-inner-title">Encounter details</h4>
             <div className="oph-summary-kv-row">
               <span className="oph-summary-kv-label">Visit No.</span>
               <span className="oph-summary-kv-val">{visitNumber}</span>
@@ -231,13 +201,13 @@ export function OphthalmologyConsultationSummaryCard({
         </div>
 
         {/* Clinical Sign-off Status Disclaimer (Medical-legal) */}
-        <div style={{ marginTop: '12px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>ℹ️</span>
+      </section>
+        <div className="oph-summary-signoff-notice" style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="ph ph-info" aria-hidden="true" />
           <div>
-            <strong>Clinical Sign-off Status:</strong> Clinical sign-off does not confirm downstream fulfillment. Scheduled appointments, dispensed medications, or booked procedures reflect intermediate workflow status and are not proof of care delivered.
+            <strong>Clinical Sign-off Status:</strong> Clinical sign-off does not confirm downstream fulfillment. Orders and appointments retain their source workflow statuses.
           </div>
         </div>
-      </section>
 
       {/* 2. 1. Structured Assessment & Diagnoses */}
       <section className="oph-summary-card-section">
@@ -249,7 +219,7 @@ export function OphthalmologyConsultationSummaryCard({
                 <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
               </svg>
             </div>
-            <h3 className="oph-section-header-title">1. Structured Assessment &amp; Diagnoses</h3>
+            <h3 className="oph-section-header-title">1. Structured assessment &amp; diagnoses</h3>
           </div>
           <button
             type="button"
@@ -260,7 +230,7 @@ export function OphthalmologyConsultationSummaryCard({
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>Add Diagnosis</span>
+            <span>Add diagnosis</span>
           </button>
         </div>
 
@@ -274,34 +244,24 @@ export function OphthalmologyConsultationSummaryCard({
                 <th style={{ width: '80px' }}>Eye</th>
                 <th style={{ width: '130px' }}>Status</th>
                 <th style={{ width: '110px' }}>Type</th>
-                <th style={{ width: '50px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
+              {!diagnosesList.length && <tr><td colSpan={6} className="oph-summary-empty-row">No diagnoses recorded.</td></tr>}
               {diagnosesList.map((d, idx) => (
                 <tr key={idx}>
                   <td style={{ color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
                   <td><code>{d.code}</code></td>
-                  <td style={{ fontWeight: 600, color: '#0f172a' }}>{d.display}</td>
+                  <td><button type="button" className="oph-summary-inline-action" title={`Edit diagnosis: ${d.display}`} onClick={() => f.setQuery?.({ section: 'clinical', care_tab: 'treatment' })}>{d.display}</button></td>
                   <td>
                     <span className="oph-eye-pill ou">{d.laterality || 'OU'}</span>
                   </td>
                   <td>
                     <span className={`oph-badge ${d.status === 'SUSPECTED' ? 'oph-badge-amber' : 'oph-badge-green'}`}>
-                      {d.status || 'CONFIRMED'}
+                      {d.status || 'Not recorded'}
                     </span>
                   </td>
                   <td>{d.type || (idx === 0 ? 'Primary' : 'Secondary')}</td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className="oph-btn-icon"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '1.1rem' }}
-                      onClick={() => f.setQuery?.({ section: 'clinical', care_tab: 'treatment' })}
-                    >
-                      ⋮
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -321,7 +281,7 @@ export function OphthalmologyConsultationSummaryCard({
                 <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
             </div>
-            <h3 className="oph-section-header-title">2. Clinical Review &amp; Treatment Plan</h3>
+            <h3 className="oph-section-header-title">2. Clinical review &amp; treatment plan</h3>
           </div>
           <button
             type="button"
@@ -336,16 +296,16 @@ export function OphthalmologyConsultationSummaryCard({
         </div>
 
         <div style={{ marginBottom: '16px' }}>
-          <h5 style={{ margin: '0 0 6px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Clinical Summary</h5>
+          <h5 style={{ margin: '0 0 6px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Clinical summary</h5>
           <p style={{ margin: 0, fontSize: '0.82rem', color: '#334155', lineHeight: 1.5 }}>
-            {s.clinical_review?.current?.clinical_summary || s.consultation?.assessment || 'Patient presents with refractive myopia and mild dry eye. Updated corrective lenses for distance. Initiated lubricating drops. Follow-up scheduled in 6 months.'}
+            {s.clinical_review?.current?.clinical_summary || s.consultation?.assessment || 'No clinical summary recorded.'}
           </p>
         </div>
 
         <div>
-          <h5 style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Treatment Plan</h5>
+          <h5 className="oph-summary-plan-label" style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Treatment plan</h5>
           <div className="oph-table-scroll">
-            <table className="oph-table-clean">
+            <table className="oph-table-clean oph-summary-treatment-table">
               <thead>
                 <tr>
                   <th>#</th>
@@ -357,6 +317,7 @@ export function OphthalmologyConsultationSummaryCard({
                 </tr>
               </thead>
               <tbody>
+                {!treatmentPlans.length && <tr><td colSpan={6} className="oph-summary-empty-row">No treatment plan recorded.</td></tr>}
                 {treatmentPlans.map((tp, idx) => (
                   <tr key={idx}>
                     <td style={{ color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
@@ -394,7 +355,7 @@ export function OphthalmologyConsultationSummaryCard({
                 <path d="M10 2v7.31M14 9.31V2M8.5 2h7M14 9.3a6.5 6.5 0 1 1-4 0" />
               </svg>
             </div>
-            <h3 className="oph-section-header-title">3. Encounter Diagnostic Tests</h3>
+            <h3 className="oph-section-header-title">3. Encounter diagnostic tests</h3>
           </div>
           <button
             type="button"
@@ -405,7 +366,7 @@ export function OphthalmologyConsultationSummaryCard({
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>Add Test</span>
+            <span>Add test</span>
           </button>
         </div>
 
@@ -417,12 +378,12 @@ export function OphthalmologyConsultationSummaryCard({
                 <th>Test Name</th>
                 <th style={{ width: '100px' }}>Laterality</th>
                 <th style={{ width: '120px' }}>Status</th>
-                <th style={{ width: '130px' }}>Ordered Date</th>
+                <th style={{ width: '130px' }}>Completed date</th>
                 <th style={{ width: '120px' }}>Result</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
+              {!diagnosticTests.length && <tr><td colSpan={6} className="oph-summary-empty-row">No diagnostic tests recorded.</td></tr>}
               {diagnosticTests.map((t, idx) => {
                 const isCompletedTest = t.status === 'COMPLETED' || t.status === 'REVIEWED';
                 return (
@@ -435,28 +396,12 @@ export function OphthalmologyConsultationSummaryCard({
                         {isCompletedTest ? 'COMPLETED' : t.status || 'PENDING'}
                       </span>
                     </td>
-                    <td>{t.completed_at ? new Date(t.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '12 Oct 2026'}</td>
+                    <td>{t.completed_at ? new Date(t.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td>
                       {isCompletedTest ? (
-                        <span style={{ color: '#16a34a', fontWeight: 600 }}>Available</span>
+                        <button type="button" className="oph-summary-inline-action oph-summary-result-action" title="View Result" onClick={() => f.setQuery?.({ section: 'clinical', care_tab: 'results' })}>Available</button>
                       ) : (
                         <span style={{ color: '#64748b' }}>-</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {isCompletedTest && (
-                        <button
-                          type="button"
-                          className="oph-btn-icon"
-                          title="View Result"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb' }}
-                          onClick={() => f.setQuery?.({ section: 'clinical', care_tab: 'results' })}
-                        >
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        </button>
                       )}
                     </td>
                   </tr>
@@ -513,17 +458,18 @@ export function OphthalmologyConsultationSummaryCard({
               </tr>
             </thead>
             <tbody>
+              {!medicationsList.length && <tr><td colSpan={7} className="oph-summary-empty-row">No medications recorded.</td></tr>}
               {medicationsList.map((m, idx) => (
                 <tr key={idx}>
                   <td style={{ color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
                   <td style={{ fontWeight: 600, color: '#0f172a' }}>{m.medicine_name}</td>
-                  <td>{m.dosage || '1 drop'}</td>
-                  <td>{m.route || 'Ophthalmic'}</td>
-                  <td>{m.frequency || 'TID'}</td>
-                  <td>{m.duration || '1 month'}</td>
+                  <td>{m.dosage || 'Not recorded'}</td>
+                  <td>{m.route || 'Not recorded'}</td>
+                  <td>{m.frequency || 'Not recorded'}</td>
+                  <td>{m.duration || 'Not recorded'}</td>
                   <td>
                     <span className="oph-badge oph-badge-green">
-                      {m.status || 'PRESCRIBED'}
+                      {m.status || 'Not recorded'}
                     </span>
                   </td>
                 </tr>
@@ -581,9 +527,8 @@ export function OphthalmologyConsultationSummaryCard({
           <div>
             <h5 style={{ margin: '0 0 8px', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>Next Steps</h5>
             <ul className="oph-next-steps-list">
-              <li>Continue lubricating eye drops.</li>
-              <li>Use prescribed corrective lenses for distance.</li>
-              <li>Follow-up in 6 months or earlier if symptoms worsen.</li>
+              <li>{s.clinical_review?.current?.patient_instructions || 'No patient instructions recorded.'}</li>
+              <li>{s.clinical_review?.current?.follow_up_decision || 'No follow-up decision recorded.'}</li>
             </ul>
           </div>
 
@@ -598,13 +543,13 @@ export function OphthalmologyConsultationSummaryCard({
               </svg>
               <div>
                 <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.84rem' }}>
-                  {s.procedure_recommendations?.[0]?.procedure_name || 'Intravitreal Anti-VEGF Injection (Ranibizumab / Aflibercept)'}
+                  {s.procedure_recommendations?.[0]?.procedure_name || 'No procedure recommendation recorded.'}
                 </div>
                 <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '3px' }}>
-                  Source status: {s.procedure_recommendations?.[0]?.status || 'ACTIVE'} · Booking:{' '}
-                  {s.procedure_recommendations?.[0]?.booking_status || 'Not linked'} · Booking status:{' '}
-                  {s.procedure_recommendations?.[0]?.booking_status || 'COMPLETED'} · Reason:{' '}
-                  {s.procedure_recommendations?.[0]?.reason || 'Test'}
+                  Source status: {s.procedure_recommendations?.[0]?.status || 'Not recorded'} · Booking:{' '}
+                  {s.procedure_recommendations?.[0]?.booking_id || 'Not linked'} · Booking status:{' '}
+                  {s.procedure_recommendations?.[0]?.booking_status || 'Not recorded'} · Reason:{' '}
+                  {s.procedure_recommendations?.[0]?.reason || 'Not recorded'}
                 </div>
               </div>
             </div>

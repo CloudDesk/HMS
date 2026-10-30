@@ -1,0 +1,251 @@
+# Ophthalmology consultation UI verification
+
+Date: 29 October 2026
+
+## Implemented presentation
+
+- Applied the supplied reference's patient-header spacing, separate live status badges, outlined actions, numbered navigation, and pale consultation background.
+- Added the comprehensive-examination heading, numbered white cards, segmented controls, paired-eye acuity panels, full-width pressure and slit-lamp sections, half-width fundus section, and full-width attachment upload tile.
+- Preserved pinhole readings, correction modes, task links, acquisition metadata, all clinical fields, existing workflow order, draft controls, camera controls, and image import behavior.
+- Added narrow-screen stacking and a keyboard-accessible upload button. The upload accepts the same file types and calls the same handler.
+- Did not add sample patient data, fabricated completion statuses, unsupported CCT editing, camera permissions, or an autosave claim.
+
+## Files
+
+- `apps/web/src/pages/OphthalmologyWorkspacePage.tsx`
+- `apps/web/src/components/ophthalmology/OphthalmologyExaminationDashboard.tsx`
+- `apps/web/src/styles/ophthalmology-consultation.css` (new, scoped to this consultation)
+- `HMS_OPHTHALMOLOGY_CONSULTATION_UI_GAP_NOTE.md`
+- This verification note.
+
+No backend, hooks, services, API clients, schemas, permission registries, shared layout, or navigation-action contracts were changed. The existing backend validation, transactions, branch/department scope, authorization, auditing, and error behavior remain authoritative.
+
+## Automated evidence
+
+| Check | Result |
+|---|---|
+| `npm run typecheck --workspace=@hms/web` | Passed after correcting a presentation-only reference to an unavailable visit-number field. The final heading uses no new data field. |
+| `npm run build --workspace=@hms/web` | Passed. |
+| Targeted ESLint on both changed TSX files | Passed. |
+| `npx vitest run apps/web/src/pages/OphthalmologyWorkspacePage.test.tsx apps/web/src/hooks/ophthalmology/ophthalmology-exam-storage.test.ts` | 2 files, 14 tests passed; repeated after the main markup changes. |
+| TypeScript AST comparison against HEAD | All 233 examination and 27 workspace event/value/checked/disabled/name bindings unchanged. |
+| Examination logic comparison against HEAD | The entire component prefix before the JSX return is unchanged: state, hydration, draft save, serialization, upload, camera, and task-selection logic. |
+| `git diff --check` | Passed, with only Git line-ending notices. |
+
+## Existing repository failures
+
+These paths are unchanged by this UI correction. The same failures were identified in the earlier project analysis.
+
+- API typecheck and build fail in `src/scripts/configure-local-dev-env.ts:23`, `inspect-database-backup.ts:60,146`, `phase2-restore-and-verify.ts:55`, `phase2-verify-local-backup.ts:76,77,104`, `phase3-functional-smoke-tests.ts:38,67`, `phase3-preflight-verify.ts:28`, and `verify-backup-archive.ts:77`. Errors concern possibly undefined values, collection metadata typing, and unvalidated response types.
+- API lint: 58 errors in insurance repository/service/tests, patient service, backup/preflight scripts, and patient-document storage.
+- Staff-web lint: 17 errors in `DoctorSignatureCard.tsx`, `PatientAvatar.test.tsx`, `PatientCardModal.tsx`, `PatientProfileHeader.tsx`, `AuthenticatedMediaImage.tsx`, `AppointmentBookingPage.tsx`, `AppointmentCalendarPage.tsx`, `PatientProfilePage.tsx`, and `UserManagementPage.tsx`. Neither changed consultation TSX file has a lint error.
+
+This report does not mark the overall repository or a release phase as passing while those failures remain.
+
+## Visual and interaction verification
+
+- Inspected the supplied four screenshots and the linked reference in the browser.
+- Rendered the real examination component in an isolated local visual-QA harness with queries disabled and no live patient or encounter. The temporary harness is excluded from the delivered changes.
+- Checked the desktop layout, full-width clinical sections, camera viewfinders, and a 390px iframe viewport. Adjusted narrow-screen acuity and auxiliary fields to stack instead of truncating.
+- Confirmed that the existing Fundus Camera tab displays standby, connect, separate OD/OS viewfinders, disabled capture controls, and import controls.
+- Selected an unaided acuity value and switched to With Correction; existing correction controls remained available. Browser command timeouts prevented completing the return-tab retention interaction, so that manual case is not claimed as passed.
+- Browser access briefly timed out, then recovered for visual checks. A live authenticated HMS server was not running locally; live save/upload, camera connection, patient-header acceptance, and logout/login persistence were not tested. No real patient record was created or modified.
+- Screenshots are retained outside the repository under the chat's visualization directory: `ophthalmology-examination-desktop.png`, `ophthalmology-fundus-preview.png`, and `ophthalmology-mobile-preview.png`.
+
+## Scope boundary
+
+The existing HMS clinical functionality is reused. No new functional release phase has started. Live acceptance remains a verification dependency; it is not replaced by mock production functionality.
+
+## Header and navigation correction after screenshot review
+
+The owner supplied a current screenshot showing an oversized, wrapped patient header and scrolling navigation, and requested the compact second reference image.
+
+- Changed only consultation-header/navigation presentation in the same page and scoped stylesheet.
+- Used a three-column desktop grid so patient identity, statuses, and actions share one row. Kept visit and department context available in tooltips and the existing semantic text; removed those extra values from the main visual rows.
+- Used bullet-separated demographics, compact action labels, readable status spacing, and short Examination/Summary navigation labels. The escalation button retains its complete accessible name, existing handler, permission, and modal.
+- Added container-size breakpoints so layout responds to the actual workspace width when the sidebar or browser zoom reduces the available space. Tablet/mobile layouts stack deliberately.
+- Kept the existing clinical navigation order and every action/permission binding unchanged (27 bindings verified against HEAD).
+- Rendered the actual header and navigation JSX extracted from the page with synthetic QA identity values, without mounting clinical hooks or connecting to a patient record. The desktop preview measured approximately 101px header height, six steps, and no header or stepper horizontal overflow. Also visually inspected the 960px preview: all six steps fit and actions remain beside the identity.
+- At 390px the identity, badges, and actions stack; navigation scrolls without overlapping steps. Verified after correcting the active step's narrow-screen flex sizing.
+- Workspace regression: 12 tests passed. Targeted page lint, `git diff --check`, and `npm run build --workspace=@hms/web` passed. Repeated the Vite production bundle after the final CSS-only mobile correction; it also passed. Existing repository-wide baseline failures above remain unrelated.
+- Screenshot: `ophthalmology-compact-header.png` in the chat visualization directory. Temporary preview files are removed after verification.
+
+## Examination density correction after third-image review
+
+The owner then supplied current examination screenshots and requested the denser third reference image.
+
+- Updated only `OphthalmologyExaminationDashboard.tsx` presentation and its scoped stylesheet. Kept the patient-header correction intact.
+- Placed Visual Acuity and Refraction status chips and existing task-form actions in the card headers, beside the segmented controls. Removed their tall footer rows. Header task actions use an ellipsis with the existing accessible task-form label and click handler.
+- Displayed actual task status where a task exists; otherwise used the existing entered values to show Recorded/Entered or Not started. A Completed chip is shown only for an actual completed task. No clinical state transition was added.
+- Preserved the pinhole inputs in a native expandable row. Blank readings start collapsed; existing pinhole readings open it. Both OD/OS inputs remain mounted and retain their original bindings and serialization.
+- Removed the aggregate empty-task badge from the heading; authorized task count remains available in its tooltip and existing task links are retained. Changed only the top action icons/casing, retaining save and collapse handlers. The description does not claim automatic server saves.
+- Added compact examination sizing for workspace widths at or below 1100px, matching the supplied current-screen density: smaller card padding, headings, tabs, status chips, field heights, and vertical gaps. Phone-width cards stack controls and auxiliary fields.
+- AST comparison: all 233 original input/action/permission bindings remain identical. The entire examination component prefix before the JSX return remains identical to HEAD, including state, hydration, save, serialization, upload, and camera logic.
+- Automated verification: both focused test files passed, 14 tests total; changed-component lint and full staff-web TypeScript/production build passed. Rebuilt the Vite production bundle after the final CSS refinements.
+- Rendered the real component in an isolated preview with queries disabled and blank encounter context. Measured the first two desktop cards at approximately 385px high, with no card-header or control overflow. Visually checked desktop, 960px and 390px layouts and successfully expanded the native pinhole row to expose its existing controls. Live patient saving was not retested.
+- Screenshot: `ophthalmology-examination-compact.png` in the chat visualization directory. Temporary preview scripts are removed after verification. No backend or new functional phase was started.
+
+## Final four-image review: pressure, slit lamp, fundus, attachments
+
+- Compared the owner's latest four reference images across all six cards. Retained the compact patient header, six-step navigation, two-column acuity/refraction layout, full-width pressure/slit-lamp sections, half-width fundus section, and full-width attachment tile.
+- Moved existing pressure, slit-lamp, and fundus task actions into their card headers with live status chips. Removed their redundant footer rows. The same task IDs and click callbacks are retained.
+- Adjusted slit-lamp table proportions, compact segment controls, All normal presentation, pressure reference badge, empty CCT displays, fundus title wrapping, camera toolbar/viewfinder spacing and OD/OS labels, import button presentation, and attachment count.
+- Preserved all 233 original functional JSX bindings and the complete pre-JSX component logic, verified by TypeScript AST and text comparisons against HEAD. No backend, validation, persistence, camera, permission, or upload logic was changed.
+- Reused the existing clinical hooks, task queries, save actions, camera hook, and patient-document upload flow. Only the existing consultation component and scoped stylesheet changed in this review; no additional shared registry or backend files changed.
+- Deliberate differences from prototype images: actual data/statuses replace sample readings and completion badges; the pressure range is labelled Reference rather than asserting a normal patient result; CCT remains a non-editable empty reading; existing clinical navigation order is retained; Direct/Indirect continue to show their clinical controls and the camera panel appears under Fundus Camera; disabled capture controls remain visible; copy does not claim server autosave, PDF upload, or drag/drop support. Pinhole remains available in its expandable row. Ellipsis task actions appear only when an actual authorized task exists.
+- Verification: staff-web TypeScript/production build passed; targeted ESLint on the two changed TSX files passed; both focused regression suites passed (14 tests); git diff --check passed apart from line-ending notices.
+- Rendered the real component in a temporary interactive local preview with queries disabled and no encounter/patient context. All six desktop cards and headers measured without horizontal overflow. Selected Fundus Camera and verified standby, separate OD/OS placeholders, disabled capture controls and import controls. Inspected the attachment tile and a 390px iframe preview for phone stacking. No production data was introduced.
+- Evidence outside the repository: ophthalmology-six-section-review.png and ophthalmology-camera-attachments-review.png in the chat visualization directory. Temporary preview source files and the preview server were removed/stopped after checking.
+- Live authenticated server acceptance, saving, uploads, hardware camera connection, and logout/login persistence remain unverified. Repository-wide pre-existing API/lint failures described above remain outside this UI change. No new functional phase or next release phase was started.
+
+## Sidebar and account popup reference implementation
+
+Authorized scope: sidebar presentation and avatar account popup following the supplied second/third images. Reused live hospital settings, permission-filtered module registry, existing collapse/expansion behavior, NotificationsMenu, AuthContext user data/logout, NavLink SPA navigation and canAccessRoute for System Settings. All existing authorized modules remain available, including modules not pictured in the reference. No hospital name, account identity, email, or role was hardcoded into production.
+
+Shared files changed: components/layout/Sidebar.tsx and SidebarUserFooter.tsx, their existing test files, and the new scoped styles/sidebar-reference.css. Existing ophthalmology UI changes remain intact. No route registry, permissions infrastructure, API, repository, database, or clinical logic changed.
+
+Implemented a single-line hospital header, blue full-row active navigation, outline icons, compact bell/avatar footer, and a portal account dialog with current name, roles, email, status, permission-gated System Settings and the existing logout action. Added close, Escape, outside pointer, keyboard-focus dismissal and focus return to the avatar. Popup is bounded to the viewport and works from the collapsed rail.
+
+After the owner's follow-up comparing a 396px current sidebar with a 324px target, reduced the sidebar to 216 CSS pixels, header to 59px, navigation labels to 12px, rows to 36px, brand text to 15px, navigation icons to 16px, footer to 56px and footer avatar to 28px. At the 1.5 visual scale evidenced by the current screenshot, the isolated preview measures 324px sidebar width, 88.5px header height and 54px active-row height. Body zoom was applied only inside the disposable QA fixture; browser preferences and production page zoom were not changed. The account popup was proportionally reduced too.
+
+Verification: the two sidebar regression suites passed with 11 tests, covering existing branding, collapse, navigation groups, logout, account details, settings permissions/navigation and dismissal/focus behavior. Targeted ESLint passed for all four changed layout TSX/test files. Full web TypeScript/production build results are recorded after completion. Existing repository-wide baseline failures documented above remain outside scope.
+
+Browser QA used the real Sidebar/SidebarUserFooter components with a temporary synthetic auth/settings context and notification-button stand-in to avoid live requests. Inspected expanded sidebar, account popup and collapsed rail; the collapsed popup was not clipped. Notification delivery, live logout/session invalidation and authenticated settings access were not exercised against a backend. The existing notification component and auth logout implementation remain unchanged. Screenshots are stored outside the repository as sidebar-account-reference.png and sidebar-matched-sizing.png in the chat visualization directory. Disposable preview files/server are removed/stopped after checks. No new functional release phase or next phase was started.
+
+Final sidebar sizing verification: npm run build --workspace=@hms/web passed after the density correction, including TypeScript and the production bundle. Targeted layout lint and all 11 sidebar tests passed. git diff --check passed with only the previously noted line-ending warning. Temporary preview files were removed and the dedicated preview process was stopped; existing user development processes were left running.
+
+## Summary tab reference update
+
+- Matched the supplied three Summary references with a dedicated Consultation summary heading, separate Patient & encounter summary/Print summary card, two-column patient/encounter details card, source-status notice, and blue-topped diagnosis, clinical review/treatment and diagnostic-test sections. The Summary tab has no Clinical intake or Save draft controls; examination-tab controls remain intact.
+- Reused the existing completion feature, summary query, patient/visit records, care-tab navigation, finalization dialogs, blockers, audit history, publication tools, source-status banners and downstream workflows. Existing lower summary sections remain available. Print summary invokes the browser print flow with summary-specific print styling; print output is not a new clinical approval or publication.
+- Moved the existing diagnosis-edit action onto the diagnosis text and the existing result action onto Available, retaining their original navigation targets while matching the six-column reference tables. Added responsive card stacking, compact workspace density and horizontally scrollable tables on phones.
+- Removed pre-existing sample fallback patients, diagnoses, treatments, tests, medication instructions, timestamps and procedure recommendations from the summary display. The UI now renders retrieved records or explicit empty/Not recorded states. This does not change server data, clinical input handlers, saves, or lifecycle rules. Actual encounter check-in time replaces the hardcoded 10:30 AM display.
+- Deliberate data limitations: the heading does not hardcode Consultation 004; summary patient/consultant values come from the real encounter. The current summary API projects completed_at for tests but no order date, so the displayed date column is labelled Completed date. No backend contract was invented or changed. Clinical-source and downstream-fulfillment disclaimers are retained in concise text.
+- Files changed for this request: OphthalmologyCompletionWorkspace.tsx, OphthalmologyConsultationSummaryCard.tsx, its existing test file, and scoped ophthalmology-consultation.css. No shared registries, routing contracts, auth, backend repositories/services, transaction rules, permissions or database files changed. Previous sidebar and examination changes were preserved.
+- Automated checks: full staff-web TypeScript/production build passed; targeted lint passed; the Summary, completion-feature and workspace test suites passed (27 tests). Repeated the seven Summary tests and production bundling after final visual refinements; both passed. git diff --check passed aside from the prior line-ending warning. Existing repository-wide failures described above remain outside this request.
+- Browser checks used the real Summary component in a disposable local fixture with synthetic QA records and no live patient/API connection. Verified the absence of Clinical intake/Save draft, side-by-side metadata, blue card borders, table layouts, and stacking in a 390px iframe. Existing edit/result navigation and browser-print invocation are covered by tests. No actual print-to-PDF output or live authenticated finalization was performed.
+- Screenshot outside the repository: ophthalmology-summary-reference.png in the chat visualization directory. Disposable preview files and server were removed/stopped after checks. No new functional release phase or next phase has started.
+
+## Summary font and header follow-up
+
+- Increased Summary body, table, metadata, button, badge and section-heading sizes by one step; compact body and field labels now use 10px like the Examination compact controls, with appropriately larger headings. Examination and sidebar typography were not changed.
+- Removed the redundant Patient & encounter summary banner, retaining the actual patient/encounter details grid.
+- Moved the existing Print summary action into the Consultation summary heading on the opposite/right side. The small presentational header is shared with the tests; printing is disabled while summary data is unavailable, loading or failed. The existing browser-print action is unchanged and print styling keeps a summary title.
+- Removed the persistent footer Save Draft button only when the Summary tab is active, honoring the earlier Summary-specific request. Other tabs retain their save action and handlers. No clinical state, API, persistence, authorization or completion behavior changed.
+- Updated the Summary tests for header print placement, disabled printing and absence of the removed banner. Summary/header and workspace tests passed: 20 tests. Repeated the workspace suite after the footer visibility change: 12 passed. Targeted lint passed for the changed components/tests and workspace page. Full staff-web TypeScript/production build and git diff --check passed, with the previously documented line-ending notice.
+- Visually checked the actual header and Summary components in a disposable SSR preview with synthetic QA data at desktop and 960px workspace widths. Confirmed the button sits opposite the title and the details card is the first main card. This isolated preview does not exercise live authenticated workflows or actual print output. Screenshot: summary-header-larger-fonts.png outside the repository in the chat visualization directory.
+- Files changed in this follow-up: OphthalmologyConsultationSummaryCard.tsx, OphthalmologyCompletionWorkspace.tsx, OphthalmologyConsultationSummaryCard.test.tsx, OphthalmologyWorkspacePage.tsx (one conditional display), and scoped ophthalmology-consultation.css. Existing earlier changes were retained. Temporary preview server/files were stopped/removed. No next functional phase has started.
+
+## Summary inner-content font increase
+
+The owner clarified that text inside cards remained too small. Increased only Summary content typography: desktop body/table/metadata/notes from 13px to 15px and compact content from 10px to 12px (about 20% at the owner's displayed scale). Increased table headers, inner headings, badges and note labels accordingly, and set content line height to 1.5 for readability. Kept page/section headings, card structure, print location and all functional bindings unchanged. Only ophthalmology-consultation.css changed in this follow-up. The production Vite bundle and git diff --check passed; no TypeScript or functional logic changed, so the prior focused test evidence remains applicable. No new functional phase was started.
+
+## Examination font-reference clarification
+
+After the owner asked whether Examination had actually been used as the reference, compared the actual Examination selectors in ophthalmology-consultation.css. Replaced the independent Summary body increase with Examination's existing content sizes: 13px desktop and 10px in the compact container; table headings, metadata labels/values, notes and inner labels follow those values. Summary section headings now follow Examination's 18px desktop / 14px compact headings. Existing phone readability overrides, main heading, Print summary placement and clinical functionality remain unchanged. Examination styles themselves were not changed. This supersedes the preceding independent 15px/12px increase. CSS-only follow-up; git diff --check and production bundling passed.
+
+## Remove repeated consultation eyebrow label
+
+Removed the two rendered Ophthalmology · Consultation eyebrow labels (Examination and shared Summary header). Searched all web TSX files; no other consultation tab rendered that label. Kept tab titles, descriptions, Print summary, fields and actions unchanged. Targeted lint and git diff --check passed. This is a static text removal with no functional or backend change; no new phase started.
+
+## Restore bottom Save Draft and share Examination heading styles
+
+The owner clarified that the bottom Save Draft action must remain available. Restored that footer button on Summary with its original handleSaveDraft callback, saving state and emergency-blocking conditions. Removed only the Summary visibility condition introduced earlier. The Summary header still has Print summary on the right and no top Clinical intake/Save draft actions.
+
+Summary's page title and description now share the exact Examination CSS selector rules, including font family inheritance, responsive size, 500 heading weight, color, line height, letter spacing and description margin. Summary section-heading weight/line height also match Examination card headings. Main titles and descriptions therefore remain synchronized at desktop and compact widths; Examination itself is unchanged. No body font, data, API, or lifecycle changes were made in this follow-up.
+
+Verification: 20 Summary/workspace tests passed; targeted page lint and git diff --check passed; Vite production bundling passed. Only OphthalmologyWorkspacePage.tsx and the scoped stylesheet changed for this request. No new functional phase started.
+
+## Referral & Follow-up reference styling
+
+- Implemented the main Referral & Follow-up title using the Examination heading rules, existing Specialist referral / Follow-up scheduling tabs and Back to diagnosis action. Kept the removed consultation eyebrow absent. Added top Clinical intake via the existing workspace modal callback and Save draft via existing referral/follow-up save handlers; bottom Save Draft remains.
+- Applied the reference's two-column referral layout, blue-accented form, specialty/doctor controls, reason, priority, requested date, notes, patient/context panels and left-column action bar. Follow-up uses three equal panels for calendar, doctor/time/duration and review details, followed by full-width patient instruction and actions. Added responsive stacking and compact typography within a dedicated ophthalmology-scoped stylesheet.
+- Actual referral/follow-up status is displayed in the header. Removed pre-existing sample fallback names, MRNs, diagnosis, gender, blood group, exam date and doctor selections from presentation. Blank follow-up starts at the current month with no falsely selected doctor/date. Calendar legend says Date option/Other month rather than implying live availability. Save copy requests explicit saving instead of promising unimplemented autosave. Existing mutations, values, permissions, validation and completion navigation are retained.
+- Reused existing time/duration options, native doctor select, calendar callbacks, patient query and clinical context; no new API, availability contract, database, transactions, auth or lifecycle rules were introduced. Completion still opens the existing summary/finalization flow rather than signing directly from this design.
+- Files changed for this request: OphthalmologyCareWorkspace.tsx, OphthalmologySharedCareSection.tsx, OphthalmologyFollowUpSchedulingSection.tsx, shared OpdReferralSection.tsx (optional status prop and presentation fallback cleanup), OphthalmologyWorkspacePage.tsx (intake callback/CSS import), new ophthalmology-continuing-care.css and focused scheduling tests. Previous UI changes preserved.
+- Checks: full web TypeScript and production build passed; targeted ESLint for the five changed components/page and new tests passed; workspace/scheduling tests passed (14 tests), including field callbacks, draft action, completion action and scheduled read-only states. git diff --check passed apart from the existing line-ending notice. No live patient record or appointment was changed.
+- Browser verification was attempted, but the tool reports Local browser use is disabled in Work settings. Therefore exact visual parity, responsive browser acceptance and live authenticated referral/booking persistence remain unverified. Disposable SSR preview server/files were removed after the attempt. No next functional phase has started.
+
+## Referral reference density refinement
+
+## Prescriptions & Orders reference layout
+
+### Final reference comparison follow-up
+
+Latest owner correction: removed the red route/frequency/duration color override so those options inherit their existing normal text color. Removed Clinical intake and Save draft from the orders header and the unused intake callback plumbing. Bottom draft/save/submit actions remain connected. Targeted lint and git diff --check passed. This supersedes the earlier header-action addition and reference-inspired red option styling.
+
+Compared the owner's after-change screenshots with the four clarified reference images. Fixed blank bold-font icons by using local inline SVG line icons in the order navigation, builder headings, test cards and Add medication action. Added explicit reference-only classes for the Follow-up & instructions heading/subtitle and compact review note; the extra Next: Lab Orders action is hidden directly rather than relying on an icon selector. Shortened visible lab filter labels without changing filter values or counts; kept chips beside search at desktop widths. Refined field labels/placeholders, duration-control alignment, checkbox styling, card spacing, summary header dividers and footer separator. Real medicine/test names, statuses, API bindings, permission gates and draft/submit behavior are retained. The reference's sample medication is not inserted into an empty prescription, and automatic-save wording is not copied because explicit saving remains required.
+
+The five lab/imaging interaction tests and two prescription tests passed; the workspace suite passed 12 tests in the initial combined run. Updated obsolete copy assertions to the reference labels and added checks for the hidden extra action and instruction subtitle. Fixed an unsafe mock-call array access found by TypeScript in the prescription test; web typecheck then passed. Targeted lint, final production bundling and whitespace checks passed. Exact screenshot parity and live browser acceptance remain unverified because browser access is disabled. No backend or next functional phase was started.
+
+- Added the Examination-style page title/description, Medication prescription / Laboratory orders / Imaging orders navigation, Back to diagnosis, and top intake/draft actions for the orders workspace only. Referral's removed header actions remain absent; bottom draft actions remain available.
+- Scoped ophthalmology-orders.css reproduces the reference's medication builder with three input columns, right-side prescription and instruction cards, separate action footer, laboratory/imaging two-column selection cards, right-side summary and builder action bar. Desktop and compact container rules retain the existing consultation typography pattern; narrow containers stack panels. No prototype assets were modified; the referenced prototype directory is absent in this checkout.
+- Reused existing OPD medication/formulary state, catalogue selections, field callbacks, save, submit, pharmacy, printing, permissions and intake-modal handling. Optional reference-layout/status props keep the generic OPD presentation intact. Individual medication removal now operates from the reference summary; the redundant medication table is hidden only in the ophthalmology workspace. Displayed statuses come from existing records, counts reflect the displayed catalogue, and save instructions avoid promising automatic persistence.
+- Changed files for this request: shared OpdPrescriptionSection and its focused tests, OphthalmologySharedCareSection, OphthalmologyCareWorkspace, OphthalmologyLabOrdersSection, OphthalmologyImagingOrdersSection, OphthalmologyWorkspacePage, scoped ophthalmology-orders.css and these UI notes. No backend, API payload, database, authorization, transaction or lifecycle changes. No new functional phase started.
+- Focused prescription/workspace tests passed (14 tests across the final suite runs), including medication removal and existing save/send callbacks. Web typecheck, targeted lint, production bundling and git diff --check passed (with the existing Examination line-ending notice). Browser screenshots, exact pixel comparison and live authenticated persistence remain unverified because local browser use is disabled in Work settings.
+
+Owner navigation correction: moved Optical Prescription before Prescriptions & Orders in the permission-filtered step list, making them steps 3 and 4 when all steps are available. Previous/Next actions derive from that same list. Updated explicit step references in treatment and examination; routes, permissions and save handlers are unchanged.
+
+Subsequent owner request: removed the top Clinical intake and Save draft buttons from Referral & Follow-up and removed their unused intake callback plumbing. Bottom draft actions and existing save handlers remain available. This supersedes the earlier addition of those header buttons; other tabs are unchanged.
+
+- Compared the owner's current-screen screenshots with the four final reference images. Reduced compact-container tab, button, input, calendar, time-slot and card dimensions; tightened gaps and typography while retaining the Examination page-heading rules. Referral retains the two-thirds form and one-third context layout; follow-up retains three equal panels and full-width instruction/footer sections.
+- Flattened the clinical-context header/body presentation, compacted patient identifiers and demographic separators, removed visual radio circles from priority choices, and hid follow-up character counters. The ophthalmology patient card receives the actual affected-eye context through an optional shared-component prop. No sample patient/diagnosis/doctor values were introduced.
+- Preserved existing draft, submit, scheduling, completion/navigation callbacks, permission conditions and real status values. The consultation eyebrow remains removed. Explicit-save copy remains accurate to the current implementation.
+- Web typecheck, targeted ESLint, production Vite build and all 14 scheduling/workspace tests passed after the refinement. Git diff --check passed with the existing Examination line-ending warning. Browser visual acceptance remains unavailable because local browser use is disabled in Work settings; exact pixel parity and live persistence are not claimed. No backend files or next functional phase were changed.
+
+## Optical Prescription reference UI
+
+Owner duplicate-save removal: removed the optical form's local Save draft button beside Authorize prescription. The persistent workspace Save Draft remains and continues to use the registered optical draft-save handler. Authorization, validation, unsaved-change protection and saved-slip preview are unchanged.
+
+Matching medication duplicate-save removal: the ophthalmology reference prescription layout omits its local Save Draft beside Print Prescription. The persistent workspace Save Draft and registered prescription handler remain; Print Prescription and Send To Pharmacy are unchanged. Generic OPD usage retains its own local save action.
+
+Matching referral duplicate-save removal: hid the local Save draft beside Submit referral through an optional presentation prop set only by the ophthalmology workspace. The persistent bottom Save Draft and its registered referral-save handler remain. Referral submission and Next: follow-up are unchanged; generic OPD retains its local save action.
+
+## Shared typography across all consultation tabs
+
+Added ophthalmology-typography.css, imported after the existing tab styles, with a shared Examination-based page/section/body/secondary/action font scale. Existing optical, treatment and orders font variables now reference that shared scale; referral and Summary text selectors use the same values. Normal content and inputs use regular weight, section headings 500, action labels 600 and active navigation retains its emphasis. The font family follows the existing application font-family-base configuration. Container rules synchronize desktop, compact and phone sizes without altering layout or clinical bindings. Print styles remain independent through screen-only rules, and previously removed headers/panels are not restored.
+
+Checks: production Vite build, targeted workspace-page lint and git diff --check passed. This is presentation-only; no new tests or backend changes were needed. Browser visual comparison remains unverified because local browser use is disabled. No next functional phase started.
+
+Owner Examination removal: removed the header's three-dot collapse button and its unused collapse state. Examination findings remain expanded; Clinical intake, Save draft, task actions and field/save bindings are unchanged.
+
+Owner Summary removal: removed the Encounter Regulatory Audit & Governance History panel and its displayed deferrals, overrides, approval history and amendment journal from OphthalmologyCompletionWorkspace. Removed unused presentation imports. Stored audit/history records, finalization checks/actions, permissions and backend logging remain unchanged.
+
+Owner typography correction: Doctor approval and amendment now shares the Summary section-heading font rules (18px desktop / 14px compact, 500 weight and 1.4 line height). Its explanatory paragraph follows Summary body typography (13px desktop / 10px compact, normal weight, inherited family and muted color). Scoped to the finalization panel; action buttons and completion/amendment logic are unchanged.
+
+Latest optical owner removal: removed the Optical & spectacle prescription summary/header card (including status badges and its toolbar) and the Bound clinical profile banner shown in the screenshot. Kept the page title and prescription form. Saved-slip preview/print is available with the bottom actions; load-latest recovery appears only with an actual stale-version warning. Existing form validation, profile verification/error handling in the workspace, draft saving and authorization rules remain intact.
+
+## Diagnosis & Treatment reference layout
+
+Latest owner removal: deleted the Diagnosis & treatment heading/subtitle and the four intake-summary cards from this tab. Diagnosis and treatment editors remain mounted with their existing bindings. Removed the now-unused intake-view import; other tabs and intake access are unchanged.
+
+Subsequent owner removal: removed the Next Clinical Steps & Downstream Care card, saved assessment/revision-history panel and Quick Actions toolbar shown in the supplied screenshot. Moved Recommend Surgery / Procedure into the Ophthalmic diagnoses & assessment header via an optional presentation callback. The existing modal, encounter context, creation callback and active-emergency blocking remain unchanged. Top step navigation and diagnosis/treatment save handlers remain available.
+
+Latest owner header removal: removed the diagnosis-header Recommend Surgery / Procedure button and Draft/Editable badges shown in the new screenshot, including the now-unused presentation callback props. The diagnosis title, form and saved-version validation remain intact. Treatment-row procedure recommendation handling is unchanged.
+
+Additional owner removal: removed the treatment-row care-record reference toggle and expanded picker, including its unused import and toggle state. Existing saved linkage values, action-change clearing, schema/backend reference requirements and the diagnosis-header surgery recommendation action are retained.
+
+Latest owner removal: removed the Plan status / Priority / Next review display cards, their dedicated watcher and scoped styles. Targeted lint, whitespace checks and all three clinical-review tests passed. The screenshot also contains the clinical_summary input, which the current strict save schema requires to be non-empty; requested the owner's preference to collapse or keep that field rather than hide an unsatisfiable requirement or fabricate clinical content. The field remains visible pending that choice.
+
+Owner continuation: collapsed Clinical Summary into a native details disclosure while retaining the registered required value and save validation. The disclosure opens automatically when clinical_summary has a validation error. Corrected the displayed counter to the existing 10,000-character schema/input limit. All four clinical-review tests passed, including the new empty-summary validation/disclosure check; targeted lint and whitespace checks passed.
+
+## Remove Clinical Summary and its mandatory requirement — 30 October 2026
+
+The owner's explicit request to remove both the section and required validation supersedes the preceding collapse-only decision. The current working tree already contained this removal and the aligned optional-summary changes when inspected: no summary input/disclosure/watcher in the editor; optional bounded summary in the frontend/API request schemas and DTO; empty-string model default; repository preservation of prior text when omitted; and completion readiness based on a recorded clinical-review version rather than summary text. Existing clinical history and all other treatment/approval prerequisites remain intact. These existing changes were preserved.
+
+Verification: 16 focused tests passed across the clinical-review editor, frontend care API contract and Fastify optional-summary request contract. Targeted ESLint, git diff --check and web typecheck passed. The focused Phase 8 persistence and Phase 9 readiness integration suites failed during MongoMemoryReplSet startup with a mongod internal fassert failure; their assertions did not run. Full API typecheck remains blocked by diagnostics confined to existing scripts: configure-local-dev-env.ts:23, inspect-database-backup.ts:60/146, phase2-restore-and-verify.ts:55, phase2-verify-local-backup.ts:76/77/104, phase3-functional-smoke-tests.ts:38/67, phase3-preflight-verify.ts:28 and verify-backup-archive.ts:77. No diagnostic was reported in the optional-summary domain files. No next functional phase or live patient data change was performed.
+
+Verification for that move: targeted lint, web typecheck and production bundling passed. The first workspace test attempt timed out starting the fork worker; retrying with one thread worker passed all 12 workspace tests. No backend behavior or next functional phase changed.
+
+- Reused the intake summary and existing diagnosis/clinical-review editors. Added the Examination-style page heading, two-column intake summary presentation, compact diagnosis section/row cards, affected-eye select, larger diagnostic-rationale entry and purple-accent treatment card. Kept normal option colors and the removed consultation eyebrow/header intake-save buttons absent. Added scoped ophthalmology-treatment-reference.css.
+- Existing quick-add diagnosis choices and saved assessment/revision history remain available through collapsible sections. Existing emergency/procedure/downstream actions remain available. Treatment status/priority/follow-up summary cards use current form values rather than reference sample values. Reference-only management-strategy, care-owner and checklist controls were not invented because their persistence contract is absent.
+- Canonical diagnosis values and primary/secondary actions, confirmation on removal, diagnosis and treatment save handlers, required fields and limits, linked clinical records, emergency permission gates and stale-version handling remain intact. No backend, API payload, transaction, lifecycle, database or permission infrastructure changes.
+- Changed files: OphthalmologyWorkspacePage.tsx, OphthalmologyCareWorkspace.tsx, OphthalmologyDiagnosisEditor.tsx, OphthalmologyClinicalReviewEditor.tsx, scoped ophthalmology-treatment-reference.css and UI notes. No next functional phase started.
+- The diagnosis-hook, clinical-review and workspace suites passed (20 tests). Web typecheck, targeted lint, final production bundling and whitespace checks passed. Browser pixel comparison, responsive acceptance and live authenticated persistence remain unverified because browser access is disabled.
+
+- Reused the existing optical editor and feature hook. Added the Examination-style Optical prescription title/description, compact optical summary/header, profile banner, five smaller classification choices with line-eye icons, dense OD/OS matrix, PD controls, lens/material fields, readable coating chips and compact authorization footer. Added ophthalmology-optical-reference.css scoped to this editor with compact-container and narrow-layout rules.
+- Canonical classification/coating values, form registrations, numeric limits, required fields, date-time/local timezone conversions, saved version and server-conflict protection, draft handler, approval permission/confirmation and saved spectacle-slip preview/print remain intact. The Authorize prescription button invokes the same saved-version approval action. Friendly coating labels do not change saved codes. No sample powers, PD, patient data, approved status or automatic-save claim were added. Header intake/save buttons and the consultation eyebrow remain absent in line with earlier owner preferences; select text retains its normal color.
+- Files changed: OphthalmologyOpticalEditor.tsx and its existing tests, OphthalmologyWorkspacePage.tsx (scoped CSS import), new ophthalmology-optical-reference.css and UI notes. No backend, API, database, lifecycle, transaction or permission infrastructure changed; no next functional phase started.
+- Production bundling, targeted lint and whitespace checks passed. Existing optical/workspace interaction tests passed (15 tests); the added coating-code mapping test verifies readable labels still persist the configured value. Browser access remains disabled, so exact pixel parity, responsive browser acceptance and live authenticated dispensing remain unverified.
+- Final optical verification: all four optical interaction tests passed after isolating the encounter draft cache between tests, including canonical coating-code persistence; the workspace suite passed 12 tests. Web typecheck passed. Production bundling and targeted lint passed.
+- Owner screenshot follow-up: the new page heading inherited Examination's 300/360px flex basis, which becomes height inside the optical form's column layout. Scoped the optical page heading to flex: 0 0 auto so the next card follows its natural text height. Examination's row-layout heading is unchanged.

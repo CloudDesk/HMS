@@ -755,7 +755,7 @@ export type OphthalmologyClinicalReview = {
   history: OphthalmologyClinicalReviewVersion[]; version: number; created_at: Date; updated_at: Date;
 };
 export type SaveOphthalmologyClinicalReviewDraftDTO = {
-  expected_version: number; clinical_summary: string; treatment_plans: SaveOphthalmologyTreatmentPlanDTO[];
+  expected_version: number; clinical_summary?: string; treatment_plans: SaveOphthalmologyTreatmentPlanDTO[];
   follow_up_decision?: OphthalmologyFollowUpDecision | null; patient_instructions?: string | null;
 };
 

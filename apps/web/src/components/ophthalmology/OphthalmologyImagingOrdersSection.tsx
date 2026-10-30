@@ -3,6 +3,7 @@ import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
 import type { ImagingOrderItem } from '../opd/OpdImagingSection';
 import { MedicalSpinner } from '../ui/MedicalLoader';
+import { OphthalmologyOrderIcon } from './OphthalmologyOrderIcon';
 
 export type OphthalmologyImagingOrdersSectionProps = {
   imagingPriority: ApiClinicalOrderPriority;
@@ -25,6 +26,7 @@ export type OphthalmologyImagingOrdersSectionProps = {
   handleSubmitImagingOrder?: () => void;
   isSubmitting?: boolean;
   canEdit: boolean;
+  statusLabel?: string;
 };
 
 interface ImagingCatalogItem {
@@ -113,6 +115,7 @@ export function OphthalmologyImagingOrdersSection({
   handleSubmitImagingOrder,
   isSubmitting,
   canEdit,
+  statusLabel = 'Draft',
 }: OphthalmologyImagingOrdersSectionProps) {
   // Category tabs filter state
   const [activeTabFilter, setActiveTabFilter] = useState<string>('All Scans');
@@ -156,14 +159,14 @@ export function OphthalmologyImagingOrdersSection({
 
   // Tab counts
   const tabCounts = useMemo(() => {
-    const total = Math.max(5, unifiedCatalog.length);
+    const total = unifiedCatalog.length;
     const ophthalmic = unifiedCatalog.filter((item) => item.modalityType === 'Ophthalmic Imaging').length;
     const systemic = unifiedCatalog.filter((item) => item.modalityType === 'Systemic Imaging').length;
 
     return {
       'All Scans': total,
-      'Ophthalmic Imaging': Math.max(4, ophthalmic),
-      'Systemic Imaging': Math.max(1, systemic),
+      'Ophthalmic Imaging': ophthalmic,
+      'Systemic Imaging': systemic,
     };
   }, [unifiedCatalog]);
 
@@ -244,19 +247,20 @@ export function OphthalmologyImagingOrdersSection({
   };
 
   return (
-    <article className="oph-order-main-card">
+    <article className="oph-order-main-card oph-imaging-orders">
       <div className="oph-order-layout-grid">
         {/* Left Column: Builder */}
         <div className="oph-order-builder">
           {/* Header */}
           <div className="oph-order-header">
             <div className="oph-order-header-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}>
-              <i className="ph ph-image-square-bold" />
+              <OphthalmologyOrderIcon kind="activity" />
             </div>
             <div>
-              <h3 className="oph-order-title">Imaging &amp; Radiology Requisition</h3>
-              <p className="oph-order-subtitle">Order X-rays, Ultrasounds, CT, or MRI scans</p>
+              <h3 className="oph-order-title">Imaging &amp; radiology requisition</h3>
+              <p className="oph-order-subtitle">Order scans for this patient.</p>
             </div>
+            <span className="oph-order-status">{statusLabel}</span>
           </div>
 
           {/* Config Filter Bar (2 Columns) */}
@@ -281,7 +285,7 @@ export function OphthalmologyImagingOrdersSection({
 
               {/* Imaging Category */}
               <div className="oph-order-field">
-                <label htmlFor="oph-imaging-category-sel">Imaging Category</label>
+                <label htmlFor="oph-imaging-category-sel">Imaging category</label>
                 <div className="oph-order-input-wrap">
                   <i className="ph ph-squares-four oph-order-field-icon" />
                   <select
@@ -339,7 +343,7 @@ export function OphthalmologyImagingOrdersSection({
           </div>
 
           {/* Available Imaging Tests Heading */}
-          <h4 className="oph-order-section-title">Available Imaging Tests</h4>
+          <h4 className="oph-order-section-title">Available imaging tests <span>{imagingOrders.length} selected</span></h4>
 
           {/* 3-Column Imaging Cards Grid */}
           <div className="oph-test-cards-grid">
@@ -379,7 +383,7 @@ export function OphthalmologyImagingOrdersSection({
                       className="oph-test-icon-circle"
                       style={{ background: item.iconBg, color: item.iconColor }}
                     >
-                      <i className={`ph ${item.icon}`} />
+                      <OphthalmologyOrderIcon kind="activity" />
                     </div>
                     <div className="oph-test-body">
                       <div className="oph-test-name" title={item.name}>
@@ -407,10 +411,10 @@ export function OphthalmologyImagingOrdersSection({
           {/* Clinical Information & Instructions (2 Columns) */}
           <div className="oph-order-notes-grid">
             <div className="oph-order-note-col">
-              <label htmlFor="oph-img-clinical-info">Clinical Information (Optional)</label>
+              <label htmlFor="oph-img-clinical-info">Clinical information</label>
               <textarea
                 id="oph-img-clinical-info"
-                placeholder="e.g. Clinical symptoms, suspected pathology, or trauma site..."
+                placeholder="Symptoms, suspected pathology, or trauma site..."
                 value={imagingClinicalInfo}
                 onChange={(e) => setImagingClinicalInfo(e.target.value.slice(0, 500))}
                 disabled={!canEdit}
@@ -420,10 +424,10 @@ export function OphthalmologyImagingOrdersSection({
             </div>
 
             <div className="oph-order-note-col">
-              <label htmlFor="oph-img-order-instructions">Order Instructions (Optional)</label>
+              <label htmlFor="oph-img-order-instructions">Order instructions</label>
               <textarea
                 id="oph-img-order-instructions"
-                placeholder="e.g. Special views requested, with/without contrast, or other instructions..."
+                placeholder="Special views, contrast, or other instructions..."
                 value={imagingOrderInstructions}
                 onChange={(e) => setImagingOrderInstructions(e.target.value.slice(0, 500))}
                 disabled={!canEdit}
@@ -438,13 +442,13 @@ export function OphthalmologyImagingOrdersSection({
         <aside className="oph-order-summary-panel">
           <div className="oph-summary-header">
             <i className="ph ph-shopping-cart" style={{ color: '#0284c7', fontSize: '1.15rem' }} />
-            <span>Order Summary ({imagingOrders.length})</span>
+            <span>Order summary</span><span className="oph-order-status">{imagingOrders.length}</span>
           </div>
 
           <div className="oph-summary-items-list">
             {imagingOrders.length === 0 ? (
               <div className="oph-summary-empty">
-                No imaging tests selected yet. Choose tests from the list to add to this order.
+                Select scans to build the order.
               </div>
             ) : (
               imagingOrders.map((order) => {
@@ -497,6 +501,7 @@ export function OphthalmologyImagingOrdersSection({
               })
             )}
           </div>
+          <div className="oph-order-review-note"><i className="ph ph-check" aria-hidden="true" />Review scans before submitting.</div>
         </aside>
       </div>
 
@@ -504,7 +509,7 @@ export function OphthalmologyImagingOrdersSection({
       <div className="oph-order-footer">
         <div className="oph-order-autosave">
           <i className="ph ph-check-circle-fill" />
-          <span>All changes will be saved automatically</span>
+          <span>Save changes before leaving</span>
         </div>
 
         <div className="oph-order-actions-group">

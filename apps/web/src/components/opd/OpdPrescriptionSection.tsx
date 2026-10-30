@@ -1,5 +1,6 @@
 import type { Icd10Diagnosis } from '../../data/icd10-diagnoses';
 import { MedicalSpinner } from '../ui/MedicalLoader';
+import { OphthalmologyOrderIcon } from '../ophthalmology/OphthalmologyOrderIcon';
 
 export type MedicationFormState = {
   medicine_name: string;
@@ -42,6 +43,8 @@ export type OpdPrescriptionSectionProps = {
   updating: string;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
+  referenceLayout?: boolean;
+  statusLabel?: string;
 };
 
 export function OpdPrescriptionSection({
@@ -59,6 +62,8 @@ export function OpdPrescriptionSection({
   updating,
   handleNextStep,
   canEdit,
+  referenceLayout = false,
+  statusLabel = 'Draft',
 }: OpdPrescriptionSectionProps) {
   return (
     <article className="opd-prescription-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -112,19 +117,19 @@ export function OpdPrescriptionSection({
                     fontSize: '1.25rem',
                   }}
                 >
-                  <i className="ph ph-pill-bold" />
+                  <OphthalmologyOrderIcon kind="pill" />
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.12rem', fontWeight: 700, color: '#0f172a' }}>
-                    Prescription Builder
+                    Prescription builder
                   </h3>
                   <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                    Search formulary medicine and specify dosage instructions
+                    Add medication and instructions for this visit.
                   </p>
                 </div>
               </div>
 
-              <button
+              {referenceLayout ? <span className="oph-order-status">{statusLabel}</span> : <button
                 type="button"
                 className="doc-btn"
                 style={{
@@ -146,7 +151,7 @@ export function OpdPrescriptionSection({
                 <i className="ph ph-stethoscope" style={{ fontSize: '0.9rem' }} />
                 <span>Edit Diagnosis</span>
                 <i className="ph ph-arrow-right" style={{ fontSize: '0.8rem' }} />
-              </button>
+              </button>}
             </div>
 
             {/* Selected Diagnoses quick glance if present */}
@@ -180,7 +185,7 @@ export function OpdPrescriptionSection({
                 <div className="doc-form-grid three" style={{ gap: '12px' }}>
                   <label className="doc-field">
                     <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-                      Medicine Search <span style={{ color: '#ef4444' }}>*</span>
+                      Medicine search <span style={{ color: '#ef4444' }}>*</span>
                     </span>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <i
@@ -355,7 +360,7 @@ export function OpdPrescriptionSection({
 
                   <label className="doc-field">
                     <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-                      Custom Duration <span style={{ color: '#ef4444' }}>*</span>
+                      Custom duration {!referenceLayout && <span style={{ color: '#ef4444' }}>*</span>}
                     </span>
                     <input
                       id="custom-duration-input"
@@ -367,7 +372,7 @@ export function OpdPrescriptionSection({
                         padding: '0 12px',
                       }}
                       onChange={(e) => setMedicationForm((m) => ({ ...m, duration: e.target.value }))}
-                      placeholder="e.g. 21 Days, 6 Weeks, 2 Months"
+                      placeholder={referenceLayout ? 'e.g. 21 days' : 'e.g. 21 Days, 6 Weeks, 2 Months'}
                       value={medicationForm.duration}
                       disabled={['3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '30 Days', 'Ongoing'].includes(medicationForm.duration)}
                     />
@@ -378,7 +383,7 @@ export function OpdPrescriptionSection({
                 <div>
                   <label className="doc-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-                      Instructions (to Patient)
+                      Instructions to patient
                     </span>
                     <div style={{ position: 'relative' }}>
                       <textarea
@@ -387,7 +392,7 @@ export function OpdPrescriptionSection({
                         onChange={(e) =>
                           setMedicationForm((m) => ({ ...m, instructions: e.target.value }))
                         }
-                        placeholder="e.g. After meals, for 7 days, shake well before use..."
+                        placeholder={referenceLayout ? 'Directions, timing, and safety advice...' : 'e.g. After meals, for 7 days, shake well before use...'}
                         rows={2}
                         value={medicationForm.instructions}
                         style={{
@@ -464,8 +469,8 @@ export function OpdPrescriptionSection({
                     }}
                     type="button"
                   >
-                    <i aria-hidden="true" className="ph ph-plus-bold" />
-                    <span>Add Medication</span>
+                    <OphthalmologyOrderIcon kind="plus" />
+                    <span>Add medication</span>
                   </button>
                 </div>
               </div>
@@ -474,7 +479,7 @@ export function OpdPrescriptionSection({
 
           {/* 2. Current Prescription Items Card */}
           <section
-            className="doc-card opd-rx-card"
+            className={`doc-card opd-rx-card${referenceLayout ? ' oph-rx-items-table' : ''}`}
             style={{
               background: '#ffffff',
               border: '1px solid #e2e8f0',
@@ -641,11 +646,11 @@ export function OpdPrescriptionSection({
                   <i className="ph ph-target-bold" />
                 </div>
                 <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#0f172a' }}>
-                  Prescription Summary
+                  Prescription summary
                 </h4>
               </div>
 
-              {canEdit && (
+              {referenceLayout ? <span className="oph-order-status">{prescriptionForm.items.length} added</span> : canEdit && (
                 <button
                   type="button"
                   className="doc-btn doc-btn-danger"
@@ -678,7 +683,7 @@ export function OpdPrescriptionSection({
 
             {/* Content */}
             {prescriptionForm.items.length === 0 ? (
-              <div style={{ padding: '24px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <div className="oph-rx-summary-empty" style={{ padding: '24px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                 <div
                   style={{
                     width: '38px',
@@ -706,6 +711,7 @@ export function OpdPrescriptionSection({
                 {prescriptionForm.items.map((item, idx) => (
                   <div
                     key={item.local_id || idx}
+                    className="oph-rx-summary-item"
                     style={{
                       padding: '8px 10px',
                       background: '#f8fafc',
@@ -719,10 +725,11 @@ export function OpdPrescriptionSection({
                     <div>
                       <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{item.medicine_name}</strong>
                       <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                        {item.dosage} · {item.route} · {item.frequency}
+                        {item.dosage} · {referenceLayout ? `${item.frequency} · ${item.duration}` : `${item.route} · ${item.frequency}`}
                       </div>
                     </div>
                     <span
+                      className={referenceLayout ? 'oph-rx-duration-duplicate' : undefined}
                       style={{
                         fontSize: '0.72rem',
                         fontWeight: 700,
@@ -734,6 +741,7 @@ export function OpdPrescriptionSection({
                     >
                       {item.duration}
                     </span>
+                    {referenceLayout && canEdit && <button type="button" className="oph-summary-remove-btn" aria-label={`Remove ${item.medicine_name}`} onClick={() => setPrescriptionForm((prev) => ({ ...prev, items: prev.items.filter((_, index) => index !== idx) }))}>×</button>}
                   </div>
                 ))}
               </div>
@@ -752,6 +760,7 @@ export function OpdPrescriptionSection({
             }}
           >
             <div
+              className={referenceLayout ? 'oph-rx-followup-heading' : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -777,13 +786,14 @@ export function OpdPrescriptionSection({
                 <i className="ph ph-calendar-bold" />
               </div>
               <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#0f172a' }}>
-                Follow-up &amp; Instructions
+                Follow-up &amp; instructions
               </h4>
+              {referenceLayout && <p>Complete before sending.</p>}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <label className="doc-field">
-                <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Follow-up Date</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Follow-up date</span>
                 <input
                   id="rx-follow-up-date"
                   style={{
@@ -804,7 +814,7 @@ export function OpdPrescriptionSection({
 
               <label className="doc-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-                  Doctor Instructions (for pharmacy)
+                  Doctor instructions
                 </span>
                 <div style={{ position: 'relative' }}>
                   <textarea
@@ -825,7 +835,7 @@ export function OpdPrescriptionSection({
                         doctor_instructions: e.target.value,
                       }))
                     }
-                    placeholder="Clinical instructions for pharmacy dispensing..."
+                    placeholder={referenceLayout ? 'Clinical instructions for pharmacy...' : 'Clinical instructions for pharmacy dispensing...'}
                     rows={2}
                     value={prescriptionForm.doctor_instructions}
                     disabled={!canEdit}
@@ -846,7 +856,7 @@ export function OpdPrescriptionSection({
               </label>
 
               <label className="doc-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Patient Instructions</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Patient instructions</span>
                 <div style={{ position: 'relative' }}>
                   <textarea
                     id="rx-patient-instructions"
@@ -866,7 +876,7 @@ export function OpdPrescriptionSection({
                         patient_instructions: e.target.value,
                       }))
                     }
-                    placeholder="Patient counselling notes, lifestyle advice, diet restrictions..."
+                    placeholder={referenceLayout ? 'Counselling notes and lifestyle advice...' : 'Patient counselling notes, lifestyle advice, diet restrictions...'}
                     rows={2}
                     value={prescriptionForm.patient_instructions}
                     disabled={!canEdit}
@@ -888,6 +898,7 @@ export function OpdPrescriptionSection({
 
               {/* Blue Info Banner */}
               <div
+                className={referenceLayout ? 'oph-rx-review-note' : undefined}
                 style={{
                   background: '#eff6ff',
                   border: '1px solid #bfdbfe',
@@ -915,11 +926,11 @@ export function OpdPrescriptionSection({
                     marginTop: '1px',
                   }}
                 >
-                  i
+                  {referenceLayout ? <OphthalmologyOrderIcon kind="check" /> : 'i'}
                 </div>
                 <div>
                   <strong style={{ display: 'block', fontSize: '0.78rem', color: '#1e40af', lineHeight: '1.3' }}>
-                    Prescription will be sent to the pharmacy after saving.
+                    {referenceLayout ? 'Review medication and instructions before sending to pharmacy.' : 'Prescription will be sent to the pharmacy after saving.'}
                   </strong>
                   <span style={{ display: 'block', fontSize: '0.72rem', color: '#3b82f6', marginTop: '2px', lineHeight: '1.3' }}>
                     Please review diagnosis, dosage and instructions before proceeding.
@@ -955,7 +966,7 @@ export function OpdPrescriptionSection({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {canEdit && (
+          {canEdit && !referenceLayout && (
             <button
               className="doc-btn"
               onClick={saveConsultationDraft}
@@ -1035,6 +1046,7 @@ export function OpdPrescriptionSection({
           <button
             className="doc-btn"
             onClick={() => handleNextStep('Lab Orders')}
+            hidden={referenceLayout}
             type="button"
             style={{
               fontSize: '0.82rem',

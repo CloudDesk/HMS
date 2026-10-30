@@ -38,13 +38,13 @@ const DURATION_OPTIONS = [
 ];
 
 function formatTime12h(time24?: string): string {
-  if (!time24) return '09:00 AM';
+  if (!time24) return 'Not selected';
   const parts = time24.split(':');
   const hStr = parts[0] ?? '9';
   const mStr = parts[1] ?? '0';
   const h = parseInt(hStr, 10);
   const m = parseInt(mStr, 10);
-  if (isNaN(h)) return '09:00 AM';
+  if (isNaN(h)) return 'Not selected';
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   const mFmt = m < 10 ? `0${m}` : m;
@@ -53,9 +53,9 @@ function formatTime12h(time24?: string): string {
 }
 
 function formatDateDisplay(isoDateStr?: string): string {
-  if (!isoDateStr) return '12 Oct 2026 (Mon)';
+  if (!isoDateStr) return 'Not selected';
   const date = new Date(isoDateStr + 'T00:00:00');
-  if (isNaN(date.getTime())) return '12 Oct 2026 (Mon)';
+  if (isNaN(date.getTime())) return 'Not selected';
   const day = date.getDate();
   const month = date.toLocaleDateString('en-GB', { month: 'short' });
   const year = date.getFullYear();
@@ -84,7 +84,6 @@ export function OphthalmologyFollowUpSchedulingSection({
   scheduleFollowUp,
   completeConsultation,
   completionBlocked = false,
-  visit,
 }: OphthalmologyFollowUpSchedulingProps) {
   // Calendar month state
   const initialDate = useMemo(() => {
@@ -92,7 +91,7 @@ export function OphthalmologyFollowUpSchedulingSection({
       const parsed = new Date(followUpDate + 'T00:00:00');
       if (!isNaN(parsed.getTime())) return parsed;
     }
-    return new Date(2026, 9, 12); // Default Oct 2026 as per reference
+    return new Date();
   }, [followUpDate]);
 
   const [viewDate, setViewDate] = useState<Date>(initialDate);
@@ -189,11 +188,11 @@ export function OphthalmologyFollowUpSchedulingSection({
 
   // Selected doctor
   const selectedDoctor = useMemo(() => {
-    return doctors.find((d) => d.id === followUpDoctorId) || doctors[0];
+    return doctors.find((d) => d.id === followUpDoctorId);
   }, [doctors, followUpDoctorId]);
 
-  const doctorDisplayName = selectedDoctor?.display_name || visit?.doctor_name || 'Dr. Aravind';
-  const doctorSpecialization = selectedDoctor?.specialization || 'Ophthalmologist';
+  const doctorDisplayName = selectedDoctor?.display_name || 'Select a doctor';
+  const doctorSpecialization = selectedDoctor?.specialization || '';
 
   const isScheduled = followUp?.status === 'SCHEDULED';
   const isBusy = updating === 'follow-up-draft' || updating === 'follow-up-schedule' || updating === 'consultation-complete';
@@ -211,9 +210,10 @@ export function OphthalmologyFollowUpSchedulingSection({
           </svg>
         </div>
         <div>
-          <h3 className="oph-followup-title">Follow-up Schedule</h3>
-          <p className="oph-followup-subtitle">Book next review date and doctor assignment</p>
+          <h3 className="oph-followup-title">Follow-up schedule</h3>
+          <p className="oph-followup-subtitle">Book the next review date and doctor appointment.</p>
         </div>
+        <span className="oph-continuing-status">{followUp?.status || 'Draft'}</span>
       </div>
 
       {/* 3-Region Desktop Arrangement */}
@@ -284,11 +284,11 @@ export function OphthalmologyFollowUpSchedulingSection({
           <div className="oph-calendar-legend">
             <div className="oph-legend-item">
               <span className="oph-legend-dot available" />
-              <span>Available</span>
+              <span>Date option</span>
             </div>
             <div className="oph-legend-item">
               <span className="oph-legend-dot unavailable" />
-              <span>Unavailable</span>
+              <span>Other month</span>
             </div>
             <div className="oph-legend-item">
               <span className="oph-legend-dot selected" />
@@ -417,7 +417,7 @@ export function OphthalmologyFollowUpSchedulingSection({
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
-            <h4 className="oph-details-title">Follow-up Details</h4>
+            <h4 className="oph-details-title">Follow-up details</h4>
           </div>
 
           {/* Info Rows */}
@@ -536,7 +536,7 @@ export function OphthalmologyFollowUpSchedulingSection({
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
-          <span>Changes will be saved automatically</span>
+          <span>Save a draft to keep your changes.</span>
         </div>
 
         <div className="oph-footer-actions">

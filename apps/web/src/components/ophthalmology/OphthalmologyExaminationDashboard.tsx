@@ -363,7 +363,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
   const [uploadingEye, setUploadingEye] = useState<'OD' | 'OS' | null>(null);
   const [capturedPhotos, setCapturedPhotos] = useState<CapturedFundusPhoto[]>([]);
   const [selectedModalPhoto, setSelectedModalPhoto] = useState<CapturedFundusPhoto | null>(null);
-  const [examCollapsed, setExamCollapsed] = useState(false);
 
   const odFileInputRef = useRef<HTMLInputElement>(null);
   const osFileInputRef = useRef<HTMLInputElement>(null);
@@ -527,22 +526,10 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
       <div className="oph-exam-section-container">
         {/* Examination Findings Section Header */}
         <div className="oph-exam-section-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="oph-exam-header-icon">
-              <i className="ph ph-eye" />
-            </div>
-            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
-              Examination Findings
-            </span>
-            {f.tasks.length === 0 ? (
-              <span className="oph-exam-status-badge empty">
-                <span>🚫</span> No examination performed yet
-              </span>
-            ) : (
-              <span className="oph-exam-status-badge available">
-                {f.tasks.length} Authorized Tasks Available
-              </span>
-            )}
+          <div className="oph-exam-heading">
+            <h2>Comprehensive examination</h2>
+            <p className="oph-exam-description">Document clinical findings for both eyes.</p>
+
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -554,7 +541,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 title="View patient clinical intake and history"
               >
                 <i className="ph ph-clipboard-text" />
-                <span>Clinical Intake</span>
+                <span>Clinical intake</span>
               </button>
             )}
             <button
@@ -565,8 +552,8 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', padding: '4px 10px' }}
               title="Save preliminary examination findings to consultation draft"
             >
-              <i className={`ph ${isSavingExamDraft ? 'ph-spinner ph-spin' : 'ph-floppy-disk'}`} />
-              <span>{isSavingExamDraft ? 'Saving Exam...' : 'Save Exam Draft'}</span>
+              <i className={`ph ${isSavingExamDraft ? 'ph-spinner ph-spin' : 'ph-check'}`} />
+              <span>{isSavingExamDraft ? 'Saving...' : 'Save draft'}</span>
             </button>
             {f.tasks.length > 0 && f.tasks.map((task) => (
               <button
@@ -582,21 +569,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 </span>
               </button>
             ))}
-            <button
-              type="button"
-              className="doc-btn compact"
-              onClick={() => setExamCollapsed(!examCollapsed)}
-              style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-              title={examCollapsed ? 'Expand Examination Findings' : 'Collapse Examination Findings'}
-              aria-expanded={!examCollapsed}
-              aria-controls="oph-exam-findings-content"
-            >
-              <i className={`ph ph-caret-${examCollapsed ? 'down' : 'up'}`} />
-            </button>
           </div>
         </div>
 
-        {!examCollapsed && (
           <div id="oph-exam-findings-content" className="oph-exam-section-body">
             {f.tasksQuery.data && f.tasksQuery.data.meta.totalPages > 1 && (
               <div className="oph-toolbar" style={{ margin: '0 0 10px 0' }}>
@@ -610,20 +585,22 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
         <div className="oph-exam-grid-3">
 
         {/* 1. VISUAL ACUITY */}
-        <div className="oph-exam-card">
+        <div className="oph-exam-card oph-acuity-card">
           <div>
             <div className="oph-card-header">
               <h3 className="oph-card-title">
+                <span className="oph-card-number">01</span>
                 <span className="oph-card-icon"><i className="ph ph-eye" /></span>
-                <span>1. Visual Acuity</span>
+                <span>Visual acuity</span>
               </h3>
+              <div className="oph-card-controls">
               <div className="oph-subtabs">
                 <button
                   type="button"
                   className={`oph-subtab-btn ${vaMode === 'without' ? 'active' : ''}`}
                   onClick={() => setVaMode('without')}
                 >
-                  Without Correction
+                  Unaided
                 </button>
                 <button
                   type="button"
@@ -633,66 +610,42 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                   With Correction
                 </button>
               </div>
+                <span className={`oph-card-status ${vaTask?.status === 'COMPLETED' ? 'complete' : ''}`}><span aria-hidden="true" className="oph-status-dot" />{vaTask ? (vaTask.status === 'COMPLETED' ? 'Completed' : vaTask.status.replaceAll('_', ' ')) : (vaOdUnaided || vaOdCorr ? 'Recorded' : 'Not started')}</span>
+                {vaTask && <button type="button" className="oph-card-task-action" title={`Open task form (${vaTask.status})`} onClick={() => workspace.setQuery('task_id', vaTask.id)}><i className="ph ph-dots-three" aria-hidden="true" /><span className="oph-visually-hidden">Open Task Form ({vaTask.status})</span></button>}
+              </div>
             </div>
 
             {vaMode === 'without' ? (
               <div>
-                <table className="oph-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '40%' }}>Parameter</th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill od">OD - Right</span></th>
-                      <th style={{ width: '30%' }}><span className="oph-eye-pill os">OS - Left</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Distance (UCVA)</strong></td>
-                      <td>
-                        <select value={vaOdUnaided} onChange={(e) => setVaOdUnaided(e.target.value)} style={{ fontWeight: 700, color: '#1e3a8a' }}>
+                <div className="oph-acuity-panels">
+                  <section className="oph-acuity-panel" aria-label="Distance visual acuity">
+                    <h4>Distance · UCVA</h4>
+                    <div className="oph-acuity-eyes">
+                      <label><span>OD</span><select value={vaOdUnaided} onChange={(e) => setVaOdUnaided(e.target.value)} style={{ fontWeight: 700, color: '#1e3a8a' }}>
                           <option value="">--</option>
                           <option>6/60</option><option>6/36</option><option>6/24</option><option>6/18</option><option>6/12</option><option>6/9</option><option>6/6</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select value={vaOsUnaided} onChange={(e) => setVaOsUnaided(e.target.value)} style={{ fontWeight: 700, color: '#064e3b' }}>
+                        </select></label>
+                      <label><span>OS</span><select value={vaOsUnaided} onChange={(e) => setVaOsUnaided(e.target.value)} style={{ fontWeight: 700, color: '#064e3b' }}>
                           <option value="">--</option>
                           <option>6/60</option><option>6/36</option><option>6/24</option><option>6/18</option><option>6/12</option><option>6/9</option><option>6/6</option>
-                        </select>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Pinhole (PH)</td>
-                      <td>
-                        <select value={vaOdPh} onChange={(e) => setVaOdPh(e.target.value)}>
-                          <option value="">--</option>
-                          <option>6/24</option><option>6/18</option><option>6/12</option><option>6/9</option><option>No improve</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select value={vaOsPh} onChange={(e) => setVaOsPh(e.target.value)}>
-                          <option value="">--</option>
-                          <option>6/18</option><option>6/12</option><option>6/9</option><option>6/6</option><option>No improve</option>
-                        </select>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Near Vision (N)</td>
-                      <td>
-                        <select value={vaOdNearUn} onChange={(e) => setVaOdNearUn(e.target.value)}>
+                        </select></label>
+                    </div>
+                  </section>
+                  <section className="oph-acuity-panel" aria-label="Near vision">
+                    <h4>Near vision</h4>
+                    <div className="oph-acuity-eyes">
+                      <label><span>OD</span><select value={vaOdNearUn} onChange={(e) => setVaOdNearUn(e.target.value)}>
                           <option value="">--</option>
                           <option>N6</option><option>N8</option><option>N10</option><option>N12</option><option>N18</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select value={vaOsNearUn} onChange={(e) => setVaOsNearUn(e.target.value)}>
+                        </select></label>
+                      <label><span>OS</span><select value={vaOsNearUn} onChange={(e) => setVaOsNearUn(e.target.value)}>
                           <option value="">--</option>
                           <option>N6</option><option>N8</option><option>N10</option><option>N12</option>
-                        </select>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                        </select></label>
+                    </div>
+                  </section>
+
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px', marginTop: '4px' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '2px' }}>Color Vision (Ishihara)</label>
@@ -708,6 +661,21 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                     <textarea rows={2} className="oph-exam-textarea" value={vaNotes} onChange={(e) => setVaNotes(e.target.value)} placeholder="Unaided baseline remarks..." />
                   </div>
                 </div>
+                <details className="oph-pinhole-details" open={Boolean(vaOdPh || vaOsPh)}>
+                  <summary>Pinhole (PH)</summary>
+                  <section className="oph-acuity-panel" aria-label="Pinhole visual acuity">
+                    <div className="oph-acuity-eyes">
+                      <label><span>OD</span><select value={vaOdPh} onChange={(e) => setVaOdPh(e.target.value)}>
+                          <option value="">--</option>
+                          <option>6/24</option><option>6/18</option><option>6/12</option><option>6/9</option><option>No improve</option>
+                        </select></label>
+                      <label><span>OS</span><select value={vaOsPh} onChange={(e) => setVaOsPh(e.target.value)}>
+                          <option value="">--</option>
+                          <option>6/18</option><option>6/12</option><option>6/9</option><option>6/6</option><option>No improve</option>
+                        </select></label>
+                    </div>
+                  </section>
+                </details>
               </div>
             ) : (
               <div>
@@ -785,26 +753,19 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
-            <span>{vaMode === 'without' ? 'Mode: Unaided' : 'Mode: Habitual Rx'}</span>
-            {vaTask ? (
-              <button type="button" className="doc-btn" style={{ fontSize: '0.72rem', padding: '2px 8px' }} onClick={() => workspace.setQuery('task_id', vaTask.id)}>
-                Open Task Form ({vaTask.status})
-              </button>
-            ) : (
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> {vaOdUnaided || vaOdCorr ? 'Recorded' : 'Awaiting Entry'}</span>
-            )}
-          </div>
+
         </div>
 
         {/* 2. REFRACTION */}
-        <div className="oph-exam-card">
+        <div className="oph-exam-card oph-refraction-card">
           <div>
             <div className="oph-card-header">
               <h3 className="oph-card-title">
+                <span className="oph-card-number">02</span>
                 <span className="oph-card-icon"><i className="ph ph-eyeglasses" /></span>
-                <span>2. Refraction</span>
+                <span>Refraction</span>
               </h3>
+              <div className="oph-card-controls">
               <div className="oph-subtabs">
                 <button type="button" className={`oph-subtab-btn ${refTab === 'ar' ? 'active' : ''}`} onClick={() => setRefTab('ar')}>
                   Auto Refraction
@@ -815,6 +776,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 <button type="button" className={`oph-subtab-btn ${refTab === 'final' ? 'active' : ''}`} onClick={() => setRefTab('final')}>
                   Final Rx
                 </button>
+              </div>
+                <span className={`oph-card-status ${refTask?.status === 'COMPLETED' ? 'complete' : ''}`}><span aria-hidden="true" className="oph-status-dot" />{refTask ? (refTask.status === 'COMPLETED' ? 'Completed' : refTask.status.replaceAll('_', ' ')) : (arOdSph || subjOdSph ? 'Entered' : 'Not started')}</span>
+                {refTask && <button type="button" className="oph-card-task-action" title={`Open task form (${refTask.status})`} onClick={() => workspace.setQuery('task_id', refTask.id)}><i className="ph ph-dots-three" aria-hidden="true" /><span className="oph-visually-hidden">Open Task Form ({refTask.status})</span></button>}
               </div>
             </div>
 
@@ -942,33 +906,37 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                   }}
                 >
                   <i className="ph ph-receipt" style={{ marginRight: '6px' }} />
-                  Transfer to Tab 4 Optical Prescription Slip →
+                  Transfer to Tab 3 Optical Prescription Slip →
                 </button>
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
-            <span>Refractometer</span>
-            {refTask ? (
-              <button type="button" className="doc-btn" style={{ fontSize: '0.72rem', padding: '2px 8px' }} onClick={() => workspace.setQuery('task_id', refTask.id)}>
-                Open Task Form ({refTask.status})
-              </button>
-            ) : (
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> {arOdSph || subjOdSph ? 'Trial Balanced' : 'Awaiting Entry'}</span>
-            )}
-          </div>
+
         </div>
 
         {/* 3. INTRAOCULAR PRESSURE (IOP) */}
-        <div className="oph-exam-card">
+        <div className="oph-exam-card oph-pressure-card">
           <div>
             <div className="oph-card-header">
               <h3 className="oph-card-title">
+                <span className="oph-card-number">03</span>
                 <span className="oph-card-icon"><i className="ph ph-gauge" /></span>
-                <span>3. Intraocular Pressure (IOP)</span>
+                <span>Intraocular pressure</span>
               </h3>
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> 10-21 mmHg</span>
+              <div className="oph-card-controls">
+                <span className="oph-reference-range" title="Reference range; not an assessment of the patient's reading">Reference · 10–21 mmHg</span>
+                <span className={`oph-card-status ${iopTask?.status === 'COMPLETED' ? 'complete' : ''}`}>
+                  <span aria-hidden="true" className="oph-status-dot" />
+                  {iopTask ? (iopTask.status === 'COMPLETED' ? 'Completed' : iopTask.status.replaceAll('_', ' ')) : (iopOd && iopOs ? 'Recorded' : 'Awaiting entry')}
+                </span>
+                {iopTask && (
+                  <button type="button" className="oph-card-task-action" title={`Open task form (${iopTask.status})`} onClick={() => workspace.setQuery('task_id', iopTask.id)}>
+                    <i className="ph ph-dots-three" aria-hidden="true" />
+                    <span className="oph-visually-hidden">Open Task Form ({iopTask.status})</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ marginBottom: '8px' }}>
@@ -983,7 +951,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <table className="oph-table">
               <thead>
                 <tr>
-                  <th>Modality</th>
+                  <th>Eye</th>
                   <th style={{ width: '38%' }}><span className="oph-eye-pill od">OD · Right Eye</span></th>
                   <th style={{ width: '38%' }}><span className="oph-eye-pill os">OS · Left Eye</span></th>
                 </tr>
@@ -996,8 +964,8 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 </tr>
                 <tr>
                   <td>CCT Pachymetry</td>
-                  <td style={{ textAlign: 'center', fontFamily: 'monospace', fontWeight: 600 }}>--</td>
-                  <td style={{ textAlign: 'center', fontFamily: 'monospace', fontWeight: 600 }}>--</td>
+                  <td><span className="oph-unavailable-reading" title="Not recorded">—</span></td>
+                  <td><span className="oph-unavailable-reading" title="Not recorded">—</span></td>
                 </tr>
               </tbody>
             </table>
@@ -1014,16 +982,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
-            <span>Fluorescein + Proparacaine GAT</span>
-            {iopTask ? (
-              <button type="button" className="doc-btn" style={{ fontSize: '0.72rem', padding: '2px 8px' }} onClick={() => workspace.setQuery('task_id', iopTask.id)}>
-                Open Task Form ({iopTask.status})
-              </button>
-            ) : (
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> {iopOd && iopOs ? 'Recorded' : 'Awaiting Entry'}</span>
-            )}
-          </div>
         </div>
 
       </div>
@@ -1032,29 +990,40 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
       <div className="oph-exam-grid-2">
 
         {/* 4. SLIT LAMP EXAMINATION */}
-        <div className="oph-exam-card">
+        <div className="oph-exam-card oph-slit-card">
           <div>
             <div className="oph-card-header">
               <h3 className="oph-card-title">
+                <span className="oph-card-number">04</span>
                 <span className="oph-card-icon"><i className="ph ph-microscope" /></span>
-                <span>4. Slit Lamp Examination</span>
+                <span>Slit lamp examination</span>
               </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="oph-card-controls">
                 <div className="oph-subtabs">
                   <button type="button" className={`oph-subtab-btn ${slitTab === 'anterior' ? 'active' : ''}`} onClick={() => setSlitTab('anterior')}>
-                    Anterior Segment
+                    Anterior segment
                   </button>
                   <button type="button" className={`oph-subtab-btn ${slitTab === 'posterior' ? 'active' : ''}`} onClick={() => setSlitTab('posterior')}>
-                    Posterior (90D/78D)
+                    Posterior<span className="oph-visually-hidden"> (90D/78D)</span>
                   </button>
                 </div>
                 <button
                   type="button"
-                  style={{ border: 'none', background: '#eff6ff', color: '#2563eb', fontWeight: 700, fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                  className="oph-all-normal"
                   onClick={setAllSlitNormal}
                 >
-                  <i className="ph ph-check-circle" style={{ marginRight: '3px' }} /> Quick: All Normal
+                  <i className="ph ph-check" aria-hidden="true" /> All normal
                 </button>
+                <span className={`oph-card-status ${slitTask?.status === 'COMPLETED' ? 'complete' : ''}`}>
+                  <span aria-hidden="true" className="oph-status-dot" />
+                  {slitTask ? (slitTask.status === 'COMPLETED' ? 'Completed' : slitTask.status.replaceAll('_', ' ')) : (slitOdCornea || slitOsCornea ? 'Recorded' : 'Not started')}
+                </span>
+                {slitTask && (
+                  <button type="button" className="oph-card-task-action" title={`Open task form (${slitTask.status})`} onClick={() => workspace.setQuery('task_id', slitTask.id)}>
+                    <i className="ph ph-dots-three" aria-hidden="true" />
+                    <span className="oph-visually-hidden">Open Task Form ({slitTask.status})</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1063,9 +1032,9 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 <table className="oph-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '28%' }}>Structure</th>
-                      <th style={{ width: '36%' }}><span className="oph-eye-pill od">OD · Right Eye</span></th>
-                      <th style={{ width: '36%' }}><span className="oph-eye-pill os">OS · Left Eye</span></th>
+                      <th style={{ width: '38%' }}>Measurement</th>
+                      <th style={{ width: '31%' }}><span className="oph-eye-pill od">OD · Right Eye</span></th>
+                      <th style={{ width: '31%' }}><span className="oph-eye-pill os">OS · Left Eye</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1258,26 +1227,18 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
-            <span>Haag-Streit BQ 900 · Volk 90D</span>
-            {slitTask ? (
-              <button type="button" className="doc-btn" style={{ fontSize: '0.72rem', padding: '2px 8px' }} onClick={() => workspace.setQuery('task_id', slitTask.id)}>
-                Open Task Form ({slitTask.status})
-              </button>
-            ) : (
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> {slitOdCornea || slitOsCornea ? 'Recorded' : 'Awaiting Entry'}</span>
-            )}
-          </div>
         </div>
 
         {/* 5. FUNDUS EXAMINATION */}
-        <div className="oph-exam-card">
+        <div className="oph-exam-card oph-fundus-card">
           <div>
             <div className="oph-card-header">
               <h3 className="oph-card-title">
+                <span className="oph-card-number">05</span>
                 <span className="oph-card-icon"><i className="ph ph-camera" /></span>
-                <span>5. Fundus Examination</span>
+                <span>Fundus examination</span>
               </h3>
+              <div className="oph-card-controls">
               <div className="oph-subtabs">
                 <button type="button" className={`oph-subtab-btn ${fundusTab === 'direct' ? 'active' : ''}`} onClick={() => setFundusTab('direct')}>
                   Direct
@@ -1288,6 +1249,17 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 <button type="button" className={`oph-subtab-btn ${fundusTab === 'camera' ? 'active' : ''}`} onClick={() => setFundusTab('camera')}>
                   Fundus Camera
                 </button>
+              </div>
+                <span className={`oph-card-status ${fundusTask?.status === 'COMPLETED' ? 'complete' : ''}`}>
+                  <span aria-hidden="true" className="oph-status-dot" />
+                  {fundusTask ? (fundusTask.status === 'COMPLETED' ? 'Completed' : fundusTask.status.replaceAll('_', ' ')) : (capturedPhotos.length > 0 || fundusOdDisc ? 'Recorded' : 'Awaiting entry')}
+                </span>
+                {fundusTask && (
+                  <button type="button" className="oph-card-task-action" title={`Open task form (${fundusTask.status})`} onClick={() => workspace.setQuery('task_id', fundusTask.id)}>
+                    <i className="ph ph-dots-three" aria-hidden="true" />
+                    <span className="oph-visually-hidden">Open Task Form ({fundusTask.status})</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1415,7 +1387,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 />
 
                 {/* Camera Header Bar with Live Status */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: '#0f172a', color: '#ffffff', borderRadius: '6px', marginBottom: '8px', fontSize: '0.78rem' }}>
+                <div className="oph-camera-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: '#0f172a', color: '#ffffff', borderRadius: '6px', marginBottom: '8px', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <i className="ph ph-camera" style={{ color: '#38bdf8' }} />
                     <span style={{ fontWeight: 600 }}>Topcon TRC-50DX Fundus Camera</span>
@@ -1471,7 +1443,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                         <div className="oph-camera-flash" style={{ opacity: cameraFlashOd ? 0.9 : 0 }} />
 
                         {odPhoto ? (
-                          <div style={{ position: 'relative', width: '100%', height: '85px', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setSelectedModalPhoto(odPhoto)}>
+                          <div className="oph-camera-preview" style={{ position: 'relative', width: '100%', height: '85px', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setSelectedModalPhoto(odPhoto)}>
                             <img src={odPhoto.previewUrl} alt="Right Eye (OD) Fundus" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(6,78,59,0.9)', color: '#34d399', fontSize: '0.62rem', fontWeight: 700, padding: '1px 5px', borderRadius: '3px' }}>
                               ✓ Cloud Stored · {odPhoto.id}
@@ -1481,10 +1453,11 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                             </span>
                           </div>
                         ) : (
-                          <div style={{ position: 'relative', width: '100%', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ color: '#64748b', fontSize: '0.75rem' }}>No OD Image Captured</span>
-                            <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.62rem', fontWeight: 700, padding: '1px 4px', borderRadius: '3px' }}>
-                              OD · Viewfinder
+                          <div className="oph-camera-preview oph-camera-empty" style={{ position: 'relative', width: '100%', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <i className="ph ph-image" aria-hidden="true" />
+                            <span>No image captured</span>
+                            <span className="oph-camera-eye">
+                              OD · Right eye
                             </span>
                           </div>
                         )}
@@ -1506,7 +1479,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                               style={{ flex: 1, fontSize: '0.65rem', padding: '2px 4px' }}
                               onClick={() => odFileInputRef.current?.click()}
                             >
-                              Import OD File
+                              <i className="ph ph-paperclip" aria-hidden="true" /> Import image<span className="oph-visually-hidden"> for OD</span>
                             </button>
                             {odPhoto && (
                               <button
@@ -1533,7 +1506,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                         <div className="oph-camera-flash" style={{ opacity: cameraFlashOs ? 0.9 : 0 }} />
 
                         {osPhoto ? (
-                          <div style={{ position: 'relative', width: '100%', height: '85px', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setSelectedModalPhoto(osPhoto)}>
+                          <div className="oph-camera-preview" style={{ position: 'relative', width: '100%', height: '85px', overflow: 'hidden', cursor: 'pointer' }} onClick={() => setSelectedModalPhoto(osPhoto)}>
                             <img src={osPhoto.previewUrl} alt="Left Eye (OS) Fundus" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(6,78,59,0.9)', color: '#34d399', fontSize: '0.62rem', fontWeight: 700, padding: '1px 5px', borderRadius: '3px' }}>
                               ✓ Cloud Stored · {osPhoto.id}
@@ -1543,10 +1516,11 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                             </span>
                           </div>
                         ) : (
-                          <div style={{ position: 'relative', width: '100%', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ color: '#64748b', fontSize: '0.75rem' }}>No OS Image Captured</span>
-                            <span style={{ position: 'absolute', top: '4px', left: '4px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '0.62rem', fontWeight: 700, padding: '1px 4px', borderRadius: '3px' }}>
-                              OS · Viewfinder
+                          <div className="oph-camera-preview oph-camera-empty" style={{ position: 'relative', width: '100%', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <i className="ph ph-image" aria-hidden="true" />
+                            <span>No image captured</span>
+                            <span className="oph-camera-eye">
+                              OS · Left eye
                             </span>
                           </div>
                         )}
@@ -1568,7 +1542,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                               style={{ flex: 1, fontSize: '0.65rem', padding: '2px 4px' }}
                               onClick={() => osFileInputRef.current?.click()}
                             >
-                              Import OS File
+                              <i className="ph ph-paperclip" aria-hidden="true" /> Import image<span className="oph-visually-hidden"> for OS</span>
                             </button>
                             {osPhoto && (
                               <button
@@ -1597,55 +1571,35 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
-            <span>{fundusTab === 'camera' ? 'Topcon Digital Fundus Photography' : 'Ophthalmoscopy'}</span>
-            {fundusTask ? (
-              <button type="button" className="doc-btn" style={{ fontSize: '0.72rem', padding: '2px 8px' }} onClick={() => workspace.setQuery('task_id', fundusTask.id)}>
-                Open Task Form ({fundusTask.status})
-              </button>
-            ) : (
-              <span className="oph-badge oph-badge-green"><i className="ph ph-check" /> {capturedPhotos.length > 0 || fundusOdDisc ? 'Recorded' : 'Awaiting Entry'}</span>
-            )}
-          </div>
         </div>
 
       </div>
 
       {/* Row 3: Card 6 - Diagnostic Images & Instrument Cloud Attachments */}
-      <div className="oph-exam-card">
+      <div className="oph-exam-card oph-attachments-card">
         <div className="oph-card-header">
           <h3 className="oph-card-title">
-            <span className="oph-card-icon"><i className="ph ph-images" /></span>
-            <span>6. Diagnostic Images, Fundus Photos &amp; Instrument Attachments</span>
+            <span className="oph-card-number">06</span>
+                <span className="oph-card-icon"><i className="ph ph-images" /></span>
+            <span>Diagnostic images &amp; attachments</span>
           </h3>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <span className="oph-badge oph-badge-blue">Total: {capturedPhotos.length} Stored</span>
+            <span className="oph-card-status"><span aria-hidden="true" className="oph-status-dot" />{capturedPhotos.length} files</span>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+        <div className="oph-attachment-gallery">
 
           {/* Upload Box */}
-          <div
-            style={{
-              border: '2px dashed #cbd5e1',
-              borderRadius: '10px',
-              padding: '12px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: '#f8fafc',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '120px',
-            }}
+          <button
+            type="button"
+            className="oph-attachment-upload"
             onClick={() => generalFileInputRef.current?.click()}
           >
-            <i className="ph ph-upload-simple" style={{ fontSize: '1.25rem', color: '#64748b', marginBottom: '4px' }} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>Upload Images</span>
-            <small style={{ fontSize: '0.68rem', color: '#94a3b8' }}>JPG, PNG, WebP to Cloud</small>
-          </div>
+            <i className="ph ph-plus" aria-hidden="true" />
+            <span>Add files</span>
+            <small>Import diagnostic images or instrument attachments · JPG, PNG, WebP</small>
+          </button>
 
           {/* Dynamically Captured & Cloud-Stored Fundus Photos */}
           {capturedPhotos.map((photo) => (
@@ -1673,7 +1627,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
           ))}
 
           {capturedPhotos.length === 0 && (
-            <div style={{ padding: '16px', color: '#64748b', fontSize: '0.82rem', textAlign: 'center', gridColumn: '2 / -1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="oph-attachment-empty">
               No diagnostic images or fundus photographs attached to this encounter yet. Use the upload box or fundus camera tab to attach images.
             </div>
           )}
@@ -1681,7 +1635,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
         </div>
       </div>
           </div>
-        )}
       </div>
 
       {/* Lightbox Modal for Full Resolution Stored Photos */}

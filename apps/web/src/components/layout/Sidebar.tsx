@@ -4,6 +4,7 @@ import { useHospitalSettings } from '../../hooks/settings/useSettings';
 import { NavLink } from './NavLink';
 import { SidebarNavGroup } from './SidebarNavGroup';
 import { SidebarUserFooter } from './SidebarUserFooter';
+import '../../styles/sidebar-reference.css';
 
 type SidebarProps = {
   activeKey?: string;
@@ -25,7 +26,7 @@ export function Sidebar({
   const accessibleModules = getAccessibleSidebarModules(user?.permissions ?? [], user?.roles ?? [], user?.departments ?? []);
 
   return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
+    <aside className={`sidebar sidebar-reference${collapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
       <div className="sidebar-header">
         {logoUrl ? (
           <img alt={hospitalName} src={logoUrl} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0 }} />
@@ -33,8 +34,7 @@ export function Sidebar({
           <i className="ph ph-hospital brand-icon" aria-hidden="true" />
         )}
         <div className="logo-text">
-          <h2>{hospitalName || 'HMS'}</h2>
-          <p>Enterprise</p>
+          <h2 title={hospitalName || 'HMS'}>{hospitalName || 'HMS'}</h2>
         </div>
         <button
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

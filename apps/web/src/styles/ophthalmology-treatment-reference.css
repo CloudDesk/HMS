@@ -1,0 +1,62 @@
+/* Diagnosis/treatment reference styling; no clinical contract or form-state changes. */
+.oph-treatment-reference { --treat-font: 13px; --treat-small: 12px; --treat-title: 19px; --treat-pad: 22px; --treat-gap: 16px; --treat-control: 40px; color: #173453; }
+.oph-reference-consultation .oph-treatment-reference > .oph-treatment-page-heading { flex: 0 0 auto; margin: 0 0 26px; }
+.oph-treatment-reference > section { display: flex; flex-direction: column; gap: var(--treat-gap); }
+.oph-treatment-reference .oph-step2-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; margin-bottom: 18px !important; }
+.oph-treatment-reference .oph-step2-summary-row > div { padding: 12px 14px !important; border-color: #d6e2f4 !important; border-radius: 10px !important; box-shadow: none !important; }
+.oph-treatment-reference .oph-step2-summary-row > div > div:first-child > span:first-child { display: none !important; }
+.oph-treatment-reference .oph-step2-summary-row > div > div:first-child > span:last-child { font-size: var(--treat-small) !important; color: #7b90af !important; letter-spacing: 0 !important; }
+.oph-treatment-reference .oph-step2-summary-row > div > div:last-child { font-size: var(--treat-font) !important; font-weight: 600; }
+.oph-treatment-reference :is(.oph-diag-card-wrapper, .oph-treatment-card-wrapper) { padding: var(--treat-pad); border: 1px solid #d6e2f4; border-radius: 13px; box-shadow: 0 6px 24px rgb(28 57 98 / 3%); margin: 0; }
+.oph-treatment-reference .oph-treatment-card-wrapper { border-top: 3px solid #8060dd; }
+.oph-treatment-reference .oph-diag-header { padding-bottom: var(--treat-pad); margin-bottom: var(--treat-gap); border-bottom: 1px solid #e6edf8; gap: 12px; }
+.oph-treatment-reference .oph-diag-header h3 { font-size: var(--treat-title) !important; color: #173453 !important; font-weight: 600 !important; }
+.oph-treatment-reference .oph-diag-title-group > div > p { display: none; }
+.oph-treatment-reference .oph-diag-icon-badge { background: #edf4ff !important; color: #2563eb !important; width: 42px; height: 42px; border-radius: 12px; }
+.oph-treatment-reference .oph-diag-icon-badge.treatment { background: #f0eaff !important; color: #8060dd !important; }
+.oph-treatment-reference .oph-status-badge { padding: 6px 8px; background: #f1f5fb; color: #7186a5; border: 0; font-size: var(--treat-small); border-radius: 6px; }
+.oph-treatment-reference .oph-fieldset { min-width: 0; }
+.oph-treatment-reference .oph-diag-card-wrapper .oph-fieldset { display: flex; flex-direction: column; gap: var(--treat-gap); }
+.oph-treatment-reference .oph-diagnosis-section-heading { order: 1; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid #d6e2f4; border-bottom: 0; border-radius: 12px 12px 0 0; background: #f8fbff; margin-bottom: calc(-1 * var(--treat-gap)); }
+.oph-treatment-reference .oph-diagnosis-section-heading > span { padding: 7px; background: #e7efff; border-radius: 7px; color: #2563eb; font-size: var(--treat-small); }
+.oph-treatment-reference .oph-diagnosis-section-heading h4 { margin: 0; font-size: calc(var(--treat-font) + 2px); font-weight: 600; }
+.oph-treatment-reference .oph-diagnosis-section-heading small { margin-left: auto; font-size: var(--treat-small); color: #7186a5; }
+.oph-treatment-reference .oph-diag-card-wrapper .oph-fieldset > div:nth-of-type(3) { order: 2; }
+.oph-treatment-reference .oph-quick-presets-container { order: 3; background: transparent; padding: 0; border: 0; margin: 0; }
+.oph-treatment-reference .oph-quick-presets-container summary { cursor: pointer; font-size: var(--treat-small); color: #5c7393; }
+.oph-treatment-reference .oph-quick-presets-label { display: none; }
+.oph-treatment-reference .oph-diag-card-wrapper .oph-fieldset > div:nth-of-type(2) { order: 4; margin: 0 !important; }
+.oph-treatment-reference .oph-diag-card-wrapper .oph-fieldset > .oph-toolbar { order: 5; }
+.oph-treatment-reference .oph-diag-row-card { padding: 18px; background: #f8fbff; border: 1px solid #d6e2f4; border-radius: 0 0 12px 12px; box-shadow: none; }
+.oph-treatment-reference .oph-diag-row-header { padding-bottom: 14px; border-bottom: 1px solid #e6edf8; }
+.oph-treatment-reference .oph-diag-row-header strong { font-size: calc(var(--treat-font) + 2px) !important; }
+.oph-treatment-reference .doc-form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.oph-treatment-reference .oph-diag-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 0 !important; background: transparent !important; border: 0 !important; gap: 14px !important; }
+.oph-treatment-reference :is(.doc-field > span, .doc-field > div > span:first-child, .oph-diag-options-grid > div > span) { font-size: var(--treat-font) !important; font-weight: 600 !important; color: #5c7393 !important; text-transform: none; }
+.oph-treatment-reference :is(input:not([type='checkbox']), select, textarea) { min-width: 0; width: 100%; min-height: var(--treat-control); height: var(--treat-control); padding: 8px 11px; font-size: var(--treat-font) !important; color: #21456b; font-family: inherit; border: 1px solid #c6d7f1; border-radius: 7px; box-shadow: none; }
+.oph-treatment-reference textarea { min-height: 70px !important; height: auto !important; }
+.oph-treatment-reference .oph-diag-row-card select { height: var(--treat-control) !important; padding: 8px 11px !important; }
+.oph-treatment-reference .oph-pill-group { border: 0; background: #edf2f8; border-radius: 6px; padding: 3px; gap: 4px; }
+.oph-treatment-reference .oph-pill-btn { min-height: 28px; font-size: var(--treat-small); border: 0; border-radius: 4px; color: #5c7393; padding: 5px 9px; }
+.oph-treatment-reference .oph-pill-btn.selected.primary { background: #2563eb; color: #fff; }
+.oph-treatment-reference .oph-pill-btn.selected.status-suspected,
+.oph-treatment-reference .oph-pill-btn.selected.status-confirmed { background: #10b981; color: #fff; }
+.oph-treatment-reference .oph-code-badge { background: #edf2f8; color: #7186a5; font-size: var(--treat-small); padding: 4px 7px; }
+.oph-treatment-reference .oph-remove-diag-btn { color: #ef4444; font-size: var(--treat-small); border: 0; background: #fff; }
+.oph-treatment-reference :is(.doc-btn, .oph-quick-chip) { min-height: var(--treat-control); font-size: var(--treat-small) !important; padding: 9px 14px; border-radius: 8px; }
+.oph-treatment-reference .oph-toolbar { margin-top: 14px !important; padding-top: 16px; border-top: 1px solid #e6edf8; }
+.oph-treatment-reference .oph-treatment-row-card { padding: 16px; border: 1px solid #d6e2f4; border-radius: 10px; background: #fbfdff; }
+@container oph-consultation (max-width: 1100px) {
+  .oph-treatment-reference { --treat-font: 10px; --treat-small: 9px; --treat-title: 15px; --treat-pad: 18px; --treat-gap: 12px; --treat-control: 28px; margin-inline: 8px; }
+  .oph-treatment-reference .oph-step2-summary-row { gap: 10px !important; }
+  .oph-treatment-reference .oph-diag-icon-badge { width: 32px; height: 32px; }
+  .oph-treatment-reference .oph-diag-row-card { padding: 14px; }
+  .oph-treatment-reference :is(.doc-btn, .oph-quick-chip) { padding: 7px 10px; }
+  .oph-treatment-reference .oph-pill-btn { min-height: 21px; padding: 4px 7px; }
+  .oph-treatment-reference textarea { min-height: 52px !important; }
+}
+@container oph-consultation (max-width: 700px) {
+  .oph-treatment-reference .oph-step2-summary-row,
+  .oph-treatment-reference .doc-form-grid.three,
+  .oph-treatment-reference .oph-diag-options-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}

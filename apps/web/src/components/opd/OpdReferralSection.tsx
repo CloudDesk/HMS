@@ -21,6 +21,7 @@ export type OpdReferralSectionProps = {
   referralBooking: boolean;
   handleSubmitReferral: () => Promise<void>;
   saveConsultationDraft: () => void;
+  showDraftAction?: boolean;
   handleNextStep: (tab: string) => void;
   canEdit: boolean;
 
@@ -35,19 +36,21 @@ export type OpdReferralSectionProps = {
   primaryDiagnosis?: string;
   clinicalStatus?: string;
   lastExamDate?: string;
+  statusLabel?: string;
+  affectedEye?: string;
 };
 
 function getPatientAge(dobString?: string | null): string {
-  if (!dobString) return '26 years';
+  if (!dobString) return 'Not recorded';
   const dob = new Date(dobString);
-  if (isNaN(dob.getTime())) return '26 years';
+  if (isNaN(dob.getTime())) return 'Not recorded';
   const diff = Date.now() - dob.getTime();
   const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
   return `${age} years`;
 }
 
 function formatGender(gender?: string | null): string {
-  if (!gender) return 'Male';
+  if (!gender) return 'Not recorded';
   const g = gender.toUpperCase();
   if (g.startsWith('M')) return 'Male';
   if (g.startsWith('F')) return 'Female';
@@ -66,6 +69,7 @@ export function OpdReferralSection({
   referralBooking,
   handleSubmitReferral,
   saveConsultationDraft,
+  showDraftAction = true,
   handleNextStep,
   canEdit,
   priority,
@@ -78,6 +82,8 @@ export function OpdReferralSection({
   primaryDiagnosis,
   clinicalStatus,
   lastExamDate,
+  statusLabel,
+  affectedEye,
 }: OpdReferralSectionProps) {
   const [localPriority, setLocalPriority] = useState<ApiOpdReferralPriority>('ROUTINE');
   const [localAppointmentDate, setLocalAppointmentDate] = useState('');
@@ -93,12 +99,12 @@ export function OpdReferralSection({
   const patientQuery = usePatientDetails(visit?.patient_id ?? null, Boolean(visit?.patient_id));
   const patient = patientQuery.data;
 
-  const patientName = visit?.patient_name || 'Arjun Kumar Rajendran';
-  const patientNumber = visit?.patient_number || 'HMS-2026-000004';
-  const visitNumber = visit?.visit_number || 'OPD-2026-000005';
+  const patientName = visit?.patient_name || 'Not recorded';
+  const patientNumber = visit?.patient_number || 'Not recorded';
+  const visitNumber = visit?.visit_number || 'Not recorded';
   const patientAge = getPatientAge(patient?.date_of_birth);
   const patientGender = formatGender(patient?.gender);
-  const patientBloodGroup = patient?.blood_group || 'O+';
+  const patientBloodGroup = patient?.blood_group || 'Not recorded';
 
   const patientInitials = patientName
     .split(' ')
@@ -111,7 +117,7 @@ export function OpdReferralSection({
     ? lastExamDate
     : visit?.visit_date
     ? new Date(visit.visit_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '12 Oct 2026';
+    : 'Not recorded';
 
   return (
     <article className="oph-referral-page-wrapper">
@@ -130,9 +136,10 @@ export function OpdReferralSection({
                 </svg>
               </div>
               <div className="oph-ref-title-wrap">
-                <h3>Specialist Referral &amp; Direct Appointment Booking</h3>
-                <p>Refer to a specialist, select doctor, add reason and book an appointment.</p>
+                <h3>Specialist referral &amp; direct appointment booking</h3>
+                <p>Refer to a specialist and book the next appointment.</p>
               </div>
+              {statusLabel && <span className="oph-continuing-status">{statusLabel}</span>}
             </div>
 
             <div className="oph-ref-form-body">
@@ -173,7 +180,7 @@ export function OpdReferralSection({
                 </label>
 
                 <label className="oph-input-field" htmlFor="ref-doctor">
-                  <span className="oph-input-label">Referred Doctor <span className="oph-required">*</span></span>
+                  <span className="oph-input-label">Referred doctor <span className="oph-required">*</span></span>
                   <div className="oph-select-wrap">
                     <span className="oph-select-search-icon">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -210,7 +217,7 @@ export function OpdReferralSection({
 
               {/* Row 2: Reason for Referral */}
               <label className="oph-input-field" htmlFor="ref-reason" style={{ marginTop: '16px' }}>
-                <span className="oph-input-label">Reason for Referral <span className="oph-required">*</span></span>
+                <span className="oph-input-label">Reason for referral <span className="oph-required">*</span></span>
                 <div className="oph-textarea-wrap">
                   <textarea
                     id="ref-reason"
@@ -218,7 +225,7 @@ export function OpdReferralSection({
                     rows={3}
                     maxLength={500}
                     onChange={(e) => setReferralReason(e.target.value)}
-                    placeholder="e.g. Specialist assessment, second opinion, further evaluation..."
+                    placeholder="Specialist assessment, second opinion, or further evaluation..."
                     value={referralReason}
                     disabled={!canEdit}
                   />
@@ -264,7 +271,7 @@ export function OpdReferralSection({
                 </div>
 
                 <label className="oph-input-field" htmlFor="ref-date">
-                  <span className="oph-input-label">Requested Appointment Date (Optional)</span>
+                  <span className="oph-input-label">Requested appointment date (optional)</span>
                   <div className="oph-date-wrap">
                     <input
                       type="date"
@@ -281,14 +288,14 @@ export function OpdReferralSection({
 
               {/* Row 4: Additional Notes */}
               <label className="oph-input-field" htmlFor="ref-notes" style={{ marginTop: '16px' }}>
-                <span className="oph-input-label">Additional Notes (Optional)</span>
+                <span className="oph-input-label">Additional notes (optional)</span>
                 <div className="oph-textarea-wrap">
                   <textarea
                     id="ref-notes"
                     className="oph-ref-textarea"
                     rows={3}
                     maxLength={500}
-                    placeholder="Any additional clinical notes for the specialist..."
+                    placeholder="Clinical notes for the specialist..."
                     value={activeNotes}
                     onChange={(e) => handleNotesChange(e.target.value)}
                     disabled={!canEdit}
@@ -314,13 +321,13 @@ export function OpdReferralSection({
               <div className="oph-ref-patient-name">{patientName}</div>
               <div className="oph-ref-patient-ids">
                 <span>MRN: {patientNumber}</span>
-                <span className="oph-ref-sep">|</span>
+                <span className="oph-ref-sep">·</span>
                 <span>Visit: {visitNumber}</span>
               </div>
               <div className="oph-ref-patient-meta">
                 <span><i className="ph ph-cake" /> {patientAge}</span>
                 <span><i className="ph ph-gender-male" /> {patientGender}</span>
-                <span><i className="ph ph-drop" style={{ color: '#dc2626' }} /> {patientBloodGroup}</span>
+                <span>{affectedEye || <><i className="ph ph-drop" style={{ color: '#dc2626' }} /> {patientBloodGroup}</>}</span>
               </div>
             </div>
           </div>
@@ -332,23 +339,23 @@ export function OpdReferralSection({
                 <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
               </svg>
-              <h4>Current Clinical Context</h4>
+              <h4>Current clinical context</h4>
             </div>
             <div className="oph-ref-context-body">
               <div className="oph-ref-context-row">
-                <span className="label">Primary Diagnosis</span>
-                <span className="val">{primaryDiagnosis || 'Myopia (H52.1)'}</span>
+                <span className="label">Primary diagnosis</span>
+                <span className="val">{primaryDiagnosis || 'Not recorded'}</span>
               </div>
               <div className="oph-ref-context-row">
-                <span className="label">Clinical Status</span>
-                <span className="val">{clinicalStatus || 'Under Evaluation'}</span>
+                <span className="label">Clinical status</span>
+                <span className="val">{clinicalStatus || 'Not recorded'}</span>
               </div>
               <div className="oph-ref-context-row">
-                <span className="label">Last Exam Date</span>
+                <span className="label">Last exam date</span>
                 <span className="val">{formattedExamDate}</span>
               </div>
               <div className="oph-ref-context-row">
-                <span className="label">Current Phase</span>
+                <span className="label">Current phase</span>
                 <span className="val">Referral &amp; Follow-up</span>
               </div>
             </div>
@@ -365,7 +372,7 @@ export function OpdReferralSection({
               <h4>Referral Information</h4>
             </div>
             <p className="oph-ref-info-text">
-              The selected specialist and reason will be linked to this OPD encounter and an appointment will be booked based on availability.
+              Selected specialist and reason will link to this encounter. Appointment booking depends on availability.
             </p>
           </div>
         </div>
@@ -378,17 +385,17 @@ export function OpdReferralSection({
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
-          <span>All changes will be saved automatically</span>
+          <span>Save a draft to keep your changes.</span>
         </div>
         <div className="oph-ref-actions">
-          {canEdit && (
+          {canEdit && showDraftAction && (
             <button className="oph-btn-save-draft" onClick={saveConsultationDraft} type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
-              <span>Save Draft</span>
+              <span>Save draft</span>
             </button>
           )}
           {canEdit && (
@@ -402,7 +409,7 @@ export function OpdReferralSection({
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
-              <span>{referralBooking ? 'Submitting...' : 'Submit Referral'}</span>
+              <span>{referralBooking ? 'Submitting...' : 'Submit referral'}</span>
             </button>
           )}
           <button
@@ -410,7 +417,7 @@ export function OpdReferralSection({
             onClick={() => handleNextStep('Follow-up')}
             type="button"
           >
-            <span>Next: Follow-up</span>
+            <span>Next: follow-up</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />

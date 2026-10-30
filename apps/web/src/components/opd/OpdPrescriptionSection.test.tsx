@@ -24,4 +24,24 @@ describe('OPD stock availability display', () => {
     expect(container.querySelector('option[value="Zero stock medicine"]')?.textContent).toContain('0 tablets');
     expect(container.textContent).not.toContain('Auto-save enabled');
   });
+  it('removes medication, omits the duplicate reference-layout draft button and keeps pharmacy submission connected', async () => {
+    const item = { ...medication, local_id: 'first', medicine_name: 'Test medication', dosage: '1 drop', frequency: 'BD', duration: '5 Days' };
+    const setPrescriptionForm = vi.fn();
+    const saveConsultationDraft = vi.fn();
+    const handleSendToPharmacy = vi.fn().mockResolvedValue(undefined);
+    const prescriptionForm = { ...props.prescriptionForm, items: [item] };
+    await act(async () => root.render(<OpdPrescriptionSection {...props} referenceLayout statusLabel="DRAFT" prescriptionForm={prescriptionForm} setPrescriptionForm={setPrescriptionForm} saveConsultationDraft={saveConsultationDraft} handleSendToPharmacy={handleSendToPharmacy} />));
+    const remove = container.querySelector<HTMLButtonElement>('[aria-label="Remove Test medication"]');
+    expect(remove).not.toBeNull();
+    await act(async () => remove?.click());
+    const removeUpdate = setPrescriptionForm.mock.calls[0]?.[0];
+    if (!removeUpdate) throw new Error('Medication removal did not update the draft');
+    expect(removeUpdate(prescriptionForm).items).toEqual([]);
+    const buttons = Array.from(container.querySelectorAll('button'));
+    expect(buttons.find((button) => button.textContent?.includes('Next: Lab Orders'))?.hidden).toBe(true);
+    expect(container.querySelector('.oph-rx-followup-heading')?.textContent).toContain('Complete before sending.');
+    expect(buttons.some((button) => button.textContent?.includes('Save Draft'))).toBe(false);
+    await act(async () => buttons.find((button) => button.textContent?.includes('Send To Pharmacy'))?.click());
+    expect(handleSendToPharmacy).toHaveBeenCalledOnce();
+  });
 });

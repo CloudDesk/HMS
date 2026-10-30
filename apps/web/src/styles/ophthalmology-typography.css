@@ -1,0 +1,150 @@
+/* One Examination-based text scale for all six consultation tabs. Print layouts retain their own rules. */
+@media screen {
+  .oph-reference-consultation {
+    --oph-type-page: clamp(24px, 2.1vw, 34px);
+    --oph-type-section: 18px;
+    --oph-type-body: 13px;
+    --oph-type-small: 12px;
+    --oph-type-subtitle: 14px;
+    --oph-type-action: 14px;
+    font-family: var(--font-family-base, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-size: var(--oph-type-body);
+    line-height: 1.5;
+  }
+
+  /* Map the existing per-tab styles onto the same responsive values. */
+  .oph-reference-consultation :is(.oph-orders-care, .oph-optical-reference, .oph-treatment-reference) {
+    --orders-font: var(--oph-type-body);
+    --orders-small: var(--oph-type-small);
+    --orders-title: var(--oph-type-section);
+    --opt-font: var(--oph-type-body);
+    --opt-small: var(--oph-type-small);
+    --opt-title: var(--oph-type-section);
+    --treat-font: var(--oph-type-body);
+    --treat-small: var(--oph-type-small);
+    --treat-title: var(--oph-type-section);
+  }
+
+  .oph-reference-consultation :is(.oph-exam-heading h2, .oph-summary-page-heading h2) {
+    font-family: inherit;
+    font-size: var(--oph-type-page) !important;
+    font-weight: 500 !important;
+    line-height: 1.25;
+    letter-spacing: -0.04em;
+  }
+  .oph-reference-consultation :is(.oph-exam-description, .oph-summary-page-heading > div > p:last-child) {
+    font-family: inherit;
+    font-size: var(--oph-type-subtitle) !important;
+    font-weight: 400 !important;
+    line-height: 1.5;
+  }
+
+  .oph-reference-consultation :is(
+    .oph-card-title, .oph-section-header-title, .oph-diag-header h3,
+    .opd-rx-card h3, .opd-rx-card h4, .oph-order-title, .oph-summary-header,
+    .oph-ref-title-wrap h3, .oph-followup-title, .oph-finalization-tools > h4
+  ) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-section) !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    letter-spacing: normal;
+  }
+
+  .oph-reference-consultation :is(
+    .oph-exam-card, .oph-diag-card-wrapper, .oph-treatment-card-wrapper,
+    .oph-optical-reference, .opd-rx-card, .oph-order-builder, .oph-order-summary-panel,
+    .oph-referral-page-wrapper, .oph-followup-main-card, .oph-summary-card-section
+  ) {
+    font-family: inherit;
+    font-size: var(--oph-type-body);
+    line-height: 1.5;
+  }
+  .oph-reference-consultation :is(
+    td, li, input, select, textarea,
+    .oph-summary-kv-row, .oph-summary-stack .oph-table-clean,
+    .oph-ref-context-row, .oph-detail-row, .oph-ref-patient-ids, .oph-ref-patient-meta,
+    .oph-calendar-day-cell, .oph-calendar-title, .oph-calendar-month-name,
+    .oph-time-slot-btn, .oph-duration-btn, .oph-doctor-name,
+    .oph-class-label, .oph-pd-pill-btn, .oph-coating-pill,
+    .oph-test-name, .oph-summary-item-name, .oph-rx-summary-item strong,
+    .oph-summary-inner-title, .oph-details-title, .oph-ref-context-header h4,
+    .oph-diagnosis-section-heading h4, .oph-diag-row-header strong
+  ) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-body) !important;
+    line-height: 1.5 !important;
+  }
+  .oph-reference-consultation p { font-family: inherit !important; font-size: var(--oph-type-body) !important; line-height: 1.5 !important; }
+  .oph-reference-consultation :is(p, td, li, input, select, textarea) { font-weight: 400 !important; }
+
+  .oph-reference-consultation :is(
+    .oph-exam-card label, .doc-field > span, .doc-field > div > span:first-child,
+    .oph-input-label, .oph-field-label, .oph-purpose-label, .oph-instruction-title,
+    .oph-order-field label, .oph-order-note-col label,
+    .oph-diag-options-grid > div > span, .oph-summary-plan-label
+  ) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-body) !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+  }
+  .oph-reference-consultation :is(
+    th, .oph-card-subtitle, .oph-order-subtitle, .oph-ref-title-wrap p,
+    .oph-followup-subtitle, .oph-class-desc, .oph-test-subtext,
+    .oph-summary-item-detail, .oph-card-status, .oph-status-badge,
+    .oph-continuing-status, .oph-order-status, .oph-code-badge,
+    .oph-calendar-legend, .oph-legend-item, .oph-doctor-role, .oph-char-count,
+    .oph-ref-info-text, .oph-order-review-note, .oph-rx-summary-item > div > div
+  ) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-small) !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+  }
+  .oph-reference-consultation :is(
+    .doc-btn, .oph-btn-clinical-intake, .oph-btn-outline, .oph-btn-outline-sm,
+    .oph-btn-save-draft, .oph-btn-approve, .oph-btn-save, .oph-btn-submit,
+    .oph-ref-actions button, .oph-footer-actions button,
+    .oph-order-btn-outline, .oph-order-btn-primary, .oph-summary-print
+  ) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-action) !important;
+    font-weight: 600 !important;
+    line-height: 1.4;
+  }
+  .oph-reference-consultation :is(.oph-care-subtab, .oph-subtab-btn, .oph-order-chip, .oph-priority-pill, .oph-pill-btn) {
+    font-family: inherit !important;
+    font-size: var(--oph-type-body) !important;
+    line-height: 1.4;
+  }
+  .oph-reference-consultation :is(.oph-step-label-text, .oph-step-number) {
+    font-family: inherit;
+    font-size: var(--oph-type-action);
+    font-weight: 400;
+  }
+  .oph-reference-consultation .oph-step-tab.active :is(.oph-step-label-text, .oph-step-number) { font-weight: 600; }
+
+  @container oph-consultation (max-width: 1100px) {
+    .oph-reference-consultation > *,
+    .oph-reference-consultation :is(.oph-orders-care, .oph-optical-reference, .oph-treatment-reference) {
+      --oph-type-page: 22px;
+      --oph-type-section: 14px;
+      --oph-type-body: 10px;
+      --oph-type-small: 9px;
+      --oph-type-subtitle: 11px;
+      --oph-type-action: 11px;
+    }
+  }
+  @container oph-consultation (max-width: 480px) {
+    .oph-reference-consultation > *,
+    .oph-reference-consultation :is(.oph-orders-care, .oph-optical-reference, .oph-treatment-reference) {
+      --oph-type-page: 24px;
+      --oph-type-section: 16px;
+      --oph-type-body: 12px;
+      --oph-type-small: 11px;
+      --oph-type-subtitle: 12px;
+      --oph-type-action: 12px;
+    }
+  }
+}

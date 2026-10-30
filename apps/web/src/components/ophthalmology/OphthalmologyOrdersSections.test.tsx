@@ -69,25 +69,26 @@ describe('Ophthalmology Orders Sections (Screens 3B & 3C)', () => {
         );
       });
 
-      expect(container.textContent).toContain('Laboratory Order');
-      expect(container.textContent).toContain('Select required laboratory tests for this patient');
+      expect(container.textContent).toContain('Laboratory orders');
+      expect(container.textContent).toContain('Select tests for this patient.');
       expect(container.textContent).toContain('Priority');
       expect(container.textContent).toContain('Laboratory');
-      expect(container.textContent).toContain('Sample Type');
+      expect(container.textContent).toContain('Sample type');
       expect(container.textContent).toContain('Category');
 
       // Chips
-      expect(container.textContent).toContain('All Tests');
-      expect(container.textContent).toContain('Commonly Used');
-      expect(container.textContent).toContain('Pre-Operative');
+      expect(container.textContent).toContain('All tests');
+      expect(container.textContent).toContain('Commonly used');
+      expect(container.textContent).toContain('Pre-operative');
 
       // Summary Panel
-      expect(container.textContent).toContain('Order Summary (1)');
+      expect(container.querySelector('.oph-summary-header')?.textContent).toContain('Order summary');
+      expect(container.querySelector('.oph-summary-header .oph-order-status')?.textContent).toBe('1');
       expect(container.textContent).toContain('Pre-Operative Cataract / Retinal Clearance');
 
       // Submit Button
       const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Submit Laboratory Order'),
+        b.textContent?.includes('Submit order'),
       );
       expect(submitBtn).toBeDefined();
       expect(submitBtn?.disabled).toBe(false);
@@ -256,10 +257,10 @@ describe('Ophthalmology Orders Sections (Screens 3B & 3C)', () => {
         );
       });
 
-      expect(container.textContent).toContain('Imaging & Radiology Requisition');
-      expect(container.textContent).toContain('Order X-rays, Ultrasounds, CT, or MRI scans');
+      expect(container.textContent).toContain('Imaging & radiology requisition');
+      expect(container.textContent).toContain('Order scans for this patient.');
       expect(container.textContent).toContain('Priority');
-      expect(container.textContent).toContain('Imaging Category');
+      expect(container.textContent).toContain('Imaging category');
 
       // Modality Chips
       expect(container.textContent).toContain('All Scans');
@@ -267,7 +268,8 @@ describe('Ophthalmology Orders Sections (Screens 3B & 3C)', () => {
       expect(container.textContent).toContain('Systemic Imaging');
 
       // Summary Panel
-      expect(container.textContent).toContain('Order Summary (1)');
+      expect(container.querySelector('.oph-summary-header')?.textContent).toContain('Order summary');
+      expect(container.querySelector('.oph-summary-header .oph-order-status')?.textContent).toBe('1');
       expect(container.textContent).toContain('Anterior Segment OCT (AS-OCT)');
 
       // Submit Button

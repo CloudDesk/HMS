@@ -339,8 +339,8 @@ const treatmentPlanSchema = {
   },
 } as const;
 export const saveOphthalmologyClinicalReviewDraftBodySchema = {
-  type: 'object', additionalProperties: false, required: ['expected_version', 'clinical_summary', 'treatment_plans'],
-  properties: { expected_version: version, clinical_summary: { type: 'string', minLength: 1, maxLength: 10000 },
+  type: 'object', additionalProperties: false, required: ['expected_version', 'treatment_plans'],
+  properties: { expected_version: version, clinical_summary: { type: 'string', maxLength: 10000 },
     treatment_plans: { type: 'array', maxItems: 100, items: treatmentPlanSchema },
     follow_up_decision: { type: ['string', 'null'], enum: ['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP', null] },
     patient_instructions: nullableText(4000) },

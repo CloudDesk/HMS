@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { opticalSchema } from '../../api/ophthalmology-care';
 import type { CareWorkspace, OphthalmologyCareFeature } from '../../hooks/ophthalmology/useOphthalmologyCareFeature';
+import { clearEncounterDraft } from '../../hooks/ophthalmology/encounter-draft-cache';
 vi.mock('../../hooks/ophthalmology/useOphthalmologyDraftGuard', () => ({ useOphthalmologyDraftGuard: () => vi.fn() }));
 import { OphthalmologyOpticalEditor } from './OphthalmologyOpticalEditor';
 const id = '111111111111111111111111';
@@ -12,10 +13,10 @@ describe('optical saved draft, conflict and approval interaction', () => {
   const saveOptical = vi.fn(); const approveOptical = vi.fn();
   const feature = (version = 4) => ({ optical: record(version), canSaveOptical: true, canApproveOptical: true, busy: false, opticalQuery: {}, configuration: { name: 'QA' }, configurationQuery: {}, canConfigure: false, lensTypes: ['QA_LENS'], materials: ['QA_MATERIAL'], coatings: [], error: null, saveOptical, approveOptical }) as unknown as OphthalmologyCareFeature;
   const workspace: CareWorkspace = { visitId: id, canView: true, scopeError: false, visitQuery: { isError: false }, contextQuery: { isError: false }, configurationPage: 1, setQuery: vi.fn() };
-  beforeEach(() => { saveOptical.mockReset(); approveOptical.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
+  beforeEach(() => { clearEncounterDraft(id); saveOptical.mockReset(); approveOptical.mockReset(); vi.spyOn(window, 'confirm').mockReturnValue(true); container = document.createElement('div'); document.body.append(container); root = createRoot(container); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
-  function instructions() { const textarea = [...container.querySelectorAll('label')].find((label) => label.textContent?.toLowerCase().includes('usage instructions'))?.querySelector('textarea'); if (!textarea) throw new Error('Missing instructions'); return textarea; }
-  function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.toLowerCase().includes('approve optical')); if (!button) throw new Error('Missing approval'); return button; }
+  function instructions() { const textarea = [...container.querySelectorAll('label')].find((label) => label.textContent?.toLowerCase().includes('instructions for optician'))?.querySelector('textarea'); if (!textarea) throw new Error('Missing instructions'); return textarea; }
+  function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.toLowerCase().includes('authorize prescription')); if (!button) throw new Error('Missing approval'); return button; }
   async function type(value: string) { await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(instructions(), value); instructions().dispatchEvent(new Event('input', { bubbles: true })); }); }
   async function submit() { await act(async () => container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
   it('does not approve dirty values and retains original version and untouched eye on save failure', async () => {
@@ -33,5 +34,14 @@ describe('optical saved draft, conflict and approval interaction', () => {
   it('confirms approval of the exact clean saved version', async () => {
     await act(async () => root.render(<OphthalmologyOpticalEditor feature={feature()} workspace={workspace} />));
     expect(approve().disabled).toBe(false); await act(async () => approve().click()); expect(approveOptical).toHaveBeenCalledWith(4); expect(window.confirm).toHaveBeenCalledTimes(1);
+  });
+  it('shows readable coating labels while saving the configured coating code', async () => {
+    await act(async () => root.render(<OphthalmologyOpticalEditor feature={{ ...feature(), coatings: ['ANTI_REFLECTIVE'] }} workspace={workspace} />));
+    const coating = container.querySelector<HTMLInputElement>('.oph-coating-pill input');
+    expect(container.querySelector('.oph-coating-pill')?.textContent).toContain('Anti-reflective');
+    await act(async () => coating?.click());
+    expect(approve().disabled).toBe(true);
+    await submit();
+    expect(saveOptical).toHaveBeenCalledWith(expect.objectContaining({ coating_codes: ['ANTI_REFLECTIVE'] }));
   });
 });

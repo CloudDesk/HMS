@@ -66,7 +66,7 @@ describe('Sidebar redesign & navigation tests', () => {
     });
   };
 
-  it('renders hospital branding header with hospital icon, name, enterprise subtitle and toggle button', async () => {
+  it('renders live hospital branding in a single line with the collapse toggle', async () => {
     await render();
 
     const brandIcon = container.querySelector('.brand-icon');
@@ -75,7 +75,8 @@ describe('Sidebar redesign & navigation tests', () => {
 
     const logoText = container.querySelector('.logo-text');
     expect(logoText?.querySelector('h2')?.textContent).toBe('Nairobi General');
-    expect(logoText?.querySelector('p')?.textContent).toBe('Enterprise');
+    expect(logoText?.querySelector('p')).toBeNull();
+    expect(logoText?.querySelector('h2')?.getAttribute('title')).toBe('Nairobi General');
 
     const toggleBtn = container.querySelector<HTMLButtonElement>('.sidebar-toggle-btn');
     expect(toggleBtn).not.toBeNull();

@@ -441,6 +441,14 @@ describe('Ophthalmology Phase 9 consultation finalization', () => {
       .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_COMPLETION_INCOMPLETE' });
     expect(await OpdVisitModel.findById(visitId).lean()).toMatchObject({ status: 'IN_CONSULTATION' });
   });
+  it('requires a recorded review while allowing an empty optional clinical summary', async () => {
+    await OphthalmologyClinicalReviewModel.updateOne({ visitId }, { $set: { 'versions.0.clinicalSummary': '' } });
+    const recorded = await service.getCompletionReadiness(visitId, userId);
+    expect(recorded.requirements.find((item) => item.code === 'CLINICAL_REVIEW_RECORDED')?.satisfied).toBe(true);
+    await OphthalmologyClinicalReviewModel.deleteOne({ visitId });
+    const missing = await service.getCompletionReadiness(visitId, userId);
+    expect(missing.requirements.find((item) => item.code === 'CLINICAL_REVIEW_RECORDED')?.satisfied).toBe(false);
+  });
 
   it('rejects ambiguous active completion profiles instead of guessing', async () => {
     const context = await OphthalmologyContextModel.findById(contextId).lean();

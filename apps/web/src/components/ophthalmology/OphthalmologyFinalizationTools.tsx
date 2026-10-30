@@ -163,7 +163,7 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
 }
 export function OphthalmologyFinalizationTools({ workspace, completion: c }: { workspace: CompletionWorkspace; completion: OphthalmologyCompletionFeature }) {
   const f = useOphthalmologyFinalizationFeature(workspace, c);
-  return <section className="doc-card"><h4>Doctor approval and amendment</h4><p>Completion evaluates the approved server configuration. Missing hospital configuration is not treated as satisfied. Publication is a separate authorized action.</p><div className="oph-toolbar">
+  return <section className="doc-card oph-finalization-tools"><h4>Doctor approval and amendment</h4><p>Completion evaluates the approved server configuration. Missing hospital configuration is not treated as satisfied. Publication is a separate authorized action.</p><div className="oph-toolbar">
     {c.history?.status !== 'COMPLETED' && (
       <button
         className="doc-btn primary"

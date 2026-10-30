@@ -36,7 +36,7 @@ function validateTreatmentReference(plan: TreatmentWriteInput, ctx: z.Refinement
 }
 export const treatmentWriteSchema = treatmentWriteBaseSchema.superRefine(validateTreatmentReference);
 export const treatmentCorrectionSchema = treatmentWriteBaseSchema.extend({ id: id.optional() }).superRefine(validateTreatmentReference);
-export const clinicalReviewWriteSchema = z.object({ expected_version: version, clinical_summary: text(10000), treatment_plans: z.array(treatmentWriteSchema).max(100), follow_up_decision: z.enum(['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP']).nullable().optional(), patient_instructions: z.string().max(4000).nullable().optional() }).strict().superRefine((body, ctx) => {
+export const clinicalReviewWriteSchema = z.object({ expected_version: version, clinical_summary: z.string().trim().max(10000).optional(), treatment_plans: z.array(treatmentWriteSchema).max(100), follow_up_decision: z.enum(['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP']).nullable().optional(), patient_instructions: z.string().max(4000).nullable().optional() }).strict().superRefine((body, ctx) => {
   const seen = new Set<string>();
   body.treatment_plans.forEach((plan, index) => { const key = `${plan.diagnosis_code.toUpperCase()}:${plan.diagnosis_laterality}:${plan.action_type}`; if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['treatment_plans', index], message: 'Duplicate diagnosis, eye and action.' }); seen.add(key); });
 });

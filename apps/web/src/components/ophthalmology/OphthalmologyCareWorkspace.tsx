@@ -131,7 +131,7 @@ export function OphthalmologyCareWorkspace({
   if (!workspace.canView) return <p role="alert">Consultation View or Optical Prescription View permission is required.</p>;
   if (workspace.scopeError || f.scopeError) return <p role="alert">Scope verification failed for this patient encounter. Open an authorised encounter context.</p>;
 
-  // Dedicated Optical Prescription Mode (Tab 4: Optical Prescription)
+  // Dedicated Optical Prescription Mode (Tab 3: Optical Prescription)
   if (mode === 'optical') {
     return (
       <section>
@@ -154,7 +154,7 @@ export function OphthalmologyCareWorkspace({
     );
   }
 
-  // Dedicated Prescriptions & Orders Mode (Tab 3: Prescriptions & Diagnostic Orders)
+  // Dedicated Prescriptions & Orders Mode (Tab 4: Prescriptions & Diagnostic Orders)
   if (mode === 'orders') {
     const validOrderTabs: SharedCareTab[] = ['prescription', 'lab-orders', 'imaging-orders'];
     const activeTab: SharedCareTab = validOrderTabs.includes(f.tab as SharedCareTab)
@@ -208,51 +208,6 @@ export function OphthalmologyCareWorkspace({
         </div>
       )}
 
-      {/* Quick Encounter Action Bar */}
-      {f.tab === 'treatment' && f.canClinical && (
-        <div className="oph-care-quick-toolbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-              Quick Actions:
-            </span>
-            <button
-              type="button"
-              className="doc-btn"
-              style={{ fontSize: '0.78rem', background: '#eef2ff', color: '#4338ca', borderColor: '#c7d2fe', fontWeight: 600 }}
-              disabled={isRoutineBlocked}
-              title={isRoutineBlocked ? 'Procedure recommendations blocked during active emergency alert' : undefined}
-              onClick={() => handleOpenProcedure()}
-            >
-              ✂️ + Recommend Surgery / Procedure
-            </button>
-            <button
-              type="button"
-              className="doc-btn"
-              style={{ fontSize: '0.78rem' }}
-              onClick={() => workspace.setQuery('care_tab', 'prescription')}
-            >
-              💊 Prescriptions &amp; Orders →
-            </button>
-            <button
-              type="button"
-              className="doc-btn"
-              style={{ fontSize: '0.78rem' }}
-              onClick={() => workspace.setQuery('care_tab', 'optical')}
-            >
-              👓 Optical Prescription →
-            </button>
-            <button
-              type="button"
-              className="doc-btn"
-              style={{ fontSize: '0.78rem' }}
-              onClick={() => workspace.setQuery('care_tab', 'referral')}
-            >
-              🔄 Referral &amp; Follow-up →
-            </button>
-          </div>
-        </div>
-      )}
-
       {workspace.emergencyAlerts && workspace.emergencyAlerts.length > 0 && (
         <OphthalmologyEmergencyClearance feature={workspace as unknown as OphthalmologyWorkspaceFeature} />
       )}
@@ -297,129 +252,6 @@ export function OphthalmologyCareWorkspace({
             />
           )}
 
-          {/* Active Diagnostic Assessment Card */}
-          <section className="doc-card oph-saved-assessment-card">
-            <div className="oph-diag-header" style={{ marginBottom: '12px' }}>
-              <div className="oph-diag-title-group">
-                <div className="oph-diag-icon-badge" style={{ background: '#ecfdf5', color: '#059669' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 11l3 3L22 4"></path>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                  </svg>
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 700, color: '#0f172a' }}>
-                    Active Diagnostic Assessment
-                  </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                    Authenticated diagnosis records linked to this patient&apos;s OPD encounter.
-                  </p>
-                </div>
-              </div>
-              <span className="oph-status-badge version">
-                Consultation v{f.consultation?.version ?? 0}
-              </span>
-            </div>
-
-            {/* Assessment Narrative */}
-            {f.consultation?.assessment ? (
-              <div className="oph-assessment-narrative-box">
-                <strong style={{ fontSize: '0.78rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Doctor&apos;s Assessment
-                </strong>
-                <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#1e293b', fontStyle: 'italic' }}>
-                  &ldquo;{f.consultation.assessment}&rdquo;
-                </p>
-              </div>
-            ) : (
-              <p style={{ fontSize: '0.84rem', color: '#64748b', fontStyle: 'italic', margin: '4px 0 12px' }}>
-                No clinical assessment narrative recorded yet.
-              </p>
-            )}
-
-            {/* Diagnoses List */}
-            {f.diagnoses.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-                {f.diagnoses.map((diag, index) => (
-                  <div key={index} className="oph-saved-diagnosis-item">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className={`oph-eye-badge lat-${(diag.laterality ?? 'na').toLowerCase()}`}>
-                        {diag.laterality ?? 'OU'}
-                      </span>
-                      <strong style={{ fontSize: '0.92rem', color: '#0f172a' }}>
-                        {diag.display}
-                      </strong>
-                      <span className="oph-code-badge">{diag.code}</span>
-                      <span className={`oph-status-pill status-${(diag.status ?? 'confirmed').toLowerCase().replace('_', '-')}`}>
-                        {diag.status ?? 'CONFIRMED'}
-                      </span>
-                      <span className="oph-type-badge">
-                        {diag.type}
-                      </span>
-                      {diag.differential && (
-                        <span className="oph-diff-badge">Differential</span>
-                      )}
-                    </div>
-                    {(diag.severity || diag.stage || diag.notes) && (
-                      <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '4px', marginLeft: '32px' }}>
-                        {diag.severity && <span>Severity: <strong>{diag.severity}</strong> · </span>}
-                        {diag.stage && <span>Stage: <strong>{diag.stage}</strong> · </span>}
-                        {diag.notes && <span style={{ fontStyle: 'italic' }}>{diag.notes}</span>}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="oph-empty-diagnoses-prompt">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, color: '#475569', fontSize: '0.88rem' }}>
-                    No diagnoses saved yet
-                  </p>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                    Use the Structured Ophthalmic Diagnoses editor above to add condition codes and laterality.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Diagnosis History Audit Accordion */}
-            <details className="oph-audit-accordion" style={{ marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-              <summary className="oph-audit-summary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                <span style={{ fontWeight: 600, fontSize: '0.82rem', color: '#475569' }}>
-                  📜 Diagnostic Revision History ({(f.consultation?.clinical_history?.length || 0) + 1} versions)
-                </span>
-                <span style={{ fontSize: '0.78rem', color: '#2563eb', fontWeight: 600 }}>View revisions →</span>
-              </summary>
-              <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {f.consultation?.clinical_history && f.consultation.clinical_history.length > 0 ? (
-                  f.consultation.clinical_history.map((entry) => (
-                    <div key={entry.consultation_version} style={{ padding: '6px 10px', background: '#ffffff', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.78rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                        <strong>Version {entry.consultation_version}</strong>
-                        <span style={{ color: '#64748b' }}>{new Date(entry.changed_at).toLocaleString()} · {entry.changed_by}</span>
-                      </div>
-                      {entry.diagnoses.map((diagnosis, idx) => (
-                        <div key={idx} style={{ color: '#475569', marginLeft: '6px' }}>
-                          • {diagnosis.code} · {diagnosis.display} ({diagnosis.laterality ?? 'OU'} · {diagnosis.status ?? 'Status not recorded'})
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic' }}>
-                    Currently at initial consultation version v{f.consultation?.version ?? 1}. Subsequent updates will appear here.
-                  </p>
-                )}
-              </div>
-            </details>
-          </section>
-
           {/* Treatment Plan Editor with Procedure Recommendation Callback */}
           {(f.clinicalQuery.isSuccess || f.clinicalQuery.data !== undefined) && (
             <OphthalmologyClinicalReviewEditor
@@ -459,74 +291,6 @@ export function OphthalmologyCareWorkspace({
             </section>
           )}
         </>
-      )}
-
-      {/* Continuing Care & Downstream Workflows Navigation Card */}
-      {f.tab === 'treatment' && (
-        <section className="doc-card" style={{ marginTop: '14px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="ph ph-arrow-circle-right-bold" style={{ fontSize: '1.2rem' }} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-                Next Clinical Steps &amp; Downstream Care
-              </h3>
-              <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                Transition this consultation to specialized sub-workflows based on diagnostic findings
-              </p>
-            </div>
-          </div>
-
-          <div className="oph-toolbar" style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {/* Direct Procedure / Surgery Button */}
-            <button
-              className="doc-btn primary"
-              type="button"
-              style={{ background: '#2563eb', borderColor: '#1d4ed8', color: '#ffffff', fontWeight: 600, fontSize: '0.8rem' }}
-              disabled={isRoutineBlocked}
-              title={isRoutineBlocked ? 'Procedure recommendations blocked during active emergency alert' : undefined}
-              onClick={() => handleOpenProcedure()}
-            >
-              ✂️ + Recommend Surgery / Procedure
-            </button>
-            <button
-              className="doc-btn"
-              type="button"
-              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
-              onClick={() => workspace.setQuery('care_tab', 'prescription')}
-            >
-              💊 Step 3: Prescriptions &amp; Orders →
-            </button>
-            <button
-              className="doc-btn"
-              type="button"
-              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
-              onClick={() => workspace.setQuery('care_tab', 'optical')}
-            >
-              👓 Step 4: Optical Prescription →
-            </button>
-            <button
-              className="doc-btn"
-              type="button"
-              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
-              onClick={() => workspace.setQuery('care_tab', 'referral')}
-            >
-              🔄 Step 5: Referral &amp; Follow-up →
-            </button>
-            <button
-              className="doc-btn"
-              type="button"
-              style={{ fontSize: '0.8rem', background: '#ffffff', border: '1px solid #e2e8f0', color: '#334155' }}
-              onClick={() => workspace.setQuery('section', 'completion')}
-            >
-              📋 Step 6: Consultation Summary →
-            </button>
-          </div>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '8px 0 0' }}>
-            All orders, surgical recommendations, and continuing care remain strictly linked to this encounter context without navigating away.
-          </p>
-        </section>
       )}
 
       {/* Modal: New Procedure Recommendation (Shared Surgery Modal) */}

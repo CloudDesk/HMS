@@ -81,6 +81,16 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
     const outcomes = await Promise.allSettled([0, 1].map(() => service.saveClinicalReviewDraft(visitId, review(), userId)));
     expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
   });
+  it('saves clinical reviews without summary text and preserves prior text when omitted', async () => {
+    const { clinical_summary, ...withoutSummary } = review();
+    const saved = await service.saveClinicalReviewDraft(visitId, withoutSummary, userId);
+    expect(saved.current.clinical_summary).toBe('');
+    const withSummary = await service.saveClinicalReviewDraft(visitId, { ...withoutSummary, expected_version: saved.version, clinical_summary }, userId);
+    const preserved = await service.saveClinicalReviewDraft(visitId, { ...withoutSummary, expected_version: withSummary.version }, userId);
+    expect(preserved.current.clinical_summary).toBe(clinical_summary);
+    const cleared = await service.saveClinicalReviewDraft(visitId, { ...withoutSummary, expected_version: preserved.version, clinical_summary: '' }, userId);
+    expect(cleared.current.clinical_summary).toBe('');
+  });
 
   it('enforces structured treatment action references and ruled-out diagnosis safety', async () => {
     const missingMedication = review(); missingMedication.treatment_plans[0]!.action_type = 'MEDICATION';

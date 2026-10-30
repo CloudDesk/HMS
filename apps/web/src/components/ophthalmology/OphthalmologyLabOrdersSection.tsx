@@ -4,6 +4,7 @@ import type { ApiClinicalOrderPriority } from '../../api/opd';
 import type { ServiceResponse } from '../../api/services';
 import type { LabOrderItem } from '../opd/OpdLabSection';
 import { MedicalSpinner } from '../ui/MedicalLoader';
+import { OphthalmologyOrderIcon } from './OphthalmologyOrderIcon';
 
 export const isValidObjectId = (id: string): boolean => /^[0-9a-fA-F]{24}$/.test(id);
 
@@ -34,6 +35,7 @@ export type OphthalmologyLabOrdersSectionProps = {
   handleSubmitLabOrder?: () => void;
   isSubmitting?: boolean;
   canEdit: boolean;
+  statusLabel?: string;
 };
 
 interface LabCatalogItem {
@@ -160,6 +162,7 @@ export function OphthalmologyLabOrdersSection({
   handleSubmitLabOrder,
   isSubmitting,
   canEdit,
+  statusLabel = 'Draft',
 }: OphthalmologyLabOrdersSectionProps) {
   // Category tabs filter state
   const [activeTabFilter, setActiveTabFilter] = useState<string>('All Tests');
@@ -259,7 +262,7 @@ export function OphthalmologyLabOrdersSection({
 
   // Tab counts
   const tabCounts = useMemo(() => {
-    const total = Math.max(8, unifiedCatalog.length);
+    const total = unifiedCatalog.length;
     const commonlyUsed = unifiedCatalog.filter((item) => item.tags.includes('Commonly Used') || starredMap[item.id]).length;
     const ocular = unifiedCatalog.filter((item) => item.tags.includes('Ocular & Vision Related') || item.category.includes('Ocular')).length;
     const preOp = unifiedCatalog.filter((item) => item.tags.includes('Pre-Operative') || item.category.includes('Pre-Op')).length;
@@ -267,10 +270,10 @@ export function OphthalmologyLabOrdersSection({
 
     return {
       'All Tests': total,
-      'Commonly Used': Math.max(5, commonlyUsed),
-      'Ocular & Vision Related': Math.max(4, ocular),
-      'Pre-Operative': Math.max(3, preOp),
-      'Inflammatory & Autoimmune': Math.max(3, autoImmune),
+      'Commonly Used': commonlyUsed,
+      'Ocular & Vision Related': ocular,
+      'Pre-Operative': preOp,
+      'Inflammatory & Autoimmune': autoImmune,
     };
   }, [unifiedCatalog, starredMap]);
 
@@ -380,12 +383,13 @@ export function OphthalmologyLabOrdersSection({
           {/* Header */}
           <div className="oph-order-header">
             <div className="oph-order-header-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}>
-              <i className="ph ph-flask-bold" />
+              <OphthalmologyOrderIcon kind="clipboard" />
             </div>
             <div>
-              <h3 className="oph-order-title">Laboratory Order</h3>
-              <p className="oph-order-subtitle">Select required laboratory tests for this patient</p>
+              <h3 className="oph-order-title">Laboratory orders</h3>
+              <p className="oph-order-subtitle">Select tests for this patient.</p>
             </div>
+            <span className="oph-order-status">{statusLabel}</span>
           </div>
 
           {/* Config Filter Bar (4 Columns) */}
@@ -429,7 +433,7 @@ export function OphthalmologyLabOrdersSection({
 
               {/* Sample Type */}
               <div className="oph-order-field">
-                <label htmlFor="oph-lab-sample-type-sel">Sample Type</label>
+                <label htmlFor="oph-lab-sample-type-sel">Sample type</label>
                 <div className="oph-order-input-wrap">
                   <i className="ph ph-drop oph-order-field-icon" />
                   <select
@@ -498,7 +502,7 @@ export function OphthalmologyLabOrdersSection({
                     role="tab"
                     aria-selected={isActive}
                   >
-                    <span>{tab}</span>
+                    <span>{{ 'All Tests': 'All tests', 'Commonly Used': 'Commonly used', 'Ocular & Vision Related': 'Ocular & vision', 'Pre-Operative': 'Pre-operative', 'Inflammatory & Autoimmune': 'Inflammatory' }[tab]}</span>
                     <span className="oph-order-chip-badge">{count}</span>
                   </button>
                 );
@@ -517,7 +521,7 @@ export function OphthalmologyLabOrdersSection({
           </div>
 
           {/* Available Tests Heading */}
-          <h4 className="oph-order-section-title">Available Tests</h4>
+          <h4 className="oph-order-section-title">Available tests <span>{labOrders.length} selected</span></h4>
 
           {/* 3-Column Test Cards Grid */}
           <div className="oph-test-cards-grid">
@@ -560,7 +564,7 @@ export function OphthalmologyLabOrdersSection({
                       className="oph-test-icon-circle"
                       style={{ background: item.iconBg, color: item.iconColor }}
                     >
-                      <i className={`ph ${item.icon}`} />
+                      <OphthalmologyOrderIcon kind="activity" />
                     </div>
                     <div className="oph-test-body">
                       <div className="oph-test-name" title={item.name}>
@@ -606,7 +610,7 @@ export function OphthalmologyLabOrdersSection({
           {/* Clinical Notes & Instructions (2 Columns) */}
           <div className="oph-order-notes-grid">
             <div className="oph-order-note-col">
-              <label htmlFor="oph-lab-clinical-notes">Clinical Notes (Optional)</label>
+              <label htmlFor="oph-lab-clinical-notes">Clinical notes</label>
               <textarea
                 id="oph-lab-clinical-notes"
                 placeholder="e.g. Suspected infection, pre-operative clearance, or specific clinical concern..."
@@ -619,7 +623,7 @@ export function OphthalmologyLabOrdersSection({
             </div>
 
             <div className="oph-order-note-col">
-              <label htmlFor="oph-lab-order-summary">Order Summary / Instructions (Optional)</label>
+              <label htmlFor="oph-lab-order-summary">Order instructions</label>
               <textarea
                 id="oph-lab-order-summary"
                 placeholder="e.g. Fasting required, urgent processing, send copy to referring consultant..."
@@ -637,13 +641,13 @@ export function OphthalmologyLabOrdersSection({
         <aside className="oph-order-summary-panel">
           <div className="oph-summary-header">
             <i className="ph ph-shopping-cart" style={{ color: '#0284c7', fontSize: '1.15rem' }} />
-            <span>Order Summary ({labOrders.length})</span>
+            <span>Order summary</span><span className="oph-order-status">{labOrders.length}</span>
           </div>
 
           <div className="oph-summary-items-list">
             {labOrders.length === 0 ? (
               <div className="oph-summary-empty">
-                No laboratory tests selected yet. Choose tests from the list to add to this order.
+                <OphthalmologyOrderIcon kind="clipboard" />Select tests to build the order.
               </div>
             ) : (
               labOrders.map((order) => {
@@ -701,6 +705,7 @@ export function OphthalmologyLabOrdersSection({
               })
             )}
           </div>
+          <div className="oph-order-review-note"><i className="ph ph-check" aria-hidden="true" />Review tests before submitting.</div>
         </aside>
       </div>
 
@@ -708,7 +713,7 @@ export function OphthalmologyLabOrdersSection({
       <div className="oph-order-footer">
         <div className="oph-order-autosave">
           <i className="ph ph-check-circle-fill" />
-          <span>All changes will be saved automatically</span>
+          <span>Save changes before leaving</span>
         </div>
 
         <div className="oph-order-actions-group">
@@ -749,7 +754,7 @@ export function OphthalmologyLabOrdersSection({
               ) : (
                 <>
                   <i className="ph ph-paper-plane-tilt" />
-                  <span>Submit Laboratory Order ({labOrders.length})</span>
+                  <span>Submit order ({labOrders.length})</span>
                 </>
               )}
             </button>

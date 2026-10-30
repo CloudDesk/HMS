@@ -9,10 +9,15 @@ import { useAppLocation } from '../routing/navigation';
 import type { OphthalmologyAlert } from '../api/ophthalmology';
 import { useOphthalmologyWorkspaceFeature, type OphthalmologyWorkspaceFeature } from '../hooks/ophthalmology/useOphthalmologyWorkspaceFeature';
 import { usePatientDetails } from '../hooks/patients/usePatients';
-import { OphthalmologyIntakeReadOnlyView } from '../components/ophthalmology/OphthalmologyIntakeReadOnlyView';
 import { OphthalmologyIntakeModal } from '../components/ophthalmology/OphthalmologyIntakeModal';
 import { OphthalmologyTestsWorkspace } from '../components/ophthalmology/OphthalmologyTestsWorkspace';
 import '../styles/ophthalmology.css';
+import '../styles/ophthalmology-consultation.css';
+import '../styles/ophthalmology-continuing-care.css';
+import '../styles/ophthalmology-orders.css';
+import '../styles/ophthalmology-optical-reference.css';
+import '../styles/ophthalmology-treatment-reference.css';
+import '../styles/ophthalmology-typography.css';
 import { executeActiveDraftSave } from '../hooks/ophthalmology/useOphthalmologyDraftGuard';
 import { getOpdErrorMessage } from './opd-utils';
 import { MedicalLoader } from '../components/ui/MedicalLoader';
@@ -211,11 +216,11 @@ export function OphthalmologyWorkspacePage() {
     ...(canViewDiagnosis ? [
       { id: 'care' as const, label: 'Diagnosis & Treatment', icon: 'ph-stethoscope', action: () => f.openClinical('treatment') },
     ] : []),
-    ...(canViewOrders ? [
-      { id: 'orders' as const, label: 'Prescriptions & Orders', icon: 'ph-pill', action: () => f.openClinical('prescription') },
-    ] : []),
     ...(canViewOptical ? [
       { id: 'optical' as const, label: 'Optical Prescription', icon: 'ph-eyeglasses', action: () => f.openClinical('optical') },
+    ] : []),
+    ...(canViewOrders ? [
+      { id: 'orders' as const, label: 'Prescriptions & Orders', icon: 'ph-pill', action: () => f.openClinical('prescription') },
     ] : []),
     ...(canViewReferral ? [
       { id: 'continuing-care' as const, label: 'Referral & Follow-up', icon: 'ph-calendar-check', action: () => f.openClinical('referral') },
@@ -285,7 +290,7 @@ export function OphthalmologyWorkspacePage() {
     .toUpperCase();
 
   return (
-    <div className="opd-page oph-workspace">
+    <div className="opd-page oph-workspace oph-reference-consultation">
       {/* Compact Patient Consultation Header — single row at desktop */}
       <section className="oph-revamped-header oph-patient-header opd-page-header">
         <div className="oph-header-row">
@@ -295,24 +300,23 @@ export function OphthalmologyWorkspacePage() {
             <div className="oph-header-identity">
               <div className="oph-header-name-row">
                 <span className="oph-patient-name">{f.visit.patient_name}</span>
-                <span className="oph-header-id">MRN: {f.visit.patient_number}</span>
-                <span className="oph-header-sep">|</span>
-                <span className="oph-header-id">Visit: {f.visit.visit_number}</span>
-                <span className={`oph-badge oph-badge-blue oph-badge-sm`}>{f.visit.status}</span>
-                <span className={`oph-badge oph-badge-sm ${f.visit.priority === 'EMERGENCY' ? 'oph-badge-red' : f.visit.priority === 'URGENT' ? 'oph-badge-amber' : 'oph-badge-blue'}`}>
-                  {f.visit.priority}
-                </span>
-                <span className="oph-badge oph-badge-purple oph-badge-sm">Eye: {f.context?.affected_eye ?? 'OU'}</span>
+                <span className="oph-header-id" title={`Visit: ${f.visit.visit_number} · ${departmentName}`}>MRN {f.visit.patient_number}</span>
               </div>
               <div className="oph-header-meta-row">
-                <span><i className="ph ph-cake" /> {patientAge}</span>
-                <span><i className="ph ph-gender-intersex" /> {patientGender}</span>
-                <span><i className="ph ph-drop" style={{ color: '#dc2626' }} /> {patientBloodGroup}</span>
-                <span><i className="ph ph-stethoscope" /> {consultantName}</span>
-                <span><i className="ph ph-calendar-blank" /> {encounterDateTime}</span>
-                <span><i className="ph ph-buildings" /> {departmentName}</span>
+                <span>{patientAge}</span>
+                <span>{patientGender}</span>
+                <span>{patientBloodGroup}</span>
+                <span title={departmentName}>{consultantName}</span>
+                <span>{encounterDateTime}</span>
               </div>
             </div>
+          </div>
+          <div className="oph-header-statuses">
+            <span className="oph-badge oph-badge-blue oph-badge-sm">{f.visit.status?.replaceAll('_', ' ')}</span>
+            <span className={`oph-badge oph-badge-sm ${f.visit.priority === 'EMERGENCY' ? 'oph-badge-red' : 'oph-badge-amber'}`}>
+              {f.visit.priority}
+            </span>
+            <span className="oph-badge oph-badge-purple oph-badge-sm">Eye: {f.context?.affected_eye ?? 'OU'}</span>
           </div>
           {/* Right: action buttons */}
           <div className="oph-header-actions">
@@ -323,11 +327,11 @@ export function OphthalmologyWorkspacePage() {
                 disabled={f.busy}
                 onClick={() => setEscalateModalOpen(true)}
               >
-                <i className="ph ph-warning-bold" /> Escalate Emergency
+                <i className="ph ph-warning-circle" aria-hidden="true" /> Escalate<span className="oph-visually-hidden"> Emergency</span>
               </button>
             )}
             <button className="oph-btn-secondary" type="button" onClick={f.back}>
-              <i className="ph ph-arrow-left" /> Back to Queue
+              <i className="ph ph-arrow-left" aria-hidden="true" /> Back to queue
             </button>
           </div>
         </div>
@@ -399,9 +403,9 @@ export function OphthalmologyWorkspacePage() {
               onClick={step.action}
             >
               <span className={`oph-step-number ${currentStep === step.id ? 'active' : ''}`}>
-                {step.num}
+                {String(step.num).padStart(2, '0')}
               </span>
-              <span className="oph-step-label-text">{step.label}</span>
+              <span className="oph-step-label-text" title={step.label}>{step.id === 'examination' ? 'Examination' : step.id === 'summary' ? 'Summary' : step.label}</span>
             </button>
           ))}
         </nav>
@@ -470,18 +474,17 @@ export function OphthalmologyWorkspacePage() {
 
       {/* Tab 2: Diagnosis & Treatment Plan */}
       {f.context && !f.contextEditOpen && canViewDiagnosis && isTreatment && (
-        <>
-          <OphthalmologyIntakeReadOnlyView feature={f} summaryOnly />
+        <section className="oph-treatment-reference">
           <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-treatment`} workspace={f} mode="treatment" />
-        </>
+        </section>
       )}
 
-      {/* Tab 3: Prescriptions & Diagnostic Orders */}
+      {/* Tab 4: Prescriptions & Diagnostic Orders */}
       {f.context && !f.contextEditOpen && canViewOrders && isOrders && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-orders`} workspace={f} mode="orders" />
       )}
 
-      {/* Tab 4: Optical Prescription */}
+      {/* Tab 3: Optical Prescription */}
       {f.context && !f.contextEditOpen && canViewOptical && isOptical && (
         <OphthalmologyCareWorkspace key={`${f.visitId}-${f.context.id}-optical`} workspace={f} mode="optical" />
       )}

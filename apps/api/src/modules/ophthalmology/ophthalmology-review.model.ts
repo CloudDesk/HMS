@@ -38,7 +38,7 @@ const treatmentPlanSchema = new Schema<OphthalmologyTreatmentPlanFields>({
   clinicianUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 });
 const clinicalReviewVersionSchema = new Schema<OphthalmologyClinicalReviewVersionFields>({
-  clinicalVersion: { type: Number, min: 1, required: true }, clinicalSummary: { type: String, required: true, trim: true },
+  clinicalVersion: { type: Number, min: 1, required: true }, clinicalSummary: { type: String, default: '', trim: true },
   treatmentPlans: { type: [treatmentPlanSchema], default: [] }, createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   followUpDecision: { type: String, enum: ['FOLLOW_UP_RECORDED', 'NO_FOLLOW_UP', null], default: null }, patientInstructions: { type: String, default: null },
   createdAt: { type: Date, required: true },

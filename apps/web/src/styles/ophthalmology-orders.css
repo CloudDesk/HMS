@@ -1,0 +1,155 @@
+/* Reference presentation is confined to the ophthalmology orders workspace. */
+.oph-orders-care {
+  --orders-font: 13px;
+  --orders-small: 12px;
+  --orders-title: 18px;
+  --orders-pad: 20px;
+  --orders-gap: 16px;
+  --orders-control: 40px;
+  --orders-note: 80px;
+  --orders-radius: 13px;
+  color: #173453;
+  gap: var(--orders-gap) !important;
+}
+.oph-orders-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.oph-orders-care .doc-btn { min-height: var(--orders-control); font-size: var(--orders-font) !important; border-radius: 8px !important; padding: 9px 14px !important; }
+.oph-orders-care .oph-care-subnav { margin-bottom: 0 !important; padding: 12px 14px !important; border: 1px solid #dce5f3 !important; border-radius: var(--orders-radius) !important; box-shadow: none !important; }
+.oph-orders-care .oph-care-subtab { min-height: var(--orders-control); padding: 8px 14px !important; font-size: var(--orders-font) !important; box-shadow: none !important; }
+.oph-orders-care .oph-care-subtab.active { background: #f0f5ff !important; border-color: #b7cdff !important; }
+.oph-orders-care :is(.oph-order-title, .oph-summary-header) { color: #173453; font-size: var(--orders-title); font-weight: 500; }
+.oph-orders-care :is(.oph-order-subtitle, .oph-summary-item-detail, .oph-test-subtext) { color: #7b90af; font-size: var(--orders-small); }
+.oph-orders-care .oph-order-status { margin-left: auto; padding: 8px 10px; border-radius: 7px; background: #f1f5fb; color: #7186a5; font-size: var(--orders-small); white-space: nowrap; font-weight: 400; }
+.oph-orders-care .oph-order-main-card { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); gap: 0 var(--orders-gap); padding: 0; background: transparent; border: 0; box-shadow: none; align-items: start; }
+.oph-orders-care .oph-order-layout-grid { display: contents; }
+.oph-orders-care :is(.oph-order-builder, .oph-order-summary-panel, .opd-rx-card) { background: #fff !important; padding: var(--orders-pad) !important; border: 1px solid #d6e2f4 !important; border-radius: var(--orders-radius) !important; box-shadow: 0 6px 24px rgb(28 57 98 / 3%) !important; min-width: 0; }
+.oph-orders-care .oph-order-builder { grid-column: 1; grid-row: 1; border-bottom: 0 !important; border-radius: var(--orders-radius) var(--orders-radius) 0 0 !important; }
+.oph-orders-care .oph-order-summary-panel { grid-column: 2; grid-row: 1 / span 2; }
+.oph-orders-care .oph-order-header { padding-bottom: var(--orders-pad); margin-bottom: var(--orders-pad); border-bottom: 1px solid #e6edf8; }
+.oph-orders-care .oph-order-header-icon { background: #eaf1ff !important; color: #3285ee !important; }
+.oph-orders-care .oph-imaging-orders .oph-order-header-icon { background: #f0eaff !important; color: #8060dd !important; }
+.oph-orders-care .oph-order-config-bar { gap: var(--orders-gap); margin-bottom: var(--orders-pad); }
+.oph-orders-care :is(.oph-order-field label, .oph-order-note-col label) { color: #5c7393; font-size: var(--orders-font); font-weight: 600; }
+.oph-orders-care .oph-order-field-icon { display: none; }
+.oph-orders-care :is(.oph-order-input-wrap select, .oph-order-search-box input) { min-height: var(--orders-control); height: var(--orders-control); padding: 8px 12px; border: 1px solid #c6d7f1; border-radius: 7px; font-size: var(--orders-font); color: #21456b; }
+.oph-orders-care .oph-order-search-box input { padding-left: 36px; }
+.oph-orders-care .oph-order-filter-row { gap: 12px; flex-wrap: wrap; margin-bottom: var(--orders-gap); }
+.oph-orders-care .oph-order-chips { gap: 7px; flex: 1; flex-wrap: wrap; }
+.oph-orders-care .oph-order-chip { padding: 9px 12px; border: 1px solid #cfddf1; border-radius: 24px; font-size: var(--orders-small); color: #5c7393; font-weight: 400; background: #fff; gap: 5px; }
+.oph-orders-care .oph-order-chip.active { background: #e8f8f4; border-color: #83d9c9; color: #008c87; }
+.oph-orders-care .oph-order-chip-badge { background: none !important; color: inherit !important; padding: 0; font-size: inherit; min-width: 0; }
+.oph-orders-care .oph-order-search-box { width: 210px; min-width: 140px; }
+.oph-orders-care .oph-order-section-title { display: flex; justify-content: space-between; gap: 12px; color: #426086; font-size: var(--orders-font); margin: 0 0 12px; }
+.oph-orders-care .oph-order-section-title > span { font-size: var(--orders-small); color: #7b90af; font-weight: 400; }
+.oph-orders-care .oph-test-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-bottom: var(--orders-pad); }
+.oph-orders-care .oph-test-card { align-items: flex-start; min-height: 76px; padding: 13px; gap: 10px; border: 1px solid #d6e2f4; border-radius: 10px; background: #fff; }
+.oph-orders-care .oph-test-card.selected { background: #faf8ff; border-color: #9b7bff; }
+.oph-orders-care .oph-test-card:hover { background: #f3fbf9; border-color: #83d9c9; }
+.oph-orders-care .oph-test-checkbox { width: 19px; height: 19px; margin: 0; accent-color: #8060dd; flex-shrink: 0; }
+.oph-orders-care .oph-test-checkbox { appearance: none; border: 1px solid #c6d7f1; border-radius: 4px; background: #fff; display: grid; place-content: center; }
+.oph-orders-care .oph-test-checkbox:checked { background: #8060dd; border-color: #8060dd; }
+.oph-orders-care .oph-test-checkbox:checked::after { content: ''; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translateY(-1px); }
+.oph-orders-care .oph-test-checkbox:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.oph-orders-care .oph-test-icon-circle { width: 30px; height: 30px; min-width: 30px; border-radius: 9px; background: #edf5ff !important; color: #438ef0 !important; font-size: 20px; }
+.oph-orders-care .oph-test-name { font-size: var(--orders-font); font-weight: 600; line-height: 1.35; white-space: normal; -webkit-line-clamp: unset; overflow: visible; }
+.oph-orders-care .oph-test-body { padding-right: 0; }
+.oph-orders-care .oph-test-subtext { margin-top: 5px; }
+.oph-orders-care :is(.oph-test-star-btn, .oph-char-counter) { display: none; }
+.oph-orders-care .oph-order-notes-grid { gap: var(--orders-gap); }
+.oph-orders-care .oph-order-note-col textarea { min-height: var(--orders-note); padding: 10px 12px; font-size: var(--orders-font); border-color: #c6d7f1; border-radius: 7px; }
+.oph-orders-care .oph-summary-header { border: 0; padding: 0; margin-bottom: var(--orders-gap); }
+.oph-orders-care .oph-summary-header > i { display: none; }
+.oph-orders-care .oph-summary-item-card { padding: 14px; background: #f8fbff; border: 1px solid #dce6f5; border-radius: 8px; }
+.oph-orders-care .oph-summary-item-name { font-size: var(--orders-font); line-height: 1.5; font-weight: 600; }
+.oph-orders-care .oph-summary-item-top .oph-test-icon-circle { display: none; }
+.oph-orders-care .oph-summary-remove-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid #ffc4c4; color: #ef4444; background: #fff8f8; border-radius: 7px; cursor: pointer; font-size: 20px; }
+.oph-orders-care .oph-summary-item-detail strong { font-weight: 400; }
+.oph-orders-care .oph-summary-empty { padding: 45px 12px; font-size: var(--orders-font); }
+.oph-orders-care .oph-order-review-note { display: flex; gap: 8px; align-items: center; margin-top: var(--orders-gap); padding: 12px; background: #edf7ff; color: #2563eb; border-radius: 8px; font-size: var(--orders-small); }
+.oph-orders-care .oph-order-footer { grid-column: 1; margin: 0; padding: var(--orders-pad); background: #fff; border: 1px solid #d6e2f4; border-top: 0; border-radius: 0 0 var(--orders-radius) var(--orders-radius); }
+.oph-orders-care .oph-order-autosave { font-size: var(--orders-small); color: #008f88; font-weight: 400; }
+.oph-orders-care .oph-order-autosave i { display: none; }
+.oph-orders-care .oph-order-footer { background: linear-gradient(#e6edf8, #e6edf8) center top / calc(100% - 2 * var(--orders-pad)) 1px no-repeat #fff; }
+.oph-orders-care .oph-order-actions-group { gap: 10px; }
+.oph-orders-care :is(.oph-order-btn-outline, .oph-order-btn-primary) { min-height: var(--orders-control); padding: 10px 14px; font-size: var(--orders-small); border-radius: 8px; }
+.oph-orders-care .oph-order-btn-primary { background: #2563eb !important; border-color: #2563eb !important; }
+.oph-orders-care .oph-imaging-orders .oph-order-btn-primary { background: #8060dd !important; border-color: #8060dd !important; }
+.oph-orders-care .oph-order-actions-group .oph-order-btn-outline:has(.ph-printer) { display: none; }
+.oph-orders-care .opd-prescription-two-col { grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr) !important; gap: var(--orders-gap) !important; }
+.oph-orders-care .opd-prescription-two-col > div { gap: var(--orders-gap) !important; min-width: 0; }
+.oph-orders-care .opd-prescription-two-col > div:first-child > .opd-rx-card:first-child { border-top: 3px solid #8060dd !important; }
+.oph-orders-care .opd-prescription-two-col > div:last-child > .opd-rx-card:first-child { border-top: 3px solid #3274e6 !important; }
+.oph-orders-care .oph-rx-items-table { display: none; }
+.oph-orders-care .opd-rx-card :is(h3, h4) { font-size: var(--orders-title) !important; color: #173453 !important; font-weight: 500 !important; }
+.oph-orders-care .opd-rx-card h3 { font-weight: 600 !important; }
+.oph-orders-care .opd-rx-card p { color: #7b90af !important; font-size: var(--orders-font) !important; }
+.oph-orders-care .opd-rx-card > div:first-child { padding-bottom: var(--orders-gap) !important; margin-bottom: var(--orders-gap) !important; border-bottom-color: #e6edf8 !important; }
+.oph-orders-care .opd-rx-card .doc-form-grid.three { grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)); gap: var(--orders-gap) !important; }
+.oph-orders-care .opd-rx-card .doc-field { min-width: 0; gap: 8px !important; }
+.oph-orders-care .opd-rx-card .doc-field > span { font-size: var(--orders-font) !important; color: #5c7393; }
+.oph-orders-care .opd-rx-card .doc-field > span > span { display: block; margin-top: 8px; }
+.oph-orders-care .opd-rx-card :is(input, select, textarea) { min-height: var(--orders-control) !important; height: var(--orders-control) !important; font-size: var(--orders-font) !important; padding: 8px 11px !important; border: 1px solid #c6d7f1 !important; border-radius: 7px !important; }
+.oph-orders-care .opd-rx-card textarea { min-height: var(--orders-note) !important; height: auto !important; }
+.oph-orders-care .opd-rx-card .doc-field > div > span { display: none; }
+.oph-orders-care .opd-rx-card .doc-field > div > i { display: none; }
+.oph-orders-care .opd-prescription-two-col > div:last-child .opd-rx-card > div:first-child > div:first-child > div:first-child:has(i) { display: none !important; }
+.oph-orders-care .oph-rx-summary-item { gap: 8px; align-items: flex-start !important; padding: 14px !important; border-color: #dce6f5 !important; border-radius: 8px !important; background: #f8fbff !important; flex-wrap: wrap; }
+.oph-orders-care .oph-rx-summary-item > div { flex: 1; }
+.oph-orders-care .oph-rx-summary-item strong { font-size: var(--orders-font) !important; line-height: 1.5; }
+.oph-orders-care .oph-rx-summary-item > div > div { font-size: var(--orders-small) !important; color: #7b90af !important; }
+.oph-orders-care .opd-sticky-actions { position: static; padding: var(--orders-pad) !important; border: 1px solid #d6e2f4 !important; border-radius: var(--orders-radius) !important; box-shadow: none !important; }
+.oph-orders-care .opd-sticky-actions > div:first-child > i { display: none; }
+.oph-orders-care .opd-sticky-actions > div:first-child > span { font-size: var(--orders-small) !important; font-weight: 400 !important; color: #5c7393 !important; }
+.oph-orders-care .opd-sticky-actions button:has(.ph-arrow-right),
+.oph-orders-care .oph-rx-duration-duplicate { display: none; }
+.oph-orders-care button[hidden] { display: none !important; }
+.oph-orders-care .oph-order-line-icon { flex-shrink: 0; }
+.oph-orders-care .oph-order-header-icon .oph-order-line-icon { width: 25px; height: 25px; }
+.oph-orders-care .oph-order-filter-row { display: flex; flex-wrap: nowrap; }
+.oph-orders-care .oph-order-chips { flex-wrap: nowrap; min-width: 0; }
+.oph-orders-care .oph-order-chip { white-space: nowrap; }
+.oph-orders-care .oph-order-search-box { flex-shrink: 0; }
+.oph-orders-care .oph-summary-empty { display: flex; flex-direction: column; align-items: center; gap: 45px; padding: 20px 12px 36px; }
+.oph-orders-care .oph-summary-empty .oph-order-line-icon { width: 26px; height: 26px; }
+.oph-orders-care .oph-rx-followup-heading { display: block !important; padding-bottom: 0 !important; border: 0 !important; }
+.oph-orders-care .oph-rx-followup-heading > div { display: none !important; }
+.oph-orders-care .oph-rx-followup-heading > p { margin: 7px 0 0; font-size: var(--orders-font) !important; }
+.oph-orders-care .oph-rx-review-note { padding: 10px 12px !important; align-items: center !important; gap: 9px !important; }
+.oph-orders-care .oph-rx-review-note > div:first-child { background: none !important; color: #2563eb !important; }
+.oph-orders-care .oph-rx-review-note strong { font-size: var(--orders-small) !important; font-weight: 400 !important; }
+.oph-orders-care .oph-rx-review-note > div:last-child > span { display: none !important; }
+.oph-orders-care .opd-prescription-two-col > div:last-child > .opd-rx-card:first-child > div:first-child { border-bottom: 0 !important; padding-bottom: 0 !important; }
+.oph-orders-care .oph-rx-summary-empty { padding: 20px 8px !important; }
+.oph-orders-care .oph-rx-summary-empty :is(strong, span) { font-size: var(--orders-font) !important; font-weight: 400 !important; }
+.oph-orders-care #medicine-search-sel { appearance: none; }
+.oph-orders-care :is(#medicine-duration, #custom-duration-input) { min-height: calc(var(--orders-control) + 10px) !important; height: calc(var(--orders-control) + 10px) !important; }
+.oph-orders-care .opd-rx-card .doc-form-grid.three { align-items: end; }
+@container oph-consultation (max-width: 1100px) {
+  .oph-orders-care { --orders-font: 10px; --orders-small: 9px; --orders-title: 14px; --orders-pad: 14px; --orders-gap: 12px; --orders-control: 28px; --orders-note: 58px; --orders-radius: 10px; }
+  .oph-orders-care .oph-care-subnav { padding: 8px 10px !important; }
+  .oph-orders-care :is(.doc-btn, .oph-care-subtab, .oph-order-btn-outline, .oph-order-btn-primary) { padding: 7px 10px !important; }
+  .oph-orders-care .oph-order-header-icon { width: 28px; height: 28px; font-size: 18px; }
+  .oph-orders-care .oph-order-chip { padding: 7px 9px; }
+  .oph-orders-care .oph-order-search-box { width: 158px; }
+  .oph-orders-care .oph-order-search-box input { padding-left: 28px; }
+  .oph-orders-care .oph-test-card { min-height: 56px; padding: 10px; gap: 8px; }
+  .oph-orders-care .oph-test-icon-circle { width: 23px; height: 23px; min-width: 23px; font-size: 16px; }
+  .oph-orders-care .oph-test-checkbox { width: 15px; height: 15px; }
+  .oph-orders-care .oph-summary-remove-btn { width: 24px; height: 24px; font-size: 16px; }
+  .oph-orders-care .oph-order-status { padding: 6px 7px; }
+  .oph-orders-care .opd-rx-card .doc-field { gap: 6px !important; }
+  .oph-orders-care { margin-inline: 8px; }
+  .oph-orders-care .oph-orders-heading { margin-top: 8px; margin-bottom: 8px; }
+  .oph-orders-care .oph-order-line-icon { width: 14px; height: 14px; }
+  .oph-orders-care .oph-order-header-icon .oph-order-line-icon { width: 20px; height: 20px; }
+  .oph-orders-care .oph-order-chips { gap: 5px; }
+  .oph-orders-care .oph-order-chip { padding: 7px 8px; }
+}
+@container oph-consultation (max-width: 800px) {
+  .oph-orders-care .oph-order-main-card, .oph-orders-care .opd-prescription-two-col { grid-template-columns: minmax(0, 1fr) !important; }
+  .oph-orders-care .oph-order-summary-panel { grid-column: 1; grid-row: 3; margin-top: var(--orders-gap); }
+  .oph-orders-care .oph-order-config-bar.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oph-orders-care .oph-order-filter-row, .oph-orders-care .oph-order-chips { flex-wrap: wrap; }
+}
+@container oph-consultation (max-width: 480px) {
+  .oph-orders-care .oph-test-cards-grid, .oph-orders-care .opd-rx-card .doc-form-grid.three { grid-template-columns: minmax(0, 1fr); }
+}

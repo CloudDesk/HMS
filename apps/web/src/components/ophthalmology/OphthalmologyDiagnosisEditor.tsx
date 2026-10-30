@@ -18,7 +18,10 @@ const TOP_OPHTHALMOLOGY_PRESETS = [
   { code: 'H10.9', display: 'Conjunctivitis', laterality: 'OU' as const, type: 'PRIMARY' as const },
 ];
 
-export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdConsultationResponse; canEdit: boolean }) {
+export function OphthalmologyDiagnosisEditor({ record, canEdit }: {
+  record: OpdConsultationResponse;
+  canEdit: boolean;
+}) {
   const visitId = record.visit_id;
   const cachedDraft = getEncounterDraft<DiagnosisForm>(visitId, 'diagnosis');
   const [baseline, setBaseline] = useState(record);
@@ -156,22 +159,12 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
-              Ophthalmic Diagnoses &amp; Assessment
+              Ophthalmic diagnoses &amp; assessment
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
               Record primary and secondary diagnoses with ICD-10 codes, affected eye laterality, clinical staging, and diagnostic rationale.
             </p>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="oph-status-badge version">
-            Draft v{baseline.version ?? 0}
-          </span>
-          {canEdit && (
-            <span className="oph-status-badge active">
-              Editable
-            </span>
-          )}
         </div>
       </div>
 
@@ -183,8 +176,10 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
       <EditorErrors errors={errors} />
 
       <fieldset className="oph-fieldset" disabled={disabled}>
+        <div className="oph-diagnosis-section-heading"><span>01</span><h4>Clinical assessment &amp; diagnosis</h4><small>Primary diagnosis</small></div>
         {/* Quick-add chips for common eye conditions */}
-        <div className="oph-quick-presets-container">
+        <details className="oph-quick-presets-container">
+          <summary>Quick-add common ophthalmic conditions</summary>
           <div className="oph-quick-presets-label">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -204,7 +199,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
               </button>
             ))}
           </div>
-        </div>
+        </details>
 
         {/* Global Clinical Assessment Narrative */}
         <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
@@ -256,7 +251,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
               <section className="oph-diag-row-card" key={row.id}>
                 <div className="oph-diag-row-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="oph-diag-index-badge">#{index + 1}</span>
+                    <span className="oph-diag-index-badge">{String(index + 1).padStart(2, '0')}</span>
                     <strong style={{ fontSize: '0.95rem', color: '#1e293b' }}>
                       {currentItem?.display || `Diagnosis Entry #${index + 1}`}
                     </strong>
@@ -330,28 +325,18 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                 </div>
 
                 {/* Laterality, Severity, Stage, Status & Differential in single visual flow */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', alignItems: 'flex-end', marginTop: '0.75rem', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                <div className="oph-diag-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', alignItems: 'flex-end', marginTop: '0.75rem', padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                       Affected Eye (Laterality) <span className="oph-required">*</span>
                     </span>
-                    <div className="oph-pill-group" style={{ width: '100%' }}>
-                      {[
-                        { id: 'OD', label: 'OD' },
-                        { id: 'OS', label: 'OS' },
-                        { id: 'OU', label: 'OU' },
-                        { id: 'NOT_APPLICABLE', label: 'N/A' },
-                      ].map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`oph-pill-btn ${laterality === item.id ? `selected lat-${item.id.toLowerCase()}` : ''}`}
-                          onClick={() => setValue(`diagnoses.${index}.laterality`, item.id as 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE', { shouldDirty: true, shouldValidate: true })}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
+                    <select aria-label={`Affected eye for diagnosis ${index + 1}`} value={laterality} onChange={(event) => setValue(`diagnoses.${index}.laterality`, event.target.value as 'OD' | 'OS' | 'OU' | 'NOT_APPLICABLE', { shouldDirty: true, shouldValidate: true })}>
+                      <option value="" disabled>Select affected eye</option>
+                      <option value="OD">OD · Right eye</option>
+                      <option value="OS">OS · Left eye</option>
+                      <option value="OU">OU · Both eyes</option>
+                      <option value="NOT_APPLICABLE">Not applicable</option>
+                    </select>
                   </div>
 
                   <div>
@@ -430,7 +415,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
                         {(currentItem?.notes?.length || 0)} / 500
                       </span>
                     </div>
-                    <input
+                    <textarea
                       {...register(`diagnoses.${index}.notes`)}
                       maxLength={500}
                       placeholder="e.g. Verified with subjective refraction; fundoscopy confirms clear macula."
@@ -464,7 +449,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
               });
             }}
           >
-            + Add Custom Diagnosis
+            + Add custom diagnosis
           </button>
 
           <button className="doc-btn primary" type="submit" disabled={disabled}>
@@ -473,7 +458,7 @@ export function OphthalmologyDiagnosisEditor({ record, canEdit }: { record: OpdC
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
-            Save Diagnosis Assessment
+            Save diagnosis assessment
           </button>
         </div>
       </fieldset>

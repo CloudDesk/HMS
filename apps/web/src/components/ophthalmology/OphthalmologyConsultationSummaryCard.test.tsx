@@ -2,13 +2,62 @@ import { act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { OphthalmologyConsultationSummaryCard } from './OphthalmologyConsultationSummaryCard';
+import { OphthalmologyConsultationSummaryCard, OphthalmologySummaryHeader } from './OphthalmologyConsultationSummaryCard';
 
 function feature(summary: Record<string, unknown>): ComponentProps<typeof OphthalmologyConsultationSummaryCard>['feature'] {
   return { summaryQuery: { data: { finalization: null, summary }, isLoading: false, isError: false, error: null, refetch: vi.fn() } };
 }
 
 describe('clinical summary source statuses', () => {
+  it('shows empty records without substituting example patients, treatment or completed tests', () => {
+    const html = renderToStaticMarkup(<OphthalmologyConsultationSummaryCard feature={feature({})} />);
+    expect(html).toContain('Not recorded');
+    expect(html).toContain('No diagnoses recorded.');
+    expect(html).toContain('No treatment plan recorded.');
+    expect(html).toContain('No diagnostic tests recorded.');
+    expect(html).toContain('No medications recorded.');
+    expect(html).not.toContain('Arjun');
+    expect(html).not.toContain('Myopia');
+    expect(html).not.toContain('Carboxymethylcellulose');
+    expect(html).not.toContain('Anti-VEGF');
+    expect(html).not.toContain('10:30 AM');
+    expect(html).not.toContain('Clinical intake');
+    expect(html).not.toContain('Save draft');
+    expect(html).not.toContain('Patient &amp; encounter summary');
+    expect(html).not.toContain('Print summary');
+  });
+
+  it('keeps edit and result navigation and prints the displayed summary', async () => {
+    const f = feature({
+      patient: { firstName: 'QA', lastName: 'Patient', patientNumber: 'MRN-QA' },
+      consultation: { diagnoses: [{ code: 'QA-1', display: 'Recorded diagnosis', status: 'CONFIRMED' }] },
+      tasks: [{ id: 'task-1', test_name: 'Recorded test', status: 'COMPLETED', laterality: 'OD', completed_at: '2026-10-29T08:00:00Z' }],
+    });
+    f.setQuery = vi.fn();
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    const container = document.createElement('div'); const root = createRoot(container);
+    try {
+      await act(async () => root.render(<><OphthalmologySummaryHeader /><OphthalmologyConsultationSummaryCard feature={f} /></>));
+      expect(container.textContent).toContain('QA Patient');
+      const edit = container.querySelector<HTMLButtonElement>('[title="Edit diagnosis: Recorded diagnosis"]');
+      await act(async () => edit?.click());
+      expect(f.setQuery).toHaveBeenCalledWith({ section: 'clinical', care_tab: 'treatment' });
+      await act(async () => container.querySelector<HTMLButtonElement>('[title="View Result"]')?.click());
+      expect(f.setQuery).toHaveBeenCalledWith({ section: 'clinical', care_tab: 'results' });
+      await act(async () => container.querySelector<HTMLButtonElement>('.oph-summary-print')?.click());
+      expect(print).toHaveBeenCalledOnce();
+      expect(container.querySelector('.oph-summary-page-heading .oph-summary-print')).not.toBeNull();
+    } finally { await act(async () => root.unmount()); print.mockRestore(); }
+  });
+
+  it('disables header printing while the summary is unavailable', () => {
+    const html = renderToStaticMarkup(<OphthalmologySummaryHeader printDisabled />);
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('Consultation summary');
+    expect(html).not.toContain('Clinical intake');
+    expect(html).not.toContain('Save draft');
+  });
+
   it('shows pending source records without claiming scheduling, dispensing or journey completion', () => {
     const html = renderToStaticMarkup(<OphthalmologyConsultationSummaryCard feature={feature({
       medication_prescriptions: [{ id: 'rx', status: 'SUBMITTED' }],

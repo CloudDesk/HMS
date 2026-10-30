@@ -945,7 +945,7 @@ export class OphthalmologyRepository {
     userId: string, session: ClientSession) {
     const current = await this.getClinicalReviewByVisit(context.visit_id, session); const now = new Date();
     const version: OphthalmologyClinicalReviewVersionFields = { clinicalVersion: (current?.current_clinical_version ?? 0) + 1,
-      clinicalSummary: data.clinical_summary.trim(), treatmentPlans: data.treatment_plans.map((plan) => ({ _id: new Types.ObjectId(),
+      clinicalSummary: data.clinical_summary === undefined ? current?.current.clinical_summary ?? '' : data.clinical_summary.trim(), treatmentPlans: data.treatment_plans.map((plan) => ({ _id: new Types.ObjectId(),
         diagnosisCode: plan.diagnosis_code.trim().toUpperCase(), diagnosisLaterality: plan.diagnosis_laterality,
         treatment: plan.treatment.trim(), actionType: plan.action_type, category: null, priority: plan.priority, status: plan.status,
         medicationPrescriptionId: plan.medication_prescription_id ? oid(plan.medication_prescription_id) : null,

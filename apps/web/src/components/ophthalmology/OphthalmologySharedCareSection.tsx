@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { fromZonedTime } from 'date-fns-tz';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTimezone } from '../../api/useSettings';
+import { OphthalmologyOrderIcon } from './OphthalmologyOrderIcon';
 import { useOpdWorkspace } from '../../hooks/opd/useOpdWorkspace';
 import { useBranchesList } from '../../hooks/branches/useBranches';
 import { useDepartmentsList } from '../../hooks/departments/useDepartments';
@@ -753,7 +754,23 @@ export function OphthalmologySharedCareSection({
   };
 
   return (
-    <div className="oph-shared-care-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div className={`oph-shared-care-container${mode === 'continuing-care' ? ' oph-continuing-care' : ' oph-orders-care'}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {mode === 'orders' && (
+        <div className="oph-orders-heading">
+          <div className="oph-exam-heading">
+            <h2>Prescriptions &amp; orders</h2>
+            <p className="oph-exam-description">Create, review, and send medication orders for this encounter.</p>
+          </div>
+        </div>
+      )}
+      {mode === 'continuing-care' && (
+        <div className="oph-continuing-heading">
+          <div className="oph-exam-heading">
+            <h2>Referral &amp; Follow-up</h2>
+            <p className="oph-exam-description">Refer the patient and schedule the next step in care.</p>
+          </div>
+        </div>
+      )}
       {/* Step-Specific Unified Sub-Navigation & Actions Bar */}
       <nav
         className="oph-care-subnav"
@@ -794,8 +811,8 @@ export function OphthalmologySharedCareSection({
                 }}
                 onClick={() => onTabChange('prescription')}
               >
-                <i className="ph ph-pill-bold" style={{ color: activeSharedTab === 'prescription' ? '#2563eb' : '#64748b' }} />
-                <span>Medication Prescription</span>
+                <OphthalmologyOrderIcon kind="pill" />
+                <span>Medication prescription</span>
               </button>
               <button
                 type="button"
@@ -816,8 +833,8 @@ export function OphthalmologySharedCareSection({
                 }}
                 onClick={() => onTabChange('lab-orders')}
               >
-                <i className="ph ph-flask-bold" style={{ color: activeSharedTab === 'lab-orders' ? '#2563eb' : '#64748b' }} />
-                <span>Laboratory Orders</span>
+                <OphthalmologyOrderIcon kind="clipboard" />
+                <span>Laboratory orders</span>
               </button>
               <button
                 type="button"
@@ -838,8 +855,8 @@ export function OphthalmologySharedCareSection({
                 }}
                 onClick={() => onTabChange('imaging-orders')}
               >
-                <i className="ph ph-image-bold" style={{ color: activeSharedTab === 'imaging-orders' ? '#2563eb' : '#64748b' }} />
-                <span>Imaging Orders</span>
+                <OphthalmologyOrderIcon kind="activity" />
+                <span>Imaging orders</span>
               </button>
             </>
           )}
@@ -872,7 +889,7 @@ export function OphthalmologySharedCareSection({
                   <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                   <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
-                <span>Specialist Referral</span>
+                <span>Specialist referral</span>
               </button>
               <button
                 type="button"
@@ -900,7 +917,7 @@ export function OphthalmologySharedCareSection({
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <span>Follow-up Scheduling</span>
+                <span>Follow-up scheduling</span>
               </button>
             </>
           )}
@@ -928,7 +945,7 @@ export function OphthalmologySharedCareSection({
             onClick={onReturnToTreatment}
           >
             <i className="ph ph-arrow-left" style={{ fontSize: '0.88rem', color: '#64748b' }} />
-            <span>Back to Diagnosis &amp; Treatment</span>
+            <span>Back to diagnosis</span>
           </button>
         </div>
       </nav>
@@ -936,6 +953,8 @@ export function OphthalmologySharedCareSection({
       {/* Render Active Section */}
       {activeSharedTab === 'prescription' && (
         <OpdPrescriptionSection
+          referenceLayout
+          statusLabel={opd.prescription?.status || 'Draft'}
           canEdit={opd.canEditPrescription}
           emptyMedicationForm={emptyMedicationForm}
           handleNextStep={handleNextStepNavigation}
@@ -955,6 +974,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'lab-orders' && (
         <OphthalmologyLabOrdersSection
+          statusLabel={opd.labOrder?.status || 'Draft'}
           availableLabTests={labTestServices}
           canEdit={opd.canEditClinicalOrders}
           handleNextStep={handleNextStepNavigation}
@@ -986,6 +1006,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'imaging-orders' && (
         <OphthalmologyImagingOrdersSection
+          statusLabel={opd.imagingOrder?.status || 'Draft'}
           availableImagingTests={availableImagingTests}
           canEdit={opd.canEditClinicalOrders}
           handleNextStep={handleNextStepNavigation}
@@ -1011,6 +1032,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'referral' && (
         <OpdReferralSection
+          showDraftAction={false}
           canEdit={opd.canEditReferral}
           filteredReferralDoctors={filteredReferralDoctors}
           handleNextStep={handleNextStepNavigation}
@@ -1031,7 +1053,10 @@ export function OphthalmologySharedCareSection({
           additionalNotes={referralNotes}
           setAdditionalNotes={setReferralNotes}
           visit={opd.visit}
-          primaryDiagnosis={feature.diagnoses?.[0] ? `${feature.diagnoses[0].display} (${feature.diagnoses[0].code})` : 'Myopia (H52.1)'}
+          primaryDiagnosis={feature.diagnoses?.[0] ? `${feature.diagnoses[0].display} (${feature.diagnoses[0].code})` : 'Not recorded'}
+          clinicalStatus={opd.visit?.status}
+          statusLabel={opd.referral?.status || 'Draft'}
+          affectedEye={workspace.context?.affected_eye}
         />
       )}
 

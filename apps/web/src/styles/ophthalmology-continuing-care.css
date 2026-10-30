@@ -1,0 +1,172 @@
+/* Scoped to ophthalmology; shared OPD referral layouts retain their own styles. */
+.oph-reference-consultation .oph-continuing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.oph-reference-consultation .oph-continuing-heading-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.oph-reference-consultation .oph-continuing-heading-actions .doc-btn { min-height: 48px; padding: 10px 16px; border-radius: 10px; font-size: 14px; }
+.oph-reference-consultation .oph-continuing-heading-actions .primary { background: #2563eb; color: #fff; }
+.oph-reference-consultation .oph-continuing-care .oph-care-subnav { padding: 13px 15px !important; margin-bottom: 2px !important; border-color: #dce5f3 !important; border-radius: 13px !important; box-shadow: none !important; }
+.oph-reference-consultation .oph-continuing-care .oph-care-subtab { min-height: 44px; padding: 10px 15px !important; font-size: 13px !important; font-weight: 600 !important; border-width: 1px !important; box-shadow: none !important; }
+.oph-reference-consultation .oph-continuing-care .oph-care-subtab.active { background: #f0f5ff !important; border-color: #b7cdff !important; }
+.oph-reference-consultation .oph-referral-layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; }
+.oph-reference-consultation :is(.oph-referral-form-card, .oph-followup-main-card) { margin-top: 0; padding: 21px; border: 1px solid #d6e2f4; border-top: 4px solid #2994cf; border-radius: 15px; box-shadow: 0 6px 24px rgb(28 57 98 / 3%); }
+.oph-reference-consultation :is(.oph-ref-header, .oph-followup-header) { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid #e6edf8; gap: 12px; }
+.oph-reference-consultation :is(.oph-ref-title-wrap h3, .oph-followup-title) { margin: 0; color: #173453; font-size: 18px; font-weight: 500; }
+.oph-reference-consultation :is(.oph-ref-title-wrap p, .oph-followup-subtitle) { margin: 8px 0 0; color: #7b90af; font-size: 13px; }
+.oph-reference-consultation :is(.oph-ref-icon-box, .oph-followup-icon-box) { border: 0; background: #eaf1ff; border-radius: 10px; }
+.oph-reference-consultation .oph-continuing-status { margin-left: auto; padding: 9px 10px; background: #f1f5fb; border-radius: 7px; font-size: 12px; color: #7186a5; white-space: nowrap; }
+.oph-reference-consultation .oph-ref-form-body { padding: 0; }
+.oph-reference-consultation .oph-referral-page-wrapper .oph-input-label,
+.oph-reference-consultation .oph-followup-main-card :is(.oph-field-label, .oph-purpose-label) { font-size: 13px; color: #5c7393; font-weight: 600; }
+.oph-reference-consultation .oph-referral-page-wrapper :is(select, input, textarea),
+.oph-reference-consultation .oph-followup-main-card :is(select, textarea) { min-height: 42px; padding: 10px 12px; border: 1px solid #c6d7f1; border-radius: 7px; color: #21456b; font-size: 13px; font-weight: 400; }
+.oph-reference-consultation .oph-referral-page-wrapper textarea { min-height: 92px; }
+.oph-reference-consultation :is(.oph-select-search-icon, .oph-counter-row) { display: none; }
+.oph-reference-consultation .oph-referral-page-wrapper .oph-priority-pill { min-height: 42px; border-radius: 7px; border: 1px solid #cfddf1; background: #fff; color: #5c7393; font-size: 12px; }
+.oph-reference-consultation .oph-referral-page-wrapper .oph-priority-pill.selected { color: #2563eb; border-color: #739bff; background: #f0f5ff; }
+.oph-reference-consultation :is(.oph-ref-patient-card, .oph-ref-context-card) { background: #fff; border: 1px solid #d6e2f4; border-radius: 15px; padding: 20px; }
+.oph-reference-consultation .oph-ref-patient-name { font-size: 15px; font-weight: 600; color: #173453; }
+.oph-reference-consultation .oph-ref-patient-info { min-width: 0; }
+.oph-reference-consultation .oph-ref-patient-ids { flex-wrap: wrap; gap: 4px; }
+.oph-reference-consultation .oph-ref-patient-ids > span:not(.oph-ref-sep) { white-space: nowrap; }
+.oph-reference-consultation .oph-ref-patient-meta { flex-wrap: wrap; gap: 6px; }
+.oph-reference-consultation .oph-ref-patient-meta i { display: none; }
+.oph-reference-consultation .oph-ref-patient-meta > span + span::before { content: '·'; margin-right: 4px; color: #9babc2; }
+.oph-reference-consultation :is(.oph-ref-patient-ids, .oph-ref-patient-meta, .oph-ref-context-row) { font-size: 12px; }
+.oph-reference-consultation .oph-ref-avatar { width: 50px; height: 50px; min-width: 50px; background: #e7efff; color: #2563eb; font-size: 18px; }
+.oph-reference-consultation .oph-ref-context-header { padding: 0 0 16px; border-bottom: 1px solid #e6edf8; }
+.oph-reference-consultation .oph-ref-context-body { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.oph-reference-consultation .oph-ref-context-header { background: transparent; border-radius: 0; }
+.oph-reference-consultation .oph-ref-context-header { border-top: 0; border-right: 0; border-left: 0; }
+.oph-reference-consultation .oph-ref-context-header h4 { margin: 0; padding: 0; border: 0; background: transparent; }
+.oph-reference-consultation .oph-priority-radio { display: none; }
+.oph-reference-consultation .oph-ref-context-header svg { display: none; }
+.oph-reference-consultation .oph-ref-context-header h4 { font-size: 14px; color: #2563eb; font-weight: 400; }
+.oph-reference-consultation .oph-ref-context-row { padding: 12px 0; gap: 12px; }
+.oph-reference-consultation .oph-ref-context-row .val { overflow-wrap: anywhere; }
+.oph-reference-consultation .oph-ref-info-panel { border: 1px solid #ace7ce; border-radius: 9px; background: #effbf5; padding: 16px; }
+.oph-reference-consultation .oph-ref-info-header { color: #00876a; }
+.oph-reference-consultation .oph-ref-info-header { float: left; margin-right: 8px; }
+.oph-reference-consultation .oph-ref-info-header h4 { display: none; }
+.oph-reference-consultation .oph-ref-info-text { margin: 0; }
+.oph-reference-consultation .oph-ref-info-panel::after { content: ''; display: block; clear: both; }
+.oph-reference-consultation .oph-ref-info-header h4 { font-size: 13px; }
+.oph-reference-consultation .oph-ref-info-text { font-size: 12px; color: #00876a; }
+.oph-reference-consultation .oph-ref-bottom-bar { width: calc((100% - 18px) * 2 / 3); margin-top: 18px; padding: 16px 20px; box-shadow: none; border-color: #d6e2f4; border-radius: 13px; }
+.oph-reference-consultation :is(.oph-ref-autosave, .oph-footer-autosave) { font-size: 12px; color: #008f88; font-weight: 400; }
+.oph-reference-consultation :is(.oph-ref-autosave, .oph-footer-autosave) svg { display: none; }
+.oph-reference-consultation :is(.oph-ref-actions, .oph-footer-actions) button { min-height: 44px; font-size: 13px; border-radius: 9px; padding: 10px 15px; }
+.oph-reference-consultation .oph-followup-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.oph-reference-consultation :is(.oph-calendar-card, .oph-scheduling-center, .oph-followup-details-card) { min-width: 0; padding: 18px; background: #fbfdff; border: 1px solid #d6e2f4; border-radius: 12px; }
+.oph-reference-consultation :is(.oph-calendar-title, .oph-calendar-month-name) { font-size: 13px; color: #426086; }
+.oph-reference-consultation .oph-calendar-days-grid { gap: 5px; }
+.oph-reference-consultation .oph-calendar-day-cell { min-height: 36px; font-size: 12px; border-radius: 7px; }
+.oph-reference-consultation .oph-calendar-day-cell.other-month { visibility: hidden; }
+.oph-reference-consultation .oph-calendar-legend { font-size: 11px; flex-wrap: wrap; }
+.oph-reference-consultation .oph-time-slots-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.oph-reference-consultation :is(.oph-time-slot-btn, .oph-duration-btn) { font-size: 12px; min-height: 40px; padding: 7px; border-radius: 7px; border-color: #cfddf1; }
+.oph-reference-consultation .oph-duration-row { gap: 8px; }
+.oph-reference-consultation .oph-followup-main-card .selected { background: #3066e5; color: #fff; }
+.oph-reference-consultation .oph-followup-main-card :is(.oph-field-label, .oph-purpose-label, .oph-detail-left, .oph-details-head) > svg,
+.oph-reference-consultation .oph-followup-main-card :is(.oph-details-icon-box, .oph-doctor-avatar) { display: none; }
+.oph-reference-consultation .oph-doctor-display-card { min-height: 42px; padding: 10px 12px; border-color: #c6d7f1; }
+.oph-reference-consultation .oph-doctor-name { font-size: 13px; font-weight: 400; }
+.oph-reference-consultation .oph-doctor-info { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px; }
+.oph-reference-consultation .oph-doctor-role { margin: 0; font-size: 12px; }
+.oph-reference-consultation .oph-doctor-role:not(:empty)::before { content: '· '; }
+.oph-reference-consultation .oph-referral-page-wrapper .oph-input-label .oph-required { display: block; margin-top: 8px; }
+.oph-reference-consultation .oph-referral-page-wrapper select:has(option[value='']:checked) { color: #ef4444; font-weight: 600; }
+.oph-reference-consultation .oph-followup-main-card .oph-char-counter { display: none; }
+.oph-reference-consultation .oph-followup-main-card :is(.oph-purpose-textarea, .oph-instruction-textarea) { padding-bottom: 10px; }
+.oph-reference-consultation .oph-details-title { font-size: 14px; color: #2563eb; font-weight: 400; }
+.oph-reference-consultation .oph-detail-row { padding: 12px 0; border-bottom: 1px dashed #dce6f5; font-size: 12px; gap: 12px; }
+.oph-reference-consultation .oph-patient-instruction-section { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 18px; }
+.oph-reference-consultation .oph-instruction-left { width: auto; }
+.oph-reference-consultation .oph-instruction-title { font-size: 13px; }
+.oph-reference-consultation .oph-followup-footer { padding: 16px; border: 1px solid #d6e2f4; border-radius: 11px; }
+@container oph-consultation (max-width: 1100px) {
+  .oph-reference-consultation .oph-continuing-heading { margin-bottom: 4px; gap: 14px; }
+  .oph-reference-consultation .oph-continuing-heading .oph-exam-heading { flex-basis: 300px; }
+  .oph-reference-consultation .oph-continuing-care { gap: 12px !important; }
+  .oph-reference-consultation .oph-continuing-care .oph-care-subnav { padding: 9px 10px !important; border-radius: 9px !important; }
+  .oph-reference-consultation .oph-continuing-care .oph-care-subtab { min-height: 30px; padding: 7px 10px !important; font-size: 10px !important; gap: 6px !important; }
+  .oph-reference-consultation .oph-continuing-care .oph-care-subtab svg { width: 14px; height: 14px; }
+  .oph-reference-consultation .oph-care-subnav .doc-btn { min-height: 30px; padding: 7px 10px !important; font-size: 10px !important; }
+  .oph-reference-consultation .oph-continuing-heading-actions .doc-btn { min-height: 34px; font-size: 11px; padding: 7px 11px; }
+  .oph-reference-consultation .oph-referral-layout { gap: 12px; }
+  .oph-reference-consultation .oph-referral-right-col { gap: 12px; }
+  .oph-reference-consultation :is(.oph-referral-form-card, .oph-followup-main-card) { padding: 14px; border-top-width: 3px; border-radius: 11px; }
+  .oph-reference-consultation :is(.oph-ref-header, .oph-followup-header) { padding-bottom: 14px; margin-bottom: 14px; gap: 9px; }
+  .oph-reference-consultation :is(.oph-ref-icon-box, .oph-followup-icon-box) { width: 28px; height: 28px; border-radius: 7px; }
+  .oph-reference-consultation :is(.oph-ref-icon-box, .oph-followup-icon-box) svg { width: 20px; height: 20px; }
+  .oph-reference-consultation :is(.oph-ref-title-wrap h3, .oph-followup-title) { font-size: 14px; }
+  .oph-reference-consultation :is(.oph-ref-title-wrap p, .oph-followup-subtitle, .oph-continuing-status) { font-size: 10px; }
+  .oph-reference-consultation .oph-continuing-status { padding: 6px 7px; }
+  .oph-reference-consultation .oph-referral-page-wrapper :is(select, input, textarea),
+  .oph-reference-consultation .oph-followup-main-card :is(select, textarea),
+  .oph-reference-consultation .oph-referral-page-wrapper .oph-input-label,
+  .oph-reference-consultation .oph-followup-main-card :is(.oph-field-label, .oph-purpose-label) { font-size: 10px; }
+  .oph-reference-consultation .oph-referral-page-wrapper :is(select, input),
+  .oph-reference-consultation .oph-followup-main-card select { min-height: 28px; height: 28px; padding: 6px 8px; }
+  .oph-reference-consultation .oph-referral-page-wrapper textarea { min-height: 62px; padding: 8px; }
+  .oph-reference-consultation .oph-ref-form-body .oph-grid-two { gap: 12px; }
+  .oph-reference-consultation .oph-referral-page-wrapper .oph-input-field { gap: 6px; }
+  .oph-reference-consultation .oph-referral-page-wrapper .oph-priority-pill { min-height: 28px; padding: 6px; font-size: 10px; }
+  .oph-reference-consultation :is(.oph-ref-patient-card, .oph-ref-context-card) { padding: 14px; border-radius: 11px; }
+  .oph-reference-consultation .oph-ref-patient-card { gap: 10px; }
+  .oph-reference-consultation .oph-ref-avatar { width: 34px; height: 34px; min-width: 34px; font-size: 14px; }
+  .oph-reference-consultation .oph-ref-patient-name { font-size: 11px; }
+  .oph-reference-consultation :is(.oph-ref-patient-ids, .oph-ref-patient-meta, .oph-ref-context-row) { font-size: 9px; }
+  .oph-reference-consultation .oph-ref-patient-ids { flex-wrap: wrap; gap: 4px; }
+  .oph-reference-consultation .oph-ref-patient-meta { gap: 6px; flex-wrap: wrap; }
+  .oph-reference-consultation .oph-ref-patient-meta i { display: none; }
+  .oph-reference-consultation .oph-ref-context-header { padding-bottom: 12px; }
+  .oph-reference-consultation .oph-ref-context-header h4 { font-size: 11px; }
+  .oph-reference-consultation .oph-ref-context-row { padding: 9px 0; }
+  .oph-reference-consultation .oph-ref-info-panel { padding: 12px; }
+  .oph-reference-consultation .oph-ref-info-panel { display: flex; align-items: center; gap: 8px; }
+  .oph-reference-consultation .oph-ref-info-header { float: none; margin: 0; flex-shrink: 0; }
+  .oph-reference-consultation .oph-ref-info-panel::after { display: none; }
+  .oph-reference-consultation .oph-ref-info-header h4 { font-size: 10px; margin: 0; }
+  .oph-reference-consultation .oph-ref-info-text { font-size: 9px; line-height: 1.5; }
+  .oph-reference-consultation .oph-ref-bottom-bar { width: calc((100% - 12px) * 2 / 3); padding: 12px; margin-top: 12px; gap: 10px; }
+  .oph-reference-consultation :is(.oph-ref-autosave, .oph-footer-autosave) { font-size: 9px; }
+  .oph-reference-consultation :is(.oph-ref-actions, .oph-footer-actions) { gap: 7px; }
+  .oph-reference-consultation :is(.oph-ref-actions, .oph-footer-actions) button { min-height: 32px; padding: 7px 10px; font-size: 10px; }
+  .oph-reference-consultation .oph-ref-actions .oph-btn-save-draft svg,
+  .oph-reference-consultation .oph-ref-actions .oph-btn-submit-ref svg { display: none; }
+  .oph-reference-consultation .oph-followup-grid { gap: 12px; margin-bottom: 12px; }
+  .oph-reference-consultation :is(.oph-calendar-card, .oph-scheduling-center, .oph-followup-details-card) { padding: 12px; }
+  .oph-reference-consultation :is(.oph-calendar-title, .oph-calendar-month-name) { font-size: 11px; }
+  .oph-reference-consultation .oph-calendar-chevron-btn { width: 23px; height: 23px; font-size: 12px; }
+  .oph-reference-consultation .oph-calendar-weekdays { font-size: 9px; }
+  .oph-reference-consultation .oph-calendar-days-grid { gap: 4px; }
+  .oph-reference-consultation .oph-calendar-day-cell { min-height: 24px; height: 24px; font-size: 9px; box-shadow: none; }
+  .oph-reference-consultation .oph-calendar-legend { margin-top: 12px; padding-top: 10px; gap: 8px; }
+  .oph-reference-consultation .oph-legend-item { font-size: 8px; gap: 4px; }
+  .oph-reference-consultation .oph-legend-dot { width: 6px; height: 6px; }
+  .oph-reference-consultation :is(.oph-time-slot-btn, .oph-duration-btn) { min-height: 27px; padding: 5px; font-size: 9px; font-weight: 400; }
+  .oph-reference-consultation .oph-time-slots-grid { gap: 6px; }
+  .oph-reference-consultation .oph-duration-row { gap: 6px; }
+  .oph-reference-consultation .oph-doctor-display-card { min-height: 28px; padding: 6px 8px; }
+  .oph-reference-consultation .oph-doctor-name { font-size: 10px; }
+  .oph-reference-consultation .oph-doctor-role { font-size: 9px; }
+  .oph-reference-consultation .oph-details-title { font-size: 11px; }
+  .oph-reference-consultation .oph-detail-row { font-size: 9px; padding: 9px 0; }
+  .oph-reference-consultation .oph-detail-val { font-weight: 600; }
+  .oph-reference-consultation .oph-followup-main-card textarea { padding: 8px; min-height: 52px; }
+  .oph-reference-consultation .oph-char-counter { font-size: 8px; }
+  .oph-reference-consultation .oph-patient-instruction-section { padding: 12px; gap: 8px; margin-bottom: 12px; }
+  .oph-reference-consultation .oph-instruction-title { font-size: 10px; }
+  .oph-reference-consultation .oph-followup-footer { padding: 12px; }
+}
+@container oph-consultation (max-width: 800px) {
+  .oph-reference-consultation .oph-referral-layout,
+  .oph-reference-consultation .oph-followup-grid { grid-template-columns: minmax(0, 1fr); }
+  .oph-reference-consultation .oph-ref-bottom-bar { width: 100%; }
+}
