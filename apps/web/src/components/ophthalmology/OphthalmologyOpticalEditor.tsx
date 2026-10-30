@@ -26,6 +26,7 @@ function initial(record: OpticalPrescription | null): Partial<Editor> {
     return {
       expected_version: 0,
       power: { OD: null, OS: null },
+      pupillary_distance: {},
       coating_codes: [],
       lens_type: '',
       material: '',
@@ -100,7 +101,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
 
     const displayMsg = messages.length > 0
       ? messages.join(' ')
-      : 'Please complete all required fields (Power, PD, Lens Type, Material, Usage Instructions, Validity) to save draft.';
+      : 'Check entered values and complete Lens Type, Material, Usage Instructions and Validity to save the draft.';
     toast.error(`Incomplete Prescription: ${displayMsg}`);
   };
 
@@ -139,6 +140,14 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
 
   const changed = baseline?.id !== f.optical?.id || (baseline?.version ?? 0) !== (f.optical?.version ?? 0);
   const disabled = !f.canSaveOptical || f.busy || isSubmitting || changed;
+  const savedPrescription = baseline?.current;
+  const savedPd = savedPrescription?.pupillary_distance;
+  const authorizationComplete = Boolean(savedPrescription?.prescription_type
+    && (savedPrescription.power.OD || savedPrescription.power.OS)
+    && (savedPd?.format === 'BINOCULAR' ? savedPd.binocular != null
+      : savedPd?.format === 'MONOCULAR' && savedPd.OD != null && savedPd.OS != null)
+    && (!['BIFOCAL', 'PROGRESSIVE'].includes(savedPrescription.prescription_type)
+      || (['OD', 'OS'] as const).every((eye) => !savedPrescription.power[eye] || savedPrescription.segment_height?.[eye] != null)));
 
   const apply = (saved: OpticalPrescription) => {
     if (typeof clearEncounterDraft === 'function') clearEncounterDraft(visitId, 'optical');
@@ -193,11 +202,6 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
         }
       }, onInvalid)}
     >
-      {/* 1. Header Card with Title, Status Badges & Latest Prescription Action */}
-      <div className="oph-exam-heading oph-optical-page-heading">
-        <h2>Optical prescription</h2>
-        <p className="oph-exam-description">Create, authorize, and dispense an optical prescription.</p>
-      </div>
       {changed && (
         <p role="alert" className="form-error-banner">
           The saved prescription changed on the server. Your entries remain here; reload the saved version before continuing.
@@ -217,7 +221,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
         <div className="oph-card">
           <div className="oph-card-header">
             <h3 className="oph-card-title">
-              1. Prescription classification <span className="oph-required">*</span>
+              1. Prescription classification (optional)
             </h3>
             <p className="oph-card-subtitle">Select the intended focal range and use.</p>
           </div>
@@ -231,7 +235,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                   type="button"
                   className={`oph-class-card ${isSelected ? 'selected' : ''}`}
                   aria-pressed={isSelected}
-                  onClick={() => setValue('prescription_type', type.id, { shouldDirty: true })}
+                  onClick={() => setValue('prescription_type', isSelected ? null : type.id, { shouldDirty: true })}
                 >
                   <div className="oph-class-icon"><OpticalEyeIcon /></div>
                   <div className="oph-class-label">{type.label}</div>
@@ -240,9 +244,9 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
               );
             })}
           </div>
-          <select {...register('prescription_type')} style={{ display: 'none' }}>
+          <select {...register('prescription_type', { setValueAs: (value: string) => value || null })} style={{ display: 'none' }}>
             <option value="">Select type</option>
-            {opticalWriteSchema.shape.prescription_type.options.map((t) => (
+            {prescriptionTypes.map(({ id: t }) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -252,7 +256,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
         <div className="oph-card">
           <div className="oph-card-header">
             <h3 className="oph-card-title">
-              2. Refraction power matrix <span className="oph-required">*</span>
+              2. Refraction power matrix (optional)
             </h3>
             <p className="oph-card-subtitle">Corrective power parameters for right and left eye.</p>
           </div>
@@ -263,7 +267,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                 <tr>
                   <th style={{ width: '130px' }}>Eye</th>
                   <th style={{ width: '90px', textAlign: 'center' }}>Prescription</th>
-                  <th>Sphere (S) *</th>
+                  <th>Sphere (S)</th>
                   <th>Cylinder (C)</th>
                   <th>Axis (°)</th>
                   <th>Near add (ADD)</th>
@@ -402,7 +406,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
         <div className="oph-card">
           <div className="oph-card-header">
             <h3 className="oph-card-title">
-              3. Pupillary distance &amp; centration <span className="oph-required">*</span>
+              3. Pupillary distance &amp; centration (optional)
             </h3>
             <p className="oph-card-subtitle">Specify binocular or monocular PD in millimetres.</p>
           </div>
@@ -426,7 +430,8 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
               );
             })}
           </div>
-          <select {...register('pupillary_distance.format')} style={{ display: 'none' }}>
+          <select {...register('pupillary_distance.format', { setValueAs: (value: string) => value || undefined })} style={{ display: 'none' }}>
+            <option value="">Not selected</option>
             <option value="BINOCULAR">BINOCULAR</option>
             <option value="MONOCULAR">MONOCULAR</option>
           </select>
@@ -434,7 +439,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           <div className="oph-grid-two" style={{ marginTop: '14px' }}>
             {values.pupillary_distance?.format === 'BINOCULAR' && (
               <label className="oph-input-field">
-                <span className="oph-input-label">Binocular PD (mm) <span className="oph-required">*</span></span>
+                <span className="oph-input-label">Binocular PD (mm)</span>
                 <input
                   type="number"
                   step="0.5"
@@ -449,7 +454,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
             {values.pupillary_distance?.format === 'MONOCULAR' && (
               <>
                 <label className="oph-input-field">
-                  <span className="oph-input-label">OD Monocular PD (mm) <span className="oph-required">*</span></span>
+                  <span className="oph-input-label">OD Monocular PD (mm)</span>
                   <input
                     type="number"
                     step="0.5"
@@ -461,7 +466,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                   />
                 </label>
                 <label className="oph-input-field">
-                  <span className="oph-input-label">OS Monocular PD (mm) <span className="oph-required">*</span></span>
+                  <span className="oph-input-label">OS Monocular PD (mm)</span>
                   <input
                     type="number"
                     step="0.5"
@@ -617,7 +622,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                <span>Prescription draft is up to date.</span>
+                <span>{authorizationComplete ? 'Prescription draft is up to date.' : 'Draft saved. Complete classification, eye power and PD before authorization.'}</span>
               </span>
             )}
           </div>
@@ -626,7 +631,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
             <button
               type="button"
               className="oph-btn-approve"
-              disabled={!f.canApproveOptical || f.busy || isDirty || changed || !baseline || baseline.status !== 'DRAFT'}
+              disabled={!f.canApproveOptical || f.busy || isDirty || changed || !baseline || baseline.status !== 'DRAFT' || !authorizationComplete}
               onClick={async () => {
                 if (baseline && window.confirm(`Approve saved optical prescription version ${baseline.version}? Approval locks its contents.`)) {
                   const saved = await f.approveOptical(baseline.version);
@@ -688,7 +693,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
                 <p><strong>Status:</strong> <span className={`oph-badge ${baseline.status === 'APPROVED' ? 'oph-badge-green' : 'oph-badge-amber'}`}>{baseline.status}</span></p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <p><strong>Prescription Type:</strong> {baseline.current.prescription_type}</p>
+                <p><strong>Prescription Type:</strong> {baseline.current.prescription_type ?? 'Not recorded'}</p>
                 <p><strong>Lens & Material:</strong> {baseline.current.lens_type} ({baseline.current.material})</p>
               </div>
             </div>
@@ -731,7 +736,7 @@ export function OphthalmologyOpticalEditor({ feature: f, workspace }: { feature:
           </div>
 
           <div style={{ marginBottom: '14px', fontSize: '0.82rem' }}>
-            <p><strong>Pupillary Distance (PD):</strong> {baseline.current.pupillary_distance?.format === 'BINOCULAR' ? `${baseline.current.pupillary_distance.binocular} mm (Binocular)` : baseline.current.pupillary_distance ? `OD: ${baseline.current.pupillary_distance.OD ?? '—'} mm, OS: ${baseline.current.pupillary_distance.OS ?? '—'} mm (Monocular)` : '—'}</p>
+            <p><strong>Pupillary Distance (PD):</strong> {baseline.current.pupillary_distance?.format === 'BINOCULAR' ? `${baseline.current.pupillary_distance.binocular ?? '—'} mm (Binocular)` : baseline.current.pupillary_distance?.format === 'MONOCULAR' ? `OD: ${baseline.current.pupillary_distance.OD ?? '—'} mm, OS: ${baseline.current.pupillary_distance.OS ?? '—'} mm (Monocular)` : 'Not recorded'}</p>
             <p><strong>Usage Instructions:</strong> {baseline.current.usage_instructions}</p>
             <p><strong>Valid Until:</strong> {new Date(baseline.current.valid_until).toLocaleDateString()} {baseline.current.review_date ? `· Review Date: ${new Date(baseline.current.review_date).toLocaleDateString()}` : ''}</p>
           </div>

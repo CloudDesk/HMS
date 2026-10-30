@@ -53,7 +53,9 @@ describe('clinical summary source statuses', () => {
   it('disables header printing while the summary is unavailable', () => {
     const html = renderToStaticMarkup(<OphthalmologySummaryHeader printDisabled />);
     expect(html).toContain('disabled=""');
-    expect(html).toContain('Consultation summary');
+    expect(html).toContain('Print summary');
+    expect(html).not.toContain('Consultation summary');
+    expect(html).not.toContain('Review the encounter before finalizing care.');
     expect(html).not.toContain('Clinical intake');
     expect(html).not.toContain('Save draft');
   });

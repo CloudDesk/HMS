@@ -31,6 +31,7 @@ export type OphthalmologyLabOrdersSectionProps = {
   labOrderSummary: string;
   setLabOrderSummary: (val: string) => void;
   saveConsultationDraft: () => void;
+  showDraftAction?: boolean;
   handleNextStep: (tab: string) => void;
   handleSubmitLabOrder?: () => void;
   isSubmitting?: boolean;
@@ -159,6 +160,7 @@ export function OphthalmologyLabOrdersSection({
   labOrderSummary,
   setLabOrderSummary,
   saveConsultationDraft,
+  showDraftAction = true,
   handleSubmitLabOrder,
   isSubmitting,
   canEdit,
@@ -717,7 +719,7 @@ export function OphthalmologyLabOrdersSection({
         </div>
 
         <div className="oph-order-actions-group">
-          {canEdit && (
+          {canEdit && showDraftAction && (
             <button
               type="button"
               className="oph-order-btn-outline"

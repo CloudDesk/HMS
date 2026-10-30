@@ -74,6 +74,19 @@ describe('DashboardLayout — Final Verification of Header Removal & Mobile Draw
     expect(container.querySelector('[data-testid="dashboard-content"]')).not.toBeNull();
   });
 
+  it('contains document scrolling only while the dashboard is mounted', async () => {
+    expect(document.body.classList.contains('dashboard-open')).toBe(false);
+    expect(document.documentElement.classList.contains('dashboard-open')).toBe(false);
+    await act(async () => {
+      root.render(<DashboardLayout><div>Workspace</div></DashboardLayout>);
+    });
+    expect(document.body.classList.contains('dashboard-open')).toBe(true);
+    expect(document.documentElement.classList.contains('dashboard-open')).toBe(true);
+    await act(async () => root.render(null));
+    expect(document.body.classList.contains('dashboard-open')).toBe(false);
+    expect(document.documentElement.classList.contains('dashboard-open')).toBe(false);
+  });
+
   it('does NOT render .top-header across representative module routes', async () => {
     const representativeRoutes = [
       { path: '/patients', title: 'Patient Directory' },

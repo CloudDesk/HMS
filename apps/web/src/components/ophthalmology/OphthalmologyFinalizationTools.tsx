@@ -100,6 +100,20 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
       </div>
     )}
     <button className="doc-btn" type="button" disabled={f.busy || isSubmitting} onClick={handleRefreshSaved}>Refresh saved information</button>
+    {f.action === 'complete' && <>
+      {c.unmet.some((requirement) => c.linkFor(requirement.code)) && <div className="oph-toolbar">
+        {c.unmet.map((requirement) => c.linkFor(requirement.code) && <button key={requirement.code} className="doc-btn" type="button"
+          disabled={f.busy || isSubmitting} onClick={() => c.openRequirement(requirement.code)}>
+          Resolve {requirement.code.replaceAll('_', ' ')} →
+        </button>)}
+      </div>}
+      {c.canOverride && c.history?.status !== 'COMPLETED' && <div className="oph-toolbar">
+        <button type="button" className="doc-btn" disabled={!c.writable || c.busy || f.busy || isSubmitting}
+          onClick={() => c.setQuery({ finalization_action: null, completion_action: 'defer' })}>Record result deferral</button>
+        <button type="button" className="doc-btn" disabled={!c.writable || c.busy || f.busy || isSubmitting || !c.unmet.length}
+          onClick={() => c.setQuery({ finalization_action: null, completion_action: 'override' })}>Request authorized override</button>
+      </div>}
+    </>}
     <form id="oph-finalization" onSubmit={handleSubmit(async (values) => {
       if (disabled || baseline.version === undefined || !baseline.readiness) return;
       try {
@@ -163,22 +177,11 @@ function FinalizationDialog({ workspace, completion: c, feature: f }: { workspac
 }
 export function OphthalmologyFinalizationTools({ workspace, completion: c }: { workspace: CompletionWorkspace; completion: OphthalmologyCompletionFeature }) {
   const f = useOphthalmologyFinalizationFeature(workspace, c);
-  return <section className="doc-card oph-finalization-tools"><h4>Doctor approval and amendment</h4><p>Completion evaluates the approved server configuration. Missing hospital configuration is not treated as satisfied. Publication is a separate authorized action.</p><div className="oph-toolbar">
-    {c.history?.status !== 'COMPLETED' && (
-      <button
-        className="doc-btn primary"
-        type="button"
-        disabled={!f.canComplete || f.busy}
-        title={!f.canComplete ? (!f.fresh ? 'Status refreshing or stale' : !c.readiness?.clinical_review_version ? 'Clinical review must be saved' : !c.readiness?.ready && !f.exceptionMatches ? `${c.unmet.length} readiness requirements unmet` : 'Sign-off not permitted') : undefined}
-        onClick={() => c.setQuery({ completion_action: null, finalization_action: 'complete' })}
-      >
-        {c.history?.status === 'AMENDMENT_OPEN' ? 'Reapprove corrected consultation' : 'Sign & Complete Consultation'}
-      </button>
-    )}
+  return <>{(f.canReopen || f.canAmend) && <div className="oph-toolbar">
     {f.canReopen && <button className="doc-btn" type="button" disabled={f.busy} onClick={() => c.setQuery({ completion_action: null, finalization_action: 'reopen' })}>Reopen for amendment</button>}
     {f.canAmend && <button className="doc-btn" type="button" disabled={f.busy} onClick={() => c.setQuery({ completion_action: null, finalization_action: 'amend' })}>Correct clinical source</button>}
-  </div>{f.action === 'amend' && !f.source && <><p role="status">{f.sourceQuery.isError ? 'Clinical source could not be loaded.' : 'Loading supported clinical source…'}</p><button type="button" className="doc-btn" onClick={() => void f.sourceQuery.refetch()}>Retry clinical source</button><button type="button" className="doc-btn" onClick={() => c.setQuery({ finalization_action: null })}>Close amendment</button></>}
+  </div>}{f.action === 'amend' && !f.source && <><p role="status">{f.sourceQuery.isError ? 'Clinical source could not be loaded.' : 'Loading supported clinical source…'}</p><button type="button" className="doc-btn" onClick={() => void f.sourceQuery.refetch()}>Retry clinical source</button><button type="button" className="doc-btn" onClick={() => c.setQuery({ finalization_action: null })}>Close amendment</button></>}
     {f.action && c.finalizationVersion !== undefined && (f.action !== 'amend' || f.source) && <FinalizationDialog key={f.action} workspace={workspace} completion={c} feature={f} />}
     {!f.action && f.error && <p role="alert">{f.error}</p>}
-  </section>;
+  </>;
 }

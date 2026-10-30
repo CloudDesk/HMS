@@ -755,22 +755,6 @@ export function OphthalmologySharedCareSection({
 
   return (
     <div className={`oph-shared-care-container${mode === 'continuing-care' ? ' oph-continuing-care' : ' oph-orders-care'}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {mode === 'orders' && (
-        <div className="oph-orders-heading">
-          <div className="oph-exam-heading">
-            <h2>Prescriptions &amp; orders</h2>
-            <p className="oph-exam-description">Create, review, and send medication orders for this encounter.</p>
-          </div>
-        </div>
-      )}
-      {mode === 'continuing-care' && (
-        <div className="oph-continuing-heading">
-          <div className="oph-exam-heading">
-            <h2>Referral &amp; Follow-up</h2>
-            <p className="oph-exam-description">Refer the patient and schedule the next step in care.</p>
-          </div>
-        </div>
-      )}
       {/* Step-Specific Unified Sub-Navigation & Actions Bar */}
       <nav
         className="oph-care-subnav"
@@ -974,6 +958,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'lab-orders' && (
         <OphthalmologyLabOrdersSection
+          showDraftAction={false}
           statusLabel={opd.labOrder?.status || 'Draft'}
           availableLabTests={labTestServices}
           canEdit={opd.canEditClinicalOrders}
@@ -1006,6 +991,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'imaging-orders' && (
         <OphthalmologyImagingOrdersSection
+          showDraftAction={false}
           statusLabel={opd.imagingOrder?.status || 'Draft'}
           availableImagingTests={availableImagingTests}
           canEdit={opd.canEditClinicalOrders}
@@ -1062,6 +1048,7 @@ export function OphthalmologySharedCareSection({
 
       {activeSharedTab === 'follow-up' && (
         <OphthalmologyFollowUpSchedulingSection
+          showDraftAction={false}
           completionBlocked={false}
           completeConsultation={() => {
             toast.info('Final consultation review and signing is managed in Step 6 (Consultation Summary).');

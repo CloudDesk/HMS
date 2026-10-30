@@ -355,13 +355,13 @@ const opticalPowerSchema = {
 } as const;
 export const saveOphthalmologyOpticalPrescriptionDraftBodySchema = {
   type: 'object', additionalProperties: false,
-  required: ['expected_version', 'prescription_type', 'power', 'pupillary_distance', 'lens_type', 'material', 'coating_codes',
+  required: ['expected_version', 'lens_type', 'material', 'coating_codes',
     'usage_instructions', 'valid_until'],
   properties: {
-    expected_version: version, prescription_type: { type: 'string', enum: ['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL'] },
-    power: { type: 'object', additionalProperties: false, minProperties: 1,
+    expected_version: version, prescription_type: { type: ['string', 'null'], enum: ['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL', null] },
+    power: { type: 'object', additionalProperties: false,
       properties: { OD: { anyOf: [opticalPowerSchema, { type: 'null' }] }, OS: { anyOf: [opticalPowerSchema, { type: 'null' }] } } },
-    pupillary_distance: { type: 'object', additionalProperties: false, required: ['format'], properties: {
+    pupillary_distance: { type: 'object', additionalProperties: false, properties: {
       format: { type: 'string', enum: ['BINOCULAR', 'MONOCULAR'] }, binocular: { type: ['number', 'null'], minimum: 30, maximum: 90 },
       OD: { type: ['number', 'null'], minimum: 15, maximum: 50 }, OS: { type: ['number', 'null'], minimum: 15, maximum: 50 },
     } },

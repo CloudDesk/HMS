@@ -763,8 +763,8 @@ export type OphthalmologyOpticalPrescriptionType = 'DISTANCE' | 'NEAR' | 'BIFOCA
 export type OphthalmologyOpticalPower = { sphere: number; cylinder?: number | null; axis?: number | null; addition?: number | null;
   prism?: number | null; prism_base?: string | null };
 export type OphthalmologyOpticalPrescriptionVersion = {
-  clinical_version: number; status: 'DRAFT' | 'APPROVED'; prescription_type: OphthalmologyOpticalPrescriptionType;
-  power: OphthalmologyEyeResult<OphthalmologyOpticalPower>; pupillary_distance: { format: 'BINOCULAR' | 'MONOCULAR';
+  clinical_version: number; status: 'DRAFT' | 'APPROVED'; prescription_type: OphthalmologyOpticalPrescriptionType | null;
+  power: OphthalmologyEyeResult<OphthalmologyOpticalPower>; pupillary_distance: { format?: 'BINOCULAR' | 'MONOCULAR';
     binocular?: number | null; OD?: number | null; OS?: number | null }; segment_height: OphthalmologyEyeResult<number> | null;
   lens_type: string; material: string; coating_codes: string[]; usage_instructions: string; valid_until: Date;
   review_date: Date | null; approver_user_id: string | null; approver_doctor_id: string | null; approved_at: Date | null;
@@ -776,8 +776,8 @@ export type OphthalmologyOpticalPrescription = {
   history: OphthalmologyOpticalPrescriptionVersion[]; version: number; created_at: Date; updated_at: Date;
 };
 export type SaveOphthalmologyOpticalPrescriptionDraftDTO = {
-  expected_version: number; prescription_type: OphthalmologyOpticalPrescriptionType;
-  power: OphthalmologyEyeResult<OphthalmologyOpticalPower>; pupillary_distance: { format: 'BINOCULAR' | 'MONOCULAR';
+  expected_version: number; prescription_type?: OphthalmologyOpticalPrescriptionType | null;
+  power?: OphthalmologyEyeResult<OphthalmologyOpticalPower>; pupillary_distance?: { format?: 'BINOCULAR' | 'MONOCULAR';
     binocular?: number | null; OD?: number | null; OS?: number | null }; segment_height?: OphthalmologyEyeResult<number> | null;
   lens_type: string; material: string; coating_codes: string[]; usage_instructions: string; valid_until: string;
   review_date?: string | null;

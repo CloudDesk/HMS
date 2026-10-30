@@ -524,37 +524,12 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
     <div className="oph-exam-dashboard">
       {/* Examination Findings Unified Parent Container */}
       <div className="oph-exam-section-container">
-        {/* Examination Findings Section Header */}
-        <div className="oph-exam-section-header">
-          <div className="oph-exam-heading">
-            <h2>Comprehensive examination</h2>
-            <p className="oph-exam-description">Document clinical findings for both eyes.</p>
-
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {onOpenIntake && (
-              <button
-                type="button"
-                className="oph-btn-clinical-intake"
-                onClick={onOpenIntake}
-                title="View patient clinical intake and history"
-              >
-                <i className="ph ph-clipboard-text" />
-                <span>Clinical intake</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className="doc-btn primary"
-              onClick={handleSaveExamDraft}
-              disabled={isSavingExamDraft}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', padding: '4px 10px' }}
-              title="Save preliminary examination findings to consultation draft"
-            >
-              <i className={`ph ${isSavingExamDraft ? 'ph-spinner ph-spin' : 'ph-check'}`} />
-              <span>{isSavingExamDraft ? 'Saving...' : 'Save draft'}</span>
-            </button>
+        <div className="oph-exam-page-actions" role="toolbar" aria-label="Examination actions">
+          {onOpenIntake && <button type="button" className="doc-btn" onClick={onOpenIntake}><i className="ph ph-clipboard-text" aria-hidden="true" />Clinical intake</button>}
+          <button type="button" className="doc-btn primary" onClick={handleSaveExamDraft} disabled={isSavingExamDraft}><i className={`ph ${isSavingExamDraft ? 'ph-spinner ph-spin' : 'ph-check'}`} aria-hidden="true" />{isSavingExamDraft ? 'Saving…' : 'Save draft'}</button>
+        </div>
+          <div id="oph-exam-findings-content" className="oph-exam-section-body">
+            {f.tasks.length > 0 && <nav className="oph-toolbar" aria-label="Examination tasks" style={{ marginBottom: '12px' }}>
             {f.tasks.length > 0 && f.tasks.map((task) => (
               <button
                 type="button"
@@ -569,10 +544,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
                 </span>
               </button>
             ))}
-          </div>
-        </div>
-
-          <div id="oph-exam-findings-content" className="oph-exam-section-body">
+            </nav>}
             {f.tasksQuery.data && f.tasksQuery.data.meta.totalPages > 1 && (
               <div className="oph-toolbar" style={{ margin: '0 0 10px 0' }}>
                 <button type="button" className="doc-btn" disabled={f.page <= 1} onClick={() => workspace.setQuery('task_page', String(f.page - 1))}>Previous tasks</button>
@@ -590,7 +562,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <div className="oph-card-header">
               <h3 className="oph-card-title">
                 <span className="oph-card-number">01</span>
-                <span className="oph-card-icon"><i className="ph ph-eye" /></span>
                 <span>Visual acuity</span>
               </h3>
               <div className="oph-card-controls">
@@ -762,7 +733,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <div className="oph-card-header">
               <h3 className="oph-card-title">
                 <span className="oph-card-number">02</span>
-                <span className="oph-card-icon"><i className="ph ph-eyeglasses" /></span>
                 <span>Refraction</span>
               </h3>
               <div className="oph-card-controls">
@@ -921,7 +891,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <div className="oph-card-header">
               <h3 className="oph-card-title">
                 <span className="oph-card-number">03</span>
-                <span className="oph-card-icon"><i className="ph ph-gauge" /></span>
                 <span>Intraocular pressure</span>
               </h3>
               <div className="oph-card-controls">
@@ -995,7 +964,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <div className="oph-card-header">
               <h3 className="oph-card-title">
                 <span className="oph-card-number">04</span>
-                <span className="oph-card-icon"><i className="ph ph-microscope" /></span>
                 <span>Slit lamp examination</span>
               </h3>
               <div className="oph-card-controls">
@@ -1235,7 +1203,6 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
             <div className="oph-card-header">
               <h3 className="oph-card-title">
                 <span className="oph-card-number">05</span>
-                <span className="oph-card-icon"><i className="ph ph-camera" /></span>
                 <span>Fundus examination</span>
               </h3>
               <div className="oph-card-controls">
@@ -1580,8 +1547,7 @@ export function OphthalmologyExaminationDashboard({ feature: f, workspace, onOpe
         <div className="oph-card-header">
           <h3 className="oph-card-title">
             <span className="oph-card-number">06</span>
-                <span className="oph-card-icon"><i className="ph ph-images" /></span>
-            <span>Diagnostic images &amp; attachments</span>
+            <span>Images &amp; attachments</span>
           </h3>
           <div style={{ display: 'flex', gap: '6px' }}>
             <span className="oph-card-status"><span aria-hidden="true" className="oph-status-dot" />{capturedPhotos.length} files</span>

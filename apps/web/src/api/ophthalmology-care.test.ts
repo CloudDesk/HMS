@@ -21,15 +21,15 @@ describe('ophthalmology B4 clinical and optical contracts', () => {
     await expect(ophthalmologyCareApi.approveOptical(id, { expected_status: 'DRAFT', expected_version: 7 })).rejects.toThrow('Conflict');
     expect(request).toHaveBeenLastCalledWith(`/opd/visits/${id}/ophthalmology/optical-prescription/approve`, { method: 'POST', body: { expected_status: 'DRAFT', expected_version: 7 } });
   });
-  it('requires a prescribed eye, axis for supplied cylinder and valid power bounds', () => {
-    expect(opticalWriteSchema.safeParse({ ...optical(), power: {} }).success).toBe(false);
+  it('allows omitted eye power in drafts while validating supplied powers', () => {
+    expect(opticalWriteSchema.safeParse({ ...optical(), prescription_type: null, power: {}, pupillary_distance: {} }).success).toBe(true);
     expect(opticalWriteSchema.safeParse({ ...optical(), power: { OD: { sphere: -2, cylinder: 0 } } }).success).toBe(false);
     expect(opticalWriteSchema.safeParse({ ...optical(), power: { OD: { sphere: -2, cylinder: -1, axis: 180 } } }).success).toBe(true);
     expect(opticalWriteSchema.safeParse({ ...optical(), power: { OD: { sphere: 41 } } }).success).toBe(false);
   });
-  it('enforces PD and prescribed-eye segment height without fabricating the other eye', () => {
-    expect(opticalWriteSchema.safeParse({ ...optical(), pupillary_distance: { format: 'MONOCULAR', OD: 31 } }).success).toBe(false);
-    expect(opticalWriteSchema.safeParse({ ...optical(), prescription_type: 'PROGRESSIVE' }).success).toBe(false);
+  it('allows incomplete PD and segment height in drafts without accepting out-of-range values', () => {
+    expect(opticalWriteSchema.safeParse({ ...optical(), pupillary_distance: { format: 'MONOCULAR', OD: 31 } }).success).toBe(true);
+    expect(opticalWriteSchema.safeParse({ ...optical(), prescription_type: 'PROGRESSIVE' }).success).toBe(true);
     expect(opticalWriteSchema.safeParse({ ...optical(), prescription_type: 'PROGRESSIVE', segment_height: { OD: 20 } }).success).toBe(true);
     expect(opticalWriteSchema.safeParse({ ...optical(), pupillary_distance: { format: 'BINOCULAR', binocular: 29 } }).success).toBe(false);
   });

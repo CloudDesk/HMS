@@ -17,7 +17,7 @@ export type FinalizationCompletion = {
 export function useOphthalmologyFinalizationFeature(workspace: CompletionWorkspace, completion: FinalizationCompletion) {
   const { user } = useAuth(); const { search } = useAppLocation(); const raw = new URLSearchParams(search).get('finalization_action');
   const can = (action: string) => Boolean(user?.roles.some((r) => r.code === 'SUPER_ADMIN')) || hasPermission(user?.permissions ?? [], { module: 'OPD', screen: 'Ophthalmology Consultation', action });
-  const action = raw === 'complete' && can('Complete') || raw === 'reopen' && can('Reopen') || raw === 'amend' && can('Amend') ? raw : null;
+  const action = raw === 'complete' && (can('Complete') || can('Override')) || raw === 'reopen' && can('Reopen') || raw === 'amend' && can('Amend') ? raw : null;
   const r = completion.readiness; const head = completion.history;
   const fresh = completion.active && !completion.scopeError && !completion.staleContext && !workspace.visitQuery.isError && !workspace.contextQuery.isError
     && completion.readinessQuery.isSuccess && !completion.readinessQuery.isError && !completion.readinessQuery.isFetching

@@ -22,6 +22,7 @@ export type OphthalmologyImagingOrdersSectionProps = {
   imagingOrderInstructions: string;
   setImagingOrderInstructions: (val: string) => void;
   saveConsultationDraft: () => void;
+  showDraftAction?: boolean;
   handleNextStep: (tab: string) => void;
   handleSubmitImagingOrder?: () => void;
   isSubmitting?: boolean;
@@ -112,6 +113,7 @@ export function OphthalmologyImagingOrdersSection({
   imagingOrderInstructions,
   setImagingOrderInstructions,
   saveConsultationDraft,
+  showDraftAction = true,
   handleSubmitImagingOrder,
   isSubmitting,
   canEdit,
@@ -513,7 +515,7 @@ export function OphthalmologyImagingOrdersSection({
         </div>
 
         <div className="oph-order-actions-group">
-          {canEdit && (
+          {canEdit && showDraftAction && (
             <button
               type="button"
               className="oph-order-btn-outline"

@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthPermission } from '../../auth/auth-types';
+import { navigate } from '../../routing/navigation';
 const state = vi.hoisted(() => ({
   permissions: [] as AuthPermission[], search: '?section=completion', history: null as unknown, historyError: false, contextError: false, mutation: vi.fn(),
   queries: new Map<string, unknown[]>(), query: (name: string, args: unknown[]) => {
@@ -42,6 +43,18 @@ describe('B5 scoped metadata and authorized exception gates', () => {
   it('does not request denied records or modal-only lookups', async () => {
     await act(async () => root.render(<Harness />)); expect(feature.history).toBeNull(); expect(feature.readiness).toBeUndefined(); expect(state.queries.get('history')?.[1]).toBe(false); expect(state.queries.get('doctors')?.[1]).toBe(false);
     grant('OPD', 'Ophthalmology Consultation'); await act(async () => root.render(<Harness />)); expect(state.queries.get('history')?.[1]).toBe(true); expect(state.queries.get('doctors')?.[1]).toBe(false); expect(feature.finalizationVersion).toBe(0);
+  });
+  it('closes finalization when navigating to an unmet requirement', async () => {
+    grant('OPD', 'Ophthalmology Consultation');
+    const previousUrl = window.location.href;
+    try {
+      window.history.replaceState({}, '', '/opd/ophthalmology?section=completion&finalization_action=complete');
+      await act(async () => root.render(<Harness />));
+      feature.openRequirement('CLINICAL_REVIEW_RECORDED');
+      const target = vi.mocked(navigate).mock.calls.at(-1)?.[0];
+      expect(target).toContain('care_tab=treatment');
+      expect(target).not.toContain('finalization_action');
+    } finally { window.history.replaceState({}, '', previousUrl); }
   });
   it('requires fresh history and context before using the version-zero head', async () => {
     grant('OPD', 'Ophthalmology Consultation'); state.historyError = true; await act(async () => root.render(<Harness />)); expect(feature.writable).toBe(false);

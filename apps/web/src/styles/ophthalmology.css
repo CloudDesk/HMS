@@ -3007,6 +3007,9 @@ html, body {
    ========================================================================== */
 
 .modal-box.oph-escalate-modal-dialog {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-body-md);
+  font-weight: var(--font-weight-body);
   width: min(94vw, 880px);
   max-width: 880px;
   max-height: min(92vh, calc(100dvh - 32px));
@@ -3114,8 +3117,8 @@ html, body {
 .modal-box.oph-escalate-modal-dialog .oph-esc-title {
   margin: 0 !important;
   text-align: left !important;
-  font-size: 1.5rem !important;
-  font-weight: 800 !important;
+  font-size: var(--font-size-modal-title) !important;
+  font-weight: var(--font-weight-heading) !important;
   color: #0f172a !important;
   letter-spacing: -0.02em !important;
   line-height: 1.2 !important;
@@ -3124,7 +3127,7 @@ html, body {
 .modal-box.oph-escalate-modal-dialog .oph-esc-subtitle {
   margin: 0 !important;
   text-align: left !important;
-  font-size: 0.875rem !important;
+  font-size: var(--font-size-body-md) !important;
   color: #64748b !important;
   line-height: 1.35 !important;
 }
@@ -3151,13 +3154,13 @@ html, body {
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-label {
-  font-size: 0.88rem !important;
-  font-weight: 700 !important;
+  font-size: var(--font-size-label) !important;
+  font-weight: var(--font-weight-label) !important;
   color: #0f172a !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-char-count {
-  font-size: 0.78rem !important;
+  font-size: var(--font-size-body-sm) !important;
   color: #64748b !important;
 }
 
@@ -3170,7 +3173,7 @@ html, body {
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
-  font-size: 0.88rem !important;
+  font-size: var(--font-size-body-md) !important;
   font-family: inherit !important;
   color: #0f172a !important;
   line-height: 1.45 !important;
@@ -3181,7 +3184,7 @@ html, body {
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-textarea::placeholder {
   color: #94a3b8 !important;
-  font-size: 0.84rem !important;
+  font-size: var(--font-size-placeholder) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-textarea:focus {
@@ -3252,15 +3255,15 @@ html, body {
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-selected-label {
-  font-size: 0.88rem !important;
-  font-weight: 700 !important;
+  font-size: var(--font-size-body-md) !important;
+  font-weight: var(--font-weight-subheading) !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-selected-label.trigger-label {
-  font-weight: 600 !important;
+  font-weight: var(--font-weight-label) !important;
   color: #0f172a !important;
 }
 
@@ -3376,19 +3379,19 @@ html, body {
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-item-title.red {
   color: #dc2626 !important;
-  font-weight: 700 !important;
-  font-size: 0.88rem !important;
+  font-weight: var(--font-weight-subheading) !important;
+  font-size: var(--font-size-body-md) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-item-title.dark {
   color: #0f172a !important;
-  font-weight: 700 !important;
-  font-size: 0.88rem !important;
+  font-weight: var(--font-weight-subheading) !important;
+  font-size: var(--font-size-body-md) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-item-subtitle {
   color: #64748b !important;
-  font-size: 0.77rem !important;
+  font-size: var(--font-size-body-sm) !important;
   line-height: 1.3 !important;
 }
 
@@ -3418,7 +3421,7 @@ html, body {
   padding: 9px 12px !important;
   border-radius: 6px !important;
   cursor: pointer !important;
-  font-size: 0.875rem !important;
+  font-size: var(--font-size-body-md) !important;
   transition: background 0.12s ease !important;
 }
 
@@ -3448,17 +3451,17 @@ html, body {
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-trigger-option-label {
   flex: 1 !important;
-  font-size: 0.875rem !important;
+  font-size: var(--font-size-body-md) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-trigger-option-label.blue {
   color: #2563eb !important;
-  font-weight: 600 !important;
+  font-weight: var(--font-weight-label) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-trigger-option-label.dark {
   color: #1e293b !important;
-  font-weight: 500 !important;
+  font-weight: var(--font-weight-body) !important;
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-other-input {
@@ -3467,7 +3470,7 @@ html, body {
   border-radius: 6px !important;
   border: 1px solid #cbd5e1 !important;
   padding: 0 12px !important;
-  font-size: 0.85rem !important;
+  font-size: var(--font-size-body-md) !important;
   color: #0f172a !important;
   box-sizing: border-box !important;
   outline: none !important;
@@ -3491,8 +3494,8 @@ html, body {
 }
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-examples-heading {
-  font-size: 0.85rem !important;
-  font-weight: 700 !important;
+  font-size: var(--font-size-subheading-sm) !important;
+  font-weight: var(--font-weight-subheading) !important;
   color: #0f172a !important;
 }
 
@@ -3509,9 +3512,9 @@ html, body {
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   border-radius: 6px !important;
-  font-size: 0.78rem !important;
+  font-size: var(--font-size-body-sm) !important;
   color: #334155 !important;
-  font-weight: 500 !important;
+  font-weight: var(--font-weight-body) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
 }
 
@@ -3539,8 +3542,8 @@ html, body {
 
 .modal-box.oph-escalate-modal-dialog .oph-esc-next-heading {
   margin: 0 !important;
-  font-size: 0.88rem !important;
-  font-weight: 700 !important;
+  font-size: var(--font-size-body-md) !important;
+  font-weight: var(--font-weight-subheading) !important;
   color: #0f172a !important;
 }
 
@@ -3552,7 +3555,7 @@ html, body {
   flex-direction: column !important;
   gap: 3px !important;
   color: #334155 !important;
-  font-size: 0.8rem !important;
+  font-size: var(--font-size-body-md) !important;
   line-height: 1.4 !important;
 }
 
@@ -3574,8 +3577,8 @@ html, body {
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
-  font-size: 0.88rem !important;
-  font-weight: 600 !important;
+  font-size: var(--font-size-button) !important;
+  font-weight: var(--font-weight-label) !important;
   color: #334155 !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
@@ -3602,8 +3605,8 @@ html, body {
   background: #ef4444 !important;
   border: 1px solid #dc2626 !important;
   border-radius: 8px !important;
-  font-size: 0.88rem !important;
-  font-weight: 600 !important;
+  font-size: var(--font-size-button) !important;
+  font-weight: var(--font-weight-label) !important;
   color: #ffffff !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
@@ -3644,10 +3647,10 @@ html, body {
     padding: 10px 16px 14px !important;
   }
   .modal-box.oph-escalate-modal-dialog .oph-esc-title {
-    font-size: 1.25rem !important;
+    font-size: var(--font-size-modal-title) !important;
   }
   .modal-box.oph-escalate-modal-dialog .oph-esc-subtitle {
-    font-size: 0.8rem !important;
+    font-size: var(--font-size-body-md) !important;
   }
   .modal-box.oph-escalate-modal-dialog .oph-esc-icon-box {
     width: 44px !important;

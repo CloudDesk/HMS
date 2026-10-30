@@ -58,11 +58,26 @@ h1 { font-size: var(--font-size-page-heading); }
 h2 { font-size: var(--font-size-heading); }
 h3, h4 { font-size: var(--font-size-subheading); }
 
-body.dashboard-open,
-body.dashboard-open #root {
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
+@media screen {
+  html.dashboard-open,
+  body.dashboard-open,
+  body.dashboard-open #root {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body.dashboard-open .dashboard-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+  }
+
+  body.dashboard-open .main-content {
+    min-height: 0;
+    overscroll-behavior-y: contain;
+  }
 }
 
 body.modal-open {

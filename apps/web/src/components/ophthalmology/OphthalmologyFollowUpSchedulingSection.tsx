@@ -19,6 +19,7 @@ export type OphthalmologyFollowUpSchedulingProps = {
   isVisitCompleted: boolean;
   updating: string;
   saveConsultationDraft: () => void;
+  showDraftAction?: boolean;
   scheduleFollowUp: () => void;
   completeConsultation: () => void;
   completionBlocked?: boolean;
@@ -81,6 +82,7 @@ export function OphthalmologyFollowUpSchedulingSection({
   isVisitCompleted,
   updating,
   saveConsultationDraft,
+  showDraftAction = true,
   scheduleFollowUp,
   completeConsultation,
   completionBlocked = false,
@@ -540,7 +542,7 @@ export function OphthalmologyFollowUpSchedulingSection({
         </div>
 
         <div className="oph-footer-actions">
-          <button
+          {showDraftAction && <button
             type="button"
             className="oph-btn-save-draft"
             disabled={isVisitCompleted || isBusy}
@@ -552,7 +554,7 @@ export function OphthalmologyFollowUpSchedulingSection({
               <polyline points="7 3 7 8 15 8" />
             </svg>
             <span>Save Draft</span>
-          </button>
+          </button>}
 
           {isScheduled ? (
             <span className="oph-badge oph-badge-green" style={{ padding: '8px 16px', fontSize: '0.84rem' }}>

@@ -66,6 +66,21 @@ describe('Ophthalmology Phase 8 doctor review and prescriptions', () => {
     pupillary_distance: { format: 'BINOCULAR' as const, binocular: 62 }, lens_type: 'SINGLE_VISION', material: 'CR39',
     coating_codes: ['ANTI_REFLECTIVE'], usage_instructions: 'Use for distance vision', valid_until: '2027-10-15T00:00:00.000Z', review_date: null });
 
+  it('persists optional optical draft sections but requires a complete prescription for authorization', async () => {
+    const { prescription_type, power, pupillary_distance, ...partial } = optical();
+    const saved = await service.saveOpticalPrescriptionDraft(visitId, partial, userId);
+    expect(saved.current.prescription_type).toBeNull();
+    expect(saved.current.power).toEqual({ OD: null, OS: null });
+    expect((await repository.getOpticalPrescriptionByVisit(visitId))?.current.prescription_type).toBeNull();
+    await expect(service.approveOpticalPrescription(visitId, { expected_version: saved.version, expected_status: 'DRAFT' }, userId))
+      .rejects.toMatchObject({ code: 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED' });
+    expect((await repository.getOpticalPrescriptionByVisit(visitId))?.status).toBe('DRAFT');
+    const completed = await service.saveOpticalPrescriptionDraft(visitId,
+      { ...partial, prescription_type, power, pupillary_distance, expected_version: saved.version }, userId);
+    expect((await service.approveOpticalPrescription(visitId,
+      { expected_version: completed.version, expected_status: 'DRAFT' }, userId)).status).toBe('APPROVED');
+  });
+
   it('persists a diagnosis-linked treatment plan and exposes the consolidated doctor review', async () => {
     const saved = await service.saveClinicalReviewDraft(visitId, review(), userId);
     expect(saved).toMatchObject({ status: 'DRAFT', current_clinical_version: 1,

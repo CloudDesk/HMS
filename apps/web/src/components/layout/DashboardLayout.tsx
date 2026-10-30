@@ -76,6 +76,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { activeKey, activeHref } = useActiveSidebarState();
 
   useEffect(() => {
+    const surfaces = [document.documentElement, document.body];
+    const added = surfaces.filter((surface) => !surface.classList.contains('dashboard-open'));
+    added.forEach((surface) => surface.classList.add('dashboard-open'));
+    return () => {
+      added.forEach((surface) => surface.classList.remove('dashboard-open'));
+    };
+  }, []);
+
+  useEffect(() => {
     let currentViewportMode = initialViewportMode.current;
 
     const handleResize = () => {

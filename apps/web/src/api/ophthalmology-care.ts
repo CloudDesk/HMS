@@ -52,22 +52,18 @@ export const clinicalReviewSchema = z.object({ ...scope, current_clinical_versio
 const optionalNumber = (min: number, max: number) => z.number().min(min).max(max).nullable().optional();
 export const opticalPowerSchema = z.object({ sphere: z.number().min(-40).max(40), cylinder: optionalNumber(-20, 20), axis: optionalNumber(0, 180), addition: optionalNumber(0, 10), prism: optionalNumber(0, 30), prism_base: z.string().max(40).nullable().optional() }).strict();
 const opticalFields = {
-  prescription_type: z.enum(['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL']),
+  prescription_type: z.enum(['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL']).nullable().optional(),
   power: z.object({ OD: opticalPowerSchema.nullable().optional(), OS: opticalPowerSchema.nullable().optional() }).strict(),
-  pupillary_distance: z.object({ format: z.enum(['BINOCULAR', 'MONOCULAR']), binocular: optionalNumber(30, 90), OD: optionalNumber(15, 50), OS: optionalNumber(15, 50) }).strict(),
+  pupillary_distance: z.object({ format: z.enum(['BINOCULAR', 'MONOCULAR']).optional(), binocular: optionalNumber(30, 90), OD: optionalNumber(15, 50), OS: optionalNumber(15, 50) }).strict(),
   segment_height: z.object({ OD: optionalNumber(5, 50), OS: optionalNumber(5, 50) }).strict().nullable().optional(),
   lens_type: text(80), material: text(80), coating_codes: z.array(text(80)).max(20).refine((codes) => new Set(codes).size === codes.length, 'Duplicate coating codes.'),
   usage_instructions: text(2000), valid_until: instant, review_date: instant.nullable().optional(),
 };
 export const opticalWriteSchema = z.object({ expected_version: version, ...opticalFields }).strict().superRefine((body, ctx) => {
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message });
-  if (!body.power.OD && !body.power.OS) issue(['power'], 'Enter at least one prescribed eye.');
   for (const eye of ['OD', 'OS'] as const) {
     if (body.power[eye]?.cylinder != null && body.power[eye]?.axis == null) issue(['power', eye, 'axis'], 'Axis is required when cylinder is supplied.');
-    if (body.power[eye] && ['BIFOCAL', 'PROGRESSIVE'].includes(body.prescription_type) && body.segment_height?.[eye] == null) issue(['segment_height', eye], 'Segment height is required for this eye.');
   }
-  if (body.pupillary_distance.format === 'BINOCULAR' && body.pupillary_distance.binocular == null) issue(['pupillary_distance', 'binocular'], 'Enter binocular PD.');
-  if (body.pupillary_distance.format === 'MONOCULAR' && (body.pupillary_distance.OD == null || body.pupillary_distance.OS == null)) issue(['pupillary_distance'], 'Enter both monocular PD values.');
   if (Date.parse(body.valid_until) <= Date.now()) issue(['valid_until'], 'Validity must be in the future.');
   if (body.review_date && Date.parse(body.review_date) > Date.parse(body.valid_until)) issue(['review_date'], 'Review date must not be after validity.');
 });

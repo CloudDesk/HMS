@@ -972,10 +972,10 @@ export class OphthalmologyRepository {
     const record = await query.lean<OpticalPrescriptionRecord>(); return record ? toOpticalPrescription(record) : null;
   }
   private opticalVersion(data: SaveOphthalmologyOpticalPrescriptionDraftDTO, clinicalVersion: number, userId: string) {
-    const power = (eye: 'OD' | 'OS') => { const item = data.power[eye]; return item ? { sphere: item.sphere, cylinder: item.cylinder ?? null,
+    const power = (eye: 'OD' | 'OS') => { const item = data.power?.[eye]; return item ? { sphere: item.sphere, cylinder: item.cylinder ?? null,
       axis: item.axis ?? null, addition: item.addition ?? null, prism: item.prism ?? null, prismBase: text(item.prism_base) } : null; };
-    return { clinicalVersion, status: 'DRAFT' as const, prescriptionType: data.prescription_type, power: { OD: power('OD'), OS: power('OS') },
-      pupillaryDistance: data.pupillary_distance, segmentHeight: data.segment_height ?? null,
+    return { clinicalVersion, status: 'DRAFT' as const, prescriptionType: data.prescription_type ?? null, power: { OD: power('OD'), OS: power('OS') },
+      pupillaryDistance: data.pupillary_distance ?? {}, segmentHeight: data.segment_height ?? null,
       lensType: data.lens_type.trim().toUpperCase(), material: data.material.trim().toUpperCase(),
       coatingCodes: data.coating_codes.map((item) => item.trim().toUpperCase()), usageInstructions: data.usage_instructions.trim(),
       validUntil: new Date(data.valid_until), reviewDate: date(data.review_date), approverUserId: null, approverDoctorId: null,

@@ -3,7 +3,7 @@
   margin: 0 0 28px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 20px;
   flex-wrap: wrap;
 }
@@ -271,6 +271,8 @@
 .oph-reference-consultation .oph-exam-dashboard {
   gap: 18px;
 }
+.oph-reference-consultation .oph-exam-page-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.oph-reference-consultation .oph-exam-page-actions .doc-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 10px; }
 .oph-reference-consultation .oph-exam-section-container {
   background: transparent;
   border: 0;
@@ -744,6 +746,8 @@
 
 /* Size the header to its actual content area, including a visible sidebar or browser zoom. */
 @container oph-consultation (max-width: 1100px) {
+  .oph-reference-consultation .oph-exam-page-actions { margin-bottom: 12px; }
+  .oph-reference-consultation .oph-exam-page-actions .doc-btn { min-height: 34px; padding: 7px 11px; border-radius: 8px; }
   .oph-reference-consultation .oph-exam-section-header {
     margin-bottom: 20px;
     gap: 14px;

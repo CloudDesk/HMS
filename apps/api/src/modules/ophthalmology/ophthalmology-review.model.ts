@@ -58,9 +58,9 @@ export const OphthalmologyClinicalReviewModel = mongoose.model<OphthalmologyClin
 export type OphthalmologyOpticalPowerFields = { sphere: number; cylinder?: number | null; axis?: number | null; addition?: number | null;
   prism?: number | null; prismBase?: string | null };
 export type OphthalmologyOpticalPrescriptionVersionFields = {
-  clinicalVersion: number; status: 'DRAFT' | 'APPROVED'; prescriptionType: OphthalmologyOpticalPrescriptionType;
+  clinicalVersion: number; status: 'DRAFT' | 'APPROVED'; prescriptionType: OphthalmologyOpticalPrescriptionType | null;
   power: { OD?: OphthalmologyOpticalPowerFields | null; OS?: OphthalmologyOpticalPowerFields | null };
-  pupillaryDistance: { format: 'BINOCULAR' | 'MONOCULAR'; binocular?: number | null; OD?: number | null; OS?: number | null };
+  pupillaryDistance: { format?: 'BINOCULAR' | 'MONOCULAR'; binocular?: number | null; OD?: number | null; OS?: number | null };
   segmentHeight?: { OD?: number | null; OS?: number | null } | null; lensType: string; material: string; coatingCodes: string[];
   usageInstructions: string; validUntil: Date; reviewDate?: Date | null; approverUserId?: Types.ObjectId | null;
   approverDoctorId?: Types.ObjectId | null; approvedAt?: Date | null; createdBy: Types.ObjectId; createdAt: Date;
@@ -76,9 +76,9 @@ const opticalPowerSchema = new Schema<OphthalmologyOpticalPowerFields>({
 }, { _id: false });
 const opticalPrescriptionVersionSchema = new Schema<OphthalmologyOpticalPrescriptionVersionFields>({
   clinicalVersion: { type: Number, min: 1, required: true }, status: { type: String, enum: ['DRAFT', 'APPROVED'], required: true },
-  prescriptionType: { type: String, enum: ['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL'], required: true },
+  prescriptionType: { type: String, enum: ['DISTANCE', 'NEAR', 'BIFOCAL', 'PROGRESSIVE', 'OCCUPATIONAL'], default: null },
   power: { OD: { type: opticalPowerSchema, default: null }, OS: { type: opticalPowerSchema, default: null } },
-  pupillaryDistance: { format: { type: String, enum: ['BINOCULAR', 'MONOCULAR'], required: true }, binocular: { type: Number, default: null },
+  pupillaryDistance: { format: { type: String, enum: ['BINOCULAR', 'MONOCULAR'] }, binocular: { type: Number, default: null },
     OD: { type: Number, default: null }, OS: { type: Number, default: null } },
   segmentHeight: { OD: { type: Number, default: null }, OS: { type: Number, default: null } },
   lensType: { type: String, required: true, trim: true, uppercase: true }, material: { type: String, required: true, trim: true, uppercase: true },

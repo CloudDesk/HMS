@@ -42,10 +42,6 @@ export interface OphthalmologyConsultationSummaryFeatureProps {
 export function OphthalmologySummaryHeader({ printDisabled = false }: { printDisabled?: boolean }) {
   return (
     <div className="oph-summary-page-heading">
-      <div>
-        <h2>Consultation summary</h2>
-        <p>Review the encounter before finalizing care.</p>
-      </div>
       <button type="button" className="oph-btn-outline-sm oph-summary-print" disabled={printDisabled} onClick={() => window.print()}>
         <i className="ph ph-printer" aria-hidden="true" />Print summary
       </button>
@@ -129,9 +125,6 @@ export function OphthalmologyConsultationSummaryCard({
   const medicationsList = s.medication_prescriptions?.flatMap((p) => p.medications ?? []) ?? [];
 
   // Readiness status
-  const isCompleted = f.history?.status === 'COMPLETED';
-  const allReady = f.readiness?.ready ?? false;
-  const unmetCount = f.unmet?.length ?? 0;
 
   return (
     <div className="oph-summary-stack">
@@ -622,107 +615,6 @@ export function OphthalmologyConsultationSummaryCard({
         )}
       </section>
 
-      {/* 8. 7. Clinical Readiness & Doctor Finalization */}
-      <section className="oph-summary-card-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="oph-section-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="oph-section-header-title">7. Clinical Readiness &amp; Doctor Finalization</h3>
-              <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                Review all sections and finalize the consultation.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <span
-              className={`oph-badge ${isCompleted ? 'oph-badge-green' : allReady ? 'oph-badge-blue' : 'oph-badge-amber'}`}
-              style={{ padding: '6px 14px', fontSize: '0.8rem', fontWeight: 600 }}
-            >
-              {isCompleted ? '✓ Consultation Finalized' : allReady ? '✓ Ready for Doctor Approval' : `${unmetCount > 0 ? `${unmetCount} ` : ''}Action(s) Required`}
-            </span>
-            <button
-              type="button"
-              className="oph-btn-finalize"
-              disabled={isCompleted || f.busy}
-              onClick={() => f.setQuery?.({ completion_action: null, finalization_action: 'complete' })}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span>Finalize Consultation</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Actionable Blockers Alert (if requirements unmet) */}
-        {!allReady && !isCompleted && f.unmet && f.unmet.length > 0 && (
-          <div
-            className="oph-blocker-alert-box"
-            style={{
-              marginTop: '16px',
-              padding: '12px 16px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.88rem' }}>
-                ⚠️ Clinical Sign-Off Blocked ({f.unmet.length} Incomplete Requirement{f.unmet.length > 1 ? 's' : ''})
-              </span>
-            </div>
-            <p style={{ margin: '0 0 8px', fontSize: '0.8rem', color: '#991b1b' }}>
-              The doctor cannot complete this consultation until mandatory clinical entries are verified:
-            </p>
-            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.8rem', color: '#7f1d1d' }}>
-              {f.unmet.map((item) => (
-                <li key={item.code} style={{ marginBottom: '4px' }}>
-                  <strong>{item.code.replaceAll('_', ' ')}</strong>: {item.details || 'Required for clinical sign-off'}
-                  {f.linkFor && f.linkFor(item.code) && (
-                    <button
-                      type="button"
-                      className="oph-btn-outline-sm"
-                      style={{ fontSize: '0.72rem', padding: '2px 8px', marginLeft: '8px' }}
-                      onClick={() => f.openRequirement?.(item.code)}
-                    >
-                      Resolve in {f.linkFor?.(item.code)?.section || 'Section'} →
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Authorized Override & Deferral Actions */}
-        {f.canOverride && !isCompleted && (
-          <div style={{ marginTop: '14px', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="oph-btn-outline-sm"
-              disabled={!f.writable || f.busy}
-              onClick={() => f.setQuery?.({ completion_action: 'defer' })}
-            >
-              Record result deferral
-            </button>
-            <button
-              type="button"
-              className="oph-btn-outline-sm"
-              disabled={!f.writable || f.busy || !f.unmet?.length}
-              onClick={() => f.setQuery?.({ completion_action: 'override' })}
-            >
-              Request authorized override
-            </button>
-          </div>
-        )}
-      </section>
     </div>
   );
 }

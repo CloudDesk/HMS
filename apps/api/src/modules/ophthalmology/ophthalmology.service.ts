@@ -1112,6 +1112,11 @@ export class OphthalmologyService {
       if (!current) throw new AppError('Optical prescription not found', 404, 'OPHTHALMOLOGY_OPTICAL_PRESCRIPTION_NOT_FOUND');
       if (current.status !== data.expected_status) throw this.statusConflict('Optical prescription status changed after it was loaded');
       if (current.version !== data.expected_version) throw this.versionConflict('optical prescription');
+      await this.validateOpticalInput(context, {
+        ...current.current, expected_version: current.version,
+        valid_until: current.current.valid_until.toISOString(),
+        review_date: current.current.review_date?.toISOString() ?? null,
+      }, true);
       const saved = await this.repository.approveOpticalPrescription(current.id, data.expected_version,
         current.current_clinical_version, userId, doctorId, session);
       if (!saved) throw this.versionConflict('optical prescription');
@@ -1789,18 +1794,20 @@ export class OphthalmologyService {
         'OPHTHALMOLOGY_TREATMENT_REFERENCE_CONFLICT');
     }
   }
-  private async validateOpticalInput(context: OphthalmologyContext, data: SaveOphthalmologyOpticalPrescriptionDraftDTO) {
-    if (!data.power.OD && !data.power.OS) throw new AppError('At least one eye prescription is required', 400, 'VALIDATION_ERROR');
-    for (const eye of ['OD', 'OS'] as const) { const power = data.power[eye]; if (power?.cylinder != null && power.axis == null) {
+  private async validateOpticalInput(context: OphthalmologyContext, data: SaveOphthalmologyOpticalPrescriptionDraftDTO, requireComplete = false) {
+    if (requireComplete && (!data.prescription_type || (!data.power?.OD && !data.power?.OS) || !data.pupillary_distance?.format)) {
+      throw new AppError('Complete prescription classification, eye power and pupillary distance before authorization', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
+    }
+    for (const eye of ['OD', 'OS'] as const) { const power = data.power?.[eye]; if (power?.cylinder != null && power.axis == null) {
       throw new AppError(`Axis is required when ${eye} cylinder is supplied`, 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED'); } }
-    if (data.pupillary_distance.format === 'BINOCULAR' && data.pupillary_distance.binocular == null) {
+    if (requireComplete && data.pupillary_distance?.format === 'BINOCULAR' && data.pupillary_distance.binocular == null) {
       throw new AppError('Binocular pupillary distance is required', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
     }
-    if (data.pupillary_distance.format === 'MONOCULAR' && (data.pupillary_distance.OD == null || data.pupillary_distance.OS == null)) {
+    if (requireComplete && data.pupillary_distance?.format === 'MONOCULAR' && (data.pupillary_distance.OD == null || data.pupillary_distance.OS == null)) {
       throw new AppError('OD and OS pupillary distances are required', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
     }
-    if (['BIFOCAL', 'PROGRESSIVE'].includes(data.prescription_type) && (!data.segment_height
-      || (data.power.OD && data.segment_height.OD == null) || (data.power.OS && data.segment_height.OS == null))) {
+    if (requireComplete && ['BIFOCAL', 'PROGRESSIVE'].includes(data.prescription_type ?? '') && (!data.segment_height
+      || (data.power?.OD && data.segment_height.OD == null) || (data.power?.OS && data.segment_height.OS == null))) {
       throw new AppError('Segment height is required for prescribed eyes', 400, 'OPHTHALMOLOGY_CONDITIONAL_FIELD_REQUIRED');
     }
     const validUntil = new Date(data.valid_until); const reviewDate = data.review_date ? new Date(data.review_date) : null;

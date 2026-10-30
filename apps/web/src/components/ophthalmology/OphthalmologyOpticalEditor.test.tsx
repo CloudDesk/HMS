@@ -19,6 +19,20 @@ describe('optical saved draft, conflict and approval interaction', () => {
   function approve() { const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.toLowerCase().includes('authorize prescription')); if (!button) throw new Error('Missing approval'); return button; }
   async function type(value: string) { await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(instructions(), value); instructions().dispatchEvent(new Event('input', { bubbles: true })); }); }
   async function submit() { await act(async () => container.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))); }
+  it('saves a draft with the three optional sections blank without enabling authorization', async () => {
+    const partial = record();
+    partial.current.prescription_type = null;
+    partial.current.power = { OD: null, OS: null };
+    partial.current.pupillary_distance = {};
+    await act(async () => root.render(<OphthalmologyOpticalEditor feature={{ ...feature(), optical: partial }} workspace={workspace} />));
+    expect(approve().disabled).toBe(true);
+    expect(container.querySelector('.oph-card-title')?.textContent).toContain('(optional)');
+    saveOptical.mockResolvedValue(partial);
+    await submit();
+    expect(saveOptical).toHaveBeenCalledWith(expect.objectContaining({ prescription_type: null,
+      power: { OD: null, OS: null }, pupillary_distance: {} }));
+    expect(approveOptical).not.toHaveBeenCalled();
+  });
   it('does not approve dirty values and retains original version and untouched eye on save failure', async () => {
     await act(async () => root.render(<OphthalmologyOpticalEditor feature={feature()} workspace={workspace} />));
     await type('Retained edited instructions'); expect(approve().disabled).toBe(true);
