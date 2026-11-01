@@ -82,6 +82,7 @@ export function BillingWorkspacePage() {
   const [exceptionsModalOpen, setExceptionsModalOpen] = useState(false);
   const [mpesaInitialAmount, setMpesaInitialAmount] = useState<number | undefined>(undefined);
   const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaAutoSubmit, setMpesaAutoSubmit] = useState(false);
   const [mpesaPhoneTouched, setMpesaPhoneTouched] = useState(false);
   const mpesaPhoneValidation = useMemo(() => normalizeMpesaPhone(mpesaPhone), [mpesaPhone]);
 
@@ -220,7 +221,7 @@ export function BillingWorkspacePage() {
   const cancellable = editable;
   const payable = (invoice.status === 'PENDING' || invoice.status === 'PARTIALLY_PAID') && invoice.balance_amount > 0;
   return <div className="billing-page">
-    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button><button className="btn-secondary" onClick={() => setExceptionsModalOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <><button className="btn-secondary" onClick={() => { setMpesaInitialAmount(Math.floor(invoice.balance_amount)); setMpesaModalOpen(true); }} type="button"><i className="ph ph-device-mobile" /> M-Pesa STK</button><button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button></> : null}</div></div>
+    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button><button className="btn-secondary" onClick={() => setExceptionsModalOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <><button className="btn-secondary" onClick={() => { setMpesaInitialAmount(Math.floor(invoice.balance_amount)); setMpesaPhone(''); setMpesaAutoSubmit(false); setMpesaModalOpen(true); }} type="button"><i className="ph ph-device-mobile" /> M-Pesa STK</button><button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button></> : null}</div></div>
     <section className="billing-detail-strip"><div><span>Patient</span><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></div><div><span>{billingSourceLabel[invoice.source_type]}</span><strong>{invoice.visit_number ?? invoice.encounter_id}</strong><small>{invoice.appointment_number ?? 'No linked appointment'}</small></div><div><span>Branch</span><strong>{invoice.branch_name ?? invoice.branch_id}</strong><small>{formatBillingDate(invoice.invoice_date)}</small></div><div><span>Balance</span><strong className={invoice.balance_amount ? 'billing-balance-due' : 'billing-balance-clear'}>{formatBillingMoney(invoice.balance_amount)}</strong><small>{formatBillingMoney(invoice.paid_amount)} collected</small></div></section>
     <div className="billing-workspace-grid">
       <main>
@@ -247,12 +248,13 @@ export function BillingWorkspacePage() {
               onClick={() => {
                 setPaymentOpen(false);
                 setMpesaInitialAmount(Math.floor(enteredAmount));
+                setMpesaAutoSubmit(true);
                 setMpesaModalOpen(true);
               }}
               type="button"
             >
               <i className="ph ph-device-mobile" />
-              <span>Proceed to STK Push</span>
+              <span>Send STK Push</span>
             </button>
           ) : (
             <button
@@ -306,6 +308,7 @@ export function BillingWorkspacePage() {
           if (values.payment_method === 'MPESA') {
             setPaymentOpen(false);
             setMpesaInitialAmount(Math.floor(values.amount));
+            setMpesaAutoSubmit(true);
             setMpesaModalOpen(true);
             return;
           }
@@ -359,31 +362,53 @@ export function BillingWorkspacePage() {
         </label>
         {paymentMethod === 'MPESA' ? (
           <>
-            <div
-              className="billing-inline-alert"
-              style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', padding: '0.6rem 0.8rem', fontSize: '0.85rem' }}
-            >
-              <i className="ph-fill ph-info" /> M-Pesa STK Push will prompt the customer directly on their mobile phone for their PIN.
-            </div>
-            <label>
+            <label style={{ gridColumn: '1 / -1' }}>
               <span>Customer Mobile Number *</span>
               <input
                 onBlur={() => setMpesaPhoneTouched(true)}
                 onChange={(e) => setMpesaPhone(e.target.value)}
-                placeholder="e.g. 0712 345 678"
+                placeholder="e.g. 0712 345 678 or +254..."
                 type="tel"
                 value={mpesaPhone}
               />
               {mpesaPhoneValidation.valid && mpesaPhoneValidation.normalized ? (
-                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginTop: '0.25rem', display: 'block' }}>
-                  ✓ Standardized format: <strong>{mpesaPhoneValidation.normalized}</strong>
+                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <i className="ph-fill ph-check-circle" /> Standardized format: <strong>{mpesaPhoneValidation.normalized}</strong>
                 </span>
               ) : mpesaPhoneTouched && mpesaPhoneValidation.error ? (
                 <small style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
                   {mpesaPhoneValidation.error}
                 </small>
-              ) : null}
+              ) : (
+                <small style={{ color: '#64748b', fontSize: '0.78rem', marginTop: '0.25rem', display: 'block' }}>
+                  Accepts 07..., 01..., 2547..., or +254... formats.
+                </small>
+              )}
             </label>
+            <div
+              className="billing-mpesa-info-banner"
+              style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                background: '#f0fdf4',
+                border: '1px solid #86efac',
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                color: '#166534',
+              }}
+            >
+              <i className="ph-fill ph-device-mobile" style={{ fontSize: '1.4rem', color: '#16a34a', marginTop: '1px', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0, fontSize: '0.84rem', lineHeight: '1.45' }}>
+                <strong style={{ display: 'block', color: '#14532d', marginBottom: '0.15rem' }}>
+                  M-Pesa STK Push Prompt
+                </strong>
+                <span>
+                  The customer will receive an immediate prompt directly on their mobile phone requesting them to authorize this transaction with their M-Pesa PIN.
+                </span>
+              </div>
+            </div>
           </>
         ) : (
           <>
@@ -412,7 +437,12 @@ export function BillingWorkspacePage() {
       initialAttemptId={mpesaAttemptId}
       invoice={invoice}
       initialAmount={mpesaInitialAmount}
-      onClose={closeMpesa}
+      initialPhone={mpesaPhone}
+      autoSubmit={mpesaAutoSubmit}
+      onClose={() => {
+        setMpesaAutoSubmit(false);
+        closeMpesa();
+      }}
       onReceiptReady={(r) => {
         closeMpesa();
         setReceipt(r);

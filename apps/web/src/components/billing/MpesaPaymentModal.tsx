@@ -22,6 +22,8 @@ type MpesaPaymentModalProps = {
   onClose: () => void;
   invoice: BillingInvoice;
   initialAmount?: number;
+  initialPhone?: string;
+  autoSubmit?: boolean;
   onReceiptReady?: (receipt: BillingReceipt) => void;
   canCollectPayment: boolean;
   initialAttemptId?: string;
@@ -32,6 +34,8 @@ export function MpesaPaymentModal({
   onClose,
   invoice,
   initialAmount,
+  initialPhone,
+  autoSubmit,
   onReceiptReady,
   canCollectPayment,
   initialAttemptId,
@@ -40,7 +44,8 @@ export function MpesaPaymentModal({
   const balanceAmount = invoice.balance_amount;
 
   // Form State
-  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState(() => initialPhone ?? '');
+  const [autoSubmitted, setAutoSubmitted] = useState(false);
   const [amountInput, setAmountInput] = useState<number>(() => {
     const defaultAmount = initialAmount && initialAmount > 0 ? initialAmount : balanceAmount;
     return Math.floor(defaultAmount);
@@ -80,12 +85,14 @@ export function MpesaPaymentModal({
   // Reset form when modal opens with fresh invoice
   useEffect(() => {
     if (open && !activeAttemptId) {
-      setAmountInput(Math.floor(balanceAmount));
-      setPhoneInput('');
-      setPhoneTouched(false);
+      const defaultAmount = initialAmount && initialAmount > 0 ? initialAmount : balanceAmount;
+      setAmountInput(Math.floor(defaultAmount));
+      setPhoneInput(initialPhone ?? '');
+      setPhoneTouched(Boolean(initialPhone));
       setIdempotencyKey(crypto.randomUUID());
+      setAutoSubmitted(false);
     }
-  }, [open, balanceAmount, activeAttemptId]);
+  }, [open, balanceAmount, activeAttemptId, initialAmount, initialPhone]);
 
   // Handle STK Push Submission
   const handleInitiate = async () => {
@@ -113,6 +120,26 @@ export function MpesaPaymentModal({
       // Errors handled by mutation onError toasts
     }
   };
+
+  // Auto-dispatch STK Push if triggered directly from Collect Payment with valid phone
+  useEffect(() => {
+    if (
+      open &&
+      autoSubmit &&
+      !autoSubmitted &&
+      !activeAttemptId &&
+      historyReady &&
+      canCollectPayment &&
+      phoneValidation.valid &&
+      phoneValidation.normalized &&
+      isAmountValid &&
+      !createMutation.isPending &&
+      !submitMutation.isPending
+    ) {
+      setAutoSubmitted(true);
+      void handleInitiate();
+    }
+  }, [open, autoSubmit, autoSubmitted, activeAttemptId, historyReady, canCollectPayment, phoneValidation, isAmountValid, createMutation.isPending, submitMutation.isPending]);
 
   // Handle Manual Check / Verify
   const handleVerify = () => {
@@ -425,7 +452,19 @@ export function MpesaPaymentModal({
               {canCollectPayment && recovery?.posted && !recovery.review && balanceAmount > 0 && (
                 <button className="btn-secondary" onClick={handleReset} type="button">New Payment for Remaining Balance</button>
               )}
-              <button className="btn-secondary" disabled={attemptQuery.isFetching} onClick={() => void attemptQuery.refetch()} type="button">Refresh Saved Status</button>
+              <button className="btn-secondary" disabled={attemptQuery.isFetching} onClick={() => void attemptQuery.refetch()} type="button">
+                {attemptQuery.isFetching ? (
+                  <>
+                    <MedicalSpinner size="sm" />
+                    <span>Refreshing...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ph ph-arrows-clockwise" />
+                    <span>Refresh Saved Status</span>
+                  </>
+                )}
+              </button>
             </>
           )}
         </>
@@ -459,9 +498,30 @@ export function MpesaPaymentModal({
         {!activeAttemptId ? (
           /* Form Entry Mode */
           <div className="billing-modal-form">
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.75rem', fontSize: '0.85rem', color: '#166534' }}>
-              <i className="ph-fill ph-info" style={{ marginRight: '0.4rem' }} />
-              An STK Push prompt will be dispatched directly to the customer's Safaricom phone requesting them to authorize payment with their M-Pesa PIN.
+            <div
+              className="billing-mpesa-info-banner"
+              style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                background: '#f0fdf4',
+                border: '1px solid #86efac',
+                borderRadius: '8px',
+                padding: '0.85rem 1rem',
+                color: '#166534',
+                marginBottom: '0.25rem',
+              }}
+            >
+              <i className="ph-fill ph-device-mobile" style={{ fontSize: '1.4rem', color: '#16a34a', marginTop: '1px', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0, fontSize: '0.85rem', lineHeight: '1.45' }}>
+                <strong style={{ display: 'block', color: '#14532d', marginBottom: '0.15rem' }}>
+                  Safaricom M-Pesa STK Push
+                </strong>
+                <span>
+                  An STK Push prompt will be dispatched directly to the customer's Safaricom phone requesting them to authorize payment with their M-Pesa PIN.
+                </span>
+              </div>
             </div>
 
             <label>

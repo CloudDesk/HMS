@@ -83,3 +83,29 @@
 @media screen and (max-width: 520px) { .billing-head-actions > *, .billing-head-actions select { width: 100%; min-width: 0; } .billing-filter-card form { grid-template-columns: minmax(0, 1fr); } .billing-filter-actions { grid-column: auto; } .billing-filter-actions > button { min-width: 0; flex: 1 1 100%; } }
 @media screen and (max-width: 520px) { .billing-modal-form { grid-template-columns: minmax(0, 1fr); } }
 @media print { body * { visibility: hidden; } .billing-receipt-paper, .billing-receipt-paper *, .print-receipt-paper, .print-receipt-paper * { visibility: visible; } .billing-receipt-paper, .print-receipt-paper { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 2rem; margin: 0; } }
+
+/* Center modals squarely within the main workspace on desktop when sidebar is present */
+@media screen and (min-width: 769px) {
+  body:has(.sidebar:not(.collapsed)) .modal-overlay {
+    padding-left: calc(var(--sidebar-width) + 0.75rem);
+  }
+  body:has(.sidebar.collapsed) .modal-overlay {
+    padding-left: calc(var(--sidebar-width-collapsed) + 0.75rem);
+  }
+}
+
+.billing-modal-form label span {
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.8rem;
+}
+
+.billing-mpesa-info-banner {
+  box-shadow: 0 1px 2px rgba(22, 101, 52, 0.05);
+  animation: billingFadeIn 0.2s ease-in-out;
+}
+
+@keyframes billingFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

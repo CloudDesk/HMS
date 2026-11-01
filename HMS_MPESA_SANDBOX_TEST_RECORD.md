@@ -1,5 +1,61 @@
 # M-PESA sandbox test fixture
 
+## Fresh higher-balance acceptance fixture — 30 October 2026
+
+Created at the user's request for a higher-balance fresh invoice. KES 100 was
+chosen and stated before creation. Database HMS_GENERAL; Main Branch (MB01).
+
+| Record | ID / value |
+| --- | --- |
+| Invoice | 6ae445bdb94cbaf9daa63a35 |
+| Invoice number | INV-UAT-MPESA-20261030-02 |
+| Status / total / paid / balance | PENDING / KES 100 / 0 / 100 |
+| Branch | 6a7c495d94e1a711fb3d7b23 |
+| Synthetic QA patient | 6ad1af80a97174b029387934 |
+| QA encounter | 6ad7404bce8cc80cea0dd9d3 |
+| Test-only service | 6ae3201bd324948d50765caa |
+| Suggested new attempt UUID | 095725b5-1cdb-4795-803c-3b8568a68343 |
+| Created (UTC) | 2026-10-30T07:22:37.413Z |
+
+Verified the prior fixture anchor, actor billing permissions, active branch,
+patient/encounter consistency and test-only service. Used 100 synthetic test
+units at the existing KES 1 price; no catalogue price or clinical state changed.
+Invoice/items and explicit synthetic creation audit used BillingRepository in
+a real transaction; normal BillingService.update validated totals and set PENDING.
+Verified zero payments and zero M-PESA attempts. No STK/provider request or posting.
+The earlier invoices and other working-tree changes were preserved. Only this
+fixture document was edited; application code/configuration was unchanged.
+Authenticated Render visibility remains to be checked through
+GET /api/billing/invoices/6ae445bdb94cbaf9daa63a35.
+
+## Fresh acceptance fixture — 30 October 2026
+
+Created at the user's explicit request for a new invoice. Database HMS_GENERAL,
+using the backend's configured connection. Existing corrected fixture anchor,
+Main Branch access, actor billing View/Create/Edit/CollectPayment permissions,
+synthetic QA patient/encounter, and active test-only KES 1 service were checked.
+
+| Record | ID / value |
+| --- | --- |
+| Invoice | 6ae43c383caccd20c55ade94 |
+| Invoice number | INV-UAT-MPESA-20261030-01 |
+| Branch | Main Branch (MB01), 6a7c495d94e1a711fb3d7b23 |
+| Status / total / paid / balance | PENDING / KES 1 / 0 / 1 |
+| Reused synthetic QA patient | 6ad1af80a97174b029387934 |
+| Reused QA encounter | 6ad7404bce8cc80cea0dd9d3 |
+| Reused test-only service | 6ae3201bd324948d50765caa |
+| Suggested new attempt UUID | c0d3fc66-cf96-4993-a591-cf3c050b6934 |
+| Created (UTC) | 2026-10-30T06:42:00.170Z |
+
+Invoice/item and explicitly synthetic creation audit were written through
+BillingRepository in a real MongoDB transaction. Normal BillingService.update
+validated the positive total and set PENDING. No clinical state was modified.
+Verified zero billing payments, zero M-PESA attempts, unpaid balance KES 1.
+No provider call, STK submission, posting, environment or application-source edit.
+Existing records were not updated. Confirm visibility with authenticated Render
+GET /api/billing/invoices/6ae43c383caccd20c55ade94 before using the fixture;
+a separate authenticated Render request was not performed by the agent.
+
 ## Fresh fixture for corrected merchant — 29 October 2026
 
 Created at the user's request after aligning the local M-PESA Express sandbox
