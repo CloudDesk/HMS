@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BillingInvoice } from '../../api/billing';
 import type { MpesaAttemptView } from '../../api/mpesa';
 import { MpesaPaymentModal } from './MpesaPaymentModal';
+import { mpesaAmountError, mpesaPaymentSummary } from '../../utils/mpesa-presentation';
 
 const mpesaMock = vi.hoisted(() => ({
   createAttempt: vi.fn(),
@@ -160,10 +161,10 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
   it('1. Renders initial STK Push form with invoice balance and phone entry', async () => {
     await renderModal();
 
-    expect(document.body.textContent).toContain('Initiate M-Pesa STK Push');
+    expect(document.body.textContent).toContain('Request M-Pesa payment');
     expect(document.body.textContent).toContain('INV-2026-00101');
     expect(document.body.textContent).toContain('KES 400.00');
-    expect(document.body.textContent).toContain('Send STK Push');
+    expect(document.body.textContent).toContain('Send payment request');
   });
 
   it('2. Enforces phone number format and displays standardized format indicator', async () => {
@@ -226,8 +227,8 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.getAttempt.mockResolvedValue(cancelledAttempt);
 
     await renderModal();
-    expect(document.body.textContent).toContain('Payment Cancelled by Customer');
-    expect(document.body.textContent).toContain('Try Again');
+    expect(document.body.textContent).toContain('Payment cancelled');
+    expect(document.body.textContent).toContain('Start new payment request');
     expect(mpesaMock.createAttempt).not.toHaveBeenCalled();
   });
 
@@ -243,7 +244,7 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.getAttempt.mockResolvedValue(verifiedAttempt);
 
     await renderModal();
-    expect(document.body.textContent).toContain('Post Payment to Invoice');
+    expect(document.body.textContent).toContain('Apply confirmed payment');
   });
 
   it.each(['MANUAL_REVIEW_REQUIRED', 'ABANDONED'] as const)('shows %s ahead of verified success and blocks financial actions', async (recoveryStatus) => {
@@ -252,9 +253,9 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(attempt);
     await renderModal();
-    expect(document.body.textContent).toContain('Manual Review Required');
-    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
-    expect(document.body.textContent).not.toContain('Try Again');
+    expect(document.body.textContent).toContain('Billing supervisor review needed');
+    expect(document.body.textContent).not.toContain('Apply confirmed payment');
+    expect(document.body.textContent).not.toContain('Start new payment request');
     expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
   });
 
@@ -263,15 +264,15 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(attempt);
     await renderModal();
-    expect(document.body.textContent).toContain('Transaction Status Uncertain');
-    expect(document.body.textContent).not.toContain('Try Again');
+    expect(document.body.textContent).toContain('Payment outcome needs confirmation');
+    expect(document.body.textContent).not.toContain('Start new payment request');
   });
 
   it('blocks new attempts when history fails to load', async () => {
     mpesaMock.listAttempts.mockRejectedValue(new Error('offline'));
     await renderModal();
     expect(document.body.textContent).toContain('Could not load existing payment attempts');
-    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent?.includes('Send STK Push'));
+    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent?.includes('Send payment request'));
     expect(button?.disabled).toBe(true);
   });
 
@@ -281,7 +282,7 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(attempt);
     await renderModal(mockInvoice, false);
-    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
+    expect(document.body.textContent).not.toContain('Apply confirmed payment');
     expect(document.body.textContent).toContain('You do not have permission');
   });
 
@@ -292,7 +293,7 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.submitAttempt.mockResolvedValue(mockAttempt);
     await renderModal();
     expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
-    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent === 'Submit Saved Attempt');
+    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent === 'Send saved payment request');
     expect(button).toBeDefined();
     await act(async () => button?.click());
     expect(mpesaMock.submitAttempt).toHaveBeenCalledExactlyOnceWith(attempt.id, { expectedVersion: 0 });
@@ -304,9 +305,9 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
     mpesaMock.getAttempt.mockResolvedValue(attempt);
     await renderModal();
-    expect(document.body.textContent).toContain('Check Status');
-    expect(document.body.textContent).not.toContain('Submit Saved Attempt');
-    expect(document.body.textContent).not.toContain('Try Again');
+    expect(document.body.textContent).toContain('Check with Safaricom');
+    expect(document.body.textContent).not.toContain('Send saved payment request');
+    expect(document.body.textContent).not.toContain('Start new payment request');
     expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
   });
 
@@ -315,7 +316,7 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
     mpesaMock.getAttempt.mockResolvedValue({ ...mockAttempt, id: 'historical-attempt', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' });
     await renderModal(mockInvoice, false, 'historical-attempt');
     expect(mpesaMock.getAttempt).toHaveBeenCalledWith('historical-attempt');
-    expect(document.body.textContent).toContain('Manual Review Required');
+    expect(document.body.textContent).toContain('Billing supervisor review needed');
   });
 
   it('blocks all payment actions when the requested attempt belongs to another invoice', async () => {
@@ -323,7 +324,68 @@ describe('MpesaPaymentModal UI & Lifecycle', () => {
       reportedOutcome: 'SUCCESS', queryOutcome: 'SUCCESS', receiptNumber: 'TEST123' });
     await renderModal(mockInvoice, true, mockAttempt.id);
     expect(document.body.textContent).toContain('does not belong to the displayed invoice');
-    expect(document.body.textContent).not.toContain('Post Payment to Invoice');
-    expect(document.body.textContent).not.toContain('Try Again');
+    expect(document.body.textContent).not.toContain('Apply confirmed payment');
+    expect(document.body.textContent).not.toContain('Start new payment request');
+  });
+
+  it('preserves decimal input and explains why it cannot be submitted', async () => {
+    await renderModal();
+    const input = document.body.querySelector('input[type="number"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('Amount input missing');
+    await act(async () => setInputValue(input, '100.50'));
+    expect(input.valueAsNumber).toBe(100.5);
+    expect(document.body.textContent).toContain('whole KES amounts only');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const button = Array.from(document.body.querySelectorAll('button')).find((item) => item.textContent?.includes('Send payment request'));
+    expect(button?.disabled).toBe(true);
+    expect(mpesaMock.createAttempt).not.toHaveBeenCalled();
+  });
+
+  it('keeps technical states and saved refresh inside closed transaction details', async () => {
+    mpesaMock.listAttempts.mockResolvedValue({ items: [mockAttempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(mockAttempt);
+    await renderModal();
+    expect(document.body.textContent).toContain('waiting for confirmation');
+    expect(document.body.textContent).toContain('Never enter or share the PIN in HMS');
+    expect(document.body.textContent).not.toContain('Awaiting Customer PIN');
+    const details = document.body.querySelector('details');
+    expect(details?.open).toBe(false);
+    const refresh = Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent?.includes('Refresh HMS record'));
+    expect(refresh?.closest('details')).toBe(details);
+    expect(document.body.querySelector('.mpesa-request-summary')?.textContent).toContain('4321');
+  });
+
+  it('explains a merchant mismatch and gives a supervisor action without enabling payment', async () => {
+    const attempt = { ...mockAttempt, conflictingEvidence: 'MERCHANT_CONFIGURATION_CHANGED', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' as const };
+    mpesaMock.listAttempts.mockResolvedValue({ items: [attempt], total: 1, page: 1, limit: 1 });
+    mpesaMock.getAttempt.mockResolvedValue(attempt);
+    await renderModal();
+    expect(document.body.textContent).toContain('Merchant settings changed');
+    expect(document.body.textContent).toContain('Contact your billing supervisor');
+    expect(document.body.textContent).not.toContain('Apply confirmed payment');
+    expect(mpesaMock.submitAttempt).not.toHaveBeenCalled();
+  });
+
+  it('does not hide a fractional invoice balance by rounding it on modal entry', async () => {
+    await renderModal({ ...mockInvoice, balance_amount: 100.5 });
+    const input = document.body.querySelector('input[type="number"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error('Amount input missing');
+    expect(input.valueAsNumber).toBe(100.5);
+    expect(document.body.textContent).toContain('whole KES amounts only');
+  });
+
+  it.each([0, -1, Number.NaN, Infinity, 100.5, 250001])('rejects invalid M-Pesa amount %s for both entry routes', (amount) => {
+    expect(mpesaAmountError(amount, 300000)).not.toBeNull();
+  });
+  it('permits whole KES amounts within both limits', () => {
+    expect(mpesaAmountError(100, 100)).toBeNull();
+    expect(mpesaAmountError(101, 100)).toContain('outstanding balance');
+  });
+
+  it('separates failed, confirmed and applied outcomes without changing eligibility', () => {
+    expect(mpesaPaymentSummary({ ...mockAttempt, reportedOutcome: 'TIMEOUT', verificationStatus: 'FAILED', recoveryStatus: 'RESOLVED' }).title).toBe('Payment timed out');
+    expect(mpesaPaymentSummary({ ...mockAttempt, reportedOutcome: 'SUCCESS', queryOutcome: 'SUCCESS', receiptNumber: 'TEST123', verificationStatus: 'VERIFIED' }).title).toContain('ready to apply');
+    expect(mpesaPaymentSummary({ ...mockAttempt, postingStatus: 'POSTED' }).title).toBe('Payment applied to invoice');
+    expect(mpesaPaymentSummary({ ...mockAttempt, postingStatus: 'POSTED', recoveryStatus: 'MANUAL_REVIEW_REQUIRED' }).title).toBe('Billing supervisor review needed');
   });
 });

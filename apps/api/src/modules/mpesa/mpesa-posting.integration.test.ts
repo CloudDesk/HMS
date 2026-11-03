@@ -560,6 +560,10 @@ describe('M-PESA Phase 2: Verified Financial Posting & Billing Integration', () 
     // Listed in exceptions
     const exceptions = await postingService.listExceptions(actor);
     expect(exceptions.items.some((e) => e.id === attemptId)).toBe(true);
+    const exception = exceptions.items.find((e) => e.id === attemptId);
+    const invoice = await billingRepository.getById(invoiceId);
+    expect(exception?.invoiceNumber).toBe(invoice?.invoice_number);
+    expect(await billingRepository.getInvoiceNumbers([invoiceId], [new Types.ObjectId().toString()])).toEqual([]);
   });
 
   it('20. Financial posting remains idempotent after service restart', async () => {

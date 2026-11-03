@@ -12,6 +12,7 @@ export type MpesaRecoveryStatus = 'NONE' | 'IN_RECOVERY' | 'RESOLVED' | 'MANUAL_
 export type MpesaAttemptView = {
   id: string;
   invoiceId: string;
+  invoiceNumber?: string | null;
   patientId: string;
   branchId: string;
   amount: number;
@@ -72,6 +73,7 @@ export type MpesaExceptionsResponse = MpesaAttemptsResponse;
 const nullableText = z.string().nullable();
 const attemptSchema: z.ZodType<MpesaAttemptView> = z.object({
   id: z.string().min(1), invoiceId: z.string().min(1), patientId: z.string().min(1), branchId: z.string().min(1),
+  invoiceNumber: z.string().nullable().optional(),
   amount: z.number().int().positive(), currency: z.literal('KES'), payerPhoneMasked: z.string(),
   environment: z.enum(['sandbox', 'production']),
   submissionState: z.enum(['CREATED', 'SUBMITTING', 'PENDING', 'UNKNOWN', 'REJECTED']),

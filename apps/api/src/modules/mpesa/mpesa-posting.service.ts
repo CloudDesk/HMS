@@ -355,8 +355,10 @@ export class MpesaPostingService {
       page: query?.page ?? 1,
       limit: query?.limit ?? 20,
     });
+    const invoices = await this.billingRepository.getInvoiceNumbers(result.items.map((item) => item.invoiceId), scope);
+    const numbers = new Map(invoices.map((invoice) => [String(invoice._id), invoice.invoiceNumber]));
     return {
-      items: result.items.map((item) => this.view(item)),
+      items: result.items.map((item) => ({ ...this.view(item), invoiceNumber: numbers.get(item.invoiceId) ?? null })),
       total: result.total,
       page: result.page,
       limit: result.limit,

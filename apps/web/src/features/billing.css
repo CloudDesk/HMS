@@ -105,6 +105,44 @@
   animation: billingFadeIn 0.2s ease-in-out;
 }
 
+.mpesa-required { color: #dc2626 !important; }
+.mpesa-outcome { display: block; padding: 1rem; }
+.mpesa-outcome strong { display: block; font-size: 1rem; }
+.mpesa-outcome p { margin: 0.4rem 0 0; line-height: 1.5; }
+.mpesa-outcome-info { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+.mpesa-outcome-success { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.mpesa-outcome-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.mpesa-outcome-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.mpesa-request-summary, .mpesa-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.mpesa-request-summary span { display: block; color: #64748b; font-size: 0.8rem; }
+.mpesa-request-summary strong { display: block; color: #0f172a; }
+.mpesa-transaction-details { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem; overflow-wrap: anywhere; }
+.mpesa-transaction-details summary, .mpesa-exceptions-modal summary { cursor: pointer; font-weight: 600; }
+.mpesa-details-grid { margin-top: 0.85rem; font-size: 0.85rem; }
+.mpesa-exceptions-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; flex-wrap: wrap; }
+.mpesa-exceptions-modal .billing-table { min-width: 0; table-layout: fixed; width: 100%; }
+.mpesa-exceptions-modal .billing-table th, .mpesa-exceptions-modal .billing-table td { white-space: normal; overflow-wrap: anywhere; }
+.mpesa-exceptions-modal .billing-table th:nth-child(4) { width: 29%; }
+.mpesa-exceptions-modal td small { display: block; color: #64748b; margin-top: 0.3rem; }
+.mpesa-exceptions-modal td details { margin-top: 0.5rem; font-size: 0.75rem; }
+.mpesa-payment-modal .modal-footer { flex-wrap: wrap; }
+@media screen and (max-width: 600px) {
+  .mpesa-request-summary, .mpesa-details-grid { grid-template-columns: minmax(0, 1fr); }
+  .mpesa-payment-modal .billing-payment-summary { flex-direction: column; align-items: flex-start; gap: 0.5rem; overflow-wrap: anywhere; }
+  .mpesa-payment-modal .modal-footer > button { flex: 1 1 100%; white-space: normal; }
+  .mpesa-exceptions-footer > div { width: 100%; flex-wrap: wrap; }
+  .mpesa-exceptions-footer button { flex: 1; }
+  .mpesa-exceptions-modal .billing-table thead { display: none; }
+  .mpesa-exceptions-modal .billing-table, .mpesa-exceptions-modal .billing-table tbody,
+  .mpesa-exceptions-modal .billing-table tr, .mpesa-exceptions-modal .billing-table td { display: block; width: 100%; }
+  .mpesa-exceptions-modal .billing-table tr { border: 1px solid #e2e8f0; margin-bottom: 0.75rem; border-radius: 8px; padding: 0.5rem; }
+  .mpesa-exceptions-modal .billing-table td { padding: 0.4rem; border: 0; }
+  .mpesa-exceptions-modal td:nth-child(1)::before { content: 'Invoice: '; }
+  .mpesa-exceptions-modal td:nth-child(2)::before { content: 'Amount: '; }
+  .mpesa-exceptions-modal td:nth-child(3)::before { content: 'Phone: '; }
+  .mpesa-exceptions-modal td:nth-child(5)::before { content: 'Created: '; }
+}
+
 @keyframes billingFadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

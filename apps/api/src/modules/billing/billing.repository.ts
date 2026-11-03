@@ -240,6 +240,14 @@ export class BillingRepository {
     return activeBranches.map((branch) => String(branch._id));
   }
 
+  async getInvoiceNumbers(ids: string[], branchIds?: string[]) {
+    if (ids.length === 0 || (branchIds && branchIds.length === 0)) return [];
+    return BillingInvoiceModel.find({
+      _id: { $in: [...new Set(ids)].slice(0, 100).map(objectId) }, deletedAt: null,
+      ...(branchIds ? { branchId: { $in: branchIds.map(objectId) } } : {}),
+    }).select('_id invoiceNumber').lean();
+  }
+
   async list(query: BillingInvoiceListQuery, branchIds?: string[], session?: import('mongoose').ClientSession) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;

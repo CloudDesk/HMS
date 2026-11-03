@@ -6,6 +6,7 @@ import { formatBillingDateTime } from '../../pages/billing-utils';
 import { MedicalLoader } from '../ui/MedicalLoader';
 import { Modal } from '../ui/Modal';
 import { navigate, useAppLocation } from '../../routing/navigation';
+import { mpesaReviewReason } from '../../utils/mpesa-presentation';
 
 type MpesaExceptionsModalProps = {
   open: boolean;
@@ -37,7 +38,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
   return (
     <Modal
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+        <div className="mpesa-exceptions-footer">
           <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
             {result ? (
               <span>
@@ -69,6 +70,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
         </div>
       }
       icon="ph-warning-octagon"
+      className="mpesa-exceptions-modal"
       onClose={onClose}
       open={open}
       size="large"
@@ -76,7 +78,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>
-          Attempts with unresolved provider evidence, exhausted recovery, conflicts, or posting failures. An exception does not establish that payment succeeded. Review the attempt before taking action.
+          These payments need a billing supervisor’s review. An entry here does not confirm payment. Do not request another payment until the existing attempt has been reviewed.
         </p>
 
         {exceptionsQuery.isLoading ? (
@@ -103,12 +105,10 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
             <table className="data-table billing-table">
               <thead>
                 <tr>
-                  <th>Attempt / Invoice</th>
+                  <th>Invoice</th>
                   <th>Amount</th>
                   <th>Phone</th>
-                  <th>Receipt</th>
-                  <th>Verification</th>
-                  <th>Reason / Conflict</th>
+                  <th>Reason and next step</th>
                   <th>Date</th>
                   <th aria-label="Action" />
                 </tr>
@@ -117,10 +117,7 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
                 {data.map((item: MpesaAttemptView) => (
                   <tr key={item.id}>
                     <td>
-                      <strong title={item.id}>{item.id.slice(0, 10)}...</strong>
-                      <small style={{ display: 'block', color: '#64748b' }}>
-                        Inv: {item.invoiceId.slice(0, 10)}...
-                      </small>
+                      <strong>{item.invoiceNumber ?? 'Invoice number unavailable'}</strong>
                     </td>
                     <td>
                       <strong>{formatMoney(item.amount)}</strong>
@@ -129,17 +126,14 @@ export function MpesaExceptionsModal({ open, onClose }: MpesaExceptionsModalProp
                       <span>{maskMpesaPhone(item.payerPhoneMasked)}</span>
                     </td>
                     <td>
-                      <span>{item.receiptNumber ?? 'Pending'}</span>
-                    </td>
-                    <td>
-                      <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
-                        {item.verificationStatus}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 500 }}>
-                        {item.conflictingEvidence || item.postingError || item.recoveryStatus}
-                      </span>
+                      <span>{mpesaReviewReason(item.conflictingEvidence)}</span>
+                      <small>Ask your billing supervisor to review this attempt.</small>
+                      <details><summary>Support details</summary>
+                        <div>Attempt: {item.id}</div><div>Invoice ID: {item.invoiceId}</div>
+                        <div>Verification: {item.verificationStatus}</div>
+                        <div>Support code: {item.conflictingEvidence || item.postingError || item.recoveryStatus}</div>
+                        <div>Receipt: {item.receiptNumber ?? 'Not available'}</div>
+                      </details>
                     </td>
                     <td>
                       <small>{formatBillingDateTime(item.createdAt)}</small>

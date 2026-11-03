@@ -11,7 +11,7 @@ vi.mock('../../auth/token-storage', () => ({ tokenStorage: {
 } }));
 
 const attempt: MpesaAttemptView = {
-  id: 'a'.repeat(64), invoiceId: 'b'.repeat(24), patientId: 'c'.repeat(24), branchId: 'd'.repeat(24),
+  id: 'a'.repeat(64), invoiceId: 'b'.repeat(24), invoiceNumber: 'INV-UAT-MPESA-001', patientId: 'c'.repeat(24), branchId: 'd'.repeat(24),
   amount: 1, currency: 'KES', payerPhoneMasked: '********4149', environment: 'sandbox',
   submissionState: 'UNKNOWN', reportedOutcome: 'PENDING', verificationStatus: 'UNRESOLVED',
   postingStatus: 'DISABLED', version: 2, checkoutRequestId: null, merchantRequestId: null, receiptNumber: null,
@@ -54,6 +54,9 @@ describe('M-PESA exception HTTP contract', () => {
     await render();
     expect(document.body.textContent).toContain('Showing page 1 of 3 (21 exceptions)');
     expect(document.body.textContent).toContain('MANUAL_REVIEW_REQUIRED');
+    expect(document.body.textContent).toContain('INV-UAT-MPESA-001');
+    expect(document.body.textContent).toContain('billing supervisor');
+    expect(document.body.querySelector('td strong')?.textContent).toBe('INV-UAT-MPESA-001');
     expect(document.body.textContent).not.toContain('No Unresolved M-Pesa Exceptions');
     const next = Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent?.includes('Next'));
     await act(async () => next?.click());

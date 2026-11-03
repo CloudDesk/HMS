@@ -82,6 +82,11 @@ export function useMpesaAttempt(
         return false;
       }
 
+      // Back off background polling interval during recovery / uncertain phases to avoid polling churn
+      if (data.recoveryStatus === 'IN_RECOVERY' || data.verificationStatus === 'UNRESOLVED') {
+        return 10000;
+      }
+
       // Continue polling while awaiting submission, callback, or settlement verification
       if (
         data.submissionState === 'CREATED' ||

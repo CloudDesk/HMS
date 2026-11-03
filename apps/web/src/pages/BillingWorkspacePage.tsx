@@ -21,6 +21,7 @@ import {
 import { MpesaPaymentModal } from '../components/billing/MpesaPaymentModal';
 import { MpesaExceptionsModal } from '../components/billing/MpesaExceptionsModal';
 import { normalizeMpesaPhone } from '../utils/mpesa-phone';
+import { mpesaAmountError } from '../utils/mpesa-presentation';
 import { useBillingWorkspaceFeature } from '../hooks/billing/useBillingWorkspaceFeature';
 import type { DraftItem } from '../hooks/billing/useBillingAutoPopulate';
 
@@ -47,6 +48,10 @@ const createPaymentSchema = (balanceAmount: number, formatMoney: (val: number) =
   payment_date: z.string().min(1, 'Payment date is required.'),
   reference_number: z.string().trim().max(100),
 }).superRefine((data, context) => {
+  if (data.payment_method === 'MPESA') {
+    const error = mpesaAmountError(data.amount, balanceAmount);
+    if (error) context.addIssue({ code: 'custom', message: error, path: ['amount'] });
+  }
   if (data.payment_method !== 'CASH' && data.payment_method !== 'MPESA' && !data.reference_number) {
     context.addIssue({ code: 'custom', message: 'Reference number is required.', path: ['reference_number'] });
   }
@@ -129,6 +134,7 @@ export function BillingWorkspacePage() {
 
   const isAmountExcessive = typeof enteredAmount === 'number' && !Number.isNaN(enteredAmount) && enteredAmount > balanceAmount;
   const isAmountInvalid = typeof enteredAmount !== 'number' || Number.isNaN(enteredAmount) || enteredAmount <= 0 || isAmountExcessive;
+  const mpesaAmountValidation = paymentMethod === 'MPESA' ? mpesaAmountError(enteredAmount, balanceAmount) : null;
 
   useEffect(() => {
     if (createMode && !selectedBranch && branches.length === 1) invoiceForm.setValue('branch_id', branches[0]!.id);
@@ -221,7 +227,7 @@ export function BillingWorkspacePage() {
   const cancellable = editable;
   const payable = (invoice.status === 'PENDING' || invoice.status === 'PARTIALLY_PAID') && invoice.balance_amount > 0;
   return <div className="billing-page">
-    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button><button className="btn-secondary" onClick={() => setExceptionsModalOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <><button className="btn-secondary" onClick={() => { setMpesaInitialAmount(Math.floor(invoice.balance_amount)); setMpesaPhone(''); setMpesaAutoSubmit(false); setMpesaModalOpen(true); }} type="button"><i className="ph ph-device-mobile" /> M-Pesa STK</button><button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button></> : null}</div></div>
+    <div className="billing-page-head"><div><div className="billing-title-line"><h2>{invoice.invoice_number}</h2><span className={`billing-status ${billingStatusClass(invoice.status)}`}>{billingStatusLabel[invoice.status]}</span></div><p>{invoice.patient_name ?? 'Patient'} / {invoice.patient_number ?? invoice.patient_id} / {billingSourceLabel[invoice.source_type]} / {invoice.visit_number ?? invoice.visit_id}</p></div><div className="billing-head-actions"><button className="btn-secondary" onClick={() => navigate('/billing/history')} type="button"><i className="ph ph-arrow-left" /> History</button><button className="btn-secondary" onClick={() => setExceptionsModalOpen(true)} type="button"><i className="ph ph-warning-octagon" /> M-Pesa Exceptions</button>{cancellable && canCancel ? <button className="btn-danger" onClick={() => setCancelOpen(true)} type="button"><i className="ph ph-x-circle" /> Cancel Invoice</button> : null}{payable && canCollectPayment ? <><button className="btn-secondary" onClick={() => { setMpesaInitialAmount(invoice.balance_amount); setMpesaPhone(''); setMpesaAutoSubmit(false); setMpesaModalOpen(true); }} type="button"><i className="ph ph-device-mobile" /> M-Pesa STK</button><button className="btn-primary" onClick={() => { paymentForm.reset({ amount: invoice.balance_amount, payment_method: 'CASH', payment_date: today(), reference_number: '' }); setPaymentOpen(true); }} type="button"><i className="ph ph-currency-circle-dollar" /> Collect Payment</button></> : null}</div></div>
     <section className="billing-detail-strip"><div><span>Patient</span><strong>{invoice.patient_name ?? 'Patient'}</strong><small>{invoice.patient_number ?? invoice.patient_id}</small></div><div><span>{billingSourceLabel[invoice.source_type]}</span><strong>{invoice.visit_number ?? invoice.encounter_id}</strong><small>{invoice.appointment_number ?? 'No linked appointment'}</small></div><div><span>Branch</span><strong>{invoice.branch_name ?? invoice.branch_id}</strong><small>{formatBillingDate(invoice.invoice_date)}</small></div><div><span>Balance</span><strong className={invoice.balance_amount ? 'billing-balance-due' : 'billing-balance-clear'}>{formatBillingMoney(invoice.balance_amount)}</strong><small>{formatBillingMoney(invoice.paid_amount)} collected</small></div></section>
     <div className="billing-workspace-grid">
       <main>
@@ -244,17 +250,17 @@ export function BillingWorkspacePage() {
           {paymentMethod === 'MPESA' ? (
             <button
               className="btn-primary"
-              disabled={isAmountInvalid || !mpesaPhoneValidation.valid}
+              disabled={isAmountInvalid || Boolean(mpesaAmountValidation) || !mpesaPhoneValidation.valid}
               onClick={() => {
                 setPaymentOpen(false);
-                setMpesaInitialAmount(Math.floor(enteredAmount));
+                setMpesaInitialAmount(enteredAmount);
                 setMpesaAutoSubmit(true);
                 setMpesaModalOpen(true);
               }}
               type="button"
             >
               <i className="ph ph-device-mobile" />
-              <span>Send STK Push</span>
+              <span>Send payment request</span>
             </button>
           ) : (
             <button
@@ -335,8 +341,8 @@ export function BillingWorkspacePage() {
           <span>Amount *</span>
           <input
             max={invoice.balance_amount}
-            min="0.01"
-            step="0.01"
+            min={paymentMethod === 'MPESA' ? 1 : 0.01}
+            step={paymentMethod === 'MPESA' ? 1 : 0.01}
             type="number"
             {...paymentForm.register('amount', { valueAsNumber: true })}
           />
@@ -344,6 +350,8 @@ export function BillingWorkspacePage() {
             <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
               {paymentForm.formState.errors.amount.message}
             </small>
+          ) : mpesaAmountValidation ? (
+            <small className="billing-error-text" role="alert">{mpesaAmountValidation}</small>
           ) : isAmountExcessive ? (
             <small className="billing-error-text" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
               Payment amount cannot exceed the outstanding balance of {formatBillingMoney(invoice.balance_amount)}.
@@ -405,7 +413,7 @@ export function BillingWorkspacePage() {
                   M-Pesa STK Push Prompt
                 </strong>
                 <span>
-                  The customer will receive an immediate prompt directly on their mobile phone requesting them to authorize this transaction with their M-Pesa PIN.
+                  If a Safaricom prompt appears, the customer checks the merchant and amount, then enters their M-Pesa PIN on their own phone. Never enter or share the PIN in HMS. Sending a request does not confirm prompt delivery or payment.
                 </span>
               </div>
             </div>

@@ -13,6 +13,7 @@ import {
 } from '../../hooks/billing/useMpesa';
 import { maskMpesaPhone, normalizeMpesaPhone } from '../../utils/mpesa-phone';
 import { mpesaRecovery } from '../../utils/mpesa-recovery';
+import { mpesaAmountError, mpesaPaymentSummary } from '../../utils/mpesa-presentation';
 import { formatBillingDateTime } from '../../pages/billing-utils';
 import { MedicalLoader, MedicalSpinner } from '../ui/MedicalLoader';
 import { Modal } from '../ui/Modal';
@@ -46,9 +47,19 @@ export function MpesaPaymentModal({
   // Form State
   const [phoneInput, setPhoneInput] = useState(() => initialPhone ?? '');
   const [autoSubmitted, setAutoSubmitted] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      await attemptQuery.refetch();
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
   const [amountInput, setAmountInput] = useState<number>(() => {
     const defaultAmount = initialAmount && initialAmount > 0 ? initialAmount : balanceAmount;
-    return Math.floor(defaultAmount);
+    return defaultAmount;
   });
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(initialAttemptId ?? null);
@@ -63,12 +74,8 @@ export function MpesaPaymentModal({
 
   // Phone validation
   const phoneValidation = useMemo(() => normalizeMpesaPhone(phoneInput), [phoneInput]);
-  const isAmountValid =
-    typeof amountInput === 'number' &&
-    !Number.isNaN(amountInput) &&
-    amountInput > 0 &&
-    amountInput <= balanceAmount &&
-    Number.isInteger(amountInput);
+  const amountError = mpesaAmountError(amountInput, balanceAmount);
+  const isAmountValid = amountError === null;
 
   // Attempt Query with bounded polling
   const attemptQuery = useMpesaAttempt(activeAttemptId, { enabled: Boolean(activeAttemptId) && open });
@@ -86,7 +93,7 @@ export function MpesaPaymentModal({
   useEffect(() => {
     if (open && !activeAttemptId) {
       const defaultAmount = initialAmount && initialAmount > 0 ? initialAmount : balanceAmount;
-      setAmountInput(Math.floor(defaultAmount));
+      setAmountInput(defaultAmount);
       setPhoneInput(initialPhone ?? '');
       setPhoneTouched(Boolean(initialPhone));
       setIdempotencyKey(crypto.randomUUID());
@@ -207,147 +214,11 @@ export function MpesaPaymentModal({
       );
     }
 
-    const {
-      submissionState,
-      reportedOutcome,
-      verificationStatus,
-      postingStatus,
-      receiptNumber,
-      conflictingEvidence,
-    } = attempt;
-
-    // 1. Successfully Posted
-    if (postingStatus === 'POSTED' && !recovery?.review) {
-      return (
-        <div className="billing-inline-alert" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <i className="ph-fill ph-check-circle" style={{ fontSize: '1.5rem', color: '#16a34a' }} />
-            <div>
-              <strong style={{ display: 'block', fontSize: '1.05rem' }}>Payment Successful & Posted!</strong>
-              <small style={{ color: '#15803d' }}>
-                Transaction has been committed to the billing ledger. Official HMS receipt generated.
-              </small>
-            </div>
-          </div>
-          {receiptNumber && (
-            <div style={{ background: '#dcfce7', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-              <span>M-Pesa Receipt: <strong>{receiptNumber}</strong></span>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // A verified query alone does not permit posting or override review flags.
-    if (recovery?.canPost) {
-      return (
-        <div className="billing-inline-alert" style={{ background: '#eff6ff', borderColor: '#93c5fd', color: '#1e40af', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <i className="ph-fill ph-shield-check" style={{ fontSize: '1.5rem', color: '#2563eb' }} />
-            <div>
-              <strong style={{ display: 'block', fontSize: '1.05rem' }}>Payment Verified with Safaricom</strong>
-              <small style={{ color: '#1d4ed8' }}>
-                Provider success and receipt evidence are available. Post the payment to apply funds to the invoice.
-              </small>
-            </div>
-          </div>
-          {receiptNumber && (
-            <div style={{ background: '#dbeafe', padding: '0.4rem 0.75rem', borderRadius: '4px', fontSize: '0.85rem' }}>
-              <span>Verified Receipt Number: <strong>{receiptNumber}</strong></span>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // 3. Manual Review Required / Conflicting Evidence
-    if (
-      recovery?.review
-    ) {
-      return (
-        <div className="billing-inline-alert error" style={{ padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <i className="ph-fill ph-warning-circle" style={{ fontSize: '1.5rem', color: '#dc2626' }} />
-            <div>
-              <strong style={{ display: 'block', fontSize: '1.05rem' }}>Manual Review Required</strong>
-              <small>
-                {conflictingEvidence === 'INVOICE_ALREADY_PAID'
-                  ? 'Invoice was already paid before posting. Customer payment requires audit review or refund.'
-                  : conflictingEvidence === 'INVOICE_CANCELLED_WHILE_PAYMENT_VERIFIED'
-                  ? 'Invoice was cancelled. Payment requires supervisor review.'
-                  : conflictingEvidence === 'PAYMENT_EXCEEDS_BALANCE'
-                  ? 'Payment amount exceeds remaining invoice balance.'
-                  : 'Transaction evidence requires manual staff review before ledger posting.'}
-              </small>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // 4. Cancelled or Failed by Provider
-    if (
-      submissionState === 'REJECTED' ||
-      verificationStatus === 'FAILED'
-    ) {
-      return (
-        <div className="billing-inline-alert error" style={{ padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <i className="ph-fill ph-x-circle" style={{ fontSize: '1.5rem', color: '#dc2626' }} />
-            <div>
-              <strong style={{ display: 'block', fontSize: '1.05rem' }}>
-                {reportedOutcome === 'TIMEOUT' ? 'Payment Timed Out' : reportedOutcome === 'CANCELLED'
-                  ? 'Payment Cancelled by Customer'
-                  : 'Payment Failed or Rejected'}
-              </strong>
-              <small>
-                {reportedOutcome === 'CANCELLED'
-                  ? 'The user cancelled the STK push prompt on their mobile device.'
-                  : attempt.submissionError || 'The transaction could not be completed.'}
-              </small>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // 5. Uncertain / Timeout
-    if (reportedOutcome !== 'PENDING' || verificationStatus === 'UNRESOLVED' || submissionState === 'UNKNOWN' || postingStatus === 'POSTING_FAILED') {
-      return (
-        <div className="billing-inline-alert" style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e', padding: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <i className="ph-fill ph-clock-countdown" style={{ fontSize: '1.5rem', color: '#d97706' }} />
-            <div>
-              <strong style={{ display: 'block', fontSize: '1.05rem' }}>Transaction Status Uncertain</strong>
-              <small>
-                The payment outcome or receipt evidence is unresolved. Do not send another STK Push. Refresh the saved status or check with Safaricom when available.
-              </small>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (submissionState === 'CREATED' || submissionState === 'SUBMITTING') {
-      return <div className="billing-inline-alert">{submissionState === 'CREATED'
-        ? 'Payment attempt created; no STK submission has started. You can submit this saved attempt.'
-        : 'STK submission is in progress. Do not resend the request.'}</div>;
-    }
-
-    // 6. Waiting for Customer PIN Entry / Callback
+    const summary = mpesaPaymentSummary(attempt);
     return (
-      <div className="billing-inline-alert" style={{ background: '#f8fafc', borderColor: '#cbd5e1', padding: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <MedicalSpinner size="md" />
-          <div>
-            <strong style={{ display: 'block', fontSize: '1.05rem', color: '#0f172a' }}>
-              STK Push Sent — Awaiting Customer PIN
-            </strong>
-            <small style={{ color: '#475569' }}>
-              Please ask the customer to check their mobile phone (<strong>{maskMpesaPhone(phoneValidation.normalized || phoneInput)}</strong>) and enter their M-Pesa PIN.
-            </small>
-          </div>
-        </div>
+      <div className={`billing-inline-alert mpesa-outcome mpesa-outcome-${summary.tone}`} role="status" aria-live="polite">
+        <strong>{summary.title}</strong>
+        <p>{summary.message}</p>
       </div>
     );
   };
@@ -357,7 +228,7 @@ export function MpesaPaymentModal({
       footer={
         <>
           <button className="btn-secondary" onClick={onClose} type="button">
-            {attempt?.postingStatus === 'POSTED' ? 'Close' : 'Dismiss'}
+            Close
           </button>
 
           {!activeAttemptId ? (
@@ -370,25 +241,25 @@ export function MpesaPaymentModal({
               {isSubmitting ? (
                 <>
                   <MedicalSpinner size="sm" />
-                  <span>Sending STK Push...</span>
+                  <span>Sending payment request...</span>
                 </>
               ) : (
                 <>
                   <i className="ph ph-device-mobile" />
-                  <span>Send STK Push</span>
+                  <span>Send payment request</span>
                 </>
               )}
             </button>
           ) : (
             <>
               {canCollectPayment && !attemptQuery.isError && attempt?.submissionState === 'CREATED' && !recovery?.review && (
-                <button className="btn-primary" disabled={isSubmitting || attemptQuery.isFetching} onClick={handleSubmitSaved} type="button">Submit Saved Attempt</button>
+                <button className="btn-primary" disabled={isSubmitting || attemptQuery.isFetching} onClick={handleSubmitSaved} type="button">Send saved payment request</button>
               )}
               {/* If verified and ready to post */}
               {canCollectPayment && recovery?.canPost && (
                 <button
                   className="btn-primary"
-                  disabled={isPosting || attemptQuery.isError || attemptQuery.isFetching}
+                  disabled={isPosting || attemptQuery.isError || isManualRefreshing}
                   onClick={handlePost}
                   style={{ background: '#16a34a', borderColor: '#16a34a' }}
                   type="button"
@@ -396,12 +267,12 @@ export function MpesaPaymentModal({
                   {isPosting ? (
                     <>
                       <MedicalSpinner size="sm" />
-                      <span>Posting to Ledger...</span>
+                      <span>Applying payment...</span>
                     </>
                   ) : (
                     <>
                       <i className="ph ph-check" />
-                      <span>Post Payment to Invoice</span>
+                      <span>Apply confirmed payment</span>
                     </>
                   )}
                 </button>
@@ -424,7 +295,7 @@ export function MpesaPaymentModal({
               {canCollectPayment && recovery?.canVerify && (
                   <button
                     className="btn-secondary"
-                    disabled={isVerifying || attemptQuery.isFetching}
+                    disabled={isVerifying || isManualRefreshing}
                     onClick={handleVerify}
                     type="button"
                   >
@@ -436,7 +307,7 @@ export function MpesaPaymentModal({
                     ) : (
                       <>
                         <i className="ph ph-arrows-clockwise" />
-                        <span>Check Status</span>
+                        <span>Check with Safaricom</span>
                       </>
                     )}
                   </button>
@@ -446,34 +317,22 @@ export function MpesaPaymentModal({
               {canCollectPayment && recovery?.canRetry && (
                 <button className="btn-secondary" onClick={handleReset} type="button">
                   <i className="ph ph-arrow-counter-clockwise" />
-                  <span>Try Again</span>
+                  <span>Start new payment request</span>
                 </button>
               )}
               {canCollectPayment && recovery?.posted && !recovery.review && balanceAmount > 0 && (
                 <button className="btn-secondary" onClick={handleReset} type="button">New Payment for Remaining Balance</button>
               )}
-              <button className="btn-secondary" disabled={attemptQuery.isFetching} onClick={() => void attemptQuery.refetch()} type="button">
-                {attemptQuery.isFetching ? (
-                  <>
-                    <MedicalSpinner size="sm" />
-                    <span>Refreshing...</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="ph ph-arrows-clockwise" />
-                    <span>Refresh Saved Status</span>
-                  </>
-                )}
-              </button>
             </>
           )}
         </>
       }
       icon="ph-device-mobile"
+      className="mpesa-payment-modal"
       onClose={onClose}
       open={open}
       size="default"
-      title={activeAttemptId ? 'M-Pesa Payment Status' : 'Initiate M-Pesa STK Push'}
+      title={activeAttemptId ? 'M-Pesa Payment Status' : 'Request M-Pesa payment'}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {invoiceAttempts.isError && <div className="billing-inline-alert error">Could not load existing payment attempts. Creating another attempt is disabled.
@@ -516,37 +375,37 @@ export function MpesaPaymentModal({
               <i className="ph-fill ph-device-mobile" style={{ fontSize: '1.4rem', color: '#16a34a', marginTop: '1px', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0, fontSize: '0.85rem', lineHeight: '1.45' }}>
                 <strong style={{ display: 'block', color: '#14532d', marginBottom: '0.15rem' }}>
-                  Safaricom M-Pesa STK Push
+                  Pay using M-Pesa
                 </strong>
                 <span>
-                  An STK Push prompt will be dispatched directly to the customer's Safaricom phone requesting them to authorize payment with their M-Pesa PIN.
+                  We will request payment from this number. If the Safaricom prompt appears, the customer checks the merchant and amount and enters their PIN on their own phone. Never enter or share the PIN in HMS.
                 </span>
               </div>
             </div>
 
             <label>
-              <span>Amount (KES) *</span>
+              <span>Amount (KES) <span className="mpesa-required">*</span></span>
               <input
                 disabled={isSubmitting}
-                max={balanceAmount}
+                max={Math.min(balanceAmount, 250000)}
                 min={1}
-                onChange={(e) => setAmountInput(Math.floor(Number(e.target.value)))}
+                onChange={(e) => setAmountInput(e.target.value === '' ? Number.NaN : Number(e.target.value))}
                 placeholder="Enter whole KES amount"
                 step={1}
                 type="number"
-                value={amountInput || ''}
+                value={Number.isNaN(amountInput) ? '' : amountInput}
+                aria-invalid={!isAmountValid}
+                aria-describedby="mpesa-amount-error"
               />
               {!isAmountValid && (
-                <small style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
-                  {amountInput > balanceAmount
-                    ? `Amount cannot exceed outstanding balance of ${formatMoney(balanceAmount)}.`
-                    : 'Enter a valid whole amount greater than zero.'}
+                <small id="mpesa-amount-error" role="alert" style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+                  {amountError}
                 </small>
               )}
             </label>
 
             <label>
-              <span>Customer Mobile Number *</span>
+              <span>Customer Mobile Number <span className="mpesa-required">*</span></span>
               <input
                 disabled={isSubmitting}
                 onBlur={() => setPhoneTouched(true)}
@@ -575,12 +434,15 @@ export function MpesaPaymentModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {renderStatusCard()}
 
+            {attempt && <div className="mpesa-request-summary">
+              <div><span>Requested amount</span><strong>{formatMoney(attempt.amount)}</strong></div>
+              <div><span>Customer phone</span><strong>{maskMpesaPhone(attempt.payerPhoneMasked)}</strong></div>
+            </div>}
+
             {attempt && (
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.85rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Transaction Overview
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <details className="mpesa-transaction-details">
+                <summary>Transaction details</summary>
+                <div className="mpesa-details-grid">
                   <div>
                     <span style={{ color: '#64748b', display: 'block' }}>Amount</span>
                     <strong>{formatMoney(attempt.amount)}</strong>
@@ -620,7 +482,12 @@ export function MpesaPaymentModal({
                     <strong>{attempt.nextReconciliationAt ? formatBillingDateTime(attempt.nextReconciliationAt) : '—'}</strong>
                   </div>
                 </div>
-              </div>
+                {attempt.conflictingEvidence && <p>Support code: <code>{attempt.conflictingEvidence}</code></p>}
+                <p>Refresh reloads HMS’s saved record. “Check with Safaricom” requests an updated provider result.</p>
+                <button className="btn-secondary" disabled={isManualRefreshing || isVerifying} onClick={() => void handleManualRefresh()} type="button">
+                  {isManualRefreshing ? 'Refreshing saved record...' : 'Refresh HMS record'}
+                </button>
+              </details>
             )}
           </div>
         )}
