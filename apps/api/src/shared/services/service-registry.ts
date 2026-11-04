@@ -334,7 +334,8 @@ export const createServiceRegistry = (): ServiceRegistry => {
       userRepository,
     ),
     ophthalmology: new OphthalmologyService(ophthalmologyRepository, opdVisitRepository, notificationService,
-      opdConsultationRepository, appointmentRepository, patientRepository, billingService, inpatientAdmissions),
+      opdConsultationRepository, appointmentRepository, patientRepository, billingService, inpatientAdmissions,
+      emergencyRepository),
     ophthalmologyPhase10: new OphthalmologyPhase10Service(
       ophthalmologyPhase10Repository,
       ophthalmologyRepository,

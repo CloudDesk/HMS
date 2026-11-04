@@ -102,6 +102,7 @@ const canonicalize = (value: unknown): unknown => {
 
 import type { BillingService } from '../billing/billing.service.js';
 import type { InpatientAdmissionService } from '../inpatient-admissions/inpatient-admission.service.js';
+import type { EmergencyRepository } from '../emergency/emergency.repository.js';
 
 export class OphthalmologyService {
   constructor(
@@ -113,6 +114,7 @@ export class OphthalmologyService {
     private readonly patientRepository?: PatientRepository,
     private readonly billingService?: BillingService,
     private readonly inpatientAdmissions?: InpatientAdmissionService,
+    private readonly emergencyRepository?: EmergencyRepository,
   ) {}
 
   async getClinicalWorkspace(visitId: string, userId: string) {
@@ -1430,6 +1432,13 @@ export class OphthalmologyService {
       const existingActive = await this.repository.getActiveAlertByContext(transactionalContext.id, session);
       if (existingActive) {
         if (existingActive.reason === reason) {
+          await this.ensureEmergencyEncounterForAlert(
+            transactionalContext,
+            { id: existingActive.id, triggeredBy: existingActive.triggered_by, triggeredAt: existingActive.triggered_at, reason: existingActive.reason },
+            data.urgency ?? 'EMERGENCY',
+            data.trigger_findings,
+            session,
+          );
           return existingActive;
         }
         throw new AppError('An active emergency alert is already open for this encounter', 409, 'OPHTHALMOLOGY_STATUS_CONFLICT');
@@ -1440,6 +1449,14 @@ export class OphthalmologyService {
         ? data.trigger_findings
         : ['CLINICAL_ESCALATION'];
       const alert = await this.repository.createEmergencyAlert(transactionalContext, intake, reason, userId, session, triggerCodes);
+      await this.ensureEmergencyEncounterForAlert(
+        transactionalContext,
+        { id: alert.id, triggeredBy: userId, triggeredAt: alert.triggered_at, reason },
+        data.urgency ?? 'EMERGENCY',
+        data.trigger_findings,
+        session,
+      );
+      await this.visitRepository.updatePriority(visitId, 'EMERGENCY', `Emergency escalation active: ${reason}`, session);
       for (const recipientUserId of recipients) {
         await this.notificationService.createNotification({
           recipient_user_id: recipientUserId,
@@ -1468,6 +1485,71 @@ export class OphthalmologyService {
       }, metadata, session);
       return finalAlert;
     });
+  }
+
+  private async ensureEmergencyEncounterForAlert(
+    context: { branch_id: string; department_id: string; patient_id: string; visit_id: string },
+    alert: { id: string; triggeredBy: string; triggeredAt: Date; reason: string },
+    urgency: 'ROUTINE' | 'URGENT' | 'EMERGENCY' = 'EMERGENCY',
+    triggerFindings?: string[],
+    session?: ClientSession,
+  ) {
+    if (!this.emergencyRepository) return null;
+    const existing = await this.emergencyRepository.getBySourceAlert(alert.id, context.branch_id, session);
+    if (existing) return existing;
+
+    const patientActive = await this.emergencyRepository.getActiveByPatient(context.patient_id, session);
+    if (patientActive) return patientActive;
+
+    let targetDeptId = context.department_id;
+    const emDept = await this.emergencyRepository.findEmergencyDepartment(context.branch_id, session);
+    if (emDept) {
+      targetDeptId = emDept;
+    }
+
+    const patientInfo = await this.repository.getPatientForEmergency(context.patient_id, session);
+    const triageLevel = urgency === 'URGENT' ? 'LEVEL_2_HIGH' : urgency === 'ROUTINE' ? 'LEVEL_3_MEDIUM' : 'LEVEL_1_CRITICAL';
+    const initialStatus = urgency === 'ROUTINE' ? 'WAITING_FOR_TRIAGE' : 'TRIAGED';
+
+    return this.emergencyRepository.create(
+      {
+        branch_id: context.branch_id,
+        department_id: targetDeptId,
+        patient_id: context.patient_id,
+        arrival_mode: 'OPD_SPECIALTY_TRANSFER',
+        arrival_at: new Date().toISOString(),
+        chief_complaint: `Emergency escalation: ${alert.reason}`,
+        originatingSource: {
+          sourceType: 'OPD_SPECIALTY_ALERT',
+          specialty: 'OPHTHALMOLOGY',
+          sourceAlertId: alert.id,
+          originatingVisitId: context.visit_id,
+          escalatedBy: alert.triggeredBy,
+          escalatedAt: alert.triggeredAt ? new Date(alert.triggeredAt).toISOString() : new Date().toISOString(),
+        },
+      },
+      {
+        patientId: new Types.ObjectId(context.patient_id),
+        patientNumber: patientInfo.patientNumber,
+        patientName: patientInfo.patientName,
+      },
+      alert.triggeredBy,
+      session,
+      {
+        status: initialStatus,
+        triage: {
+          level: triageLevel,
+          effectiveLevel: triageLevel,
+          area: 'Emergency',
+          nurseUserId: new Types.ObjectId(alert.triggeredBy),
+          assessedAt: new Date(),
+          painScore: null,
+          vitals: {},
+          abcde: {},
+          notes: `Consultation escalation (${triggerFindings?.join(', ') || 'Consultation Escalation'}): ${alert.reason}`,
+        },
+      },
+    );
   }
 
   async getPatientJourneyStatus(visitId: string, userId: string): Promise<OphthalmologyPatientJourneyStatus> {

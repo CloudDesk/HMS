@@ -401,9 +401,14 @@ export class EmergencyRepository {
     },
     actor: string,
     session?: ClientSession,
+    options?: {
+      status?: EmergencyStatus;
+      triage?: EmergencyEncounterFields['triage'];
+    },
   ) {
     const sequence = await this.sequenceService.getNextSequence('emergency_encounter', session);
     const ts = this.sequenceService.formatTimestampSequence(null, sequence);
+    const initialStatus: EmergencyStatus = options?.status ?? 'WAITING_FOR_TRIAGE';
     const rows = await EmergencyEncounterModel.create(
       [
         {
@@ -414,6 +419,8 @@ export class EmergencyRepository {
           patientId: identity.patientId,
           patientNumber: identity.patientNumber,
           patientName: identity.patientName,
+          assignedDoctorId: null,
+          assignedDoctorName: null,
           provisionalIdentity: data.patient_id
             ? null
             : {
@@ -437,13 +444,15 @@ export class EmergencyRepository {
                 escalatedAt: new Date((data.originatingSource || data.originating_source)!.escalatedAt),
               }
             : null,
-          status: 'WAITING_FOR_TRIAGE',
+          status: initialStatus,
+          triage: options?.triage ?? null,
           version: 0,
           queueHistory: [
             {
               action: 'REGISTERED',
               fromStatus: 'REGISTERED',
-              toStatus: 'WAITING_FOR_TRIAGE',
+              toStatus: initialStatus,
+              reason: data.chief_complaint,
               actorId: oid(actor),
               occurredAt: new Date(),
             },
@@ -457,6 +466,27 @@ export class EmergencyRepository {
     const row = rows[0];
     if (!row) throw new Error('Emergency encounter create returned no record');
     return emergencyDto(row.toObject() as EmergencyLean);
+  }
+
+  async findEmergencyDepartment(branchId: string, session?: ClientSession): Promise<string | null> {
+    const query = DepartmentModel.findOne({
+      branchIds: oid(branchId),
+      name: { $regex: /emergency|casualty|trauma/i },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).lean();
+    if (session) query.session(session);
+    const dept = await query;
+    if (dept) return dept._id.toString();
+
+    const fallbackQuery = DepartmentModel.findOne({
+      name: { $regex: /emergency|casualty|trauma/i },
+      status: 'ACTIVE',
+      deletedAt: null,
+    }).lean();
+    if (session) fallbackQuery.session(session);
+    const fallbackDept = await fallbackQuery;
+    return fallbackDept ? fallbackDept._id.toString() : null;
   }
   async getRecord(id: string, branchId: string, session?: ClientSession) {
     const query = EmergencyEncounterModel.findOne({

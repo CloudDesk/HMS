@@ -114,7 +114,7 @@ export function EmergencyQueuePage() {
   const filteredQueue = useMemo(() => {
     return allEncounters.filter((item) => {
       if (dashboardProfile === 'doctor' && !canFilterOtherDoctors) {
-        if (item.assigned_doctor_id !== null && !isAssignedToMe(item.assigned_doctor_id)) {
+        if (Boolean(item.assigned_doctor_id) && !isAssignedToMe(item.assigned_doctor_id)) {
           return false;
         }
         return true;

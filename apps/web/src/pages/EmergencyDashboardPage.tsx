@@ -265,7 +265,7 @@ export function EmergencyDashboardPage() {
   const doctorQueueEncounters = useMemo(
     () =>
       activeEncounters.filter(
-        (e) => isAssignedToMe(e.assigned_doctor_id) || e.assigned_doctor_id === null,
+        (e) => isAssignedToMe(e.assigned_doctor_id) || !e.assigned_doctor_id || e.assigned_doctor_id === null,
       ),
     [activeEncounters, isAssignedToMe],
   );
@@ -818,8 +818,8 @@ export function EmergencyDashboardPage() {
               ) ||
               doctorQueueEncounters.find(
                 (e) =>
-                  e.assigned_doctor_id === null &&
-                  ['TRIAGED', 'WAITING_FOR_DOCTOR'].includes(e.status),
+                  (!e.assigned_doctor_id || e.assigned_doctor_id === null) &&
+                  ['TRIAGED', 'WAITING_FOR_DOCTOR', 'WAITING_FOR_TRIAGE'].includes(e.status),
               );
             if (nextCase) {
               navigate(

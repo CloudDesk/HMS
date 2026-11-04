@@ -388,6 +388,19 @@ export class OpdVisitRepository {
     return visit ? toVisit(visit) : undefined;
   }
 
+  async updatePriority(visitId: string, priority: import('./opd-visit.types.js').OpdVisitPriority, notes?: string, session?: ClientSession) {
+    return OpdVisitModel.findOneAndUpdate(
+      { _id: requiredObjectId(visitId), deletedAt: null },
+      {
+        $set: {
+          priority,
+          ...(notes ? { notes } : {}),
+        },
+      },
+      { returnDocument: 'after', session: session ?? undefined },
+    ).lean<OpdVisitLean>();
+  }
+
   async claimNextPatientCall(currentVisitId: string, nextVisitId: string, userId: string, session?: ClientSession) {
     return OpdVisitModel.findOneAndUpdate(
       {

@@ -21,7 +21,10 @@ export function useOphthalmologyWorkflows(branchId: string, subtype: Parameters<
 }
 export function useOphthalmologyIntakeMutations(visitId: string) {
   const client = useQueryClient();
-  const refresh = () => { void client.invalidateQueries({ queryKey: ophthalmologyKeys.visit(visitId) }); };
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: ophthalmologyKeys.visit(visitId) });
+    void client.invalidateQueries({ queryKey: ['emergency'] });
+  };
   const create = useMutation({ mutationFn: (body: Parameters<typeof service.createContext>[1]) => service.createContext(visitId, body), onSuccess: refresh });
   const update = useMutation({ mutationFn: (body: Parameters<typeof service.updateContext>[1]) => service.updateContext(visitId, body), onSuccess: refresh });
   const save = useMutation({ mutationFn: (body: SaveOphthalmologyIntake) => service.saveIntake(visitId, body), onSuccess: refresh });

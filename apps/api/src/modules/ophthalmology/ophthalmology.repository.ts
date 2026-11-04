@@ -937,6 +937,18 @@ export class OphthalmologyRepository {
       { returnDocument: 'after', lean: true, session }).lean<TestTaskRecord>(); return record ? toTestTask(record) : null;
   }
 
+  async getPatientForEmergency(patientId: string, session?: ClientSession) {
+    const query = PatientModel.findById(oid(patientId))
+      .select('firstName middleName lastName patientNumber')
+      .lean<{ firstName?: string; middleName?: string; lastName?: string; patientNumber?: string }>();
+    if (session) query.session(session);
+    const patient = await query;
+    return {
+      patientName: patient ? [patient.firstName, patient.middleName, patient.lastName].filter(Boolean).join(' ') : 'Unknown Patient',
+      patientNumber: patient?.patientNumber ?? null,
+    };
+  }
+
   async getClinicalReviewByVisit(visitId: string, session?: ClientSession) {
     const query = OphthalmologyClinicalReviewModel.findOne({ visitId: oid(visitId) }); if (session) query.session(session);
     const record = await query.lean<ClinicalReviewRecord>(); return record ? toClinicalReview(record) : null;
