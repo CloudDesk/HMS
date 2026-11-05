@@ -214,7 +214,7 @@ export function MpesaPaymentModal({
       );
     }
 
-    const summary = mpesaPaymentSummary(attempt);
+    const summary = mpesaPaymentSummary(attempt, canCollectPayment);
     return (
       <div className={`billing-inline-alert mpesa-outcome mpesa-outcome-${summary.tone}`} role="status" aria-live="polite">
         <strong>{summary.title}</strong>
@@ -443,50 +443,78 @@ export function MpesaPaymentModal({
               <details className="mpesa-transaction-details">
                 <summary>Transaction details</summary>
                 <div className="mpesa-details-grid">
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Amount</span>
-                    <strong>{formatMoney(attempt.amount)}</strong>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Amount</span>
+                    <div className="mpesa-detail-value">
+                      <strong>{formatMoney(attempt.amount)}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Phone</span>
-                    <strong>{maskMpesaPhone(attempt.payerPhoneMasked)}</strong>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Phone</span>
+                    <div className="mpesa-detail-value">
+                      <strong>{maskMpesaPhone(attempt.payerPhoneMasked)}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Submission</span>
-                    <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
-                      {attempt.submissionState}
-                    </span>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Submission</span>
+                    <div className="mpesa-detail-value">
+                      <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                        {attempt.submissionState}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Verification</span>
-                    <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
-                      {attempt.verificationStatus}
-                    </span>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Verification</span>
+                    <div className="mpesa-detail-value">
+                      <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                        {attempt.verificationStatus}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Posting Status</span>
-                    <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.1rem 0.4rem' }}>
-                      {attempt.postingStatus}
-                    </span>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Posting Status</span>
+                    <div className="mpesa-detail-value">
+                      <span className="billing-status" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                        {attempt.postingStatus}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Safaricom Receipt</span>
-                    <strong>{attempt.receiptNumber ?? '—'}</strong>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Safaricom Receipt</span>
+                    <div className="mpesa-detail-value">
+                      <strong>{attempt.receiptNumber ?? '—'}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Recovery</span>
-                    <strong>{attempt.recoveryStatus.replaceAll('_', ' ')}</strong>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Recovery</span>
+                    <div className="mpesa-detail-value">
+                      <strong>{attempt.recoveryStatus.replaceAll('_', ' ')}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748b', display: 'block' }}>Next Reconciliation Due</span>
-                    <strong>{attempt.nextReconciliationAt ? formatBillingDateTime(attempt.nextReconciliationAt) : '—'}</strong>
+                  <div className="mpesa-detail-item">
+                    <span className="mpesa-detail-label">Next Reconciliation Due</span>
+                    <div className="mpesa-detail-value">
+                      <strong>{attempt.nextReconciliationAt ? formatBillingDateTime(attempt.nextReconciliationAt) : '—'}</strong>
+                    </div>
                   </div>
                 </div>
-                {attempt.conflictingEvidence && <p>Support code: <code>{attempt.conflictingEvidence}</code></p>}
-                <p>Refresh reloads HMS’s saved record. “Check with Safaricom” requests an updated provider result.</p>
-                <button className="btn-secondary" disabled={isManualRefreshing || isVerifying} onClick={() => void handleManualRefresh()} type="button">
-                  {isManualRefreshing ? 'Refreshing saved record...' : 'Refresh HMS record'}
-                </button>
+
+                {attempt.conflictingEvidence && (
+                  <div className="mpesa-conflict-alert" style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.8rem', color: '#991b1b' }}>
+                    Support code: <code>{attempt.conflictingEvidence}</code>
+                  </div>
+                )}
+
+                <div className="mpesa-details-footer" style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', lineHeight: 1.45 }}>
+                    Refresh reloads HMS’s saved record. “Check with Safaricom” requests an updated provider result.
+                  </p>
+                  <div>
+                    <button className="btn-secondary" disabled={isManualRefreshing || isVerifying} onClick={() => void handleManualRefresh()} type="button">
+                      {isManualRefreshing ? 'Refreshing saved record...' : 'Refresh HMS record'}
+                    </button>
+                  </div>
+                </div>
               </details>
             )}
           </div>

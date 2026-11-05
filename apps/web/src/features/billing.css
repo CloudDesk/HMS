@@ -116,9 +116,79 @@
 .mpesa-request-summary, .mpesa-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .mpesa-request-summary span { display: block; color: #64748b; font-size: 0.8rem; }
 .mpesa-request-summary strong { display: block; color: #0f172a; }
-.mpesa-transaction-details { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem; overflow-wrap: anywhere; }
-.mpesa-transaction-details summary, .mpesa-exceptions-modal summary { cursor: pointer; font-weight: 600; }
-.mpesa-details-grid { margin-top: 0.85rem; font-size: 0.85rem; }
+.mpesa-transaction-details {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.mpesa-transaction-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1e293b;
+  outline: none;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+.mpesa-transaction-details summary::-webkit-details-marker {
+  display: none;
+}
+.mpesa-transaction-details summary::before {
+  content: '▶';
+  font-size: 0.65rem;
+  color: #64748b;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.mpesa-transaction-details[open] summary::before {
+  transform: rotate(90deg);
+}
+.mpesa-transaction-details summary:hover {
+  background: #f1f5f9;
+}
+.mpesa-exceptions-modal summary { cursor: pointer; font-weight: 600; }
+.mpesa-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+}
+.mpesa-detail-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+}
+.mpesa-detail-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.mpesa-detail-value {
+  font-size: 0.875rem;
+  color: #0f172a;
+  line-height: 1.4;
+  min-height: 1.4rem;
+  display: flex;
+  align-items: center;
+}
+.mpesa-detail-value strong {
+  color: #0f172a;
+}
 .mpesa-exceptions-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; flex-wrap: wrap; }
 .mpesa-exceptions-modal .billing-table { min-width: 0; table-layout: fixed; width: 100%; }
 .mpesa-exceptions-modal .billing-table th, .mpesa-exceptions-modal .billing-table td { white-space: normal; overflow-wrap: anywhere; }

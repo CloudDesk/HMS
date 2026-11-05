@@ -19,14 +19,16 @@ export function mpesaReviewReason(reason: string | null): string {
   }
 }
 
-export function mpesaPaymentSummary(attempt: MpesaAttemptView) {
+export function mpesaPaymentSummary(attempt: MpesaAttemptView, canCollectPayment = true) {
   const state = mpesaRecovery(attempt);
   if (state.review) return { tone: 'error', title: 'Billing supervisor review needed',
     message: `${mpesaReviewReason(attempt.conflictingEvidence)} Contact your billing supervisor. Do not request another payment until this has been reviewed.` };
   if (state.posted) return { tone: 'success', title: 'Payment applied to invoice',
     message: 'The payment is recorded in HMS. You can view the receipt below.' };
   if (state.canPost) return { tone: 'info', title: 'Payment confirmed — ready to apply',
-    message: 'Safaricom success and receipt evidence are available. Select “Apply confirmed payment” to update this invoice.' };
+    message: canCollectPayment
+      ? 'Safaricom success and receipt evidence are available. Select “Apply confirmed payment” to update this invoice.'
+      : 'Safaricom success and receipt evidence are available. A staff member with payment collection permissions can apply this to the invoice.' };
   if (attempt.verificationStatus === 'FAILED' || attempt.submissionState === 'REJECTED') {
     return { tone: 'error', title: attempt.reportedOutcome === 'TIMEOUT' ? 'Payment timed out'
       : attempt.reportedOutcome === 'CANCELLED' ? 'Payment cancelled' : 'Payment unsuccessful',
